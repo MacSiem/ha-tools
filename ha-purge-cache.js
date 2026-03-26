@@ -427,7 +427,7 @@ class HAPurgeCache extends HTMLElement {
           padding: 2px 6px;
           border: 1px solid var(--pc-border);
           border-radius: 4px;
-          background: white;
+          background: var(--card-background-color, white);
           cursor: pointer;
           font-size: 10px;
           line-height: 1;

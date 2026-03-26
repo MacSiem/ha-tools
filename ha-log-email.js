@@ -464,8 +464,8 @@ class HALogEmail extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host {
-          --bg: #F8FAFC; --card: #FFFFFF; --border: #E2E8F0;
-          --text: #1E293B; --text2: #64748B; --text3: #94A3B8;
+          --bg: var(--primary-background-color, #F8FAFC); --card: var(--card-background-color, #FFFFFF); --border: var(--divider-color, #E2E8F0);
+          --text: var(--primary-text-color, #1E293B); --text2: var(--secondary-text-color, #64748B); --text3: var(--disabled-text-color, #94A3B8);
           --primary: #3B82F6; --success: #10B981; --error: #EF4444;
           --warning: #F59E0B; --radius: 12px; --radius-sm: 8px;
           display: block; font-family: Inter, sans-serif;

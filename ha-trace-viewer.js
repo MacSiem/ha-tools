@@ -1,4 +1,4 @@
-﻿class HATraceViewer extends HTMLElement {
+class HATraceViewer extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -1279,11 +1279,11 @@
   --ec: #EF4444;
   --wc: #F59E0B;
   --sc: #10B981;
-  --bg: #F8FAFC;
-  --cbg: #FFFFFF;
-  --tc: #1E293B;
-  --ts: #64748B;
-  --dc: #E2E8F0;
+  --bg: var(--primary-background-color, #F8FAFC);
+  --cbg: var(--card-background-color, #FFFFFF);
+  --tc: var(--primary-text-color, #1E293B);
+  --ts: var(--secondary-text-color, #64748B);
+  --dc: var(--divider-color, #E2E8F0);
   --hov: rgba(59, 130, 246, 0.04);
   --sel: rgba(59, 130, 246, 0.08);
   --radius: 16px;

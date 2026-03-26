@@ -119,8 +119,8 @@ class HAEnergyEmail extends HTMLElement {
           --ok: #10B981; --ok-l: rgba(16,185,129,.1);
           --er: #EF4444; --er-l: rgba(239,68,68,.1);
           --wa: #F59E0B; --wa-l: rgba(245,158,11,.1);
-          --bg: #F8FAFC; --ca: #FFFFFF; --bo: #E2E8F0;
-          --tx: #1E293B; --t2: #64748B; --t3: #94A3B8;
+          --bg: var(--primary-background-color, #F8FAFC); --ca: var(--card-background-color, #FFFFFF); --bo: var(--divider-color, #E2E8F0);
+          --tx: var(--primary-text-color, #1E293B); --t2: var(--secondary-text-color, #64748B); --t3: var(--disabled-text-color, #94A3B8);
           --r1: 6px; --r2: 12px; --r3: 16px;
           --sh: 0 1px 3px rgba(0,0,0,.05);
           font-family: 'Inter', sans-serif;
