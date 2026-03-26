@@ -220,13 +220,8 @@ class HAToolsPanel extends HTMLElement {
       toolsContainer.querySelectorAll('.nav-item.has-children').forEach(item => {
         item.addEventListener('click', (e) => {
           const toolId = item.dataset.tool;
-          const tag = item.dataset.tag;
-          // If parent has a real tag (is a tool itself), load it AND toggle children
-          if (tag) {
-            this._setActiveNav(item);
-            this._loadTool(toolId, tag);
-          }
-          // Toggle children visibility
+          // Only toggle children visibility, never navigate
+          e.stopPropagation();
           const groupEl = toolsContainer.querySelector(`.nav-group-children[data-group="${toolId}"]`);
           if (groupEl) {
             const wasCollapsed = this._collapsedGroups.has(toolId);
@@ -315,13 +310,13 @@ class HAToolsPanel extends HTMLElement {
 
 
 :host {
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
   --bento-primary: #3B82F6;
   --bento-primary-hover: #2563EB;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-border: #E2E8F0;
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-border: var(--divider-color, #E2E8F0);
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
@@ -646,6 +641,17 @@ class HAToolsPanel extends HTMLElement {
 .group-card-name { font-size: 14px; font-weight: 600; color: var(--bento-text); }
 .group-card-count { font-size: 11px; color: var(--bento-text-secondary); }
 .group-card-tools { font-size: 14px; margin-left: auto; opacity: 0.7; }
+.group-card-wrapper { display: flex; flex-direction: column; }
+.group-card-children { display: none; padding: 0 8px 8px; }
+.group-card-wrapper.expanded .group-card-children { display: flex; flex-direction: column; gap: 4px; }
+.group-card-wrapper.expanded .group-card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
+.group-card-children { background: var(--bento-card); border: 1.5px solid var(--bento-border); border-top: none; border-radius: 0 0 var(--bento-radius) var(--bento-radius); }
+.group-child-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-radius: 8px; transition: background 0.15s; font-size: 13px; color: var(--bento-text); }
+.group-child-item:hover { background: var(--bento-hover, rgba(0,0,0,0.04)); }
+.group-child-item .gci-icon { font-size: 16px; width: 24px; text-align: center; flex-shrink: 0; }
+.group-child-item .gci-name { font-weight: 500; }
+.group-card-expand { margin-left: 8px; font-size: 12px; opacity: 0.5; transition: transform 0.2s; }
+.group-card-wrapper.expanded .group-card-expand { transform: rotate(180deg); }
 .tips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .tip-card { display: flex; gap: 12px; padding: 14px; background: var(--bento-card); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius); font-size: 12px; line-height: 1.5; color: var(--bento-text-secondary); }
 .tip-icon { font-size: 22px; flex-shrink: 0; }
@@ -827,14 +833,13 @@ class HAToolsPanel extends HTMLElement {
 .donate-section h3 {
   font-size: 17px;
   font-weight: 600;
-  color: #881337;
+  color: #4c0519;
   margin: 0 0 6px 0;
 }
 .donate-section p {
   font-size: 13.5px;
-  color: #9f1239;
+  color: #6b1028;
   margin: 0;
-  opacity: 0.85;
   line-height: 1.5;
 }
 .donate-buttons {
@@ -961,12 +966,12 @@ class HAToolsPanel extends HTMLElement {
   --bento-error-light: rgba(239, 68, 68, 0.08);
   --bento-warning: #F59E0B;
   --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
-  --bento-border: #E2E8F0;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-text-muted: #94A3B8;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;
@@ -1407,38 +1412,25 @@ ${HAToolsPanel.CSS}</style>
           <div class="groups-grid">
             ${[...groupParents, ...parents.filter(t => children.some(c => c.group === t.id))].map(g => {
               const myChildren = children.filter(c => c.group === g.id);
-              return `<div class="group-card" data-tool="${g.id}">
-                <div class="group-card-icon">${g.icon}</div>
-                <div class="group-card-info">
-                  <div class="group-card-name">${g.name}</div>
-                  <div class="group-card-count">${myChildren.length} narz\u0119dzi</div>
+              return `<div class="group-card-wrapper" data-group="${g.id}">
+                <div class="group-card" data-tool="${g.id}">
+                  <div class="group-card-icon">${g.icon}</div>
+                  <div class="group-card-info">
+                    <div class="group-card-name">${g.name}</div>
+                    <div class="group-card-count">${myChildren.length} narz\u0119dzi</div>
+                  </div>
+                  <div class="group-card-tools">${myChildren.map(c => c.icon).join(' ')}</div>
+                  <span class="group-card-expand">\u25BC</span>
                 </div>
-                <div class="group-card-tools">${myChildren.map(c => c.icon).join(' ')}</div>
+                <div class="group-card-children">
+                  ${myChildren.map(c => `<div class="group-child-item" data-tool="${c.id}" data-tag="${c.tag}"><span class="gci-icon">${c.icon}</span><span class="gci-name">${c.name}</span></div>`).join('')}
+                </div>
               </div>`;
             }).join('')}
           </div>
         </div>
 
-        <!-- Standalone Tools -->
-        <div class="home-section">
-          <div class="home-section-title">\u2705 Narz\u0119dzia <span class="count">(${available.filter(t => !t.group && t.tag && !children.some(c => c.group === t.id)).length})</span></div>
-          <div class="tools-grid">
-            ${available.filter(t => !t.group && t.tag && !children.some(c => c.group === t.id)).map((t, i) => `
-              <div class="tool-card" data-tool="${t.id}" data-tag="${t.tag}" style="animation-delay: ${i * 50}ms">
-                <div class="tool-card-header">
-                  <div class="tool-card-icon">${t.icon}</div>
-                  <div style="flex: 1">
-                    <div class="tool-card-name">${t.name}</div>
-                  </div>
-                </div>
-                <div class="tool-card-desc">${t.desc}</div>
-                <div class="tool-card-footer">
-                  <span class="tool-card-category">${cats[t.category]?.name || t.category}</span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
+
 
         <!-- Tips & Shortcuts -->
         <div class="home-section">
@@ -1473,7 +1465,7 @@ ${HAToolsPanel.CSS}</style>
 
         <!-- Changelog -->
         <div class="home-section">
-          <div class="home-section-title">\u{1F4DD} Ostatnie zmiany <span class="count">v3.3.0</span></div>
+          <div class="home-section-title">\u{1F4DD} Ostatnie zmiany <span class="count">v3.4.0</span></div>
           <div class="changelog-card">
             <div class="cl-item"><span class="cl-tag new">NEW</span> Purge Cache \u2014 narz\u0119dzie do czyszczenia cache przegl\u0105darki</div>
             <div class="cl-item"><span class="cl-tag new">NEW</span> Grupowanie narz\u0119dzi z animacj\u0105 collapse/expand</div>
@@ -1531,23 +1523,31 @@ ${HAToolsPanel.CSS}</style>
       });
     });
 
-    // Bind group card clicks — click to expand group in sidebar and show first child tool
+    // Bind group card clicks — toggle expand to show child tools
     content.querySelectorAll('.group-card[data-tool]').forEach(card => {
       card.addEventListener('click', () => {
-        const groupId = card.dataset.tool;
-        const firstChild = HAToolsPanel.TOOLS.find(t => t.group === groupId);
-        if (firstChild) {
-          const navItem = this.shadowRoot.querySelector(`.nav-item[data-tool="${firstChild.id}"]`);
-          if (navItem) {
-            // Expand group in sidebar
-            this._collapsedGroups.delete(groupId);
-            const groupEl = this.shadowRoot.querySelector(`.nav-group-children[data-group="${groupId}"]`);
-            const chevron = this.shadowRoot.querySelector(`.nav-item[data-tool="${groupId}"] .nav-expand`);
-            if (groupEl) groupEl.classList.remove('collapsed');
-            if (chevron) chevron.classList.remove('collapsed');
-            this._setActiveNav(navItem);
-            this._loadTool(firstChild.id, firstChild.tag);
-          }
+        const wrapper = card.closest('.group-card-wrapper');
+        if (wrapper) wrapper.classList.toggle('expanded');
+      });
+    });
+
+    // Bind child tool clicks in expanded groups — navigate to tool
+    content.querySelectorAll('.group-child-item[data-tool]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const toolId = item.dataset.tool;
+        const tag = item.dataset.tag;
+        const groupId = item.closest('.group-card-wrapper').dataset.group;
+        // Expand group in sidebar
+        this._collapsedGroups.delete(groupId);
+        const groupEl = this.shadowRoot.querySelector(`.nav-group-children[data-group="${groupId}"]`);
+        const chevron = this.shadowRoot.querySelector(`.nav-item[data-tool="${groupId}"] .nav-expand`);
+        if (groupEl) groupEl.classList.remove('collapsed');
+        if (chevron) chevron.classList.remove('collapsed');
+        const navItem = this.shadowRoot.querySelector(`.nav-item[data-tool="${toolId}"]`);
+        if (navItem) {
+          this._setActiveNav(navItem);
+          this._loadTool(toolId, tag);
         }
       });
     });

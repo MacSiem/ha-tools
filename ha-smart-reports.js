@@ -87,12 +87,12 @@ class HASmartReports extends HTMLElement {
   --bento-error-light: rgba(239, 68, 68, 0.08);
   --bento-warning: #F59E0B;
   --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
-  --bento-border: #E2E8F0;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-text-muted: #94A3B8;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;

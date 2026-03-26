@@ -816,7 +816,7 @@ class HASentenceManager extends HTMLElement {
         <div class="editor-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
             <h2 style="margin:0;">${this.editingIndex !== null ? '\u270F\uFE0F Edytuj zdanie' : '\u2795 Nowe zdanie'}</h2>
-            <div style="display:flex;gap:8px;align-items:center;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0;">
               <select id="sentence-selector" style="min-width:220px;padding:8px 12px;font-size:13px;border-radius:var(--bento-radius-sm);border:1.5px solid var(--bento-border);background:var(--bento-card);color:var(--bento-text);">
                 <option value="">Wybierz zdanie do edycji...</option>
                 ${this.sentences.map((s, i) => `<option value="${i}">${s.trigger.substring(0, 50)}${s.trigger.length > 50 ? '...' : ''} [${s.intent}]</option>`).join('')}
@@ -1169,12 +1169,12 @@ class HASentenceManager extends HTMLElement {
   --bento-error-light: rgba(239, 68, 68, 0.08);
   --bento-warning: #F59E0B;
   --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
-  --bento-border: #E2E8F0;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-text-muted: #94A3B8;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;
@@ -1830,13 +1830,13 @@ canvas {
 
 
 :host {
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
   --bento-primary: #3B82F6;
   --bento-primary-hover: #2563EB;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-border: #E2E8F0;
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-border: var(--divider-color, #E2E8F0);
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
@@ -2125,6 +2125,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .panels { flex-direction: column; }
   .board { flex-direction: column; }
   .column { min-width: unset; }
+  .editor-section select { min-width: 0 !important; width: 100% !important; }
+  .editor-section .btn { flex-shrink: 0; }
+  .editor-section h2 { font-size: 16px !important; }
+  .form-group input, .form-group select, .form-group textarea { font-size: 16px !important; }
 }
 
 

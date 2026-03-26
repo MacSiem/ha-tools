@@ -54,48 +54,44 @@ class HALogEmail extends HTMLElement {
     if (!this._hass) return;
     this._loading = true;
     this._render();
-
     try {
-      // Fetch logbook entries via HA REST API
-      const now = new Date();
-      const from = new Date(now - 24 * 60 * 60 * 1000).toISOString();
-      const url = `/api/logbook/${from}?entity_id=&end_time=${now.toISOString()}`;
-
-      const response = await this._hass.callApi('GET', `logbook/${from}?end_time=${now.toISOString()}&entity_id=`);
-      // Filter for errors/warnings based on message content
-      if (Array.isArray(response)) {
-        const errors = response.filter(e =>
-          e.message && (
-            e.message.toLowerCase().includes('error') ||
-            e.message.toLowerCase().includes('failed') ||
-            e.message.toLowerCase().includes('exception')
-          )
-        );
-        const warnings = response.filter(e =>
-          e.message && (
-            e.message.toLowerCase().includes('warning') ||
-            e.message.toLowerCase().includes('warn') ||
-            e.message.toLowerCase().includes('deprecated')
-          )
-        );
+      const logs = await this._hass.callWS({ type: 'system_log/list' });
+      if (Array.isArray(logs)) {
+        const now = Date.now();
+        const h24 = 24 * 60 * 60 * 1000;
+        const recent = logs.filter(e => {
+          const ts = e.timestamp ? e.timestamp * 1000 : 0;
+          return (now - ts) < h24;
+        });
+        const errors = recent.filter(e => e.level === 'ERROR' || e.level === 'CRITICAL');
+        const warnings = recent.filter(e => e.level === 'WARNING');
+        const mapEntry = function(e) {
+          return {
+            message: Array.isArray(e.message) ? e.message.join(' ') : String(e.message || ''),
+            domain: e.name || (Array.isArray(e.source) ? e.source[0] : 'unknown'),
+            when: e.timestamp ? new Date(e.timestamp * 1000).toISOString() : '',
+            count: e.count || 1,
+            level: e.level
+          };
+        };
         this._logData = {
-          errors: errors.slice(0, this._config.max_entries),
-          warnings: warnings.slice(0, this._config.max_entries),
-          total: response.length,
+          errors: errors.slice(0, this._config.max_entries).map(mapEntry),
+          warnings: warnings.slice(0, this._config.max_entries).map(mapEntry),
+          total: recent.length,
+          allLogs: logs.length,
           fetchedAt: new Date().toISOString()
         };
       }
     } catch (err) {
-      // Fallback: try to read from sensor if available
+      console.warn('[ha-log-email] system_log/list failed:', err);
       this._logData = this._getLogFromSensor();
     }
-
     this._loading = false;
     this._lastFetch = Date.now();
     this._render();
   }
 
-  _getLogFromSensor() {
+    _getLogFromSensor() {
     if (!this._hass) return null;
     const sensor = this._hass.states['sensor.ha_log_summary'];
     if (!sensor) return {
@@ -193,30 +189,44 @@ class HALogEmail extends HTMLElement {
   }
   async _sendEmailNow(period) {
     if (!this._hass) return;
+    const smtp = this._detectSmtp();
+    if (!smtp.found || !smtp.defaultService) {
+      this._sendStatus = { status: 'error', period, error: 'SMTP nie skonfigurowany' };
+      this._render(); return;
+    }
     this._sendStatus = { status: 'sending', period };
     this._render();
     try {
-      await this._hass.callService('automation', 'trigger', {
-        entity_id: period === 'daily' ?
-          'automation.ha_log_email_daily' :
-          'automation.ha_log_email_weekly'
-      });
+      const data = this._logData;
+      const errors = data ? (data.errors || []) : [];
+      const warnings = data ? (data.warnings || []) : [];
+      const now = new Date().toLocaleString('pl-PL');
+      const subject = period === 'daily'
+        ? 'HA Log - Raport dzienny (' + now + ')'
+        : 'HA Log - Raport tygodniowy (' + now + ')';
+      var body = '<h2>' + subject + '</h2>';
+      body += '<p>Errors: <strong>' + errors.length + '</strong> | Warnings: <strong>' + warnings.length + '</strong></p>';
+      if (errors.length > 0) {
+        body += '<h3 style="color:#ef4444">Errors</h3><ul>';
+        errors.forEach(function(e) { body += '<li><b>' + (e.domain||'') + '</b>: ' + (e.message||'').substring(0,200) + ' (x' + (e.count||1) + ')</li>'; });
+        body += '</ul>';
+      }
+      if (warnings.length > 0) {
+        body += '<h3 style="color:#f59e0b">Warnings</h3><ul>';
+        warnings.forEach(function(e) { body += '<li><b>' + (e.domain||'') + '</b>: ' + (e.message||'').substring(0,200) + ' (x' + (e.count||1) + ')</li>'; });
+        body += '</ul>';
+      }
+      if (errors.length === 0 && warnings.length === 0) body += '<p style="color:#10b981">System czysty.</p>';
+      body += '<hr><p style="font-size:11px;color:#999">HA Tools Log Email</p>';
+      await this._hass.callService('notify', smtp.defaultService, { title: subject, message: body, data: { html: body } });
       this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString('pl-PL') };
     } catch (err) {
-      // Try script
-      try {
-        await this._hass.callService('script', 'send_ha_log_email', {
-          period: period
-        });
-        this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString('pl-PL') };
-      } catch (err2) {
-        this._sendStatus = { status: 'error', period, error: err2.message || 'Unknown error' };
-      }
+      this._sendStatus = { status: 'error', period, error: err.message || 'Unknown error' };
     }
     this._render();
   }
 
-  _getScheduleState(entityId) {
+    _getScheduleState(entityId) {
     if (!this._hass || !this._hass.states[entityId]) return 'unknown';
     return this._hass.states[entityId].state;
   }
@@ -287,8 +297,8 @@ class HALogEmail extends HTMLElement {
     const statusLabel = totalErrors > 0 ? `${totalErrors} error${totalErrors > 1 ? 's' : ''}` :
                         totalWarnings > 0 ? `${totalWarnings} warning${totalWarnings > 1 ? 's' : ''}` : 'Clean';
 
-    const dailyAuto = this._getScheduleState('automation.ha_log_email_daily');
-    const weeklyAuto = this._getScheduleState('automation.ha_log_email_weekly');
+    const dailyAuto = 'unavailable';
+    const weeklyAuto = 'unavailable';
 
     const tabs = [
       { id: 'overview', label: 'Overview', icon: '\uD83D\uDCCA' },
@@ -305,6 +315,7 @@ class HALogEmail extends HTMLElement {
       return '';
     })() : '';
 
+    const smtpHtml = this._renderSmtpSection();
     let tabContent = '';
 
     if (this._activeTab === 'overview') {
@@ -445,7 +456,7 @@ class HALogEmail extends HTMLElement {
         <div class="section-header" style="margin-top:16px">Recipient</div>
         <div class="info-card">\uD83D\uDCE7 ${this._config.email_recipient}</div>
         <div class="info-note" style="margin-top:8px">
-          \u2139\uFE0F Uses automation triggers: <code>automation.ha_log_email_daily</code> and <code>automation.ha_log_email_weekly</code>
+          \u2139\uFE0F Wysy\u0142a email bezpo\u015Brednio przez wykryty serwis SMTP (notify). Nie wymaga osobnych automatyzacji.
         </div>
       `;
     }
@@ -589,11 +600,9 @@ class HALogEmail extends HTMLElement {
     const btnRefreshPreview = this.shadowRoot.getElementById('btn-refresh-preview');
     if (btnRefreshPreview) btnRefreshPreview.addEventListener('click', () => this._fetchLogData());
 
-    const btnDailyToggle = this.shadowRoot.getElementById('btn-daily-toggle');
-    if (btnDailyToggle) btnDailyToggle.addEventListener('click', () => this._toggleAutomation('automation.ha_log_email_daily'));
+    // Daily/weekly schedule removed - using direct SMTP
 
-    const btnWeeklyToggle = this.shadowRoot.getElementById('btn-weekly-toggle');
-    if (btnWeeklyToggle) btnWeeklyToggle.addEventListener('click', () => this._toggleAutomation('automation.ha_log_email_weekly'));
+    
 
     const btnSmtpTest = this.shadowRoot.getElementById('btn-smtp-test');
     if (btnSmtpTest) {

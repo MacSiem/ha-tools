@@ -474,7 +474,7 @@ class HAYamlChecker extends HTMLElement {
           <span class="version-badge">v2.0</span>
         </div>
         <div class="tabs" id="tabs">
-          ${['config-check','entity-validator','file-scanner','paste-validate','template-tester','common-issues'].map(t => `
+          ${['config-check','entity-validator','paste-validate','template-tester','common-issues'].map(t => `
             <button class="tab-btn${t===this._activeTab?' active':''}" data-tab="${t}">
               ${{
                 'config-check': '✅ Config',

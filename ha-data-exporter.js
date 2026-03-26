@@ -241,12 +241,12 @@ class HADataExporter extends HTMLElement {
   --bento-error-light: rgba(239, 68, 68, 0.08);
   --bento-warning: #F59E0B;
   --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
-  --bento-border: #E2E8F0;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-text-muted: #94A3B8;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;
@@ -477,10 +477,10 @@ canvas {
         }
         .toolbar select, .toolbar input {
           padding: 6px 10px;
-          border: 1px solid var(--border-color);
+          border: 1px solid var(--bento-border);
           border-radius: 6px;
-          background: var(--bg-color);
-          color: var(--text-color);
+          background: var(--bento-card);
+          color: var(--bento-text);
           font-size: 13px;
           outline: none;
         }
@@ -727,8 +727,8 @@ canvas {
           color: #fff;
         }
         .btn-secondary {
-          background: var(--border-color);
-          color: var(--text-color);
+          background: var(--bento-border);
+          color: var(--bento-text);
         }
         .btn:disabled {
           opacity: 0.4;
@@ -736,10 +736,10 @@ canvas {
         }
         .format-select {
           padding: 8px 10px;
-          border: 1px solid var(--border-color);
+          border: 1px solid var(--bento-border);
           border-radius: 6px;
-          background: var(--bg-color);
-          color: var(--text-color);
+          background: var(--bento-card);
+          color: var(--bento-text);
           font-size: 13px;
         }
         .pagination {
@@ -793,6 +793,8 @@ canvas {
           .toolbar-spacer { display: none; }
           .btn-sm { padding: 5px 10px; font-size: 11px; }
           .export-option-sm { font-size: 11px; }
+          .snapshot-bar { flex-wrap: wrap !important; }
+          .export-option { white-space: nowrap; }
         }
         @media (max-width: 480px) {
           .tab { font-size: 11px; padding: 5px 8px; }
