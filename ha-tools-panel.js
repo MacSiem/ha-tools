@@ -8,8 +8,8 @@
 // ── Build version & auto-update detection ──
 // Zmień BUILD_VERSION przy każdej aktualizacji kodu.
 // Panel automatycznie wykryje nową wersję i pokaże toast z przyciskiem "Odśwież".
-const HA_TOOLS_BUILD = '3.4.0';
-const HA_TOOLS_BUILD_TS = '20260326-2215';
+const HA_TOOLS_BUILD = '3.5.2';
+const HA_TOOLS_BUILD_TS = '20260327-1800';
 
 (function _checkVersion() {
   const KEY = 'ha-tools-build';
@@ -349,14 +349,7 @@ class HAToolsPanel extends HTMLElement {
   .donate-section p { color: #d4a0b8; }
 }
 
-/* Also detect HA theme via CSS custom property - this works when HA sets dark theme */
-:host-context([data-themes]) {
-  --bento-bg: var(--lovelace-background, var(--primary-background-color, #F8FAFC));
-  --bento-card: var(--card-background-color, var(--ha-card-background, #FFFFFF));
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-border: var(--divider-color, #E2E8F0);
-}
+/* Dark mode: :host already uses HA CSS vars. @media dark handles browser dark. Removed :host-context override. */
 
 * { box-sizing: border-box; }
 
@@ -1281,8 +1274,9 @@ ${HAToolsPanel.CSS}</style>
       });
     });
 
-    // Tool navigation
+    // Tool navigation - skip group headers (they have empty data-tag)
     this.shadowRoot.querySelectorAll('.nav-item[data-tool]').forEach(item => {
+      if (!item.dataset.tag) return;
       item.addEventListener('click', () => {
         this._setActiveNav(item);
         this._loadTool(item.dataset.tool, item.dataset.tag);
@@ -2001,11 +1995,14 @@ ${HAToolsPanel.CSS}</style>
   }
 
   _loadTool(toolId, tag) {
+    // Look up tag from TOOLS if not provided
+    const tool = HAToolsPanel.TOOLS.find(t => t.id === toolId);
+    if (!tag && tool) tag = tool.tag;
+    if (!tag) { console.warn('[HA Tools] No tag for:', toolId); return; }
     this._activeView = 'tool';
     this._activeToolId = toolId;
+    if (this._cardInstance) { try { this._cardInstance.remove(); } catch(e) {} }
     this._cardInstance = null;
-
-    const tool = HAToolsPanel.TOOLS.find(t => t.id === toolId);
     const displayName = tool ? tool.name : toolId;
     const displayIcon = tool ? tool.icon : '';
     const title = this.shadowRoot.getElementById('title');
