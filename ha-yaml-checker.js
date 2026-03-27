@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA YAML Checker v2.0
  * Advanced YAML validator for Home Assistant configuration files.
  * Part of HA Tools Panel - Debug category
@@ -16,6 +16,7 @@
 class HAYamlChecker extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._config = {};
@@ -53,6 +54,21 @@ class HAYamlChecker extends HTMLElement {
     ];
   }
 
+
+  static get DEPRECATED_PATTERNS() {
+    return [
+      { pattern: /^\s*initial:\s*(on|off)\s*$/i, msg: 'Deprecated: initial on/off \u2014 uzyj true/false (HA 2021.12+)', severity: 'warning' },
+      { pattern: /data_template:/, msg: 'Deprecated: data_template: \u2014 uzyj data: z template (HA 2021.12+)', severity: 'warning' },
+      { pattern: /^\s*entity_namespace:/, msg: 'Usuniety: entity_namespace (HA 2022.x)', severity: 'error' },
+      { pattern: /^\s*hide_entity:/, msg: 'Deprecated: hide_entity \u2014 uzyj entity_registry (HA 2021.x+)', severity: 'warning' },
+      { pattern: /^\s*white_value:/, msg: 'Deprecated: white_value \u2014 uzyj white w color_mode (HA 2021.4+)', severity: 'warning' },
+      { pattern: /for:\s*\d+$/, msg: 'Deprecated: for: N (integer) \u2014 uzyj for: "HH:MM:SS" lub {seconds: N}', severity: 'warning' },
+      { pattern: /value_template:/, msg: 'Info: value_template: \u2014 rozwaz migracje do template sensors (HA 2021.12+)', severity: 'info' },
+      { pattern: /^\s*platform:\s+mqtt$/, msg: 'Deprecated: platform: mqtt \u2014 uzyj mqtt: w configuration.yaml (HA 2022.6+)', severity: 'warning' },
+      { pattern: /service:\s+homeassistant\.turn/, msg: 'Info: homeassistant.turn_on/off \u2014 mozesz uzywac domain-specific service', severity: 'info' },
+      { pattern: /^\s*condition:\s+template$/, msg: 'Info: condition: template \u2014 rozwaz shorthand template conditions (HA 2023.x+)', severity: 'info' },
+    ];
+  }
   static get COMMON_ISSUES() {
     return [
       {
@@ -86,6 +102,15 @@ class HAYamlChecker extends HTMLElement {
         ]
       },
       {
+        cat: 'Deprecated / Stara skladnia',
+        items: [
+          { title: 'data_template:', desc: 'Od HA 2021.12: uzyj data: z Jinja2 zamiast data_template:', severity: 'warning' },
+          { title: 'trigger/condition/action (lp)', desc: 'Od HA 2024.4: uzyj triggers:/conditions:/actions: (l. mnoga)', severity: 'info' },
+          { title: 'initial: on/off', desc: 'Uzyj true/false zamiast on/off', severity: 'warning' },
+          { title: 'entity_namespace', desc: 'Usuniety z HA 2022.x', severity: 'error' },
+        ]
+      },
+      {
         cat: 'Encje i szablony',
         items: [
           { title: 'Referencja do nieistniej\u0105cej encji', desc: 'entity_id wskazuj\u0105ce na nieistn. encj\u0119 nie powoduj\u0105 b\u0142\u0119du YAML, ale automatyzacja nie zadzia\u0142a. Sprawd\u017A nazwy w Dev Tools \u203A States.', severity: 'warning' },
@@ -96,7 +121,8 @@ class HAYamlChecker extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     if (!this._firstRender) {
       this._firstRender = true;
@@ -456,12 +482,85 @@ class HAYamlChecker extends HTMLElement {
       if (t === 'action:') warnings.push({ line: i + 1, msg: 'HA 2024.4+: u\u017Cyj "actions:" zamiast "action:" (starszy format)', severity: 'info' });
     });
 
+    // Deprecated syntax (F4)
+    if (typeof HAYamlChecker !== 'undefined' && HAYamlChecker.DEPRECATED_PATTERNS) {
+      HAYamlChecker.DEPRECATED_PATTERNS.forEach(dp => {
+        lines.forEach((line, i) => {
+          if (line.trim().startsWith('#')) return;
+          if (dp.pattern.test(line)) {
+            warnings.push({ line: i + 1, msg: dp.msg, severity: dp.severity });
+          }
+        });
+      });
+    }
+    // Best practice lint (F3)
+    lines.forEach((line, i) => {
+      const t = line.trim();
+      if (/entity_id:\s*\w+\.\w*[A-Z]/.test(t)) warnings.push({ line: i + 1, msg: 'Konwencja: entity_id lowercase_snake_case', severity: 'info' });
+      if (t === 'mode: single') warnings.push({ line: i + 1, msg: '"mode: single" jest domyslny \u2014 mozna pominac', severity: 'info' });
+         if (/delay:\s*['"]\d+['"]/.test(t)) warnings.push({ line: i + 1, msg: 'Best practice: delay z seconds/milliseconds (np. delay: {seconds: 5})', severity: 'info' });
+         if (/secret|password|api_key|token/i.test(t) && !/!secret/.test(t) && !t.trim().startsWith('#')) warnings.push({ line: i + 1, msg: 'Security: potencjalny sekret bez !secret — uzyj secrets.yaml', severity: 'warning' });
+    });
+
     return { errors, warnings, lineCount: lines.length };
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
   _render() {
-    this.shadowRoot.innerHTML = `<style>${this._css()}</style>${this._html()}`;
+    this.shadowRoot.innerHTML = `<style>${this._css()}
+/* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      </style>${this._html()}`;
     this._attachEvents();
     this._injectDiscovery();
   }

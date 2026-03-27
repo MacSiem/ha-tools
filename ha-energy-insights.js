@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA Energy Insights - Bento Light Mode Panel Tool
  * Energy monitoring with cost tracking, device breakdown, and efficiency recommendations
  * v2.0.0 - Converted from Lovelace Card to Panel Tool Pattern
@@ -7,6 +7,7 @@
 class HAEnergyInsights extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
 
     // State fields
@@ -122,7 +123,8 @@ class HAEnergyInsights extends HTMLElement {
 
   // ===== PANEL TOOL SETTER (no setConfig needed) =====
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
 
     const now = Date.now();
@@ -378,6 +380,26 @@ class HAEnergyInsights extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
 ${this._getStyles()}
+      
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
       </style>
       <div class="panel-root">
         ${this._renderHeader()}
@@ -834,6 +856,16 @@ button:hover {
 
 .tools-banner a:hover {
   text-decoration: underline;
+}
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .panel-header { padding: 16px; }
+  .stats-grid, .metrics-grid, .summary-grid { grid-template-columns: 1fr !important; }
+  .tabs { flex-wrap: wrap; gap: 4px; }
+  .tab-btn { min-width: auto; font-size: 13px; padding: 8px 12px; }
+  .device-list, .top-devices { overflow-x: auto; }
+  .chart-container canvas { max-height: 200px; }
+  .tip-card, .insight-card { padding: 12px; }
 }
     `;
   }

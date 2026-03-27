@@ -1,4 +1,4 @@
-class HaBabyTracker extends HTMLElement {
+﻿class HaBabyTracker extends HTMLElement {
   setConfig(config) {
     this.config = config;
     this.babies = config.babies || [{ name: 'Baby 1' }];
@@ -8,7 +8,8 @@ class HaBabyTracker extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -38,6 +39,7 @@ class HaBabyTracker extends HTMLElement {
 
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -965,7 +967,60 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .tip-banner .tip-dismiss:hover { opacity: 1; }
 .tip-banner.hidden { display: none; }
 
-</style>
+
+/* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      </style>
 
       <div class="card">
         <div class="card-header">
@@ -1163,6 +1218,26 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
         ` : ''}
 
+        
+        <div style="margin-top:20px;padding:16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:10px">
+          <h3 style="margin:0 0 10px;font-size:14px">Integracja z HA</h3>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary,#3B82F6)">Karta Lovelace / Entity / Sterowanie glosowe</summary>
+            <div style="margin-top:10px;font-size:12px;line-height:1.8;color:var(--bento-text-secondary,#64748B)">
+              <div><strong>Karta Lovelace:</strong> Baby Tracker jest ladowany automatycznie przez ha-tools-panel. Mozesz tez dodac go jako osobna karte:</div>
+              <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
+              <div><strong>Entity:</strong> Dane zapisywane sa w input_* helpers. Stworz je w Settings > Helpers:</div>
+              <div style="margin-left:8px"><code>input_datetime.baby_last_feed</code>, <code>input_number.baby_feed_amount</code>, <code>input_select.baby_feed_type</code></div>
+              <div><strong>Glos:</strong> Dodaj custom sentences w <code>custom_sentences/pl/baby.yaml</code>:</div>
+              <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">language: pl
+intents:
+  BabyFeedLog:
+    data:
+      - sentences:
+          - "zapisz karmienie {amount} ml"</pre>
+            </div>
+          </details>
+        </div>
         <div class="export-section">
           <button class="btn-secondary" id="exportBtn">📥 Export Data (JSON)</button>
         </div>

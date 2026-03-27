@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA Energy Email Card v2.0.0
  * Send daily/weekly/monthly energy usage reports as HTML email.
  * Integrates with energy_reports.yaml (SMTP notify + templates).
@@ -15,6 +15,7 @@
 class HAEnergyEmail extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._config = {};
@@ -27,7 +28,8 @@ class HAEnergyEmail extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstRender) {
@@ -72,7 +74,7 @@ class HAEnergyEmail extends HTMLElement {
     };
   }
 
-  // â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── helpers ─────────────────────────────────────────────────────────────────
 
   _state(entity_id, fallback = '0') {
     if (!this._hass) return fallback;
@@ -109,9 +111,10 @@ class HAEnergyEmail extends HTMLElement {
     return s === 'on' ? 'auto-on' : s === 'off' ? 'auto-off' : 'auto-unknown';
   }
 
-  // â”€â”€â”€ main render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── main render ─────────────────────────────────────────────────────────────
 
   _render() {
+    const L = this._lang === 'pl';
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -212,6 +215,26 @@ class HAEnergyEmail extends HTMLElement {
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; margin-right: 6px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .last-sent { font-size: 11px; color: var(--t3); margin-top: 4px; }
+      
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
       </style>
 
       <div class="card">
@@ -282,7 +305,7 @@ class HAEnergyEmail extends HTMLElement {
     }
   }
 
-  // â”€â”€â”€ tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── tabs ─────────────────────────────────────────────────────────────────────
 
   _tabOverview() {
     const devices = this._devices();
@@ -413,6 +436,11 @@ class HAEnergyEmail extends HTMLElement {
         \u2022 Weekly: Trigger = time 08:00, condition = <code>now().weekday() == 0</code><br>
         \u2022 Monthly: Trigger = time 08:00, condition = <code>now().day == 1</code><br>
         \u2022 Email content = HTML from sensors in <code>packages/energy_reports.yaml</code>
+      </div>
+      <div style="margin-top:12px;padding:12px 16px;background:rgba(59,130,246,0.08);border-left:3px solid var(--bento-primary,#3B82F6);border-radius:6px;font-size:13px;color:var(--tx,#555);">
+        <strong>\u2139\uFE0F Note:</strong> Automatic sending depends on HA automations you create (e.g. <code>automation.send_daily_energy_report</code>).
+        The times above are defaults — adjust triggers and conditions in your automation YAML.
+        If automations don't exist yet, use the <b>Send Now</b> tab to send manually, or copy the YAML templates from the Setup tab.
       </div>
     `;
   }
@@ -605,7 +633,7 @@ class HAEnergyEmail extends HTMLElement {
     if (disableMonthly) disableMonthly.addEventListener('click', () => this._toggleAuto('automation.send_monthly_energy_report', false));
   }
 
-  // â”€â”€â”€ HA service calls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── HA service calls ─────────────────────────────────────────────────────────
 
   async _toggleAuto(entity_id, enable) {
     if (!this._hass) return;

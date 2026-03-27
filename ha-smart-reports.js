@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Home Assistant Smart Reports Card
  * Energy reports, automation statistics, and system health overview
  */
@@ -6,6 +6,7 @@
 class HASmartReports extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -21,7 +22,8 @@ class HASmartReports extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -32,6 +34,7 @@ class HASmartReports extends HTMLElement {
       return;
     }
     if (now - (this._lastRenderTime || 0) < 10000) {
+    const L = this._lang === 'pl';
       if (!this._renderScheduled) {
         this._renderScheduled = true;
         setTimeout(() => {
@@ -65,6 +68,12 @@ class HASmartReports extends HTMLElement {
 
   static getStubConfig() {
     return { title: 'Smart Reports', energy_entity: 'sensor.energy_total', currency: 'PLN' };
+  }
+
+
+  _sanitize(text) {
+    if (!text) return '';
+    try { return decodeURIComponent(escape(String(text))); } catch(e) { return String(text); }
   }
 
   _render() {
@@ -255,8 +264,7 @@ input:focus, select:focus, textarea:focus {
 /* Canvas override (prevent Bento CSS from distorting charts) */
 canvas {
   max-width: 100% !important;
-  height: auto !important;
-  width: auto !important;
+  max-height: 250px !important;
   border: none !important;
 }
 
@@ -415,6 +423,26 @@ canvas {
           .tab { font-size: 11px; padding: 5px 8px; }
           .report-grid { gap: 8px; }
         }
+      
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
       </style>
       <ha-card>
         <div class="reports-card">
@@ -520,7 +548,7 @@ canvas {
         <div class="bar-chart">
           ${sensors.map((s, i) => `
             <div class="bar-row">
-              <span class="bar-label" title="${s.id}">${s.name.split(' ').slice(0, 2).join(' ')}</span>
+              <span class="bar-label" title="${s.id}">${this._sanitize(s.name).split(' ').slice(0, 2).join(' ')}</span>
               <div class="bar-container">
                 <div class="bar-fill" style="width:${(s.value / maxVal * 100)}%;background:${colors[i] || '#ccc'}">
                   ${s.value > maxVal * 0.15 ? s.value.toFixed(1) : ''}
@@ -580,7 +608,7 @@ canvas {
         <div class="auto-list">
           ${automations.slice(0, 10).map(a => `
             <div class="auto-item">
-              <span class="auto-name">${a.name}</span>
+              <span class="auto-name">${this._sanitize(a.name)}</span>
               <span class="auto-status">${this._timeAgo(a.last_triggered)}</span>
               <span class="auto-count" style="color:${a.state === 'on' ? 'var(--green)' : 'var(--red)'}">
                 ${a.state}
@@ -669,7 +697,7 @@ canvas {
     return items.map(i => `
       <div class="health-item">
         <span class="health-dot" style="background:${i.ok ? 'var(--green)' : 'var(--orange)'}"></span>
-        <span class="health-name">${i.name}</span>
+        <span class="health-name">${this._sanitize(i.name)}</span>
         <span class="health-value">${i.value}</span>
       </div>
     `).join('');

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA Tools Panel v2.2 — Auto-loading addons with progress notification
  * Author: MacSiem
  * Features: Auto-loads addon scripts, polls for customElements registration,
@@ -1170,7 +1170,27 @@ canvas {
 .panel.compact .tool-card { padding: 10px; }
 .panel.compact .home-section-title { font-size: 14px; margin-bottom: 8px; }
 
-${HAToolsPanel.CSS}</style>
+${HAToolsPanel.CSS}
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      </style>
       <div class="panel ${this._getSetting('compactMode', false) ? 'compact' : ''}">
         <div class="sidebar">
           <div class="sidebar-header">

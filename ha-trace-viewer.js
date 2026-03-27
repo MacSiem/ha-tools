@@ -1,6 +1,7 @@
-class HATraceViewer extends HTMLElement {
+﻿class HATraceViewer extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this.config = {};
     this._hass = null;
@@ -178,7 +179,7 @@ class HATraceViewer extends HTMLElement {
     return Object.keys(this._storedTraces).length;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ TRANSLATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── TRANSLATIONS ───────────
 
   static get _translations() {
     return {
@@ -259,7 +260,8 @@ class HATraceViewer extends HTMLElement {
   setConfig(config) { this.config = { title: 'Trace Viewer', ...config }; }
 
   set hass(hass) {
-    const firstLoad = !this._hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    const firstLoad = !this._hass;
     this._hass = hass;
     if (firstLoad) {
       this._allTraces = [];
@@ -268,7 +270,7 @@ class HATraceViewer extends HTMLElement {
     }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── DATA ───────────
 
   async updateAutomationData() {
     if (!this._hass) return;
@@ -339,7 +341,7 @@ class HATraceViewer extends HTMLElement {
     return 'success';
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ FILTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── FILTERS ───────────
 
   _timeCutoff() {
     if (this.timeRange === 'all') return null;
@@ -402,7 +404,7 @@ class HATraceViewer extends HTMLElement {
     return { n, ok, err, avg, rate: n ? Math.round((ok / n) * 100) : 0 };
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ TIME HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── TIME HELPERS ───────────
 
   _startTimer() {
     if (this.relativeTimeUpdater) clearInterval(this.relativeTimeUpdater);
@@ -436,7 +438,7 @@ class HATraceViewer extends HTMLElement {
     return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ ACTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── ACTIONS ───────────
 
   onAutoClick(entity) {
     this.selectedAutomation = entity;
@@ -510,7 +512,7 @@ class HATraceViewer extends HTMLElement {
     this.render();
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ TRACE DETAIL BUILDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── TRACE DETAIL BUILDER ───────────
 
   _buildDetail(trace, detail) {
     const steps = [];
@@ -690,7 +692,7 @@ class HATraceViewer extends HTMLElement {
     return String(obj);
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ FLOW GRAPH (SVG) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── FLOW GRAPH (SVG) ───────────
 
   _renderFlowGraph(steps) {
     if (!steps || steps.length < 2) return '';
@@ -747,7 +749,7 @@ class HATraceViewer extends HTMLElement {
 
   _escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ EXPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── EXPORT ───────────
 
   async _export(fmt, onlySelected) {
     let list = onlySelected && this.selectedTraceIds.size > 0
@@ -847,7 +849,7 @@ class HATraceViewer extends HTMLElement {
     a.download = filename; a.click();
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SAFE JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── SAFE JSON ───────────
 
   _safeJson(obj) {
     try {
@@ -859,12 +861,12 @@ class HATraceViewer extends HTMLElement {
     } catch (e) { return 'Error: ' + e.message; }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STATUS HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── STATUS HELPERS ───────────
 
   _ico(s) { return s === 'success' ? '\u2714' : s === 'running' ? '\u21BB' : s === 'error' ? '\u274C' : s === 'aborted' ? '\u23F9' : '\u2753'; }
   _sLabel(s) { return this._t(s) || s; }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ RENDER: AUTOMATIONS LIST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── RENDER: AUTOMATIONS LIST ───────────
 
   _renderAutoList() {
     if (!this.automations.length) return `<div class="empty"><div class="empty-ico">\u26A0</div><div>${this._t('noAutomations')}</div></div>`;
@@ -904,7 +906,7 @@ class HATraceViewer extends HTMLElement {
     }).join('')}</div>` + pag;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ RENDER: TRACES LIST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── RENDER: TRACES LIST ───────────
 
   _renderTracesList() {
     if (this.viewMode === 'automations' && !this.selectedAutomation)
@@ -958,7 +960,7 @@ class HATraceViewer extends HTMLElement {
       </div>`;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ RENDER: DETAIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── RENDER: DETAIL ───────────
 
   _renderDetail() {
     if (!this.traceDetail) {
@@ -1054,7 +1056,7 @@ class HATraceViewer extends HTMLElement {
     `;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ MAIN RENDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── MAIN RENDER ───────────
 
   render() {
     const selN = this.selectedTraceIds.size;
@@ -1146,7 +1148,7 @@ class HATraceViewer extends HTMLElement {
     this._bindEvents();
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── EVENTS ───────────
 
   _bindEvents() {
     const $ = s => this.shadowRoot.querySelector(s);
@@ -1269,7 +1271,7 @@ class HATraceViewer extends HTMLElement {
     });
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STYLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── STYLES ───────────
 
   _css() {
     return `<style>
@@ -1655,10 +1657,63 @@ class HATraceViewer extends HTMLElement {
   .pan-right { display: block !important; width: 100% !important; min-width: auto; max-height: 50vh; overflow-y: auto; border-right: none; border-top: 1px solid var(--dc); }
   .pan-right:empty, .pan-right .empty { display: none; }
 }
-</style>`;
+
+/* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      </style>`;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ LIFECYCLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────── LIFECYCLE ───────────
 
   connectedCallback() { if (this._hass) this.updateAutomationData(); }
   disconnectedCallback() { if (this.relativeTimeUpdater) clearInterval(this.relativeTimeUpdater); }

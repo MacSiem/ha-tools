@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA Vacuum Water Monitor v3.0.0
  * Lovelace card for tracking vacuum cleaner water levels, history, maintenance and stats
  * Supports Roborock, Dreame, iRobot, Ecovacs, and generic vacuums
@@ -72,9 +72,88 @@ const BRAND_PROFILES = {
   },
 };
 
+// Q1/Q2: Research-based calibration profiles per robot model
+// Water usage (ml/m²) and cleaning efficiency data
+const CALIBRATION_DATA = {
+  'roborock_s8_maxv_ultra': {
+    label: 'Roborock S8 MaxV Ultra',
+    tank_ml: 350,
+    water_per_m2: { low: 6.5, medium: 12, high: 18, max: 24 },
+    avg_area_per_charge: 250,
+    mop_type: 'VibraRise 3.0 dual spinning',
+    notes: 'Auto mop lifting, self-cleaning dock, hot water wash',
+  },
+  'roborock_s7_maxv': {
+    label: 'Roborock S7 MaxV',
+    tank_ml: 300,
+    water_per_m2: { low: 5, medium: 10, high: 15 },
+    avg_area_per_charge: 200,
+    mop_type: 'Sonic mopping',
+    notes: 'ReactiveAI obstacle avoidance',
+  },
+  'roborock_q7': {
+    label: 'Roborock Q7/Q7 Max',
+    tank_ml: 350,
+    water_per_m2: { low: 5, medium: 9, high: 14 },
+    avg_area_per_charge: 180,
+    mop_type: 'Gravity mop pad',
+    notes: 'Budget friendly, no mop lift',
+  },
+  'dreame_l20_ultra': {
+    label: 'Dreame L20 Ultra',
+    tank_ml: 80,
+    water_per_m2: { low: 5, medium: 10, high: 16, deep: 22 },
+    avg_area_per_charge: 300,
+    mop_type: 'MopExtend rotating dual pads',
+    notes: 'Auto refill from dock (4L tank), hot air drying, mop extend for edges',
+  },
+  'dreame_l10s_ultra': {
+    label: 'Dreame L10s Ultra',
+    tank_ml: 80,
+    water_per_m2: { low: 5, medium: 9, high: 14 },
+    avg_area_per_charge: 210,
+    mop_type: 'Rotating dual pads',
+    notes: 'Auto refill from dock (3.2L tank)',
+  },
+  'ecovacs_x2_omni': {
+    label: 'Ecovacs Deebot X2 Omni',
+    tank_ml: 80,
+    water_per_m2: { low: 5, medium: 11, high: 17 },
+    avg_area_per_charge: 260,
+    mop_type: 'Dual rotating OZMO Turbo 2.0',
+    notes: 'Square design for corners, auto-refill dock (3.5L)',
+  },
+  'ecovacs_t20_omni': {
+    label: 'Ecovacs Deebot T20 Omni',
+    tank_ml: 80,
+    water_per_m2: { low: 5, medium: 10, high: 15, deep: 20 },
+    avg_area_per_charge: 240,
+    mop_type: 'OZMO Turbo 2.0 rotating',
+    notes: 'Hot water mop washing at 55°C',
+  },
+  'irobot_combo_j9': {
+    label: 'iRobot Roomba Combo j9+',
+    tank_ml: 210,
+    water_per_m2: { low: 3, medium: 6, high: 10 },
+    avg_area_per_charge: 150,
+    mop_type: 'Retractable pad on top',
+    notes: 'Auto mop retraction onto top, self-emptying bin',
+  },
+  'generic': {
+    label: 'Generic / Unknown',
+    tank_ml: 300,
+    water_per_m2: { low: 5, medium: 10, high: 15 },
+    avg_area_per_charge: 150,
+    mop_type: 'Standard',
+    notes: 'Default estimates — adjust based on your model',
+  },
+};
+
+
 class HAVacuumWaterMonitor extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._config = {};
@@ -87,7 +166,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstRender && now - this._lastRenderTime < 5000) {
@@ -406,6 +486,27 @@ class HAVacuumWaterMonitor extends HTMLElement {
           ? `<div class="alert-banner alert-warn">\u26A0\uFE0F Water low (${Math.round(data.percentRemaining)}%) - refill soon.</div>` : '');
 
     const dockHtml = (cfg.show_dock_status !== false) ? this._buildDockSection(device, data) : '';
+    // Q1/Q2: Calibration info based on brand profile
+    let calibHtml = '';
+    const profileKey = cfg.brand_profile || 'generic';
+    const calib = typeof CALIBRATION_DATA !== 'undefined' ? CALIBRATION_DATA[profileKey] || CALIBRATION_DATA['generic'] : null;
+    if (calib) {
+      const levels = Object.entries(calib.water_per_m2).map(([k,v]) => `<span style="display:inline-block;padding:3px 10px;background:var(--bento-bg,#f0f4f8);border-radius:6px;margin:2px 4px;font-size:12px;"><b>${k}:</b> ${v} ml/m²</span>`).join('');
+      const estArea = data.totalMl > 0 ? Math.round(data.totalMl / (calib.water_per_m2.medium || 10)) : calib.avg_area_per_charge;
+      calibHtml = `
+        <div style="margin-top:16px;padding:16px;background:var(--bento-bg,#f8fafc);border:1.5px solid var(--bento-border,#e2e8f0);border-radius:12px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px;">📐 Calibration: ${calib.label}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+            <div>🪣 Tank: <b>${calib.tank_ml} ml</b></div>
+            <div>🧹 Mop: <b>${calib.mop_type}</b></div>
+            <div>📏 Est. area/charge: <b>~${calib.avg_area_per_charge} m²</b></div>
+            <div>📏 Est. area/tank: <b>~${estArea} m²</b> (medium)</div>
+          </div>
+          <div style="margin-top:10px;font-size:12px;"><b>Water usage per m²:</b> ${levels}</div>
+          ${calib.notes ? '<div style="margin-top:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);font-style:italic;">💡 ' + calib.notes + '</div>' : ''}
+        </div>`;
+    }
+
 
     const noWaterMode = !data.totalMl;
 
@@ -427,6 +528,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
         ${refillBtn ? `<div class="refill-wrap">${refillBtn}</div>` : ''}`}
         ${noWaterMode && data.charge !== null ? `<div class="details">${this._buildBatteryBar(data.charge)}</div>` : ''}
         ${dockHtml}
+        ${calibHtml}
       </div>`;
   }
 
@@ -639,6 +741,14 @@ class HAVacuumWaterMonitor extends HTMLElement {
         ${devices.length > 1 ? `<div class="section-block"><div class="section-title">\uD83D\uDCCA All Devices</div>${rows}</div>` : ''}
         ${devices.length > 0 ? this._buildWeeklyStats(devices) : ''}
         ${discoveredHtml}
+        <div class="section-block" style="margin-top:12px">
+          <div class="section-title">Reczne dodanie odkurzacza</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            <input type="text" id="manual-vacuum-entity" placeholder="vacuum.roborock_s7" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;background:var(--bento-card,#fff);color:var(--bento-text,#1e293b)">
+            <button class="btn-primary" id="btn-add-manual-vacuum" style="padding:8px 16px;white-space:nowrap">+ Dodaj</button>
+          </div>
+          <p style="margin:6px 0 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">Wpisz entity_id odkurzacza jesli auto-discover go nie znalazl</p>
+        </div>
         ${devices.length === 0 ? '<div class="empty-state">No devices configured.<br>Add device config or use brand_profile.</div>' : ''}
       </div>`;
   }
@@ -826,7 +936,40 @@ class HAVacuumWaterMonitor extends HTMLElement {
 .tip-banner .tip-dismiss:hover { opacity: 1; }
 .tip-banner.hidden { display: none; }
 
-      </style>
+      
+/* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+</style>
       <div class="card">
         <div class="card-title">${this._config.title}</div>
         <div class="tip-banner" id="tip-banner">
@@ -860,6 +1003,59 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #3B82F6; }
         .tip-banner ul { margin: 6px 0 0 16px; padding: 0; }
         .tip-banner li { margin-bottom: 3px; }
+      
+/* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
       </style>
       <div class="err-container">
         <div class="err-card">

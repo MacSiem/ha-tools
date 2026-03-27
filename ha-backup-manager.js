@@ -1,6 +1,7 @@
-class HaBackupManager extends HTMLElement {
+﻿class HaBackupManager extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -54,7 +55,8 @@ class HaBackupManager extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -245,20 +247,27 @@ class HaBackupManager extends HTMLElement {
     }
   }
 
+
+  _sanitizeName(name) {
+    if (!name) return 'Backup';
+    try { return decodeURIComponent(escape(name)); } catch(e) { return name; }
+  }
+
   _selectBackup(backup) {
     this._selectedBackup = this._selectedBackup?.slug === backup.slug ? null : backup;
     this._updateUI();
   }
 
   _renderBackupsTab() {
+    const L = this._lang === 'pl';
     return `
       <div class="tab-content active">
         <div class="backup-controls">
-          <button class="create-btn full-backup" @click="${() => this._createBackup(true)}">
-            <span class="icon">âŠ•</span> Create Full Backup
+          <button class="create-btn full-backup" data-backup-type="full">
+            <span class="icon">⊕</span> ${L ? "Pe\u0142ny backup" : "Create Full Backup"}
           </button>
-          <button class="create-btn partial-backup" @click="${() => this._createBackup(false)}">
-            <span class="icon">âŠ•</span> Create Partial Backup
+          <button class="create-btn partial-backup" data-backup-type="partial">
+            <span class="icon">⊕</span> ${L ? "Cz\u0119\u015Bciowy backup" : "Create Partial Backup"}
           </button>
         </div>
 
@@ -269,13 +278,14 @@ class HaBackupManager extends HTMLElement {
             ? '<div class="empty-state">No backups available</div>'
             : this._backups.map((backup) => `
               <div class="backup-item ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
-                   @click="${() => this._selectBackup(backup)}">
+                   data-slug="${backup.slug}">
                 <div class="backup-header">
                   <div class="backup-info">
-                    <h3>${backup.name || 'Backup'}</h3>
+                    <h3>${this._sanitizeName(backup.name)}</h3>
                     <span class="backup-type ${backup.type}">${backup.type}</span>
-                    ${backup.is_protected ? '<span class="badge protected">đź”’ Protected</span>' : ''}
-                  </div>
+                    ${backup.is_protected ? '<span class="badge protected">🔒 Protected</span>' : ''}
+                  
+                    ${backup.location ? `<span class="badge method">${backup.location === 'addon' ? 'Addon' : (backup.location === 'cloud' ? 'Cloud' : 'Local')}</span>` : ''}</div>
                   <div class="backup-meta">
                     <span class="date">${this._formatDate(backup.date)}</span>
                     <span class="size">${backup.size_bytes ? this._formatBytes(backup.size_bytes) : (backup.size ? this._formatMB(backup.size) : '?')}</span>
@@ -318,7 +328,7 @@ class HaBackupManager extends HTMLElement {
             <div class="health-value ${daysStatus}">
               ${!timeSince ? 'Never' : `${timeSince.days}d ${timeSince.hours % 24}h ago`}
             </div>
-            <p class="health-label">Status: ${daysStatus === 'good' ? 'âś“ Healthy' : daysStatus === 'warning' ? 'âš  Warning' : 'âś— No backups'}</p>
+            <p class="health-label">Status: ${daysStatus === 'good' ? '✓ Healthy' : daysStatus === 'warning' ? '⚠ Warning' : '✗ No backups'}</p>
           </div>
 
           <div class="health-card">
@@ -381,6 +391,7 @@ class HaBackupManager extends HTMLElement {
   }
 
   _updateUI() {
+    const L = this._lang === 'pl';
     const tabContent = {
       backups: () => this._renderBackupsTab(),
       health: () => this._renderHealthTab(),
@@ -550,8 +561,6 @@ input:focus, select:focus, textarea:focus {
 /* Canvas override (prevent Bento CSS from distorting charts) */
 canvas {
   max-width: 100% !important;
-  height: auto !important;
-  width: auto !important;
   border: none !important;
 }
 
@@ -756,6 +765,18 @@ canvas {
           font-size: 16px;
         }
 
+        .badge.method {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          background: rgba(100, 116, 139, 0.15);
+          color: #64748B;
+        }
+
         .badge.protected {
           display: inline-flex;
           align-items: center;
@@ -872,6 +893,7 @@ canvas {
           padding: 16px;
         }
 
+        .health-card canvas { max-height: 150px; display: block; }
         .health-card h3 {
           margin: 0 0 12px 0;
           font-size: 14px;
@@ -1165,7 +1187,7 @@ textarea { min-height: 80px; resize: vertical; }
 .timeline-time { font-size: 12px; color: var(--bento-text-secondary); font-weight: 500; }
 .timeline-content { font-size: 13px; color: var(--bento-text); margin-top: 4px; }
 
-canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 16px; }
+canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 16px; }
 .canvas-container { position: relative; margin-bottom: 16px; }
 .chart-container { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 16px; border: 1px solid var(--bento-border); margin-bottom: 16px; }
 
@@ -1247,23 +1269,68 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .column { min-width: unset; }
 }
 
-</style>
+
+/* === DARK MODE (H6 fix) === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    color-scheme: dark !important;
+  }
+  .card-container { background: var(--bento-card); color: var(--bento-text); }
+  .backup-item { border-color: var(--bento-border); }
+  .backup-item:hover { border-color: var(--bento-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .backup-item.selected { background: rgba(59,130,246,0.12); }
+  .health-card, .schedule-section, .settings-section { border-color: var(--bento-border); background: var(--bento-bg); }
+  .content-item { background: rgba(59,130,246,0.15); color: var(--bento-text); }
+  .addon-list { background: rgba(255,255,255,0.05); }
+  .schedule-info { background: rgba(59,130,246,0.1); }
+  .create-btn.full-backup { background: #059669; }
+  .create-btn.partial-backup { background: #2563EB; }
+}
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      </style>
 
       <div class="card-container">
         <h1 class="card-title">${this._config.title || 'Backup Manager'}</h1>
 
         <div class="tabs">
           <button class="tab-btn ${this._activeTab === 'backups' ? 'active' : ''}"
-                  @click="${() => this._switchTab('backups')}">
-            Backups
+                  data-tab="backups">
+            ${L ? 'Kopie zapasowe' : 'Backups'}
           </button>
           <button class="tab-btn ${this._activeTab === 'health' ? 'active' : ''}"
-                  @click="${() => this._switchTab('health')}">
-            Health
+                  data-tab="health">
+            ${L ? 'Zdrowie' : 'Health'}
           </button>
           <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}"
-                  @click="${() => this._switchTab('settings')}">
-            Settings
+                  data-tab="settings">
+            ${L ? 'Ustawienia' : 'Settings'}
           </button>
         </div>
 
@@ -1339,17 +1406,24 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   _attachEventListeners() {
-    const buttons = this.shadowRoot?.querySelectorAll('[\\@click]');
-    buttons?.forEach(btn => {
-      const clickStr = btn.getAttribute('@click');
-      if (clickStr) {
-        try {
-          eval(`btn.onclick = ${clickStr}`);
-        } catch (e) {
-          console.error('Event binding error:', e);
-        }
-      }
+    // Tab button listeners
+    this.shadowRoot?.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+      btn.addEventListener('click', () => this._switchTab(btn.getAttribute('data-tab')));
     });
+    // Backup item click (H1 fix)
+    this.shadowRoot?.querySelectorAll('.backup-item[data-slug]').forEach(item => {
+      item.addEventListener('click', () => {
+        const slug = item.getAttribute('data-slug');
+        const backup = this._backups.find(b => b.slug === slug);
+        if (backup) this._selectBackup(backup);
+      });
+    });
+    // Create backup buttons
+    this.shadowRoot?.querySelectorAll('.create-btn[data-backup-type]').forEach(btn => {
+      btn.addEventListener('click', () => this._createBackup(btn.getAttribute('data-backup-type') === 'full'));
+    });
+    // Pagination
+    this._setupPaginationListeners();
   }
   // --- Pagination helper ---
   _renderPagination(tabName, totalItems) {

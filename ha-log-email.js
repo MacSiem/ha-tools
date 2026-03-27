@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA Log Email Card v1.0
  * Send periodic email summaries of HA errors and warnings.
  * Part of HA Tools Panel — Smart Reports
@@ -8,11 +8,15 @@
 class HALogEmail extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._config = {};
     this._activeTab = 'overview';
     this._logData = null;
+    this._logHistory = [];
+    try { const saved = sessionStorage.getItem('ha-log-email-history'); if (saved) this._logHistory = JSON.parse(saved); } catch(e) {}
+    this._maxHistory = 24;
     this._loading = false;
     this._firstRender = false;
     this._lastFetch = 0;
@@ -20,7 +24,8 @@ class HALogEmail extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     if (!this._firstRender) {
       this._firstRender = true;
@@ -88,6 +93,13 @@ class HALogEmail extends HTMLElement {
     }
     this._loading = false;
     this._lastFetch = Date.now();
+    // D2: Save snapshot to history
+    if (this._logData && this._logData.errors) {
+      const snapshot = { ts: new Date().toISOString(), errors: this._logData.errors.length, warnings: this._logData.warnings.length, total: this._logData.total };
+      this._logHistory.unshift(snapshot);
+      if (this._logHistory.length > this._maxHistory) this._logHistory.pop();
+      try { sessionStorage.setItem('ha-log-email-history', JSON.stringify(this._logHistory)); } catch(e) {}
+    }
     this._render();
   }
 
@@ -191,7 +203,7 @@ class HALogEmail extends HTMLElement {
     if (!this._hass) return;
     const smtp = this._detectSmtp();
     if (!smtp.found || !smtp.defaultService) {
-      this._sendStatus = { status: 'error', period, error: 'SMTP nie skonfigurowany' };
+      this._sendStatus = { status: 'error', period, error: 'SMTP nie skonfigurowany. Przejdz do zakladki SMTP i skonfiguruj usluge notify (np. notify.smtp_gmail). Szczegoly w dokumentacji HA: https://www.home-assistant.io/integrations/smtp/' };
       this._render(); return;
     }
     this._sendStatus = { status: 'sending', period };
@@ -221,7 +233,7 @@ class HALogEmail extends HTMLElement {
       await this._hass.callService('notify', smtp.defaultService, { title: subject, message: body, data: { html: body } });
       this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString('pl-PL') };
     } catch (err) {
-      this._sendStatus = { status: 'error', period, error: err.message || 'Unknown error' };
+      this._sendStatus = { status: 'error', period, error: (err.message || 'Unknown error') + ' — Sprawdz konfiguracje SMTP w configuration.yaml i przetestuj usluge notify w Narzedzia deweloperskie > Uslugi.' };
     }
     this._render();
   }
@@ -304,7 +316,8 @@ class HALogEmail extends HTMLElement {
       { id: 'overview', label: 'Overview', icon: '\uD83D\uDCCA' },
       { id: 'schedule', label: 'Schedule', icon: '\uD83D\uDCC5' },
       { id: 'preview', label: 'Preview', icon: '\uD83D\uDC41\uFE0F' },
-      { id: 'send', label: 'Send Now', icon: '\uD83D\uDCE7' }
+      { id: 'send', label: 'Send Now', icon: '\uD83D\uDCE7' },
+      { id: 'history', label: 'History', icon: '\uD83D\uDCDC' }
     ];
 
     const sendStatusHTML = this._sendStatus ? (() => {
@@ -458,7 +471,43 @@ class HALogEmail extends HTMLElement {
         <div class="info-note" style="margin-top:8px">
           \u2139\uFE0F Wysy\u0142a email bezpo\u015Brednio przez wykryty serwis SMTP (notify). Nie wymaga osobnych automatyzacji.
         </div>
+
+        <div class="section-header" style="margin-top:20px">Instant Error Notification</div>
+        <div class="info-card" style="padding:16px">
+          <p style="margin:0 0 8px 0;font-weight:600;font-size:13px">Automatyczne powiadomienia przy nowym bledzie</p>
+          <p style="margin:0 0 12px 0;font-size:12px;color:var(--text2)">
+            Skopiuj ponizszq automatyzacje do <code>automations.yaml</code> aby otrzymywac natychmiastowy email/powiadomienie przy kazdym nowym ERROR w system_log.
+          </p>
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--primary)">Pokaz YAML automatyzacji</summary>
+            <pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.5;margin-top:8px">alias: "Log Email - Instant Error Alert"
+description: "Wyslij powiadomienie przy nowym bledzie w system_log"
+trigger:
+  - platform: event
+    event_type: system_log_event
+    event_data:
+      level: ERROR
+condition:
+  - condition: template
+    value_template: >
+      {{ (as_timestamp(now()) - as_timestamp(
+        state_attr('automation.log_email_instant_error_alert','last_triggered')
+        | default(0))) > 300 }}
+action:
+  - service: persistent_notification.create
+    data:
+      title: "HA Error Detected"
+      message: "{{ trigger.event.data.message[:200] }}"
+      notification_id: "log_error_{{ now().timestamp()|int }}"
+mode: queued
+max: 3</pre>
+          </details>
+        </div>
       `;
+    }
+
+    if (this._activeTab === 'history') {
+      tabContent = this._renderHistory();
     }
 
     this.shadowRoot.innerHTML = `
@@ -563,6 +612,26 @@ class HALogEmail extends HTMLElement {
         .send-status.sending { background: #3b82f620; color: #3b82f6; }
         .send-status.success { background: #10b98120; color: #10b981; }
         .send-status.error { background: #ef444420; color: #ef4444; }
+      
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
       </style>
 
       <ha-card class="card">
@@ -633,6 +702,27 @@ class HALogEmail extends HTMLElement {
     s.async = true;
     s.onload = _inj;
     document.head.appendChild(s);
+  }
+
+  _renderHistory() {
+    if (!this._logHistory || this._logHistory.length === 0) {
+      return '<div class="empty-state"><div style="font-size:48px;opacity:0.5;margin-bottom:12px;">📜</div><h3 style="margin:8px 0 4px;">No History Yet</h3><p>Log snapshots are saved each time data is fetched. History persists during the browser session.</p></div>';
+    }
+    let html = '<div class="section-title">📊 Log Fetch History (last ' + this._logHistory.length + ' snapshots)</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    html += '<thead><tr><th style="text-align:left;padding:8px;border-bottom:2px solid var(--bento-border,#e2e8f0);">Time</th><th style="text-align:center;padding:8px;border-bottom:2px solid var(--bento-border,#e2e8f0);">Errors</th><th style="text-align:center;padding:8px;border-bottom:2px solid var(--bento-border,#e2e8f0);">Warnings</th><th style="text-align:center;padding:8px;border-bottom:2px solid var(--bento-border,#e2e8f0);">Total</th></tr></thead><tbody>';
+    this._logHistory.forEach(s => {
+      const dt = new Date(s.ts);
+      const time = dt.toLocaleTimeString() + ' ' + dt.toLocaleDateString();
+      const errColor = s.errors > 0 ? 'var(--bento-error,#ef4444)' : 'var(--bento-success,#22c55e)';
+      html += '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);">' + time + '</td>';
+      html += '<td style="text-align:center;padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);color:' + errColor + ';font-weight:600;">' + s.errors + '</td>';
+      html += '<td style="text-align:center;padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);color:var(--bento-warning,#f59e0b);font-weight:600;">' + s.warnings + '</td>';
+      html += '<td style="text-align:center;padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);">' + s.total + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div style="margin-top:12px;padding:10px;background:rgba(59,130,246,0.06);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">💡 History is stored in browser sessionStorage and resets when the tab is closed. Each automatic/manual refresh adds a snapshot.</div>';
+    return html;
   }
 }
 

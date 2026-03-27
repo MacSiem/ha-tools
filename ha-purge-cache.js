@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA Purge Cache v1.0.0
  * Tool for clearing browser cache, localStorage, service workers,
  * and force-reloading HA Tools scripts.
@@ -9,6 +9,7 @@
 class HAPurgeCache extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._stats = {};
@@ -20,6 +21,7 @@ class HAPurgeCache extends HTMLElement {
   }
 
   connectedCallback() {
+    const L = this._lang === 'pl';
     if (!this._rendered) this._render();
     this._collectStats();
   }
@@ -470,6 +472,36 @@ class HAPurgeCache extends HTMLElement {
         }
         .tip-banner .tip-dismiss:hover { opacity: 1; }
         .tip-banner.hidden { display: none; }
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+          .container { padding: 12px; }
+          .header h2 { font-size: 18px; }
+          .actions { flex-wrap: wrap; gap: 8px; }
+          .actions button { min-width: 120px; flex: 1; font-size: 13px; }
+          .result-grid { grid-template-columns: 1fr; }
+          .keys-section { overflow-x: auto; }
+          .warning-banner, .tip-banner { padding: 12px; font-size: 13px; }
+        }
+      
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
       </style>
 
       <div class="container">

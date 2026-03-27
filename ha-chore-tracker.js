@@ -1,4 +1,4 @@
-class HaChoreTracker extends HTMLElement {
+﻿class HaChoreTracker extends HTMLElement {
   static getConfigElement() {
     return document.createElement('ha-chore-tracker-editor');
   }
@@ -16,6 +16,7 @@ class HaChoreTracker extends HTMLElement {
 
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -67,7 +68,8 @@ class HaChoreTracker extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -96,6 +98,7 @@ class HaChoreTracker extends HTMLElement {
   }
 
   render() {
+    const L = this._lang === 'pl';
     this.shadowRoot.innerHTML = `
       <style>
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
@@ -955,17 +958,70 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .column { min-width: unset; }
 }
 
-</style>
+
+/* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      </style>
 
       <div class="card">
         <div class="card-header">
-          <h2 class="title">đźŹ  ${this.config.title || 'Chore Tracker'}</h2>
+          <h2 class="title">🏠 ${this.config.title || 'Chore Tracker'}</h2>
         </div>
 
         <div class="tabs">
-          <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">đź“‹ Board</button>
-          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">đź“… Schedule</button>
-          <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">đźŹ† Stats</button>
+          <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">📋 Board</button>
+          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">📅 Schedule</button>
+          <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">🏆 Stats</button>
         </div>
 
         <!-- Board Tab -->
@@ -987,12 +1043,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Room/Area</label>
                 <select id="chore-room">
-                  <option value="Kitchen">đźŤł Kitchen</option>
-                  <option value="Bathroom">đźšż Bathroom</option>
-                  <option value="Bedroom">đź›Źď¸Ź Bedroom</option>
-                  <option value="Living">đź›‹ď¸Ź Living Room</option>
-                  <option value="Yard">đźŚł Yard</option>
-                  <option value="General">đź“Ś General</option>
+                  <option value="Kitchen">🍳 Kitchen</option>
+                  <option value="Bathroom">🚿 Bathroom</option>
+                  <option value="Bedroom">🛏️ Bedroom</option>
+                  <option value="Living">🛋️ Living Room</option>
+                  <option value="Yard">🌳 Yard</option>
+                  <option value="General">📌 General</option>
                 </select>
               </div>
             </div>
@@ -1010,32 +1066,32 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Priority</label>
                 <select id="chore-priority">
-                  <option value="low">Low đźź˘</option>
-                  <option value="medium">Medium đźźˇ</option>
-                  <option value="high">High đź”´</option>
+                  <option value="low">Low 🟢</option>
+                  <option value="medium">Medium 🟡</option>
+                  <option value="high">High 🔴</option>
                 </select>
               </div>
             </div>
 
-            <button class="btn-primary" id="add-btn">âž• Add Chore</button>
+            <button class="btn-primary" id="add-btn">➕ Add Chore</button>
           </div>
 
           <div class="board" id="board">
             <div class="column" data-status="todo">
               <div class="column-header">
-                <span>đź“ť To Do</span>
+                <span>📝 To Do</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="in-progress">
               <div class="column-header">
-                <span>âŹł In Progress</span>
+                <span>⏳ In Progress</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="done">
               <div class="column-header">
-                <span>âś… Done</span>
+                <span>✅ Done</span>
                 <div class="column-count">0</div>
               </div>
             </div>
@@ -1048,7 +1104,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-content active" id="schedule-tab">
           <div class="schedule" id="schedule"></div>
           <div id="empty-schedule" class="empty-state" style="display:none;">
-            đź“­ No chores scheduled yet. Add chores to see the weekly schedule.
+            <div class="empty-icon">📅</div>
+            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Schedule Yet</h3>
+            <p style="margin:0 0 16px;max-width:280px;">Add chores with assigned days to see your weekly schedule here.</p>
           </div>
         </div>
         ` : ''}
@@ -1059,7 +1117,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="stats-container" id="stats-container"></div>
           <div class="leaderboard" id="leaderboard"></div>
           <div id="empty-stats" class="empty-state" style="display:none;">
-            đź“Š No statistics available yet. Complete chores to see stats.
+            <div class="empty-icon">📊</div>
+            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Stats Yet</h3>
+            <p style="margin:0 0 16px;max-width:280px;">Complete some chores and check back — your productivity stats will appear here.</p>
           </div>
         </div>
         ` : ''}
@@ -1176,12 +1236,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <span>${this.getRoomEmoji(chore.room)}</span>
           </div>
           <div style="font-size: 11px; color: var(--secondary-text); margin-top: 6px;">
-            ${this.getFrequencyLabel(chore.frequency)} â€˘ ${chore.priority.charAt(0).toUpperCase() + chore.priority.slice(1)}
+            ${this.getFrequencyLabel(chore.frequency)} • ${chore.priority.charAt(0).toUpperCase() + chore.priority.slice(1)}
           </div>
           <div class="chore-actions">
-            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next â†’</button>` : ''}
-            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">â† Back</button>` : ''}
-            <button class="btn-small" data-action="delete">đź—‘ď¸Ź</button>
+            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next →</button>` : ''}
+            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">← Back</button>` : ''}
+            <button class="btn-small" data-action="delete">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -1264,19 +1324,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     statsEl.innerHTML = `
       <div class="stat-card">
-        <div class="stat-label">đź“‹ Total Chores</div>
+        <div class="stat-label">📋 Total Chores</div>
         <div class="stat-value">${totalChores}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">âś… Completed</div>
+        <div class="stat-label">✅ Completed</div>
         <div class="stat-value">${completedChores}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">đź“Š Completion Rate</div>
+        <div class="stat-label">📊 Completion Rate</div>
         <div class="stat-value">${overallCompletion}%</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">đź‘Ą Active Members</div>
+        <div class="stat-label">👥 Active Members</div>
         <div class="stat-value">${this.members.length}</div>
       </div>
     `;
@@ -1295,7 +1355,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="rank">#${index + 1}</div>
         <div class="name">${entry[0]}</div>
         <div class="completion">${entry[1].completed} done</div>
-        <div class="streak">đź”Ą ${entry[1].streak}</div>
+        <div class="streak">🔥 ${entry[1].streak}</div>
       </div>
     `).join('');
   }
@@ -1307,14 +1367,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   getRoomEmoji(room) {
     const emojis = {
-      'Kitchen': 'đźŤł',
-      'Bathroom': 'đźšż',
-      'Bedroom': 'đź›Źď¸Ź',
-      'Living': 'đź›‹ď¸Ź',
-      'Yard': 'đźŚł',
-      'General': 'đź“Ś'
+      'Kitchen': '🍳',
+      'Bathroom': '🚿',
+      'Bedroom': '🛏️',
+      'Living': '🛋️',
+      'Yard': '🌳',
+      'General': '📌'
     };
-    return emojis[room] || 'đź“Ś';
+    return emojis[room] || '📌';
   }
 
   getFrequencyLabel(freq) {

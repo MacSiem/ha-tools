@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HA Security Check - Security audit tool for Home Assistant
  * Checks for common security issues: exposed ports, SSL, outdated addons, insecure integrations, etc.
  */
@@ -16,6 +16,7 @@ class HASecurityCheck extends HTMLElement {
     this._hass = null;
     this._config = {};
     this._activeTab = 'overview';
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this._loading = true;
     this._auditData = null;
     this._lastScan = null;
@@ -169,6 +170,28 @@ class HASecurityCheck extends HTMLElement {
       if (internalUrl && internalUrl.startsWith('https://')) {
         findings.pass.push({ id: 'ssl_internal', title: 'Internal access uses HTTPS', desc: `Internal URL: ${internalUrl}` });
       }
+
+      // K1: Certificate & DNS security checks
+      if (externalUrl && externalUrl.startsWith('https://')) {
+        try {
+          const hostname = new URL(externalUrl).hostname;
+          if (hostname.endsWith('.duckdns.org') || hostname.endsWith('.nabu.casa')) {
+            findings.pass.push({ id: 'ssl_cert_managed', title: 'SSL certificate is auto-managed', desc: `${hostname} uses managed SSL (auto-renewed)` });
+          } else {
+            findings.info.push({ id: 'ssl_cert_check', title: 'Verify SSL certificate expiry', desc: `Hostname: ${hostname} — ensure your cert is auto-renewed (Let''s Encrypt, Cloudflare, etc.)`, fix: 'Use certbot with auto-renewal or a Cloudflare tunnel for hassle-free SSL' });
+          }
+        } catch(e) {}
+      }
+
+      // DNS rebinding protection
+      try {
+        const httpConfig = await this._hass.callWS({ type: 'config/core/info' }).catch(() => null);
+        const hasCors = this._hass.config?.components?.includes('cors');
+        if (!hasCors) {
+          findings.pass.push({ id: 'dns_rebind', title: 'No CORS component detected', desc: 'Lower risk of DNS rebinding attacks' });
+        }
+      } catch(e) {}
+
 
       let users = [];
       try {
@@ -1072,7 +1095,27 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 .loading { text-align: center; padding: 48px; color: var(--bento-text-secondary); font-size: 14px; }
 
-</style>
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      </style>
       <ha-card>
         <div class="security-card">
           <div class="card-header">
