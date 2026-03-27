@@ -61,9 +61,16 @@ class HAStorageMonitor extends HTMLElement {
     this._updateContent();
 
     try {
-      // Get host info for disk usage
-      const hostInfo = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/host/info', method: 'get' });
-      const osInfo = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/os/info', method: 'get' });
+      // Get host info for disk usage (requires Supervisor - HA OS / Supervised)
+      let hostInfo = null, osInfo = null;
+      try { hostInfo = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/host/info', method: 'get' }); } catch(e) {}
+      try { osInfo = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/os/info', method: 'get' }); } catch(e) {}
+      if (!hostInfo) {
+        this._storageData = { noSupervisor: true };
+        this._loading = false;
+        this._updateContent();
+        return;
+      }
 
       // Get addon info (list endpoint has no size, so just get names/states)
       let addons = [];
@@ -749,6 +756,15 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       return;
     }
 
+    if (this._storageData?.noSupervisor) {
+      const L = this._lang === 'pl';
+      content.innerHTML = `<div style="text-align:center;padding:48px 24px;color:var(--bento-text-secondary,#64748B)">
+        <div style="font-size:48px;margin-bottom:16px">\u{1F4E6}</div>
+        <div style="font-size:18px;font-weight:600;color:var(--bento-text,#1E293B);margin-bottom:8px">${L ? 'Wymaga Home Assistant OS / Supervised' : 'Requires Home Assistant OS / Supervised'}</div>
+        <div style="max-width:400px;margin:0 auto;line-height:1.5">${L ? 'Storage Monitor wymaga Supervisor API do odczytu informacji o dysku, dodatkach i kopiach zapasowych. Zainstaluj HA OS lub HA Supervised.' : 'Storage Monitor requires the Supervisor API to read disk, addon, and backup information. Install HA OS or HA Supervised.'}</div>
+      </div>`;
+      return;
+    }
     if (!this._storageData || this._storageData.error) {
       content.innerHTML = `<div class="error">\u26A0\uFE0F ${this._storageData?.error || 'No data'}</div>`;
       return;

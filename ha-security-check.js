@@ -91,6 +91,12 @@ class HASecurityCheck extends HTMLElement {
       try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/supervisor/info', method: 'get' }); supervisorInfo = r?.data || r; } catch(e) {}
       try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/core/info', method: 'get' }); coreInfo = r?.data || r; } catch(e) {}
 
+      // Detect non-supervised HA installation
+      if (!hostInfo && !osInfo && !supervisorInfo && !coreInfo) {
+        const L = this._lang === 'pl';
+        findings.info.push({ id: 'no_supervisor', title: L ? 'Brak Supervisor API' : 'No Supervisor API detected', desc: L ? 'Cz\u0119\u015B\u0107 sprawdze\u0144 bezpiecze\u0144stwa wymaga HA OS lub HA Supervised (aktualizacje systemu, skanowanie dodatk\u00F3w, analiza sieci).' : 'Some security checks require HA OS or Supervised installation (system updates, addon scanning, network analysis).', fix: L ? 'Zainstaluj Home Assistant OS dla pe\u0142nej ochrony' : 'Install HA OS for full security coverage' });
+      }
+
       if (coreInfo) {
         const current = coreInfo.version;
         const latest = coreInfo.version_latest;

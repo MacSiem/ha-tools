@@ -605,8 +605,8 @@ canvas {
       .slice(0, 8);
     const maxDomain = topDomains.length > 0 ? topDomains[0][1] : 1;
 
-    const unavailable = allEntities.filter(id => this._hass.states[id].state === 'unavailable').length;
-    const unknown = allEntities.filter(id => this._hass.states[id].state === 'unknown').length;
+    const unavailable = allEntities.filter(id => this._hass.states[id]?.state === 'unavailable').length;
+    const unknown = allEntities.filter(id => this._hass.states[id]?.state === 'unknown').length;
 
     const domainColors = {
       sensor: '#4caf50', binary_sensor: '#8bc34a', light: '#ffc107',
