@@ -341,6 +341,12 @@ class HAToolsPanel extends HTMLElement {
     --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
     --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
   }
+  .donate-section {
+    background: linear-gradient(135deg, #2a1525 0%, #1e1530 50%, #251530 100%);
+    border-color: #4a3555;
+  }
+  .donate-section h3 { color: #f0c0d8; }
+  .donate-section p { color: #d4a0b8; }
 }
 
 /* Also detect HA theme via CSS custom property - this works when HA sets dark theme */

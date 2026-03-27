@@ -496,7 +496,6 @@ class HAYamlChecker extends HTMLElement {
     switch (this._activeTab) {
       case 'config-check': return this._renderConfigCheck();
       case 'entity-validator': return this._renderEntityValidator();
-      case 'file-scanner': return this._renderFileScan();
       case 'paste-validate': return this._renderPasteValidate();
       case 'template-tester': return this._renderTemplateTester();
       case 'common-issues': return this._renderCommonIssues();
