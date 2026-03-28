@@ -519,7 +519,20 @@ canvas {
     const totalEnergy = sensors.reduce((sum, s) => sum + (s.unit.includes('kWh') ? s.value : 0), 0);
     const cost = totalEnergy * this._config.energy_price;
 
-    const maxVal = sensors.length > 0 ? Math.max(...sensors.map(s => s.value)) : 1;
+    if (sensors.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div style="font-size:48px;opacity:0.5;margin-bottom:12px;">⚡</div>
+          <h3 style="margin:8px 0 4px;">${this._lang === 'pl' ? 'Brak danych energetycznych' : 'No energy data found'}</h3>
+          <p style="font-size:12px;color:var(--bento-text-secondary);">${this._lang === 'pl'
+            ? 'Nie znaleziono sensorów energii (kWh/W). Przejdź do Ustawienia → Energia i dodaj źródła energii.'
+            : 'No energy sensors (kWh/W) found. Go to Settings → Energy and add energy sources.'}</p>
+          <a href="/config/energy" style="color:var(--bento-primary,#3B82F6);font-size:12px;margin-top:8px;display:inline-block;">⚙️ ${this._lang === 'pl' ? 'Konfiguracja energii' : 'Energy configuration'}</a>
+        </div>`;
+      return;
+    }
+
+    const maxVal = Math.max(...sensors.map(s => s.value));
     const colors = ['#4caf50', '#66bb6a', '#81c784', '#a5d6a7', '#c8e6c9', '#e8f5e9', '#fff9c4', '#ffcc80', '#ffab91', '#ef9a9a'];
 
     container.innerHTML = `

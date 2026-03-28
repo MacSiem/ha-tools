@@ -298,6 +298,22 @@ class HAYamlChecker extends HTMLElement {
       }
       const brokenUniq = Object.values(brokenMap);
 
+      // FUNC-1: Check unavailable/unknown entities
+      const problemStates = Object.entries(this._hass.states)
+        .filter(([id, s]) => ['unavailable', 'unknown'].includes(s.state))
+        .map(([id, s]) => ({ entity: id, state: s.state, name: s.attributes?.friendly_name || id }));
+
+      // FUNC-1: Check entities without friendly_name
+      const noFriendlyName = Object.entries(this._hass.states)
+        .filter(([id, s]) => !s.attributes?.friendly_name)
+        .map(([id]) => id)
+        .slice(0, 50);
+
+      // FUNC-1: Check automations without description
+      const autoNoDesc = automations
+        .filter(a => !a.description)
+        .map(a => ({ id: a.id || a.entity_id || '?', alias: a.alias || '(brak alias)' }));
+
       this._entityResult = {
         totalEntities: allEntityIds.size,
         totalAutomations: automations.length,
@@ -305,6 +321,9 @@ class HAYamlChecker extends HTMLElement {
         domainCounts,
         broken: brokenUniq,
         dupIds,
+        problemStates,
+        noFriendlyName,
+        autoNoDesc,
         checkedCount: new Set(checked).size,
         ts: new Date().toLocaleTimeString('pl-PL'),
       };
@@ -695,6 +714,28 @@ class HAYamlChecker extends HTMLElement {
           ${r.broken.map(b => `<div class="issue-item error"><span class="issue-icon">❌</span><div><strong>${b.entity}</strong> <span style="color:var(--text-secondary);font-size:11px;">w ${b.type}: ${b.in}</span></div></div>`).join('')}
         </div>
       ` : '<div class="all-good">✅ Brak uszkodzonych referencji!</div>'}
+      ${r.problemStates?.length ? `
+        <div class="issue-section">
+          <h3>⚠️ Encje unavailable/unknown (${r.problemStates.length})</h3>
+          ${r.problemStates.slice(0, 30).map(p => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${p.entity}</strong> — ${p.name} <span class="badge ${p.state === 'unavailable' ? 'error' : 'warning'}">${p.state}</span></div></div>`).join('')}
+          ${r.problemStates.length > 30 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">...i ${r.problemStates.length - 30} więcej</div>` : ''}
+        </div>
+      ` : ''}
+      ${r.autoNoDesc?.length ? `
+        <div class="issue-section">
+          <h3>ℹ️ Automatyzacje bez opisu (${r.autoNoDesc.length})</h3>
+          ${r.autoNoDesc.slice(0, 20).map(a => `<div class="issue-item info"><span class="issue-icon">ℹ️</span><div><strong>${a.alias}</strong> <span style="color:var(--bento-text-secondary);font-size:11px;">ID: ${a.id}</span></div></div>`).join('')}
+          ${r.autoNoDesc.length > 20 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">...i ${r.autoNoDesc.length - 20} więcej</div>` : ''}
+        </div>
+      ` : ''}
+      ${r.noFriendlyName?.length ? `
+        <div class="issue-section">
+          <h3>ℹ️ Encje bez friendly_name (${r.noFriendlyName.length})</h3>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
+            ${r.noFriendlyName.map(e => `<span class="badge warning" style="font-size:11px;">${e}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
       <div style="margin-top:12px;">
         <div class="file-list-header">Top domeny</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">

@@ -21,6 +21,20 @@ class HALogEmail extends HTMLElement {
     this._firstRender = false;
     this._lastFetch = 0;
     this._sendStatus = null;
+    // FUNC-2: Real-time error polling
+    this._pollingEnabled = false;
+    this._pollingTimer = null;
+    this._pollingIntervalSec = 60;
+    this._lastErrorCount = 0;
+    this._lastErrorKeys = new Set();
+    try {
+      const pollCfg = localStorage.getItem('ha-tools-log-polling');
+      if (pollCfg) {
+        const p = JSON.parse(pollCfg);
+        this._pollingEnabled = !!p.enabled;
+        this._pollingIntervalSec = p.interval || 60;
+      }
+    } catch(e) {}
   }
 
   set hass(hass) {
@@ -101,6 +115,74 @@ class HALogEmail extends HTMLElement {
       try { sessionStorage.setItem('ha-log-email-history', JSON.stringify(this._logHistory)); } catch(e) {}
     }
     this._render();
+    // FUNC-2: start polling if enabled on first successful fetch
+    if (this._pollingEnabled && !this._pollingTimer) this._startPolling();
+  }
+
+  // FUNC-2: Real-time error polling
+  _startPolling() {
+    this._stopPolling();
+    this._pollingEnabled = true;
+    this._savePollingConfig();
+    // Snapshot current errors as baseline
+    if (this._logData?.errors) {
+      this._lastErrorKeys = new Set(this._logData.errors.map(e => e.message + '|' + e.domain));
+      this._lastErrorCount = this._logData.errors.length;
+    }
+    this._pollingTimer = setInterval(() => this._pollForNewErrors(), this._pollingIntervalSec * 1000);
+  }
+
+  _stopPolling() {
+    if (this._pollingTimer) {
+      clearInterval(this._pollingTimer);
+      this._pollingTimer = null;
+    }
+    this._pollingEnabled = false;
+    this._savePollingConfig();
+  }
+
+  _savePollingConfig() {
+    try {
+      localStorage.setItem('ha-tools-log-polling', JSON.stringify({
+        enabled: this._pollingEnabled,
+        interval: this._pollingIntervalSec
+      }));
+    } catch(e) {}
+  }
+
+  async _pollForNewErrors() {
+    if (!this._hass) return;
+    try {
+      const logs = await this._hass.callWS({ type: 'system_log/list' });
+      if (!Array.isArray(logs)) return;
+      const now = Date.now();
+      const h1 = 60 * 60 * 1000;
+      const recentErrors = logs
+        .filter(e => (e.level === 'ERROR' || e.level === 'CRITICAL') && e.timestamp && (now - e.timestamp * 1000) < h1);
+      const newErrors = recentErrors.filter(e => {
+        const key = (Array.isArray(e.message) ? e.message.join(' ') : String(e.message || '')) + '|' + (e.name || '');
+        return !this._lastErrorKeys.has(key);
+      });
+      if (newErrors.length > 0) {
+        // Update baseline
+        this._lastErrorKeys = new Set(recentErrors.map(e => (Array.isArray(e.message) ? e.message.join(' ') : String(e.message || '')) + '|' + (e.name || '')));
+        this._lastErrorCount = recentErrors.length;
+        // Send HA persistent notification
+        try {
+          await this._hass.callService('persistent_notification', 'create', {
+            title: `⚠️ ${newErrors.length} nowy(ch) błędów w system_log`,
+            message: newErrors.slice(0, 3).map(e => `**${e.name || 'unknown'}**: ${(Array.isArray(e.message) ? e.message[0] : String(e.message || '')).substring(0, 150)}`).join('\n\n'),
+            notification_id: 'ha_log_email_poll_' + Date.now()
+          });
+        } catch(notifErr) {
+          console.warn('[ha-log-email] Could not create notification:', notifErr);
+        }
+        // Also refresh the log data display
+        this._fetchLogData();
+      }
+    } catch(e) {
+      console.warn('[ha-log-email] Polling error:', e);
+    }
   }
 
     _getLogFromSensor() {
@@ -474,6 +556,25 @@ class HALogEmail extends HTMLElement {
 
         <div class="section-header" style="margin-top:20px">Instant Error Notification</div>
         <div class="info-card" style="padding:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div>
+              <p style="margin:0;font-weight:600;font-size:13px">🔔 Live error polling</p>
+              <p style="margin:4px 0 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">
+                ${this._pollingEnabled ? '🟢 Aktywne — sprawdzanie co ' + this._pollingIntervalSec + 's' : '⚫ Wyłączone'}
+              </p>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <select id="poll-interval" style="padding:4px 8px;border-radius:6px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);background:var(--bento-bg,#f8fafc);color:var(--bento-text,#1e293b);">
+                ${[30,60,120,300].map(s => `<option value="${s}" ${this._pollingIntervalSec === s ? 'selected' : ''}>${s < 60 ? s + 's' : (s/60) + 'min'}</option>`).join('')}
+              </select>
+              <button class="toggle-btn" id="btn-poll-toggle" style="padding:6px 14px;font-size:11px;">
+                ${this._pollingEnabled ? 'Wyłącz' : 'Włącz'}
+              </button>
+            </div>
+          </div>
+          <p style="margin:0 0 8px 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">
+            Polling wysyła persistent_notification w HA przy wykryciu nowego ERROR. Alternatywnie użyj automatyzacji:
+          </p>
           <p style="margin:0 0 8px 0;font-weight:600;font-size:13px">Automatyczne powiadomienia przy nowym bledzie</p>
           <p style="margin:0 0 12px 0;font-size:12px;color:var(--text2)">
             Skopiuj ponizszq automatyzacje do <code>automations.yaml</code> aby otrzymywac natychmiastowy email/powiadomienie przy kazdym nowym ERROR w system_log.
@@ -683,6 +784,28 @@ max: 3</pre>
 
     const btnSendWeekly = this.shadowRoot.getElementById('btn-send-weekly');
     if (btnSendWeekly) btnSendWeekly.addEventListener('click', () => this._sendEmailNow('weekly'));
+
+    // FUNC-2: Polling toggle
+    const btnPollToggle = this.shadowRoot.getElementById('btn-poll-toggle');
+    if (btnPollToggle) {
+      btnPollToggle.addEventListener('click', () => {
+        if (this._pollingEnabled) { this._stopPolling(); } else {
+          const sel = this.shadowRoot.getElementById('poll-interval');
+          if (sel) this._pollingIntervalSec = parseInt(sel.value) || 60;
+          this._startPolling();
+        }
+        this._render();
+      });
+    }
+    const pollIntervalSel = this.shadowRoot.getElementById('poll-interval');
+    if (pollIntervalSel) {
+      pollIntervalSel.addEventListener('change', (e) => {
+        this._pollingIntervalSec = parseInt(e.target.value) || 60;
+        if (this._pollingEnabled) { this._startPolling(); }
+        this._savePollingConfig();
+      });
+    }
+
     this._injectDiscovery();
   }
 

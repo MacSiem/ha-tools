@@ -25,6 +25,7 @@ class HAEnergyEmail extends HTMLElement {
     this._firstRender = false;
     this._lastRenderTime = 0;
     this._renderScheduled = false;
+    this._reportPeriod = 'week'; // FUNC-2: 'day', 'week', 'month'
   }
 
   set hass(hass) {
@@ -294,7 +295,7 @@ class HAEnergyEmail extends HTMLElement {
     switch (this._activeTab) {
       case 'overview': el.innerHTML = this._tabOverview(); break;
       case 'schedule': el.innerHTML = this._tabSchedule(); this._attachScheduleEvents(); break;
-      case 'preview':  el.innerHTML = this._tabPreview(); break;
+      case 'preview':  el.innerHTML = this._tabPreview(); this._attachPeriodEvents(); break;
       case 'send':     el.innerHTML = this._tabSend(); this._attachSendEvents(); break;
     }
   }
@@ -303,6 +304,16 @@ class HAEnergyEmail extends HTMLElement {
     if (this._activeTab !== 'send') {
       this._renderTab();
     }
+  }
+
+  // FUNC-2: Period selector events
+  _attachPeriodEvents() {
+    this.shadowRoot.querySelectorAll('.period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._reportPeriod = btn.dataset.period;
+        this._renderTab();
+      });
+    });
   }
 
   // ─── tabs ─────────────────────────────────────────────────────────────────────
@@ -447,48 +458,78 @@ class HAEnergyEmail extends HTMLElement {
 
   _tabPreview() {
     const devices = this._devices();
-    const devData = devices.map(d => ({
-      name: d.name,
-      week: this._float(this._state(d.energy_week, '0')),
-      lastWeek: this._float(this._state(d.energy_last_week, '0')),
-      month: this._float(this._state(d.energy_month, '0')),
-      lastMonth: this._float(this._state(d.energy_last_month, '0')),
-      cost: this._float(this._state(d.cost_week, '0')),
-    })).sort((a, b) => b.week - a.week);
+    const period = this._reportPeriod || 'week';
+    const L = this._lang === 'pl';
 
-    const totalWeekEnergy = devData.reduce((s, d) => s + d.week, 0);
-    const totalLastWeek = devData.reduce((s, d) => s + d.lastWeek, 0);
-    const totalWeekCost = devData.reduce((s, d) => s + d.cost, 0);
-    const diffEnergy = totalWeekEnergy - totalLastWeek;
+    const devData = devices.map(d => {
+      let current = 0, previous = 0, cost = 0;
+      if (period === 'day') {
+        current = this._float(this._state(d.energy_day || d.energy_week, '0'));
+        previous = 0;
+        cost = current * (this._config.energy_price || 0.65);
+      } else if (period === 'month') {
+        current = this._float(this._state(d.energy_month, '0'));
+        previous = this._float(this._state(d.energy_last_month, '0'));
+        cost = this._float(this._state(d.cost_month || d.cost_week, '0'));
+      } else {
+        current = this._float(this._state(d.energy_week, '0'));
+        previous = this._float(this._state(d.energy_last_week, '0'));
+        cost = this._float(this._state(d.cost_week, '0'));
+      }
+      return { name: d.name, current, previous, cost };
+    }).sort((a, b) => b.current - a.current);
+
+    const totalEnergy = devData.reduce((s, d) => s + d.current, 0);
+    const totalPrevious = devData.reduce((s, d) => s + d.previous, 0);
+    const totalCost = devData.reduce((s, d) => s + d.cost, 0);
+    const diffEnergy = totalEnergy - totalPrevious;
 
     const today = new Date().toISOString().split('T')[0];
+    const periodLabels = {
+      day: { title: L ? 'Raport dzienny' : 'Daily Report', col: L ? 'Dziś (kWh)' : 'Today (kWh)', prev: L ? 'Wczoraj' : 'Yesterday', range: L ? 'Ostatnie 24h' : 'Last 24h' },
+      week: { title: L ? 'Raport tygodniowy' : 'Weekly Report', col: L ? 'Ten tydzień (kWh)' : 'This Week (kWh)', prev: L ? 'Zeszły tydz.' : 'Last Week', range: L ? 'Ostatnie 7 dni' : 'Last 7 days' },
+      month: { title: L ? 'Raport miesięczny' : 'Monthly Report', col: L ? 'Ten miesiąc (kWh)' : 'This Month (kWh)', prev: L ? 'Zeszły mies.' : 'Last Month', range: L ? 'Ostatnie 30 dni' : 'Last 30 days' },
+    };
+    const pl = periodLabels[period];
 
     return `
-      <div class="section-title">\u{1F4CB} Weekly Report Preview &mdash; ${today}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-title" style="margin:0;">\u{1F4CB} ${pl.title} &mdash; ${today}</div>
+        <div style="display:flex;gap:4px;">
+          ${['day','week','month'].map(p => `
+            <button class="period-btn ${period === p ? 'active' : ''}" data-period="${p}" style="
+              padding:5px 12px;font-size:11px;border-radius:6px;cursor:pointer;border:1px solid var(--bo,#e2e8f0);
+              background:${period === p ? 'var(--pr,#3B82F6)' : 'var(--bg2,#f8fafc)'};
+              color:${period === p ? '#fff' : 'var(--t1,#1e293b)'};font-weight:${period === p ? '600' : '400'};">
+              ${p === 'day' ? (L ? '24h' : '24h') : p === 'week' ? (L ? '7d' : '7d') : (L ? '30d' : '30d')}
+            </button>
+          `).join('')}
+        </div>
+      </div>
       <div class="preview-box">
-        <h3>\u26A1 Weekly Energy Report &ndash; ${today}</h3>
+        <h3>\u26A1 ${pl.title} &ndash; ${today}</h3>
         <h4>Summary</h4>
         <ul style="margin:0;padding-left:18px;line-height:1.8;font-size:12px;">
-          <li><b>Total energy:</b> ${totalWeekEnergy.toFixed(2)} kWh
-            <span class="${diffEnergy > 0 ? 'trend-up' : 'trend-down'}">
-              (${diffEnergy > 0 ? '+' : ''}${diffEnergy.toFixed(2)} kWh vs last week)
-            </span>
+          <li><b>Total energy:</b> ${totalEnergy.toFixed(2)} kWh
+            ${totalPrevious > 0 ? `<span class="${diffEnergy > 0 ? 'trend-up' : 'trend-down'}">
+              (${diffEnergy > 0 ? '+' : ''}${diffEnergy.toFixed(2)} kWh vs ${pl.prev.toLowerCase()})
+            </span>` : ''}
           </li>
-          <li><b>Total cost:</b> ${totalWeekCost.toFixed(2)} ${this._config.currency}</li>
-          <li><b>Period:</b> Last 7 days &bull; ${devData.length} devices tracked</li>
+          <li><b>Total cost:</b> ${totalCost.toFixed(2)} ${this._config.currency}</li>
+          <li><b>Period:</b> ${pl.range} &bull; ${devData.length} devices tracked</li>
         </ul>
         <h4>Per Device Comparison</h4>
         <table class="preview-table">
           <thead><tr>
-            <th>Device</th><th>This Week (kWh)</th><th>Last Week</th><th>Change</th><th>Cost (${this._config.currency})</th>
+            <th>Device</th><th>${pl.col}</th><th>${pl.prev}</th><th>Change</th><th>Cost (${this._config.currency})</th>
           </tr></thead>
           <tbody>
             ${devData.map(d => {
-              const diff = d.week - d.lastWeek;
+              const diff = d.current - d.previous;
               return `<tr>
                 <td>${d.name}</td>
-                <td>${d.week.toFixed(2)}</td>
-                <td>${d.lastWeek.toFixed(2)}</td>
+                <td>${d.current.toFixed(2)}</td>
+                <td>${d.previous.toFixed(2)}</td>
                 <td class="${diff > 0 ? 'trend-up' : diff < 0 ? 'trend-down' : ''}">${diff > 0 ? '+' : ''}${diff.toFixed(2)}</td>
                 <td>${d.cost.toFixed(2)}</td>
               </tr>`;
