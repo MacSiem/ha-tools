@@ -147,6 +147,17 @@
             @media (prefers-color-scheme: dark) {
               .hatd-panel-name { color: #e2e8f0; }
             }
+            @media (max-width: 768px) {
+              .hatd-banner { padding: 10px 12px; margin-top: 12px; }
+              .hatd-tools-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+              .hatd-panel-row { gap: 8px; padding: 8px 10px; }
+            }
+            @media (max-width: 480px) {
+              .hatd-tools-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+              .hatd-tool-chip { padding: 5px 8px; font-size: 11px; }
+              .hatd-title { font-size: 12px; }
+              .hatd-panel-icon { font-size: 18px; }
+            }
             .hatd-tools-grid {
               display: grid;
               grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

@@ -77,6 +77,8 @@ class HASecurityCheck extends HTMLElement {
     this._loadScanData();
   }
 
+  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
+
   async _runAudit() {
     if (!this._hass) return;
     this._loading = true;
@@ -134,24 +136,24 @@ class HASecurityCheck extends HTMLElement {
 
       const outdatedAddons = installedAddons.filter(a => a.update_available);
       if (outdatedAddons.length > 0) {
-        findings.warning.push({ id: 'addon_updates', title: `${outdatedAddons.length} addon(s) have updates`, desc: outdatedAddons.map(a => `${a.name}: ${a.version} \u2192 ${a.version_latest}`).join(', '), fix: 'Update addons via Settings \u2192 Add-ons' });
+        findings.warning.push({ id: 'addon_updates', title: `${outdatedAddons.length} addon(s) have updates`, desc: outdatedAddons.map(a => `${this._sanitize(a.name)}: ${a.version} \u2192 ${a.version_latest}`).join(', '), fix: 'Update addons via Settings \u2192 Add-ons' });
       } else if (installedAddons.length > 0) {
         findings.pass.push({ id: 'addon_updates', title: 'All addons up to date', desc: `${installedAddons.length} addon(s) installed` });
       }
 
       const hostNetAddons = installedAddons.filter(a => a.host_network);
       if (hostNetAddons.length > 0) {
-        findings.info.push({ id: 'host_network', title: `${hostNetAddons.length} addon(s) use host networking`, desc: hostNetAddons.map(a => a.name).join(', '), fix: 'Verify these addons require host network access' });
+        findings.info.push({ id: 'host_network', title: `${hostNetAddons.length} addon(s) use host networking`, desc: hostNetAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Verify these addons require host network access' });
       }
 
       const unprotectedAddons = installedAddons.filter(a => a.protected === false);
       if (unprotectedAddons.length > 0) {
-        findings.critical.push({ id: 'unprotected_addons', title: `${unprotectedAddons.length} addon(s) with protection disabled`, desc: unprotectedAddons.map(a => a.name).join(', '), fix: 'Enable protection mode in addon settings unless you specifically need it disabled' });
+        findings.critical.push({ id: 'unprotected_addons', title: `${unprotectedAddons.length} addon(s) with protection disabled`, desc: unprotectedAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Enable protection mode in addon settings unless you specifically need it disabled' });
       }
 
       const noAutoUpdate = installedAddons.filter(a => a.auto_update === false);
       if (noAutoUpdate.length > 3) {
-        findings.info.push({ id: 'auto_update', title: `${noAutoUpdate.length} addon(s) without auto-update`, desc: noAutoUpdate.map(a => a.name).join(', '), fix: 'Consider enabling auto-update for non-critical addons' });
+        findings.info.push({ id: 'auto_update', title: `${noAutoUpdate.length} addon(s) without auto-update`, desc: noAutoUpdate.map(a => this._sanitize(a.name)).join(', '), fix: 'Consider enabling auto-update for non-critical addons' });
       }
 
       const configEntries = this._hass.config;
@@ -205,12 +207,12 @@ class HASecurityCheck extends HTMLElement {
 
         const owners = users.filter(u => u.is_owner);
         if (owners.length > 1) {
-          findings.warning.push({ id: 'multi_owner', title: `${owners.length} owner accounts detected`, desc: owners.map(u => u.name).join(', '), fix: 'Limit owner accounts to minimize attack surface. Demote unnecessary owners to admin.' });
+          findings.warning.push({ id: 'multi_owner', title: `${owners.length} owner accounts detected`, desc: owners.map(u => this._sanitize(u.name)).join(', '), fix: 'Limit owner accounts to minimize attack surface. Demote unnecessary owners to admin.' });
         }
 
         const localOnly = users.filter(u => u.local_only);
         if (localOnly.length > 0) {
-          findings.pass.push({ id: 'local_only_users', title: `${localOnly.length} user(s) restricted to local access`, desc: localOnly.map(u => u.name).join(', ') });
+          findings.pass.push({ id: 'local_only_users', title: `${localOnly.length} user(s) restricted to local access`, desc: localOnly.map(u => this._sanitize(u.name)).join(', ') });
         }
       }
 
@@ -225,15 +227,15 @@ class HASecurityCheck extends HTMLElement {
       const sshAddon = installedAddons.find(a => a.slug?.includes('ssh') || a.name?.toLowerCase().includes('ssh'));
       if (sshAddon) {
         if (sshAddon.state === 'started') {
-          findings.warning.push({ id: 'ssh_addon', title: 'SSH addon is running', desc: `${sshAddon.name} (${sshAddon.version})`, fix: 'Ensure SSH uses key-based auth. Disable if not actively needed.' });
+          findings.warning.push({ id: 'ssh_addon', title: 'SSH addon is running', desc: `${this._sanitize(sshAddon.name)} (${sshAddon.version})`, fix: 'Ensure SSH uses key-based auth. Disable if not actively needed.' });
         } else {
-          findings.info.push({ id: 'ssh_addon', title: 'SSH addon installed but stopped', desc: sshAddon.name });
+          findings.info.push({ id: 'ssh_addon', title: 'SSH addon installed but stopped', desc: this._sanitize(sshAddon.name) });
         }
       }
 
       const mqttAddon = installedAddons.find(a => a.slug?.includes('mosquitto') || a.name?.toLowerCase().includes('mqtt'));
       if (mqttAddon && mqttAddon.state === 'started') {
-        findings.info.push({ id: 'mqtt_broker', title: 'MQTT broker is running', desc: `${mqttAddon.name}`, fix: 'Ensure MQTT has authentication enabled and is not exposed to the internet' });
+        findings.info.push({ id: 'mqtt_broker', title: 'MQTT broker is running', desc: `${this._sanitize(mqttAddon.name)}`, fix: 'Ensure MQTT has authentication enabled and is not exposed to the internet' });
       }
 
       const automationEntities = allEntities.filter(e => e.startsWith('automation.'));
@@ -245,7 +247,7 @@ class HASecurityCheck extends HTMLElement {
         return name.includes('ftp') || name.includes('samba') || name.includes('telnet');
       });
       if (riskyAddons.length > 0) {
-        findings.warning.push({ id: 'risky_services', title: 'Potentially risky network services', desc: riskyAddons.map(a => `${a.name} (${a.state || 'stopped'})`).join(', '), fix: 'Ensure file sharing services are properly secured and only accessible on local network' });
+        findings.warning.push({ id: 'risky_services', title: 'Potentially risky network services', desc: riskyAddons.map(a => `${this._sanitize(a.name)} (${a.state || 'stopped'})`).join(', '), fix: 'Ensure file sharing services are properly secured and only accessible on local network' });
       }
 
       // NEW CHECK: HACS custom repositories
@@ -300,7 +302,7 @@ class HASecurityCheck extends HTMLElement {
       try {
         const privilegedAddons = installedAddons.filter(a => a.privileged === true);
         if (privilegedAddons.length > 0) {
-          findings.warning.push({ id: 'privileged_addons', title: `${privilegedAddons.length} addon(s) with privileged access`, desc: privilegedAddons.map(a => a.name).join(', '), fix: 'Privileged addons have root-level access. Verify they are trustworthy and necessary.' });
+          findings.warning.push({ id: 'privileged_addons', title: `${privilegedAddons.length} addon(s) with privileged access`, desc: privilegedAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Privileged addons have root-level access. Verify they are trustworthy and necessary.' });
         }
       } catch(e) {}
 
@@ -314,7 +316,7 @@ class HASecurityCheck extends HTMLElement {
         if (exposedAddons.length > 0) {
           const portList = exposedAddons.map(a => {
             const ports = a.ports ? Object.keys(a.ports).join(',') : '';
-            return `${a.name}${ports ? `:${ports}` : ''}`;
+            return `${this._sanitize(a.name)}${ports ? `:${ports}` : ''}`;
           }).join('; ');
           findings.info.push({ id: 'exposed_addon_ports', title: `${exposedAddons.length} addon(s) expose port(s)`, desc: portList, fix: 'Ensure exposed ports are not accessible from the internet. Use firewall rules if needed.' });
         }
@@ -324,7 +326,7 @@ class HASecurityCheck extends HTMLElement {
       try {
         const nonIngressAddons = installedAddons.filter(a => a.ingress !== true && a.ports && Object.keys(a.ports).length > 0);
         if (nonIngressAddons.length > 0) {
-          findings.info.push({ id: 'non_ingress_addons', title: `${nonIngressAddons.length} addon(s) not using Ingress`, desc: nonIngressAddons.map(a => a.name).join(', '), fix: 'Consider using Ingress for safer addon access (only through HA UI)' });
+          findings.info.push({ id: 'non_ingress_addons', title: `${nonIngressAddons.length} addon(s) not using Ingress`, desc: nonIngressAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Consider using Ingress for safer addon access (only through HA UI)' });
         }
       } catch(e) {}
 
@@ -408,7 +410,7 @@ class HASecurityCheck extends HTMLElement {
           return config.some(d => d && (d.includes('bluetooth') || d.includes('usb') || d.includes('/dev/bus/usb')));
         });
         if (btUsbAddons.length > 0) {
-          findings.info.push({ id: 'bt_usb_addons', title: `${btUsbAddons.length} addon(s) with Bluetooth/USB access`, desc: btUsbAddons.map(a => a.name).join(', '), fix: 'Verify that these addons are trustworthy. USB/Bluetooth access provides direct hardware access.' });
+          findings.info.push({ id: 'bt_usb_addons', title: `${btUsbAddons.length} addon(s) with Bluetooth/USB access`, desc: btUsbAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Verify that these addons are trustworthy. USB/Bluetooth access provides direct hardware access.' });
         }
       } catch(e) {}
 
@@ -1196,12 +1198,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   _renderAddons(d) {
     if (!d.addons.length) return '<div class="empty-msg">No addons installed</div>';
-    return `<div class="table-container"><table class="entity-table"><thead><tr><th>Addon</th><th>Version</th><th>State</th><th>Protection</th><th>Auto-update</th><th>Host Network</th></tr></thead><tbody>${d.addons.map(a => { const prot = a.protected !== false; const autoUp = a.auto_update !== false; const hostNet = a.host_network === true; const updateAvail = a.update_available; return `<tr><td>${a.name || a.slug}${updateAvail ? ' \u2B06\uFE0F' : ''}</td><td>${a.version || '-'}${updateAvail ? ` \u2192 ${a.version_latest}` : ''}</td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td><td style="color:${prot ? '#4caf50' : '#f44336'}">${prot ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${autoUp ? '#4caf50' : '#ff9800'}">${autoUp ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${hostNet ? '#ff9800' : 'var(--bento-text-secondary)'}">${hostNet ? '\u26A0 Yes' : 'No'}</td></tr>`; }).join('')}</tbody></table></div>`;
+    return `<div class="table-container"><table class="entity-table"><thead><tr><th>Addon</th><th>Version</th><th>State</th><th>Protection</th><th>Auto-update</th><th>Host Network</th></tr></thead><tbody>${d.addons.map(a => { const prot = a.protected !== false; const autoUp = a.auto_update !== false; const hostNet = a.host_network === true; const updateAvail = a.update_available; return `<tr><td>${this._sanitize(a.name || a.slug)}${updateAvail ? ' \u2B06\uFE0F' : ''}</td><td>${a.version || '-'}${updateAvail ? ` \u2192 ${a.version_latest}` : ''}</td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td><td style="color:${prot ? '#4caf50' : '#f44336'}">${prot ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${autoUp ? '#4caf50' : '#ff9800'}">${autoUp ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${hostNet ? '#ff9800' : 'var(--bento-text-secondary)'}">${hostNet ? '\u26A0 Yes' : 'No'}</td></tr>`; }).join('')}</tbody></table></div>`;
   }
 
   _renderUsers(d) {
     if (!d.users.length) return '<div class="empty-msg">Could not retrieve user list</div>';
-    return `<div class="table-container"><table class="entity-table"><thead><tr><th>User</th><th>Role</th><th>Active</th><th>Local Only</th><th>System</th></tr></thead><tbody>${d.users.map(u => `<tr><td>${u.name || 'Unnamed'}</td><td>${u.is_owner ? '\u{1F451} Owner' : u.group_ids?.includes('system-admin') ? 'Admin' : 'User'}</td><td style="color:${u.is_active !== false ? '#4caf50' : '#9e9e9e'}">${u.is_active !== false ? '\u2713 Active' : 'Inactive'}</td><td>${u.local_only ? '\u2713 Yes' : 'No'}</td><td>${u.system_generated ? '\u{1F916} Yes' : 'No'}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="table-container"><table class="entity-table"><thead><tr><th>User</th><th>Role</th><th>Active</th><th>Local Only</th><th>System</th></tr></thead><tbody>${d.users.map(u => `<tr><td>${this._sanitize(u.name || 'Unnamed')}</td><td>${u.is_owner ? '\u{1F451} Owner' : u.group_ids?.includes('system-admin') ? 'Admin' : 'User'}</td><td style="color:${u.is_active !== false ? '#4caf50' : '#9e9e9e'}">${u.is_active !== false ? '\u2713 Active' : 'Inactive'}</td><td>${u.local_only ? '\u2713 Yes' : 'No'}</td><td>${u.system_generated ? '\u{1F916} Yes' : 'No'}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   _renderNetwork(d) {
@@ -1297,7 +1299,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         const hasIngress = a.ingress === true;
         const ports = a.ports ? Object.entries(a.ports).map(([port, config]) => `${port}${config.host_port ? `→${config.host_port}` : ''}`).join(', ') : 'N/A';
         const color = hasIngress ? '#4caf50' : a.state === 'started' ? '#ff9800' : '#9e9e9e';
-        html += `<tr><td>${a.name}</td><td style="color:${color}">${hasIngress ? '\u2713 Yes' : '\u2717 No'}</td><td><code style="font-size:12px;background:var(--bento-bg);padding:4px 8px;border-radius:4px">${ports}</code></td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td></tr>`;
+        html += `<tr><td>${this._sanitize(a.name)}</td><td style="color:${color}">${hasIngress ? '\u2713 Yes' : '\u2717 No'}</td><td><code style="font-size:12px;background:var(--bento-bg);padding:4px 8px;border-radius:4px">${ports}</code></td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td></tr>`;
       });
       html += '</tbody></table></div>';
     }

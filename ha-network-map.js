@@ -92,6 +92,7 @@
       this._registryLoaded = true;
     } catch (e) { console.warn('[ha-network-map] device registry load failed:', e); this._deviceRegistry = []; }
   }
+  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
   _getRegistryInfo() {
     const lookup = {};
     (this._deviceRegistry || []).forEach(d => {
@@ -99,7 +100,7 @@
       const ipMatch = d.configuration_url ? d.configuration_url.match(/(\d+\.\d+\.\d+\.\d+)/) : null;
       const ip = ipMatch ? ipMatch[1] : null;
       if (mac || ip) {
-        const name = (d.name_by_user || d.name || '').toLowerCase();
+        const name = this._sanitize(d.name_by_user || d.name || '').toLowerCase();
         lookup[name] = { mac, ip, manufacturer: d.manufacturer || null, model: d.model || null };
       }
     });
@@ -111,7 +112,7 @@
     Object.keys(states).forEach(eid => {
       if (!eid.startsWith('device_tracker.')) return;
       const st = states[eid]; const attr = st.attributes || {};
-      const fname = attr.friendly_name || eid.replace('device_tracker.', '');
+      const fname = this._sanitize(attr.friendly_name || eid.replace('device_tracker.', ''));
       const raw = (st.state || '').toLowerCase();
       let status = raw === 'home' ? 'home' : (raw === 'not_home' || raw === 'away') ? 'away' : raw === 'unavailable' ? 'offline' : raw === 'unknown' ? 'unknown' : 'zone';
       let ip = attr.ip || attr.ip_address || attr.local_ip || attr.host_ip || null;
@@ -137,7 +138,7 @@
       const ipM = d.configuration_url ? d.configuration_url.match(/(\d+\.\d+\.\d+\.\d+)/) : null;
       const ip = ipM ? ipM[1] : null;
       if (!mac && !ip) return;
-      const nm = d.name_by_user || d.name || ''; const nk = nm.toLowerCase();
+      const nm = this._sanitize(d.name_by_user || d.name || ''); const nk = nm.toLowerCase();
       if (deviceMap[nk]) {
         if (mac && !deviceMap[nk].mac) deviceMap[nk].mac = mac.toUpperCase();
         if (ip && !deviceMap[nk].ip) deviceMap[nk].ip = ip;

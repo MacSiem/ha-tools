@@ -147,6 +147,8 @@
     this._render();
   }
 
+  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
+
   _update() {
     this._generateAlerts();
     this._render();
@@ -188,7 +190,7 @@
         const isAvailable = state.state !== "unavailable" && state.state !== "unknown";
         devices.push({
           id: entityId,
-          name: state.attributes.friendly_name || this._formatEntityName(entityId),
+          name: this._sanitize(state.attributes.friendly_name || this._formatEntityName(entityId)),
           type: domain,
           status: !isAvailable ? "unavailable" : state.state === "off" || state.state === "unknown" ? "offline" : "online",
           lastSeen: state.last_changed,
@@ -218,10 +220,10 @@
         if (!isNaN(level)) {
           batteries.push({
             id: entityId,
-            name: state.attributes.friendly_name || this._formatEntityName(entityId),
+            name: this._sanitize(state.attributes.friendly_name || this._formatEntityName(entityId)),
             level: level,
             lastChanged: state.last_changed,
-            device: state.attributes.device_name || this._extractDeviceName(entityId),
+            device: this._sanitize(state.attributes.device_name || this._extractDeviceName(entityId)),
           });
         }
       }
@@ -249,9 +251,9 @@
           if (!networks[protocol]) networks[protocol] = [];
           networks[protocol].push({
             id: entityId,
-            name: state.attributes.friendly_name || this._formatEntityName(entityId),
+            name: this._sanitize(state.attributes.friendly_name || this._formatEntityName(entityId)),
             rssi: rssi,
-            device: state.attributes.device_name || this._extractDeviceName(entityId),
+            device: this._sanitize(state.attributes.device_name || this._extractDeviceName(entityId)),
           });
         }
       }
@@ -273,9 +275,9 @@
         if (!networks[protocol].find(d => d.id === entityId)) {
           networks[protocol].push({
             id: entityId,
-            name: a.friendly_name || this._formatEntityName(entityId),
+            name: this._sanitize(a.friendly_name || this._formatEntityName(entityId)),
             rssi: typeof rssi === 'number' ? rssi : null,
-            device: a.device_name || a.friendly_name || this._extractDeviceName(entityId),
+            device: this._sanitize(a.device_name || a.friendly_name || this._extractDeviceName(entityId)),
             mac: mac,
             ip: ip,
             ssid: ssid,
@@ -294,9 +296,9 @@
         if (!networks[protocol].find(d => d.id === entityId)) {
           networks[protocol].push({
             id: entityId,
-            name: a.friendly_name || this._formatEntityName(entityId),
+            name: this._sanitize(a.friendly_name || this._formatEntityName(entityId)),
             rssi: a.rssi || null,
-            device: a.friendly_name || this._extractDeviceName(entityId),
+            device: this._sanitize(a.friendly_name || this._extractDeviceName(entityId)),
             mac: a.mac || '',
             ip: a.ip || '',
             ssid: a.essid || a.ssid || '',

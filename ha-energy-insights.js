@@ -168,6 +168,8 @@ class HAEnergyInsights extends HTMLElement {
     this._charts = {};
   }
 
+  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
+
   // ===== DATA LOADING =====
 
   _loadChartJs() {
@@ -283,7 +285,7 @@ class HAEnergyInsights extends HTMLElement {
         if (uom === 'kWh') kwh = val;
         else if (uom === 'Wh') kwh = val / 1000;
         else if (uom === 'W') kwh = val / 1000;
-        const name = s.attributes?.friendly_name || s.entity_id.replace('sensor.', '').replace(/_/g, ' ');
+        const name = this._sanitize(s.attributes?.friendly_name || s.entity_id.replace('sensor.', '').replace(/_/g, ' '));
         return { name, kwh, entity_id: s.entity_id, uom, rawVal: val };
       })
       .filter(d => d.kwh > 0)

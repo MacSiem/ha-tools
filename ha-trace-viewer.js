@@ -75,6 +75,8 @@
     } catch {}
   }
 
+  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
+
   // ═══════════ SETTINGS PERSISTENCE ═══════════
 
   _loadSetting(key, fallback) {
@@ -895,7 +897,7 @@
       <div class="auto-item ${isSel ? 'sel' : ''} ${isChk ? 'chk' : ''} s-${a.status}" data-auto="${a.entity}">
         ${this.selectMode ? `<span class="tr-cb" data-autocheck="${a.entity}">${isChk ? '\u2611' : '\u2610'}</span>` : ''}
         <div style="flex:1;min-width:0">
-          <div class="auto-name">${a.name}</div>
+          <div class="auto-name">${this._sanitize(a.name)}</div>
           <div class="auto-meta">
             <span class="auto-dot s-${a.status}">\u25CF</span>
             <span data-ts="${a.lastTriggered?.toISOString() || ''}">${a.lastTriggered ? this._relTime(a.lastTriggered) : 'Never'}</span>
@@ -928,7 +930,7 @@
       return statsHtml + `<div class="list">${groups.map(g => `
         <div class="tgroup">
           <div class="tgroup-h" data-group="${g.name}">
-            <span class="tg-tog">\u25BC</span><span class="tg-name">${g.name}</span>
+            <span class="tg-tog">\u25BC</span><span class="tg-name">${this._sanitize(g.name)}</span>
             <span class="tg-cnt">${g.count}</span>
           </div>
           <div class="tgroup-items">${g.traces.map(t => this._renderTraceItem(t)).join('')}</div>

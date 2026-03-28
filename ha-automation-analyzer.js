@@ -67,6 +67,8 @@
 
   get hass() { return this._hass; }
 
+  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
+
   _isAutoRefreshEnabled() {
     try {
       let el = this;
@@ -330,7 +332,7 @@
       // --- Phase 1: Instant pass using hass states only (ZERO API calls) ---
       const automationMeta = [];
       for (const [id, entity] of automations) {
-        const name = entity.attributes?.friendly_name || id.replace("automation.", "");
+        const name = this._sanitize(entity.attributes?.friendly_name || id.replace("automation.", ""));
         const isDisabled = entity.state === "off";
         if (isDisabled && !this.config.show_disabled) continue;
 
@@ -374,7 +376,7 @@
         }
         const friendlyName = entity.attributes?.friendly_name;
         if (friendlyName) {
-          const found = allConfigs.find(c => c.alias === friendlyName);
+          const found = allConfigs.find(c => c.alias === this._sanitize(friendlyName));
           if (found) { configByEntityId.set(entityId, found); continue; }
         }
         const slug = entityId.replace("automation.", "");

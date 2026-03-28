@@ -136,6 +136,8 @@ class HAYamlChecker extends HTMLElement {
 
   getCardSize() { return 8; }
 
+  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
+
   // ── HA Config Check ──────────────────────────────────────────────────────
   async _runConfigCheck() {
     if (this._checkLoading) return;
@@ -705,7 +707,7 @@ class HAYamlChecker extends HTMLElement {
       ${r.dupIds.length ? `
         <div class="issue-section">
           <h3>⚠️ Duplikaty ID automatyzacji (${r.dupIds.length})</h3>
-          ${r.dupIds.map(d => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${d.id}</strong> — ${d.alias}</div></div>`).join('')}
+          ${r.dupIds.map(d => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${d.id}</strong> — ${this._sanitize(d.alias)}</div></div>`).join('')}
         </div>
       ` : ''}
       ${r.broken.length ? `
@@ -717,14 +719,14 @@ class HAYamlChecker extends HTMLElement {
       ${r.problemStates?.length ? `
         <div class="issue-section">
           <h3>⚠️ Encje unavailable/unknown (${r.problemStates.length})</h3>
-          ${r.problemStates.slice(0, 30).map(p => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${p.entity}</strong> — ${p.name} <span class="badge ${p.state === 'unavailable' ? 'error' : 'warning'}">${p.state}</span></div></div>`).join('')}
+          ${r.problemStates.slice(0, 30).map(p => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${p.entity}</strong> — ${this._sanitize(p.name)} <span class="badge ${p.state === 'unavailable' ? 'error' : 'warning'}">${p.state}</span></div></div>`).join('')}
           ${r.problemStates.length > 30 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">...i ${r.problemStates.length - 30} więcej</div>` : ''}
         </div>
       ` : ''}
       ${r.autoNoDesc?.length ? `
         <div class="issue-section">
           <h3>ℹ️ Automatyzacje bez opisu (${r.autoNoDesc.length})</h3>
-          ${r.autoNoDesc.slice(0, 20).map(a => `<div class="issue-item info"><span class="issue-icon">ℹ️</span><div><strong>${a.alias}</strong> <span style="color:var(--bento-text-secondary);font-size:11px;">ID: ${a.id}</span></div></div>`).join('')}
+          ${r.autoNoDesc.slice(0, 20).map(a => `<div class="issue-item info"><span class="issue-icon">ℹ️</span><div><strong>${this._sanitize(a.alias)}</strong> <span style="color:var(--bento-text-secondary);font-size:11px;">ID: ${a.id}</span></div></div>`).join('')}
           ${r.autoNoDesc.length > 20 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">...i ${r.autoNoDesc.length - 20} więcej</div>` : ''}
         </div>
       ` : ''}
