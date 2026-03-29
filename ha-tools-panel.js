@@ -1659,6 +1659,40 @@ ${HAToolsPanel.CSS}
           </div>
         </div>
 
+        <!-- Energy Settings -->
+        <div class="settings-group">
+          <div class="settings-group-header" data-group="energy">
+            ⚡ Energia
+            <span class="chevron">▼</span>
+          </div>
+          <div class="settings-group-body" data-body="energy">
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label">Stawka za energię</div>
+                <div class="setting-desc">Cena za 1 kWh — używana przez Energy Optimizer, Insights i Email</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price" value="${this._getSetting('energy_price', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label">Waluta</div>
+                <div class="setting-desc">Symbol waluty wyświetlany w raportach energii</div>
+              </div>
+              <div class="setting-control">
+                <select class="setting-select" data-setting="energy_currency">
+                  <option value="PLN" ${this._getSetting('energy_currency', 'PLN') === 'PLN' ? 'selected' : ''}>PLN</option>
+                  <option value="EUR" ${this._getSetting('energy_currency', 'PLN') === 'EUR' ? 'selected' : ''}>EUR</option>
+                  <option value="USD" ${this._getSetting('energy_currency', 'PLN') === 'USD' ? 'selected' : ''}>USD</option>
+                  <option value="GBP" ${this._getSetting('energy_currency', 'PLN') === 'GBP' ? 'selected' : ''}>GBP</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Trace Viewer — Backend Settings -->
         <div class="settings-group">
           <div class="settings-group-header" data-group="trace-backend">
@@ -1853,6 +1887,13 @@ ${HAToolsPanel.CSS}
       });
     });
 
+    content.querySelectorAll('.setting-input').forEach(input => {
+      input.addEventListener('change', () => {
+        const val = input.type === 'number' ? parseFloat(input.value) : input.value;
+        this._setSetting(input.dataset.setting, val);
+      });
+    });
+
     content.querySelectorAll('.setting-toggle input').forEach(toggle => {
       toggle.addEventListener('change', () => {
         this._setSetting(toggle.dataset.setting, toggle.checked);
@@ -2041,7 +2082,12 @@ ${HAToolsPanel.CSS}
         const card = document.createElement(tag);
 
         if (typeof card.setConfig === 'function') {
-          card.setConfig({ title: displayName, panel_mode: true });
+          const cfg = { title: displayName, panel_mode: true };
+          if (tag.includes('energy')) {
+            cfg.energy_price = parseFloat(this._getSetting('energy_price', 0.65)) || 0.65;
+            cfg.currency = this._getSetting('energy_currency', 'PLN');
+          }
+          card.setConfig(cfg);
         }
 
         if (tag === 'ha-cry-analyzer') {

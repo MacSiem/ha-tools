@@ -21,11 +21,14 @@ class HAEnergyInsights extends HTMLElement {
     this._lastRenderTime = 0;
     this._renderScheduled = false;
     this._firstHassRender = false;
+    this._domBuilt = false;
+    this._lastDataHash = '';
+    this._lastDataFetch = 0;
 
     // Configuration
     this._config = {
       title: 'Energy Insights',
-      energy_cost_per_kwh: 0.72,
+      energy_price: 0.65,
       currency: 'PLN',
       days_history: 7
     };
@@ -65,7 +68,7 @@ class HAEnergyInsights extends HTMLElement {
 
         // Tips
         sensorSetup: 'Use template sensors to track appliance energy consumption.',
-        costTracking: 'Update energy_cost_per_kwh with your local electricity rate.',
+        costTracking: 'Update energy_price with your local electricity rate.',
         peakHours: 'Monitor peak consumption hours to optimize usage.',
         deviceBreakdown: 'Compare device-level energy consumption to identify top consumers.',
         efficientAppliances: 'Replace old appliances with ENERGY STAR certified models.',
@@ -104,7 +107,7 @@ class HAEnergyInsights extends HTMLElement {
 
         // Tips
         sensorSetup: 'Użyj sensorów template do śledzenia zużycia energii przez urządzenia.',
-        costTracking: 'Zaktualizuj energy_cost_per_kwh rzeczywistą ceną energii.',
+        costTracking: 'Zaktualizuj energy_price rzeczywistą ceną energii.',
         peakHours: 'Monitoruj godziny szczytowego zużycia aby zoptymalizować użytkowanie.',
         deviceBreakdown: 'Porównuj zużycie energii na poziomie urządzeń.',
         efficientAppliances: 'Zastąp stare urządzenia certyfikowanymi urządzeniami ENERGY STAR.',
@@ -121,7 +124,10 @@ class HAEnergyInsights extends HTMLElement {
     return (T[lang] || T['en'])[key] || T['en'][key] || key;
   }
 
-  // ===== PANEL TOOL SETTER (no setConfig needed) =====
+  setConfig(config) {
+    this._config = { ...this._config, ...config };
+  }
+
   set hass(hass) {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
@@ -138,23 +144,11 @@ class HAEnergyInsights extends HTMLElement {
       return;
     }
 
-    // Throttle re-renders: update every 5 seconds max
-    if (now - (this._lastRenderTime || 0) < 5000) {
-      if (!this._renderScheduled) {
-        this._renderScheduled = true;
-        setTimeout(() => {
-          this._renderScheduled = false;
-          this._fetchData();
-          this._render();
-          this._lastRenderTime = Date.now();
-        }, 5000 - (now - (this._lastRenderTime || 0)));
-      }
-      return;
+    // Fetch new data every 5 minutes (recorder stats don't change often)
+    if (!this._lastDataFetch || (now - this._lastDataFetch) > 300000) {
+      this._lastDataFetch = now;
+      this._fetchData();
     }
-
-    this._fetchData();
-    this._render();
-    this._lastRenderTime = now;
   }
 
   connectedCallback() {
@@ -188,46 +182,140 @@ class HAEnergyInsights extends HTMLElement {
   }
 
   async _fetchData() {
-    if (!this._hass) return;
+    if (!this._hass || !this._hass.callWS) return;
     this._loading = true;
     this._error = null;
-    this._updateContent();
+    if (this._domBuilt) this._updateLoadingState();
 
     try {
-      const states = await this._hass.callApi('GET', 'states');
-      const energySensors = this._discoverEnergySensors(states);
+      // Step 1: Discover energy sensors via recorder statistic IDs
+      const allStats = await this._hass.callWS({
+        type: 'recorder/list_statistic_ids',
+        statistic_type: 'sum'
+      });
+      const kwhIds = allStats
+        .filter(s => s.statistics_unit_of_measurement === 'kWh' || s.statistics_unit_of_measurement === 'Wh')
+        .filter(s => {
+          const id = s.statistic_id;
+          return !id.includes('_daily') && !id.includes('_weekly') && !id.includes('_monthly') && !id.includes('_last_') && !id.includes('_cost');
+        });
 
-      if (energySensors.length === 0) {
+      if (kwhIds.length === 0) {
         this._data = { sensors: [], noSensors: true };
         this._loading = false;
         this._updateContent();
         return;
       }
 
-      // Fetch history for trends
-      const history = await this._fetchHistory();
+      const sensorIds = kwhIds.map(s => s.statistic_id);
+      const sensorUnits = {};
+      kwhIds.forEach(s => { sensorUnits[s.statistic_id] = s.statistics_unit_of_measurement; });
 
-      const todayStats = this._calcTodayStats(energySensors);
-      const weeklyData = this._processHistory(history, 7);
-      const monthlyData = this._processHistory(history, 30);
-      const dailyData = this._buildDailyFromHistory(history);
-      const prevWeekData = this._calcPrevWeek(history);
+      // Step 2: Fetch 30 days of hourly statistics via recorder
+      const now = new Date();
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 3600000);
+      const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 3600000);
+
+      const stats = await this._hass.callWS({
+        type: 'recorder/statistics_during_period',
+        start_time: monthAgo.toISOString(),
+        end_time: now.toISOString(),
+        statistic_ids: sensorIds,
+        period: 'hour',
+        types: ['change']
+      });
+
+      // Step 3: Aggregate data
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekStart = new Date(now.getTime() - 7 * 24 * 3600000);
+      const prevWeekStart = new Date(now.getTime() - 14 * 24 * 3600000);
+
+      let todayKwh = 0;
+      let thisWeekKwh = 0;
+      let prevWeekKwh = 0;
+      let monthKwh = 0;
+      const hourlyToday = new Array(24).fill(0);
+      const dailyWeek = new Array(7).fill(0);
+      const dailyMonth = new Array(30).fill(0);
+      const deviceTotals = {};
+
+      sensorIds.forEach(id => {
+        const entries = stats[id] || [];
+        const isWh = sensorUnits[id] === 'Wh';
+        let sensorMonthTotal = 0;
+
+        entries.forEach(entry => {
+          let change = Math.max(0, entry.change ?? 0);
+          if (isWh) change /= 1000;
+
+          const entryDate = new Date(entry.start);
+          const hour = entryDate.getHours();
+          const daysAgo = Math.floor((now - entryDate) / 86400000);
+
+          // Today hourly
+          if (entryDate >= todayStart) {
+            hourlyToday[hour] += change;
+            todayKwh += change;
+          }
+
+          // This week
+          if (entryDate >= weekStart) {
+            thisWeekKwh += change;
+            const dayIdx = 6 - daysAgo;
+            if (dayIdx >= 0 && dayIdx < 7) dailyWeek[dayIdx] += change;
+          }
+
+          // Previous week
+          if (entryDate >= prevWeekStart && entryDate < weekStart) {
+            prevWeekKwh += change;
+          }
+
+          // Monthly
+          monthKwh += change;
+          const monthDayIdx = 29 - daysAgo;
+          if (monthDayIdx >= 0 && monthDayIdx < 30) dailyMonth[monthDayIdx] += change;
+
+          sensorMonthTotal += change;
+        });
+
+        // Track per-device totals for Top Devices
+        const friendlyName = this._hass.states?.[id]?.attributes?.friendly_name
+          || id.replace('sensor.', '').replace(/_/g, ' ');
+        const uom = this._hass.states?.[id]?.attributes?.unit_of_measurement || 'kWh';
+        const rawVal = parseFloat(this._hass.states?.[id]?.state) || 0;
+        deviceTotals[id] = {
+          name: this._sanitize(friendlyName),
+          kwh: sensorMonthTotal,
+          entity_id: id,
+          uom,
+          rawVal
+        };
+      });
+
+      // Top 5 devices by month consumption
+      const topDevices = Object.values(deviceTotals)
+        .filter(d => d.kwh > 0)
+        .sort((a, b) => b.kwh - a.kwh)
+        .slice(0, 5);
+
+      // Round values
+      const r2 = v => Math.round(v * 100) / 100;
 
       this._data = {
-        sensors: energySensors,
-        todayKwh: todayStats.kwh,
-        todayCost: todayStats.kwh * this._config.energy_cost_per_kwh,
-        topDevices: this._getTopDevices(energySensors),
-        weeklyData,
-        monthlyData,
-        dailyData,
-        thisWeekKwh: weeklyData.reduce((s, v) => s + v, 0),
-        prevWeekKwh: prevWeekData,
-        monthKwh: monthlyData.reduce((s, v) => s + v, 0),
+        sensors: kwhIds,
+        noSensors: false,
+        todayKwh: r2(todayKwh),
+        todayCost: r2(todayKwh * this._config.energy_price),
+        topDevices,
+        weeklyData: dailyWeek.map(r2),
+        monthlyData: dailyMonth.map(r2),
+        dailyData: hourlyToday.map(r2),
+        thisWeekKwh: r2(thisWeekKwh),
+        prevWeekKwh: r2(prevWeekKwh),
+        monthKwh: r2(monthKwh),
+        weekCost: r2(thisWeekKwh * this._config.energy_price),
+        monthCost: r2(monthKwh * this._config.energy_price),
       };
-
-      this._data.monthCost = this._data.monthKwh * this._config.energy_cost_per_kwh;
-      this._data.weekCost = this._data.thisWeekKwh * this._config.energy_cost_per_kwh;
 
       this._loading = false;
       this._updateContent();
@@ -238,129 +326,6 @@ class HAEnergyInsights extends HTMLElement {
       this._loading = false;
       this._updateContent();
     }
-  }
-
-  async _fetchHistory() {
-    try {
-      const days = Math.max(this._config.days_history || 7, 30);
-      const start = new Date();
-      start.setDate(start.getDate() - days);
-      const startStr = start.toISOString();
-      return await this._hass.callApi('GET', `history/period/${startStr}?significant_changes_only=false`);
-    } catch (e) {
-      return [];
-    }
-  }
-
-  _discoverEnergySensors(states) {
-    if (!Array.isArray(states)) return [];
-    return states.filter(s => {
-      if (!s.entity_id.startsWith('sensor.')) return false;
-      const uom = s.attributes?.unit_of_measurement;
-      if (!uom) return false;
-      const val = parseFloat(s.state);
-      if (isNaN(val) || val < 0) return false;
-      return uom === 'kWh' || uom === 'W' || uom === 'Wh';
-    });
-  }
-
-  _calcTodayStats(sensors) {
-    let kwh = 0;
-    sensors.forEach(s => {
-      const uom = s.attributes?.unit_of_measurement;
-      const val = parseFloat(s.state) || 0;
-      if (uom === 'kWh') kwh += val;
-      else if (uom === 'Wh') kwh += val / 1000;
-      else if (uom === 'W') kwh += (val * 1) / 1000;
-    });
-    return { kwh: Math.round(kwh * 100) / 100 };
-  }
-
-  _getTopDevices(sensors) {
-    return sensors
-      .map(s => {
-        const uom = s.attributes?.unit_of_measurement;
-        const val = parseFloat(s.state) || 0;
-        let kwh = 0;
-        if (uom === 'kWh') kwh = val;
-        else if (uom === 'Wh') kwh = val / 1000;
-        else if (uom === 'W') kwh = val / 1000;
-        const name = this._sanitize(s.attributes?.friendly_name || s.entity_id.replace('sensor.', '').replace(/_/g, ' '));
-        return { name, kwh, entity_id: s.entity_id, uom, rawVal: val };
-      })
-      .filter(d => d.kwh > 0)
-      .sort((a, b) => b.kwh - a.kwh)
-      .slice(0, 5);
-  }
-
-  _processHistory(history, periods) {
-    if (!Array.isArray(history)) return new Array(periods).fill(0);
-    const result = new Array(periods).fill(0);
-    const now = new Date();
-    history.forEach(entityHistory => {
-      if (!Array.isArray(entityHistory) || entityHistory.length === 0) return;
-      const uom = entityHistory[0]?.attributes?.unit_of_measurement;
-      if (!uom || (uom !== 'kWh' && uom !== 'Wh' && uom !== 'W')) return;
-      // Group entries by period bucket
-      const buckets = {};
-      entityHistory.forEach(entry => {
-        const val = parseFloat(entry.state);
-        if (isNaN(val) || val < 0) return;
-        let kwh = 0;
-        if (uom === 'kWh') kwh = val;
-        else if (uom === 'Wh') kwh = val / 1000;
-        else if (uom === 'W') kwh = val / 1000;
-        const date = new Date(entry.last_changed);
-        const daysAgo = Math.floor((now - date) / 86400000);
-        if (daysAgo >= 0 && daysAgo < periods) {
-          const idx = periods - 1 - daysAgo;
-          if (!buckets[idx]) buckets[idx] = [];
-          buckets[idx].push(kwh);
-        }
-      });
-      // Calculate consumption as delta (last - first) for each period
-      Object.entries(buckets).forEach(([idx, vals]) => {
-        if (vals.length >= 2) {
-          const delta = vals[vals.length - 1] - vals[0];
-          result[parseInt(idx)] += Math.max(0, delta);
-        } else if (vals.length === 1) {
-          // Single reading - cannot compute delta, skip
-        }
-      });
-    });
-    return result.map(v => Math.round(v * 100) / 100);
-  }
-
-  _buildDailyFromHistory(history) {
-    return this._processHistory(history, 24);
-  }
-
-  _calcPrevWeek(history) {
-    if (!Array.isArray(history)) return 0;
-    let total = 0;
-    const now = new Date();
-    history.forEach(entityHistory => {
-      if (!Array.isArray(entityHistory) || entityHistory.length === 0) return;
-      const uom = entityHistory[0]?.attributes?.unit_of_measurement;
-      if (!uom || (uom !== 'kWh' && uom !== 'Wh')) return;
-      // Get first and last readings from previous week to compute delta
-      let firstVal = null, lastVal = null;
-      entityHistory.forEach(entry => {
-        const val = parseFloat(entry.state);
-        if (isNaN(val) || val < 0) return;
-        const kwh = uom === 'kWh' ? val : val / 1000;
-        const date = new Date(entry.last_changed);
-        const daysAgo = Math.floor((now - date) / 86400000);
-        if (daysAgo >= 7 && daysAgo < 14) {
-          if (firstVal === null) firstVal = kwh;
-          lastVal = kwh;
-        }
-      });
-      if (firstVal !== null && lastVal !== null) {
-        total += Math.max(0, lastVal - firstVal);
-      }
-    });
-    return Math.round(total * 100) / 100;
   }
 
   _getRecommendation(trendDiff, todayKwh) {
@@ -374,35 +339,42 @@ class HAEnergyInsights extends HTMLElement {
 
   // ===== RENDERING =====
 
+  _updateLoadingState() {
+    const body = this.shadowRoot?.querySelector('.panel-body');
+    if (!body) return;
+    if (this._loading) {
+      body.innerHTML = this._renderLoading();
+    }
+  }
+
   _updateContent() {
-    this._render();
+    if (!this._domBuilt) {
+      this._render();
+      return;
+    }
+    // Targeted DOM update — replace only panel-body content
+    const body = this.shadowRoot?.querySelector('.panel-body');
+    if (!body) return;
+    if (this._loading) {
+      body.innerHTML = this._renderLoading();
+    } else if (this._error) {
+      body.innerHTML = this._renderError();
+    } else {
+      body.innerHTML = this._renderTabContent();
+    }
+    // Update tab bar active state
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === this._activeTab);
+    });
   }
 
   _render() {
+    if (this._domBuilt) {
+      this._updateContent();
+      return;
+    }
     this.shadowRoot.innerHTML = `
-      <style>
 ${this._getStyles()}
-      
-        /* === MOBILE FIX === */
-        @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
-          .card, .card-container { padding: 14px; }
-          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
-          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
-          .panels, .board { flex-direction: column; }
-          .column { min-width: unset; }
-          h2 { font-size: 18px; }
-          h3 { font-size: 15px; }
-        }
-        @media (max-width: 480px) {
-          .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
-          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
-          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
-        }
-      </style>
       <div class="panel-root">
         ${this._renderHeader()}
         ${this._renderTabBar()}
@@ -414,461 +386,97 @@ ${this._getStyles()}
         ${this._renderToolsBanner()}
       </div>
     `;
+    this._domBuilt = true;
     this._bindEvents();
   }
 
   _getStyles() {
     return `
-/* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
-
-:host {
-  --bento-primary: #4A90D9;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(74, 144, 217, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  display: block;
-  background: var(--bento-bg);
-  color: var(--bento-text);
-}
-
-@keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: #1a1a2e;
-    --bento-card: #16213e;
-    --bento-text: #e2e8f0;
-    --bento-text-secondary: #94a3b8;
-    --bento-border: #334155;
-    --bento-success: #34d399;
-    --bento-warning: #fbbf24;
-    --bento-error: #f87171;
-  }
-}
-
-.panel-root {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bento-bg);
-}
-
-.panel-header {
-  padding: 24px 24px 16px;
-  border-bottom: 1px solid var(--bento-border);
-  background: var(--bento-card);
-}
-
-.panel-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--bento-text);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.panel-title-icon {
-  width: 32px;
-  height: 32px;
-  opacity: 0.9;
-}
-
-.tab-bar {
-  display: flex;
-  gap: 4px;
-  border-bottom: 2px solid var(--bento-border);
-  padding: 0 24px;
-  background: var(--bento-card);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.tab-bar::-webkit-scrollbar { display: none; }
-
-.tab-btn {
-  padding: 12px 18px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  font-family: 'Inter', sans-serif;
-  color: var(--bento-text-secondary);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: var(--bento-transition);
-  white-space: nowrap;
-  border-radius: 0;
-}
-
-.tab-btn:hover {
-  color: var(--bento-primary);
-  background: var(--bento-primary-light);
-}
-
-.tab-btn.active {
-  color: var(--bento-primary);
-  border-bottom-color: var(--bento-primary);
-  background: rgba(74, 144, 217, 0.04);
-  font-weight: 600;
-}
-
-.panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-  animation: fadeSlideIn 0.3s ease-out;
-}
-
-/* Stats Grid */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-  margin-bottom: 28px;
-}
-
-.stat-card {
-  background: var(--bento-card);
-  border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius-sm);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  box-shadow: var(--bento-shadow-sm);
-  transition: var(--bento-transition);
-}
-
-.stat-card:hover {
-  box-shadow: var(--bento-shadow-md);
-  transform: translateY(-2px);
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--bento-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--bento-text);
-  line-height: 1.2;
-}
-
-.stat-value.highlight {
-  color: var(--bento-primary);
-}
-
-.stat-sub {
-  font-size: 12px;
-  color: var(--bento-text-secondary);
-}
-
-/* Recommendation box */
-.recommendation {
-  background: rgba(74, 144, 217, 0.08);
-  border: 1px solid rgba(74, 144, 217, 0.2);
-  border-radius: var(--bento-radius-sm);
-  padding: 14px 16px;
-  font-size: 13px;
-  color: var(--bento-text);
-  margin-bottom: 24px;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.recommendation-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-/* Trend badge */
-.trend-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.trend-up { background: rgba(244,67,54,0.15); color: #f44336; }
-.trend-down { background: rgba(76,175,80,0.15); color: #4caf50; }
-.trend-neutral { background: rgba(158,158,158,0.15); color: #9e9e9e; }
-
-/* Section title */
-.section-title {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--bento-text-secondary);
-  margin-top: 24px;
-  margin-bottom: 14px;
-}
-
-/* Device list */
-.device-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 24px;
-}
-
-.device-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--bento-card);
-  border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius-xs);
-  transition: var(--bento-transition);
-}
-
-.device-row:hover {
-  background: var(--bento-primary-light);
-  border-color: var(--bento-primary);
-}
-
-.device-rank {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--bento-primary);
-  width: 24px;
-  flex-shrink: 0;
-  text-align: center;
-}
-
-.device-name {
-  font-size: 13px;
-  font-weight: 500;
-  flex: 1;
-  color: var(--bento-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.device-bar-wrap {
-  width: 70px;
-  height: 6px;
-  background: var(--bento-border);
-  border-radius: 3px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.device-bar {
-  height: 100%;
-  background: var(--bento-primary);
-  border-radius: 3px;
-  transition: width 0.4s ease;
-}
-
-.device-value {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--bento-primary);
-  flex-shrink: 0;
-  min-width: 70px;
-  text-align: right;
-}
-
-/* Chart */
-.chart-container {
-  position: relative;
-  height: 240px;
-  margin-bottom: 12px;
-  background: var(--bento-card);
-  border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius-sm);
-  padding: 16px;
-  box-shadow: var(--bento-shadow-sm);
-}
-
-canvas {
-  max-width: 100% !important;
-  height: auto !important;
-  width: auto !important;
-  border: none !important;
-}
-
-.chart-label {
-  text-align: center;
-  font-size: 12px;
-  color: var(--bento-text-secondary);
-  margin-top: 8px;
-}
-
-/* Tips section */
-.tips-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
-  margin-top: 16px;
-}
-
-.tip-card {
-  background: var(--bento-card);
-  border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius-sm);
-  padding: 14px;
-  font-size: 13px;
-  color: var(--bento-text);
-  box-shadow: var(--bento-shadow-sm);
-}
-
-.tip-card strong {
-  color: var(--bento-primary);
-  display: block;
-  margin-bottom: 4px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-/* Loading state */
-.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 24px;
-  gap: 16px;
-  color: var(--bento-text-secondary);
-  font-size: 14px;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--bento-border);
-  border-top-color: var(--bento-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Error state */
-.error-msg {
-  padding: 16px;
-  background: var(--bento-error-light);
-  border-left: 4px solid var(--bento-error);
-  border-radius: var(--bento-radius-xs);
-  font-size: 13px;
-  color: var(--bento-error);
-}
-
-/* No sensors */
-.no-sensors {
-  padding: 40px 24px;
-  text-align: center;
-  color: var(--bento-text-secondary);
-  font-size: 13px;
-}
-
-/* Buttons */
-button {
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: var(--bento-radius-xs);
-  transition: var(--bento-transition);
-  cursor: pointer;
-  border: none;
-  padding: 8px 14px;
-  background: var(--bento-primary);
-  color: white;
-}
-
-button:hover {
-  background: var(--bento-primary-hover);
-}
-
-.refresh-btn {
-  background: transparent;
-  color: var(--bento-text-secondary);
-  padding: 4px;
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.refresh-btn:hover {
-  color: var(--bento-primary);
-  background: var(--bento-primary-light);
-}
-
-.refresh-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* Tools banner */
-.tools-banner {
-  background: var(--bento-card);
-  border-top: 1px solid var(--bento-border);
-  padding: 12px 24px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--bento-text-secondary);
-}
-
-.tools-banner a {
-  color: var(--bento-primary);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.tools-banner a:hover {
-  text-decoration: underline;
-}
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .panel-header { padding: 16px; }
-  .stats-grid, .metrics-grid, .summary-grid { grid-template-columns: 1fr !important; }
-  .tabs { flex-wrap: wrap; gap: 4px; }
-  .tab-btn { min-width: auto; font-size: 13px; padding: 8px 12px; }
-  .device-list, .top-devices { overflow-x: auto; }
-  .chart-container canvas { max-height: 200px; }
-  .tip-card, .insight-card { padding: 12px; }
-}
+      <style>
+        :host {
+          --pr: #3B82F6; --pr-l: rgba(59,130,246,.1);
+          --ok: #10B981; --ok-l: rgba(16,185,129,.1);
+          --er: #EF4444; --er-l: rgba(239,68,68,.1);
+          --wa: #F59E0B; --wa-l: rgba(245,158,11,.1);
+          --bg: var(--primary-background-color, #F8FAFC); --ca: var(--card-background-color, #FFFFFF); --bo: var(--divider-color, #E2E8F0);
+          --tx: var(--primary-text-color, #1E293B); --t2: var(--secondary-text-color, #64748B); --t3: var(--disabled-text-color, #94A3B8);
+          --r1: 6px; --r2: 12px; --r3: 16px;
+          --sh: 0 1px 3px rgba(0,0,0,.05);
+          font-family: 'Inter', sans-serif;
+          display: block;
+          background: var(--bg);
+          color: var(--tx);
+        }
+        @media (prefers-color-scheme: dark) {
+          :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
+        }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .panel-root { display: flex; flex-direction: column; height: 100%; background: var(--bg); }
+        .panel-header { padding: 24px 24px 16px; border-bottom: 1px solid var(--bo); background: var(--ca); }
+        .panel-title { font-size: 17px; font-weight: 700; color: var(--tx); margin: 0; display: flex; align-items: center; gap: 10px; }
+        .panel-title-icon { font-size: 24px; }
+        .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--bo); padding: 0 24px; background: var(--ca); overflow-x: auto; scrollbar-width: none; }
+        .tab-bar::-webkit-scrollbar { display: none; }
+        .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--t2); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; font-family: 'Inter', sans-serif; border-radius: 0; }
+        .tab-btn:hover { color: var(--pr); background: var(--pr-l); }
+        .tab-btn.active { color: var(--pr); border-bottom-color: var(--pr); font-weight: 600; }
+        .panel-body { flex: 1; overflow-y: auto; padding: 20px; animation: fadeSlideIn 0.3s ease-out; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .stat-card { background: var(--bg); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; text-align: center; min-width: 0; overflow: hidden; }
+        .stat-card:hover { box-shadow: var(--sh); }
+        .stat-label { font-size: 11px; font-weight: 500; color: var(--t2); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+        .stat-value { font-size: 24px; font-weight: 700; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
+        .stat-value.highlight { color: var(--pr); }
+        .stat-sub { font-size: 11px; color: var(--t3); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .recommendation { background: var(--pr-l); border: 1px solid rgba(59,130,246,.2); border-radius: var(--r2); padding: 14px 16px; font-size: 13px; color: var(--tx); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
+        .recommendation-icon { font-size: 18px; flex-shrink: 0; }
+        .trend-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .trend-up { background: var(--er-l); color: var(--er); }
+        .trend-down { background: var(--ok-l); color: var(--ok); }
+        .trend-neutral { background: rgba(158,158,158,.15); color: #9e9e9e; }
+        .section-title { font-size: 13px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+        .device-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+        .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r1); transition: background .15s; }
+        .device-row:hover { background: var(--pr-l); }
+        .device-rank { font-size: 11px; font-weight: 700; color: var(--pr); width: 24px; flex-shrink: 0; text-align: center; }
+        .device-name { font-size: 13px; font-weight: 500; flex: 1; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .device-bar-wrap { width: 70px; height: 6px; background: var(--bo); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+        .device-bar { height: 100%; background: var(--pr); border-radius: 4px; transition: width .4s; }
+        .device-value { font-size: 12px; font-weight: 600; color: var(--pr); flex-shrink: 0; min-width: 70px; text-align: right; }
+        .chart-container { position: relative; height: 240px; margin-bottom: 12px; background: var(--ca); border: 1px solid var(--bo); border-radius: var(--r2); padding: 16px; box-shadow: var(--sh); }
+        canvas { max-width: 100%; display: block; }
+        .chart-label { text-align: center; font-size: 12px; color: var(--t2); margin-top: 8px; }
+        .tips-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 16px; }
+        .tip-card { background: var(--ca); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; font-size: 13px; color: var(--tx); box-shadow: var(--sh); }
+        .tip-card strong { color: var(--pr); display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; }
+        .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 16px; color: var(--t2); font-size: 14px; }
+        .spinner { width: 32px; height: 32px; border: 3px solid var(--bo); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .error-msg { padding: 16px; background: var(--er-l); border-left: 4px solid var(--er); border-radius: var(--r1); font-size: 13px; color: var(--er); }
+        .no-sensors { padding: 40px 24px; text-align: center; color: var(--t2); font-size: 13px; }
+        button { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; border-radius: var(--r1); transition: all .2s; cursor: pointer; border: none; padding: 8px 14px; background: var(--pr); color: white; }
+        button:hover { background: #2563EB; }
+        .refresh-btn { background: transparent; color: var(--t2); padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+        .refresh-btn:hover { color: var(--pr); background: var(--pr-l); }
+        .refresh-btn svg { width: 18px; height: 18px; }
+        .tools-banner { background: var(--ca); border-top: 1px solid var(--bo); padding: 12px 24px; text-align: center; font-size: 12px; color: var(--t2); }
+        .tools-banner a { color: var(--pr); text-decoration: none; font-weight: 600; }
+        .tools-banner a:hover { text-decoration: underline; }
+        @media (max-width: 768px) {
+          .panel-header { padding: 16px; }
+          .stats-grid { grid-template-columns: 1fr !important; }
+          .tab-bar { flex-wrap: wrap; gap: 4px; padding: 0 16px; }
+          .tab-btn { min-width: auto; font-size: 12px; padding: 6px 10px; }
+          .device-list { overflow-x: auto; }
+          .chart-container canvas { max-height: 200px; }
+          .tip-card { padding: 12px; }
+        }
+        @media (max-width: 480px) {
+          .tab-bar { gap: 1px; }
+          .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stat-value { font-size: 18px; }
+        }
+      </style>
     `;
   }
 
@@ -1011,7 +619,7 @@ button:hover {
       <div class="chart-container">
         <canvas id="chart-${period}"></canvas>
       </div>
-      <div class="chart-label">kWh • ${this._config.currency || 'PLN'} @ ${this._config.energy_cost_per_kwh}/kWh</div>
+      <div class="chart-label">kWh • ${this._config.currency || 'PLN'} @ ${this._config.energy_price}/kWh</div>
     `;
   }
 
@@ -1090,7 +698,7 @@ button:hover {
               callbacks: {
                 label: ctx => {
                   const kwh = ctx.raw || 0;
-                  const cost = (kwh * this._config.energy_cost_per_kwh).toFixed(2);
+                  const cost = (kwh * this._config.energy_price).toFixed(2);
                   return ` ${kwh.toFixed(2)} kWh  (${cost} ${this._config.currency || 'PLN'})`;
                 }
               }
@@ -1140,12 +748,11 @@ button:hover {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
         localStorage.setItem('ha-energy-insights-active-tab', this._activeTab);
-        this._render();
-        if (this._chartJsReady && this._data && this._activeTab !== 'tips') {
-          // Defer chart rendering to next frame
+        // Update tab content only (no full DOM rebuild)
+        this._updateContent();
+        if (this._chartJsReady && this._data && this._activeTab !== 'overview' && this._activeTab !== 'tips') {
           setTimeout(() => this._renderCharts(), 0);
         }
-        this._bindEvents();
       });
     });
   }
