@@ -619,7 +619,7 @@ canvas {
           --dark-mode: ${this._hass?.themes?.darkMode ? 'true' : 'false'};
         }
 
-        .card-container {
+        .card {
           background: var(--background-color);
           border-radius: 8px;
           padding: 16px;
@@ -1005,7 +1005,7 @@ canvas {
 }
 * { box-sizing: border-box; }
 
-.card, .card-container, .reports-card, .export-card {
+.card, .card, .reports-card, .export-card {
   background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
@@ -1262,7 +1262,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 ::-webkit-scrollbar-thumb:hover { background: var(--bento-text-secondary); }
 
 @media (max-width: 768px) {
-  .card, .card-container, .reports-card, .export-card { padding: 16px; }
+  .card, .card, .reports-card, .export-card { padding: 16px; }
   .stats, .stats-grid, .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .panels { flex-direction: column; }
   .board { flex-direction: column; }
@@ -1283,7 +1283,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
     --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
     color-scheme: dark !important;
   }
-  .card-container { background: var(--bento-card); color: var(--bento-text); }
+  .card { background: var(--bento-card); color: var(--bento-text); }
   .backup-item { border-color: var(--bento-border); }
   .backup-item:hover { border-color: var(--bento-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
   .backup-item.selected { background: rgba(59,130,246,0.12); }
@@ -1299,7 +1299,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
-          .card, .card-container { padding: 14px; }
+          .card, .card { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
           .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
@@ -1362,7 +1362,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 /* ===== END BENTO TAB OVERRIDE ===== */
 </style>
 
-      <div class="card-container">
+      <div class="card">
         <h1 class="card-title">${this._config.title || 'Backup Manager'}</h1>
 
         <div class="tabs">

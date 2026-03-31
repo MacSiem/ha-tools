@@ -604,7 +604,7 @@ class HaEnergyOptimizer extends HTMLElement {
         @media (prefers-color-scheme: dark) {
           :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
         }
-        .card-container { background: var(--ca); border: 1px solid var(--bo); border-radius: var(--r3); padding: 20px; box-shadow: var(--sh); }
+        .card { background: var(--ca); border: 1px solid var(--bo); border-radius: var(--r3); padding: 20px; box-shadow: var(--sh); }
         .card-title { font-size: 17px; font-weight: 700; color: var(--tx); margin: 0 0 4px; }
         .data-source-badge { font-size: 11px; color: var(--t3); margin-bottom: 14px; }
         .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bo); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; }
@@ -668,7 +668,7 @@ class HaEnergyOptimizer extends HTMLElement {
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab-button { padding: 6px 10px; font-size: 12px; }
-          .card-container { padding: 14px; }
+          .card { padding: 14px; }
           .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .summary-value, .comparison-value { font-size: 18px; }
           .summary-label, .comparison-title { font-size: 10px; }
@@ -730,7 +730,7 @@ class HaEnergyOptimizer extends HTMLElement {
 
   _getTemplate() {
     return `
-      <div class="card-container">
+      <div class="card">
         <h2 class="card-title">${this._config.title || 'Energy Optimizer'}</h2>
 
         <div class="data-source-badge">

@@ -297,7 +297,7 @@ class HAPurgeCache extends HTMLElement {
           --pc-radius: 12px;
         }
 
-        .container { max-width: 900px; margin: 0 auto; padding: 16px; }
+        .card { max-width: 900px; margin: 0 auto; padding: 16px; }
         h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
         .subtitle { color: var(--pc-text-sec); font-size: 13px; margin-bottom: 20px; }
         .ha-ver { font-size: 12px; color: var(--pc-text-sec); font-weight: 400; }
@@ -474,7 +474,7 @@ class HAPurgeCache extends HTMLElement {
         .tip-banner.hidden { display: none; }
         /* Mobile responsive */
         @media (max-width: 768px) {
-          .container { padding: 12px; }
+          .card { padding: 12px; }
           .header h2 { font-size: 18px; }
           .actions { flex-wrap: wrap; gap: 8px; }
           .actions button { min-width: 120px; flex: 1; font-size: 13px; }
@@ -550,7 +550,7 @@ class HAPurgeCache extends HTMLElement {
 /* ===== END BENTO TAB OVERRIDE ===== */
 </style>
 
-      <div class="container">
+      <div class="card">
         <h2>\u{1F9F9} Purge Cache <span class="ha-ver">HA <span id="ha-version">...</span></span></h2>
         <div class="subtitle">Wyczy\u015B\u0107 cache przegl\u0105darki, Service Workers, localStorage i skrypty narz\u0119dzi.</div>
         <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:12px 14px;margin:8px 0;font-size:12px;line-height:1.6;color:var(--bento-text,#1e293b)">

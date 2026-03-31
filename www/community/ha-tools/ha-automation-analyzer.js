@@ -678,7 +678,7 @@
         --aa-anim: var(--ha-animation-duration-normal, 250ms);
       }
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      .container {
+      .card {
         padding: var(--aa-space-6);
         font-family: var(--aa-font);
         background: var(--aa-bg);
@@ -1335,7 +1335,7 @@
 }
 /* ===== END BENTO TAB OVERRIDE ===== */
 </style>
-      <div class="container">
+      <div class="card">
         <div class="header">
           <div class="header-left">
             <h1>${this.config.title}</h1>
