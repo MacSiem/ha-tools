@@ -501,7 +501,7 @@ canvas {
             </select>
           </div>
           <div class="tabs" id="tabsContainer">
-            ${tabs.map(t => `;
+            ${tabs.map(t => `
               <button class="tab ${t.id === this._activeTab ? 'active' : ''}" data-tab="${t.id}">
                 <span class="tab-icon">${t.icon}</span>${t.label}
               </button>

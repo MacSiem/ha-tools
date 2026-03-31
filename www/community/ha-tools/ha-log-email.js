@@ -792,7 +792,7 @@ max: 3</pre>
         </div>
 
         <div class="tabs">
-          ${tabs.map(t => `;
+          ${tabs.map(t => `
             <button class="tab ${this._activeTab === t.id ? 'active' : ''}" data-tab="${t.id}">
               ${t.icon} ${t.label}
             </button>

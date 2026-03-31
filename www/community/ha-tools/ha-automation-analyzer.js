@@ -1346,7 +1346,7 @@
             </p>
           </div>
         </div>
-        ${!this._traceNoticeDismissed ? `;
+        ${!this._traceNoticeDismissed ? `
         <div class="trace-notice-global" id="trace-storage-notice">
           <span class="trace-notice-icon">\u{1f4a1}</span>
           <div>

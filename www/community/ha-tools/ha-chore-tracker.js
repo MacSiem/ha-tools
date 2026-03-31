@@ -1162,7 +1162,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
 
         <!-- Board Tab -->
-        ${this.activeTab === 'board' ? `;
+        ${this.activeTab === 'board' ? `
         <div class="tab-content active" id="board-tab">
           <div class="add-form">
             <div class="form-group full">

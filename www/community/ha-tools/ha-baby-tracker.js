@@ -1116,7 +1116,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="card-header">
           <h2 class="card-title">${title}</h2>
           <div class="baby-selector">
-            ${this.babies.map((baby, idx) => `;
+            ${this.babies.map((baby, idx) => `
               <button class="baby-button ${idx === this.selectedBaby ? 'active' : ''}"
                       data-index="${idx}">${baby.name}</button>
             `).join('')}

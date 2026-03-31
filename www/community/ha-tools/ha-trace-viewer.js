@@ -1073,7 +1073,7 @@
             <div class="dd" id="expDD">
               <button class="btn-s" id="expBtn">${this._t('export')} \u25BE</button>
               <div class="dd-menu">
-                ${selN > 0 ? `;<div class="dd-i" data-exp="sel-json">JSON (${selN} traces ${this._t('selected')})</div><div class="dd-i" data-exp="sel-csv">CSV (${selN} traces ${this._t('selected')})</div><div class="dd-div"></div>` : ''}
+                ${selN > 0 ? `<div class="dd-i" data-exp="sel-json">JSON (${selN} traces ${this._t('selected')})</div><div class="dd-i" data-exp="sel-csv">CSV (${selN} traces ${this._t('selected')})</div><div class="dd-div"></div>` : ''}
                 ${this.selectedAutoIds.size > 0 ? `<div class="dd-i" data-exp="auto-json">JSON (${this.selectedAutoIds.size} ${this._t('automations')})</div><div class="dd-i" data-exp="auto-csv">CSV (${this.selectedAutoIds.size} ${this._t('automations')})</div><div class="dd-div"></div>` : ''}
                 <div class="dd-i" data-exp="all-json">${this._t('exportJson')}</div>
                 <div class="dd-i" data-exp="all-csv">${this._t('exportCsv')}</div>
