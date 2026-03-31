@@ -1,4 +1,4 @@
-﻿class HaBackupManager extends HTMLElement {
+class HaBackupManager extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -399,7 +399,8 @@
     };
 
     this.shadowRoot.innerHTML = `
-      <style>
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -1315,51 +1316,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
       
-/* ===== BENTO TAB OVERRIDE (unified) ===== */
-.tabs, .tab-bar, .tab-nav, .tab-header {
-  display: flex !important;
-  gap: 4px !important;
-  border-bottom: 2px solid var(--bento-border, var(--divider-color, #334155)) !important;
-  padding: 0 4px !important;
-  margin-bottom: 20px !important;
-  overflow-x: auto !important;
-  flex-wrap: nowrap !important;
-}
-.tab, .tab-btn, .tab-button, .dtab {
-  padding: 10px 18px !important;
-  border: none !important;
-  background: transparent !important;
-  cursor: pointer !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  font-family: 'Inter', sans-serif !important;
-  color: var(--bento-text-secondary, var(--secondary-text-color, #94A3B8)) !important;
-  border-bottom: 2px solid transparent !important;
-  margin-bottom: -2px !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  white-space: nowrap !important;
-  border-radius: 0 !important;
-  flex: none !important;
-}
-.tab:hover, .tab-btn:hover, .tab-button:hover, .dtab:hover {
-  color: var(--bento-primary, #3B82F6) !important;
-  background: rgba(59, 130, 246, 0.08) !important;
-}
-.tab.active, .tab-btn.active, .tab-button.active, .dtab.active {
-  color: var(--bento-primary, #3B82F6) !important;
-  border-bottom-color: var(--bento-primary, #3B82F6) !important;
-  background: rgba(59, 130, 246, 0.04) !important;
-  font-weight: 600 !important;
-}
-/* Stat cards unified */
-.stat-card, .stat-item, .metric-card, .kpi-card {
-  background: var(--bento-card, var(--card-background-color, #1E293B)) !important;
-  border: 1px solid var(--bento-border, var(--divider-color, #334155)) !important;
-  border-radius: var(--bento-radius-sm, 10px) !important;
-  padding: 16px !important;
-  text-align: center !important;
-}
-/* ===== END BENTO TAB OVERRIDE ===== */
+
 </style>
 
       <div class="card">

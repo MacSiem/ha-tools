@@ -335,7 +335,8 @@ class HAEntityRenamer extends HTMLElement {
     const queueCount = this._renameQueue.length + Object.keys(this._deviceRenameQueue).length;
 
     this.shadowRoot.innerHTML = `
-    <style>
+    <style>${window.HAToolsBentoCSS || ""}
+
       :host { display: block; font-family: 'Inter', var(--paper-font-body1_-_font-family, sans-serif); }
       * { box-sizing: border-box; }
       .card {
@@ -352,40 +353,7 @@ class HAEntityRenamer extends HTMLElement {
       .msg.error { background: rgba(239,68,68,0.12); color: #FCA5A5; border: 1px solid rgba(239,68,68,0.25); }
       .msg.warning { background: rgba(245,158,11,0.12); color: #FCD34D; border: 1px solid rgba(245,158,11,0.25); }
 
-      /* ===== BENTO TAB OVERRIDE (unified) ===== */
-      .tabs, .tab-bar, .tab-nav, .tab-header {
-        display: flex !important; gap: 4px !important;
-        border-bottom: 2px solid var(--bento-border, var(--divider-color, #334155)) !important;
-        padding: 0 4px !important; margin-bottom: 20px !important;
-        overflow-x: auto !important; flex-wrap: nowrap !important;
-      }
-      .tab, .tab-btn, .tab-button, .dtab {
-        padding: 10px 18px !important; border: none !important;
-        background: transparent !important; cursor: pointer !important;
-        font-size: 13px !important; font-weight: 500 !important;
-        font-family: 'Inter', sans-serif !important;
-        color: var(--bento-text-secondary, var(--secondary-text-color, #94A3B8)) !important;
-        border-bottom: 2px solid transparent !important;
-        margin-bottom: -2px !important; white-space: nowrap !important;
-        border-radius: 0 !important; flex: none !important;
-      }
-      .tab:hover, .tab-btn:hover, .tab-button:hover, .dtab:hover {
-        color: var(--bento-primary, #3B82F6) !important;
-        background: rgba(59, 130, 246, 0.08) !important;
-      }
-      .tab.active, .tab-btn.active, .tab-button.active, .dtab.active {
-        color: var(--bento-primary, #3B82F6) !important;
-        border-bottom-color: var(--bento-primary, #3B82F6) !important;
-        background: rgba(59, 130, 246, 0.04) !important;
-        font-weight: 600 !important;
-      }
-      .stat-card, .stat-item, .metric-card, .kpi-card {
-        background: var(--bento-card, var(--card-background-color, #1E293B)) !important;
-        border: 1px solid var(--bento-border, var(--divider-color, #334155)) !important;
-        border-radius: var(--bento-radius-sm, 10px) !important;
-        padding: 16px !important; text-align: center !important;
-      }
-      /* ===== END BENTO TAB OVERRIDE ===== */
+      
 
       .search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
       .search-bar input {

@@ -82,6 +82,16 @@ class HAToolsPanel extends HTMLElement {
   _loadAddonScripts() {
     // Always use Date.now() cache buster to avoid stale JS from HACS/browser cache
     const cb = Date.now();
+
+    // Load shared Bento Design System CSS first (sync, non-module)
+    if (!window.HAToolsBentoCSS) {
+      const bento = document.createElement('script');
+      bento.type = 'text/javascript';
+      bento.src = '/local/community/ha-tools/ha-tools-bento.js?_=' + cb;
+      bento.async = false; // load before tools
+      document.head.appendChild(bento);
+    }
+
     const scripts = HAToolsPanel.TOOL_SCRIPTS;
     for (const [tag, src] of Object.entries(scripts)) {
       if (customElements.get(tag)) continue; // already registered by HACS or previous load

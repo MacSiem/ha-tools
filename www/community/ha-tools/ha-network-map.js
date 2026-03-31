@@ -1,4 +1,4 @@
-﻿class HaNetworkMap extends HTMLElement {
+class HaNetworkMap extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -262,7 +262,8 @@
       '</div>' + content + '</div>';
     this._bindEvents();
   }
-  _css() { return '<style>' +
+  _css() { return '<style>${window.HAToolsBentoCSS || ""}
+' +
     ':host{--bp:#3B82F6;--bpl:rgba(59,130,246,0.08);--bs:#10B981;--bsl:rgba(16,185,129,0.08);--be:#EF4444;--bel:rgba(239,68,68,0.08);--bw:#F59E0B;--bwl:rgba(245,158,11,0.08);' +
     '--bbg:var(--primary-background-color,#F8FAFC);--bcard:var(--card-background-color,#FFF);--bbrd:var(--divider-color,#E2E8F0);' +
     '--btxt:var(--primary-text-color,#1E293B);--btxt2:var(--secondary-text-color,#64748B);--btxtm:var(--disabled-text-color,#94A3B8);' +
