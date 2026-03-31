@@ -75,6 +75,7 @@ class HAToolsPanel extends HTMLElement {
       'ha-yaml-checker': '/local/community/ha-tools/ha-yaml-checker.js',
       'ha-energy-insights': '/local/community/ha-tools/ha-energy-insights.js',
       'ha-purge-cache': '/local/community/ha-tools/ha-purge-cache.js',
+      'ha-entity-renamer': '/local/community/ha-tools/ha-entity-renamer.js',
     };
   }
 
@@ -292,6 +293,7 @@ class HAToolsPanel extends HTMLElement {
       { id: 'energy-insights', group: 'smart-reports', name: 'Energy Insights', icon: '\u26A1', tag: 'ha-energy-insights', desc: 'Dashboard energii: zu\u017Cycie, koszty, top urz\u0105dzenia, trendy', repo: 'MacSiem/ha-energy-insights', category: 'monitor' },
       { id: 'energy-email', group: 'smart-reports', name: 'Energy Email', icon: '\uD83D\uDCE7', tag: 'ha-energy-email', desc: 'Dzienne/tygodniowe/miesi\u0119czne raporty energii emailem', repo: 'MacSiem/ha-energy-email', category: 'reports' },
       { id: 'vacuum-water-monitor', group: 'home-family', name: 'Vacuum Water Monitor', icon: '\uD83E\uDDF9', tag: 'ha-vacuum-water-monitor', desc: 'Monitor poziomu wody i serwisu dla odkurzaczy (Roborock, Dreame)', repo: 'MacSiem/ha-vacuum-water-monitor', category: 'monitor' },
+      { id: 'entity-renamer', group: 'advanced-tools', name: 'Entity Renamer', icon: '\uD83C\uDFF7\uFE0F', tag: 'ha-entity-renamer', desc: 'Zmiana nazw encji i urządzeń z propagacją do dashboardów, automatyzacji i skryptów', repo: 'MacSiem/ha-entity-renamer', category: 'system' },
     ];
   }
 
