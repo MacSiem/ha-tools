@@ -152,57 +152,53 @@ class HAEntityRenamer extends HTMLElement {
     this.render();
 
     const impact = {};
-    try {
-      // Load all sources to search
-      const [automations, scripts, lovelaceConfig] = await Promise.all([
-        this._hass.callApi('GET', 'config/automation/config'),
-        this._hass.callApi('GET', 'config/script/config'),
-        this._loadLovelaceConfigs(),
-      ]);
+    // 1. Use search/related WS API for each entity (automations, scripts, scenes, areas)
+    const searchPromises = this._renameQueue.map(rename =>
+      this._hass.callWS({ type: 'search/related', item_type: 'entity', item_id: rename.oldId })
+        .then(result => ({ oldId: rename.oldId, result }))
+        .catch(() => ({ oldId: rename.oldId, result: {} }))
+    );
+    const searchResults = await Promise.all(searchPromises);
 
-      for (const rename of this._renameQueue) {
-        const hits = { automations: [], scripts: [], dashboards: [], scenes: [] };
-        const oldId = rename.oldId;
-
-        // Search automations
-        if (automations) {
-          for (const [aId, aCfg] of Object.entries(automations)) {
-            const yaml = JSON.stringify(aCfg);
-            if (yaml.includes(oldId)) {
-              const name = aCfg.alias || aCfg.id || aId;
-              hits.automations.push(name);
-            }
-          }
+    // Build friendly names lookup for automations/scripts
+    const hass = this._hass;
+    for (const { oldId, result } of searchResults) {
+      const hits = { automations: [], scripts: [], dashboards: [], scenes: [] };
+      // Automations
+      if (result.automation) {
+        for (const autoId of result.automation) {
+          const state = hass.states[autoId];
+          hits.automations.push(state ? state.attributes.friendly_name : autoId.replace('automation.', ''));
         }
-
-        // Search scripts
-        if (scripts) {
-          for (const [sId, sCfg] of Object.entries(scripts)) {
-            const yaml = JSON.stringify(sCfg);
-            if (yaml.includes(oldId)) {
-              hits.scripts.push(sCfg.alias || sId);
-            }
-          }
-        }
-
-        // Search dashboards
-        if (lovelaceConfig) {
-          for (const dash of lovelaceConfig) {
-            const yaml = JSON.stringify(dash.config || {});
-            if (yaml.includes(oldId)) {
-              hits.dashboards.push(dash.title || dash.url_path || 'default');
-            }
-          }
-        }
-
-        impact[oldId] = hits;
       }
-    } catch (e) {
-      // Fallback: search via states/entity usage
-      for (const rename of this._renameQueue) {
-        impact[rename.oldId] = { automations: ['(nie można załadować)'], scripts: [], dashboards: [], scenes: [] };
+      // Scripts
+      if (result.script) {
+        for (const scriptId of result.script) {
+          const state = hass.states[scriptId];
+          hits.scripts.push(state ? state.attributes.friendly_name : scriptId.replace('script.', ''));
+        }
       }
+      // Scenes
+      if (result.scene) {
+        for (const sceneId of result.scene) {
+          const state = hass.states[sceneId];
+          hits.scenes.push(state ? state.attributes.friendly_name : sceneId.replace('scene.', ''));
+        }
+      }
+      impact[oldId] = hits;
     }
+
+    // 2. Also scan dashboards (search/related doesn't cover lovelace)
+    try {
+      const lovelaceConfig = await this._loadLovelaceConfigs();
+      for (const rename of this._renameQueue) {
+        for (const dash of lovelaceConfig) {
+          if (JSON.stringify(dash.config || {}).includes(rename.oldId)) {
+            impact[rename.oldId].dashboards.push(dash.title || dash.url_path || 'default');
+          }
+        }
+      }
+    } catch(e) {}
 
     this._impactResults = impact;
     this._loading = false;
@@ -235,75 +231,94 @@ class HAEntityRenamer extends HTMLElement {
   async _executeRenames() {
     if (!this._renameQueue.length && !Object.keys(this._deviceRenameQueue).length) return;
     this._loading = true;
-    this._message = { type: 'info', text: 'Zmieniam nazwy...' };
+    this._message = { type: 'info', text: 'Analizuję wpływ i zmieniam nazwy...' };
     this.render();
 
+    // Auto-run impact analysis before execution using search/related
+    let impact = {};
+    try {
+      const hass = this._hass;
+      const searchPromises = this._renameQueue.map(rename =>
+        hass.callWS({ type: 'search/related', item_type: 'entity', item_id: rename.oldId })
+          .then(result => ({ oldId: rename.oldId, result }))
+          .catch(() => ({ oldId: rename.oldId, result: {} }))
+      );
+      const searchResults = await Promise.all(searchPromises);
+      for (const { oldId, result } of searchResults) {
+        const hits = { automations: [], scripts: [], dashboards: [], scenes: [] };
+        if (result.automation) {
+          for (const aId of result.automation) {
+            const st = hass.states[aId];
+            hits.automations.push(st ? st.attributes.friendly_name : aId.replace('automation.', ''));
+          }
+        }
+        if (result.script) {
+          for (const sId of result.script) {
+            const st = hass.states[sId];
+            hits.scripts.push(st ? st.attributes.friendly_name : sId.replace('script.', ''));
+          }
+        }
+        if (result.scene) {
+          for (const scId of result.scene) {
+            const st = hass.states[scId];
+            hits.scenes.push(st ? st.attributes.friendly_name : scId.replace('scene.', ''));
+          }
+        }
+        impact[oldId] = hits;
+      }
+      // Also scan dashboards
+      const lovelaceConfig = await this._loadLovelaceConfigs();
+      for (const rename of this._renameQueue) {
+        for (const dash of lovelaceConfig) {
+          if (JSON.stringify(dash.config || {}).includes(rename.oldId)) {
+            impact[rename.oldId].dashboards.push(dash.title || dash.url_path || 'default');
+          }
+        }
+      }
+    } catch(e) {}
+
     const results = [];
+    const ts = new Date().toLocaleTimeString();
 
     // 1. Rename devices first
     for (const [devId, newName] of Object.entries(this._deviceRenameQueue)) {
       try {
-        await this._hass.callWS({
-          type: 'config/device_registry/update',
-          device_id: devId,
-          name_by_user: newName,
-        });
-        this._renameLog.unshift({
-          time: new Date().toLocaleTimeString(),
-          oldId: '📱 ' + devId.substring(0, 8) + '...',
-          newId: '📱 ' + newName,
-          status: 'ok',
-        });
+        await this._hass.callWS({ type: 'config/device_registry/update', device_id: devId, name_by_user: newName });
+        this._renameLog.unshift({ time: ts, oldId: '📱 ' + devId.substring(0, 8) + '...', newId: '📱 ' + newName, status: 'ok', impact: null });
       } catch (e) {
-        this._renameLog.unshift({
-          time: new Date().toLocaleTimeString(),
-          oldId: '📱 device',
-          newId: '📱 ' + newName,
-          status: 'error',
-          error: e.message,
-        });
+        this._renameLog.unshift({ time: ts, oldId: '📱 device', newId: '📱 ' + newName, status: 'error', error: e.message, impact: null });
       }
     }
 
     // 2. Rename entities (entity_id + optional friendly name)
     for (const rename of this._renameQueue) {
+      const imp = impact[rename.oldId] || { automations: [], scripts: [], dashboards: [] };
       try {
-        const wsPayload = {
-          type: 'config/entity_registry/update',
-          entity_id: rename.oldId,
-        };
-        if (rename.newId && rename.newId !== rename.oldId) {
-          wsPayload.new_entity_id = rename.newId;
-        }
-        if (rename.newName) {
-          wsPayload.name = rename.newName;
-        }
+        const wsPayload = { type: 'config/entity_registry/update', entity_id: rename.oldId };
+        if (rename.newId && rename.newId !== rename.oldId) wsPayload.new_entity_id = rename.newId;
+        if (rename.newName) wsPayload.name = rename.newName;
         await this._hass.callWS(wsPayload);
         results.push({ ...rename, status: 'ok' });
         this._renameLog.unshift({
-          time: new Date().toLocaleTimeString(),
+          time: ts,
           oldId: rename.oldId,
           newId: (rename.newId !== rename.oldId ? rename.newId : rename.oldId) + (rename.newName ? ' (' + rename.newName + ')' : ''),
           status: 'ok',
+          impact: imp,
         });
       } catch (e) {
         results.push({ ...rename, status: 'error', error: e.message });
-        this._renameLog.unshift({
-          time: new Date().toLocaleTimeString(),
-          oldId: rename.oldId,
-          newId: rename.newId,
-          status: 'error',
-          error: e.message,
-        });
+        this._renameLog.unshift({ time: ts, oldId: rename.oldId, newId: rename.newId, status: 'error', error: e.message, impact: imp });
       }
     }
 
     const ok = results.filter(r => r.status === 'ok').length;
     const fail = results.filter(r => r.status === 'error').length;
     const devCount = Object.keys(this._deviceRenameQueue).length;
+    const totalImpact = Object.values(impact).reduce((a, i) => a + i.automations.length + i.scripts.length + i.dashboards.length, 0);
     this._message = {
       type: fail > 0 ? 'warning' : 'success',
-      text: `Zmieniono ${ok} encji${devCount ? ', ' + devCount + ' urządzeń' : ''}${fail > 0 ? `, ${fail} błędów` : ''}. Zrestartuj HA aby zmiany były widoczne w automatyzacjach i dashboardach.`,
+      text: `Zmieniono ${ok} encji${devCount ? ', ' + devCount + ' urządzeń' : ''}${fail > 0 ? `, ${fail} błędów` : ''}. ${totalImpact > 0 ? `⚠️ ${totalImpact} miejsc wymaga aktualizacji (szczegóły w historii).` : ''} Zrestartuj HA.`,
     };
     this._renameQueue = [];
     this._deviceRenameQueue = {};
@@ -449,6 +464,7 @@ class HAEntityRenamer extends HTMLElement {
       .impact-badge.automation { background: rgba(168,85,247,0.15); color: #C084FC; }
       .impact-badge.script { background: rgba(245,158,11,0.15); color: #FCD34D; }
       .impact-badge.dashboard { background: rgba(59,130,246,0.15); color: #93C5FD; }
+      .impact-badge.scene { background: rgba(16,185,129,0.15); color: #6EE7B7; }
       .queue-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
 
       .log-entry { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; }
@@ -556,28 +572,30 @@ class HAEntityRenamer extends HTMLElement {
           return `<div style="font-size:12px;margin-top:4px;"><span class="old">${dev ? this._getDeviceName(dev) : did}</span> → <span class="new">${name}</span> <button class="btn btn-sm btn-danger" data-remove-dev-queue="${did}">✕</button></div>`;
         }).join('')}
       </div>` : ''}
-      <table class="queue-table">
-        <thead>
-          <tr><th>Stary entity_id</th><th>Nowy entity_id</th><th>Friendly name</th>${this._impactResults ? '<th>Wpływ</th>' : ''}<th></th></tr>
-        </thead>
-        <tbody>
+      <div class="queue-list">
           ${this._renameQueue.map(r => {
             const imp = this._impactResults ? this._impactResults[r.oldId] : null;
-            return `<tr>
-              <td class="old">${r.oldId}</td>
-              <td class="new">${r.newId !== r.oldId ? r.newId : '<span style="opacity:0.4">bez zmian</span>'}</td>
-              <td style="font-family:inherit;font-size:11px;">${r.newName ? '<span class="new">' + r.newName + '</span>' : '<span style="opacity:0.4">—</span>'}</td>
-              ${imp ? `<td class="impact">
+            const hasImpact = imp && (imp.automations.length || imp.scripts.length || imp.dashboards.length || (imp.scenes||[]).length);
+            return `<div style="border:1px solid var(--bento-border,#334155);border-radius:8px;padding:12px;margin-bottom:8px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span class="old" style="flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;">${r.oldId}</span>
+                <button class="btn btn-sm btn-danger" data-remove-queue="${r.oldId}">✕</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--bento-text-secondary,#94A3B8);">→</span>
+                <span class="new" style="font-family:'JetBrains Mono',monospace;font-size:11px;">${r.newId !== r.oldId ? r.newId : '<span style="opacity:0.4">bez zmian entity_id</span>'}</span>
+                ${r.newName ? '<span style="font-size:11px;color:#93C5FD;">📝 ' + r.newName + '</span>' : ''}
+              </div>
+              ${hasImpact ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);">
+                <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ Używane w:</span>
                 ${imp.automations.map(a => '<span class="impact-badge automation">⚙ ' + a + '</span>').join('')}
                 ${imp.scripts.map(s => '<span class="impact-badge script">📜 ' + s + '</span>').join('')}
                 ${imp.dashboards.map(d => '<span class="impact-badge dashboard">📊 ' + d + '</span>').join('')}
-                ${!imp.automations.length && !imp.scripts.length && !imp.dashboards.length ? '<span style="color:var(--bento-text-secondary,#94A3B8)">brak</span>' : ''}
-              </td>` : ''}
-              <td><button class="btn btn-sm btn-danger" data-remove-queue="${r.oldId}">✕</button></td>
-            </tr>`;
+                ${(imp.scenes||[]).map(s => '<span class="impact-badge scene">🎬 ' + s + '</span>').join('')}
+              </div>` : (imp ? '<div style="margin-top:4px;font-size:10px;color:var(--bento-text-secondary,#94A3B8);">✓ Nie używane w automatyzacjach, skryptach ani dashboardach</div>' : '')}
+            </div>`;
           }).join('')}
-        </tbody>
-      </table>
+      </div>
       <div class="queue-actions">
         <button class="btn btn-outline" id="clearQueue">🗑️ Wyczyść</button>
         <button class="btn btn-outline" id="analyzeImpact" ${this._loading ? 'disabled' : ''}>🔍 Analizuj wpływ</button>
@@ -591,15 +609,25 @@ class HAEntityRenamer extends HTMLElement {
     }
     return `
       <div>
-        ${this._renameLog.map(l => `
-          <div class="log-entry">
+        ${this._renameLog.map(l => {
+          const imp = l.impact;
+          const hasImpact = imp && (imp.automations.length || imp.scripts.length || imp.dashboards.length || (imp.scenes||[]).length);
+          return `
+          <div class="log-entry" style="padding:8px 0;${hasImpact ? 'padding-bottom:12px;' : ''}">
             <span class="log-time">${l.time}</span>
             <span class="${l.status === 'ok' ? 'log-ok' : 'log-err'}">
               ${l.status === 'ok' ? '✅' : '❌'} ${l.oldId} → ${l.newId}
             </span>
             ${l.error ? `<br><small style="color:#FCA5A5">${l.error}</small>` : ''}
-          </div>
-        `).join('')}
+            ${hasImpact ? `<div style="margin-top:4px;padding-left:24px;">
+              <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ Używane w:</span>
+              ${imp.automations.map(a => '<span class="impact-badge automation">⚙ ' + a + '</span>').join('')}
+              ${imp.scripts.map(s => '<span class="impact-badge script">📜 ' + s + '</span>').join('')}
+              ${imp.dashboards.map(d => '<span class="impact-badge dashboard">📊 ' + d + '</span>').join('')}
+              ${(imp.scenes||[]).map(s => '<span class="impact-badge scene">🎬 ' + s + '</span>').join('')}
+            </div>` : ''}
+          </div>`;
+        }).join('')}
       </div>`;
   }
 
