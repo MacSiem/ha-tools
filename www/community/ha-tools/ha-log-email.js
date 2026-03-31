@@ -652,14 +652,14 @@ max: 3</pre>
         .loading-bar { height: 3px; background: linear-gradient(90deg, var(--primary), transparent); border-radius: 2px; animation: load 1s infinite; margin-bottom: 8px; }
         @keyframes load { 0%{background-position:0} 100%{background-position:200px} }
 
-        .log-entry { display: flex; align-items: flex-start; gap: 6px; padding: 8px; border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 12px; }
+        .log-entry { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 6px; padding: 8px; border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 12px; min-width: 0; overflow: hidden; }
         .error-entry { background: #ef444408; border: 1px solid #ef444420; }
         .warn-entry { background: #f59e0b08; border: 1px solid #f59e0b20; }
-        .log-time { color: var(--text3); min-width: 50px; flex-shrink: 0; }
-        .log-domain { font-weight: 600; min-width: 70px; flex-shrink: 0; }
+        .log-time { color: var(--text3); flex-shrink: 0; }
+        .log-domain { font-weight: 600; flex-shrink: 1; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; word-break: break-all; }
         .error-domain { color: #ef4444; }
         .warn-domain { color: #f59e0b; }
-        .log-msg { color: var(--text2); flex: 1; word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap; min-width: 0; }
+        .log-msg { color: var(--text2); flex-basis: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap; min-width: 0; }
         .empty-state { text-align: center; color: var(--text2); padding: 16px; font-size: 13px; background: var(--bg); border-radius: var(--radius-sm); }
         .last-updated { font-size: 11px; color: var(--text3); text-align: right; margin-top: 8px; }
         .info-note { font-size: 12px; color: var(--text2); background: var(--bg); border-radius: var(--radius-sm); padding: 8px 10px; border-left: 3px solid var(--primary); margin-top: 8px; }
@@ -716,9 +716,15 @@ max: 3</pre>
       
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .log-entry { flex-wrap: wrap; }
-          .log-msg { max-width: 100%; overflow-wrap: anywhere; }
-          pre { white-space: pre-wrap; word-break: break-word; max-width: 100vw; }
+          .card { overflow: hidden; }
+          .content { overflow: hidden; padding: 12px; }
+          .log-entry { flex-wrap: wrap; gap: 2px 6px; }
+          .log-domain { max-width: 60%; font-size: 11px; }
+          .log-msg { flex-basis: 100%; max-width: 100%; overflow-wrap: anywhere; font-size: 11px; }
+          .overview-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .send-grid { grid-template-columns: 1fr; }
+          .schedule-grid { grid-template-columns: 1fr; }
+          pre { white-space: pre-wrap; word-break: break-all; max-width: calc(100vw - 80px); overflow-x: auto; }
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
