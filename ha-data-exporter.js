@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Home Assistant Data Exporter Card
  * Export devices, entities, states, and attributes to CSV/JSON
  */
@@ -36,6 +36,12 @@ class HADataExporter extends HTMLElement {
 
   // --- Snapshot persistence ---
   _snapshotKey() { return 'ha-data-exporter-snapshots-' + (this._config.storage_key || 'default'); }
+
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
+
   _settingsKey() { return 'ha-data-exporter-settings-' + (this._config.storage_key || 'default'); }
 
   _loadSnapshotSettings() {
@@ -231,7 +237,8 @@ class HADataExporter extends HTMLElement {
     const L = this._lang === 'pl';
     const format = this._config.default_format;
     this.shadowRoot.innerHTML = `
-      <style>
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -292,7 +299,7 @@ class HADataExporter extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-button {
+.tab, .tab-btn, .tab-btn {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -307,11 +314,11 @@ class HADataExporter extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-button:hover {
+.tab:hover, .tab-btn:hover, .tab-btn:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-button.active {
+.tab.active, .tab-btn.active, .tab-btn.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -808,42 +815,11 @@ canvas {
         }
       
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -855,16 +831,24 @@ canvas {
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+
+</style>
       <ha-card>
         <div class="exporter-card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
             <span class="stats" id="stats"></span>
+          </div>
+          <div class="settings-info-bar" id="deSettingsBar" style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:var(--bento-radius-xs);margin:0 0 8px;font-size:11px;color:var(--bento-text-secondary);">
+            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+              <span>\u{1F4C1} Format: </span>
+              <span>\u{1F50D} Atrybuty: </span>
+            </div>
+            <button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border);border-radius:var(--bento-radius-xs);padding:3px 10px;font-size:11px;color:var(--bento-text-secondary);cursor:pointer;">\u2699\uFE0F Ustawienia</button>
           </div>
           <div class="toolbar">
             <select id="domainFilter">
@@ -923,7 +907,7 @@ canvas {
           <div class="pagination" id="pagination"></div>
         </div>
       </ha-card>
-    `;
+    `
     this._attachEvents();
   }
 
@@ -933,6 +917,21 @@ canvas {
     const selectAll = this.shadowRoot.getElementById('selectAll');
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
     const exportAllBtn = this.shadowRoot.getElementById('exportAllBtn');
+
+    // Settings info bar button
+    this.shadowRoot.getElementById('deGoSettingsBtn')?.addEventListener('click', () => {
+      let panel = null;
+      try {
+        const root = this.getRootNode();
+        if (root && root.host && root.host.tagName === 'HA-TOOLS-PANEL') panel = root.host;
+      } catch (e) {}
+      if (!panel) panel = document.querySelector('ha-tools-panel');
+      if (panel && panel._navigateToSettings) {
+        panel._navigateToSettings('data-exporter');
+      } else {
+        this.dispatchEvent(new CustomEvent('navigate-settings', { bubbles: true, composed: true, detail: { section: 'data-exporter' } }));
+      }
+    });
 
     // Snapshot controls
     const snapEnabled = this.shadowRoot.getElementById('snapshotEnabled');
@@ -1297,7 +1296,6 @@ canvas {
     });
     return yaml;
   }
-
 
   // --- Pagination helper ---
   _renderPagination(tabName, totalItems) {

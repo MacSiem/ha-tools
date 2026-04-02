@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HA Vacuum Water Monitor v3.0.0
  * Lovelace card for tracking vacuum cleaner water levels, history, maintenance and stats
  * Supports Roborock, Dreame, iRobot, Ecovacs, and generic vacuums
@@ -77,75 +77,348 @@ const BRAND_PROFILES = {
 const CALIBRATION_DATA = {
   'roborock_s8_maxv_ultra': {
     label: 'Roborock S8 MaxV Ultra',
-    tank_ml: 350,
-    water_per_m2: { low: 6.5, medium: 12, high: 18, max: 24 },
+    tank_ml: 3000,
+    robot_tank_ml: 350,
+    water_per_m2: { 'fast/low': 3.2, 'fast/med': 4.0, 'std/low': 4.8, 'std/med': 6.0, 'std/high': 7.2, 'deep/med': 9.0, 'deep/high': 10.8, 'deep/max': 11.7 },
+    mop_wash_ml: 150,
+    mop_wash_modes: { quick: 100, standard: 150, deep: 200 },
+    mop_modes: { fast: 4, standard: 6, deep: 9 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2, max: 1.3 },
     avg_area_per_charge: 250,
     mop_type: 'VibraRise 3.0 dual spinning',
-    notes: 'Auto mop lifting, self-cleaning dock, hot water wash',
+    notes: 'Stacja 3L, robot 350ml. Mycie mopa ~150ml/cykl. Auto-refill z doku. Dane z sensor\u00f3w HA.',
+  },
+  'roborock_s8_pro_ultra': {
+    label: 'Roborock S8 Pro Ultra',
+    tank_ml: 3500,
+    robot_tank_ml: 200,
+    water_per_m2: { 'light/low': 3.0, 'light/med': 3.8, 'balanced/low': 4.5, 'balanced/med': 5.6, 'balanced/high': 6.7, 'deep/med': 8.4, 'deep/high': 10.1, 'deep/max': 10.9 },
+    mop_wash_ml: 140,
+    mop_wash_modes: { quick: 90, standard: 140, deep: 190 },
+    mop_modes: { light: 3.8, balanced: 5.6, deep: 8.4 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2, max: 1.3 },
+    avg_area_per_charge: 240,
+    mop_type: 'VibraRise 2.0 sonic 3000rpm',
+    notes: 'Stacja 3.5L/3L. Mycie 80\u00b0C. Robot 200ml. Szacunki wg proporcji S8 MaxV.',
+  },
+  'roborock_s7_maxv_ultra': {
+    label: 'Roborock S7 MaxV Ultra',
+    tank_ml: 3000,
+    robot_tank_ml: 200,    water_per_m2: { 'mild/low': 2.8, 'mild/med': 3.5, 'moderate/low': 4.2, 'moderate/med': 5.3, 'moderate/high': 6.3, 'intense/med': 7.9, 'intense/high': 9.5 },
+    mop_wash_ml: 130,
+    mop_wash_modes: { quick: 80, standard: 130, deep: 180 },
+    mop_modes: { mild: 3.5, moderate: 5.3, intense: 7.9 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 200,
+    mop_type: 'VibraRise sonic 3000rpm',
+    notes: 'Stacja 3L/2.3L. Wibracje soniczne, podnoszenie mopa 5mm.',
   },
   'roborock_s7_maxv': {
-    label: 'Roborock S7 MaxV',
-    tank_ml: 300,
-    water_per_m2: { low: 5, medium: 10, high: 15 },
+    label: 'Roborock S7 MaxV (bez stacji)',
+    tank_ml: 200,
+    robot_tank_ml: 200,
+    water_per_m2: { 'mild': 3.5, 'moderate': 5.3, 'intense': 7.9 },
+    mop_modes: { mild: 3.5, moderate: 5.3, intense: 7.9 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
     avg_area_per_charge: 200,
-    mop_type: 'Sonic mopping',
-    notes: 'ReactiveAI obstacle avoidance',
+    mop_type: 'VibraRise sonic 3000rpm',
+    notes: 'Bez stacji \u2014 tylko zbiornik robota 200ml. R\u0119czne uzupe\u0142nianie.',
+  },
+  'roborock_s9_maxv': {
+    label: 'Roborock S9 MaxV Ultra',
+    tank_ml: 4000,
+    robot_tank_ml: 100,
+    water_per_m2: { 'fast/low': 3.2, 'fast/med': 4.0, 'std/low': 4.8, 'std/med': 6.0, 'std/high': 7.2, 'deep/med': 9.0, 'deep/high': 10.8, 'deep/max': 11.7 },
+    mop_wash_ml: 160,
+    mop_wash_modes: { quick: 100, standard: 160, deep: 220 },
+    mop_modes: { fast: 4, standard: 6, deep: 9 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2, max: 1.3 },    avg_area_per_charge: 280,
+    mop_type: 'VibraRise 4.0 sonic 4000rpm',
+    notes: 'Stacja 4L. Wibracje 4000/min. Ssanie 22000Pa. Mop 18mm lift. Warto\u015bci ekstrapolowane z S8 MaxV.',
+  },
+  'roborock_q_revo': {
+    label: 'Roborock Q Revo',
+    tank_ml: 5000,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.0, 'medium': 7.0, 'high': 11.0 },
+    mop_wash_ml: 160,
+    mop_wash_modes: { quick: 110, standard: 160, deep: 220 },
+    mop_modes: { low: 4.0, medium: 7.0, high: 11.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 230,
+    mop_type: 'Dual rotating 200rpm',
+    notes: 'Stacja 5L/4.2L. 30 poziom\u00f3w przep\u0142ywu. Suszenie 45\u00b0C. Obrotowe mopy zu\u017cywaj\u0105 wi\u0119cej.',
+  },
+  'roborock_q_revo_maxv': {
+    label: 'Roborock Q Revo MaxV',
+    tank_ml: 4000,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.0, 'medium': 7.0, 'high': 11.0 },
+    mop_wash_ml: 160,
+    mop_wash_modes: { quick: 110, standard: 160, deep: 220 },
+    mop_modes: { low: 4.0, medium: 7.0, high: 11.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 240,
+    mop_type: 'Dual rotating 200rpm',
+    notes: 'Stacja 4L/3.5L. ReactiveAI 2.0. 30 poziom\u00f3w. Obrotowe mopy.',
+  },  'roborock_q7_max': {
+    label: 'Roborock Q7 Max / Q7 Max+',
+    tank_ml: 350,
+    robot_tank_ml: 350,
+    water_per_m2: { 'low': 2.5, 'medium': 4.5, 'high': 7.0 },
+    mop_modes: { low: 2.5, medium: 4.5, high: 7.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 180,
+    mop_type: 'Gravity mop pad 300g',
+    notes: 'Zbiornik 350ml, brak stacji z wod\u0105. 30 poziom\u00f3w. Pasywny mop \u2014 mniej wody.',
   },
   'roborock_q7': {
-    label: 'Roborock Q7/Q7 Max',
-    tank_ml: 350,
-    water_per_m2: { low: 5, medium: 9, high: 14 },
+    label: 'Roborock Q7',
+    tank_ml: 300,
+    robot_tank_ml: 300,
+    water_per_m2: { 'low': 2.5, 'medium': 4.5, 'high': 7.0 },
+    mop_modes: { low: 2.5, medium: 4.5, high: 7.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
     avg_area_per_charge: 180,
     mop_type: 'Gravity mop pad',
-    notes: 'Budget friendly, no mop lift',
+    notes: 'Zbiornik 300ml. Pasywny mop, niskie zu\u017cycie wody.',
+  },
+  'dreame_x40_ultra': {
+    label: 'Dreame X40 Ultra',
+    tank_ml: 4500,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.5, 'medium': 8.0, 'high': 12.0, 'deep': 16.0 },
+    mop_wash_ml: 170,
+    mop_wash_modes: { quick: 110, standard: 170, deep: 230 },    mop_modes: { low: 4.5, medium: 8.0, high: 12.0, deep: 16.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 280,
+    mop_type: 'MopExtend rotating dual pads',
+    notes: 'Stacja 4.5L/4L. Mycie 70\u00b0C. 32 poziomy wilgotno\u015bci. Wysuwany mop do kraw\u0119dzi.',
+  },
+  'dreame_x30_ultra': {
+    label: 'Dreame X30 Ultra',
+    tank_ml: 4500,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.5, 'medium': 8.0, 'high': 12.0, 'deep': 16.0 },
+    mop_wash_ml: 150,
+    mop_wash_modes: { quick: 100, standard: 150, deep: 200 },
+    mop_modes: { low: 4.5, medium: 8.0, high: 12.0, deep: 16.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 243,
+    mop_type: 'MopExtend RoboSwing rotating dual pads',
+    notes: 'Stacja 4.5L/4L. Mycie 60\u00b0C. Mop 40mm. ~130ml/100sqft wg Smart Home Hookup.',
   },
   'dreame_l20_ultra': {
     label: 'Dreame L20 Ultra',
-    tank_ml: 80,
-    water_per_m2: { low: 5, medium: 10, high: 16, deep: 22 },
-    avg_area_per_charge: 300,
+    tank_ml: 4500,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.5, 'medium': 8.0, 'high': 12.0, 'deep': 16.0 },
+    mop_wash_ml: 160,
+    mop_wash_modes: { quick: 100, standard: 160, deep: 210 },
+    mop_modes: { low: 4.5, medium: 8.0, high: 12.0, deep: 16.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },    avg_area_per_charge: 300,
     mop_type: 'MopExtend rotating dual pads',
-    notes: 'Auto refill from dock (4L tank), hot air drying, mop extend for edges',
+    notes: 'Stacja 4.5L/4L. Suszenie gor\u0105cym powietrzem. Wysuwany mop. 300m\u00b2/\u0142adowanie.',
   },
   'dreame_l10s_ultra': {
     label: 'Dreame L10s Ultra',
-    tank_ml: 80,
-    water_per_m2: { low: 5, medium: 9, high: 14 },
+    tank_ml: 2500,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.0, 'medium': 7.5, 'high': 11.0 },
+    mop_wash_ml: 140,
+    mop_wash_modes: { quick: 90, standard: 140, deep: 190 },
+    mop_modes: { low: 4.0, medium: 7.5, high: 11.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
     avg_area_per_charge: 210,
-    mop_type: 'Rotating dual pads',
-    notes: 'Auto refill from dock (3.2L tank)',
+    mop_type: 'Dual rotating 180rpm',
+    notes: 'Stacja 2.5L/2.4L. >250ml/100sqft wg Smart Home Hookup. Obrotowe mopy 180rpm.',
+  },
+  'dreame_l10s_pro_ultra': {
+    label: 'Dreame L10s Pro Ultra',
+    tank_ml: 4500,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.0, 'medium': 7.5, 'high': 11.0 },
+    mop_wash_ml: 150,
+    mop_wash_modes: { quick: 100, standard: 150, deep: 200 },
+    mop_modes: { low: 4.0, medium: 7.5, high: 11.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 230,
+    mop_type: 'Dual rotating pads',
+    notes: 'Stacja 4.5L/4L. Mycie 58\u00b0C. Ulepszona wersja L10s Ultra.',
+  },  'dreame_d10_plus': {
+    label: 'Dreame D10 Plus',
+    tank_ml: 150,
+    robot_tank_ml: 150,
+    water_per_m2: { 'low': 2.0, 'medium': 4.0, 'high': 6.0 },
+    mop_modes: { low: 2.0, medium: 4.0, high: 6.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 120,
+    mop_type: 'Single rotating pad',
+    notes: 'Bud\u017cetowy. 150ml, brak stacji z wod\u0105. 3 poziomy. Ssanie 6000Pa.',
   },
   'ecovacs_x2_omni': {
     label: 'Ecovacs Deebot X2 Omni',
-    tank_ml: 80,
-    water_per_m2: { low: 5, medium: 11, high: 17 },
+    tank_ml: 4000,
+    robot_tank_ml: 180,
+    water_per_m2: { 'low': 4.5, 'medium': 8.0, 'high': 12.5 },
+    mop_wash_ml: 170,
+    mop_wash_modes: { quick: 110, standard: 170, deep: 230 },
+    mop_modes: { low: 4.5, medium: 8.0, high: 12.5 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
     avg_area_per_charge: 260,
-    mop_type: 'Dual rotating OZMO Turbo 2.0',
-    notes: 'Square design for corners, auto-refill dock (3.5L)',
+    mop_type: 'OZMO Turbo 2.0 rotating 180rpm',
+    notes: 'Stacja 4L/3.5L. Mycie 55\u00b0C. Kwadratowy. Nacisk 6N. ~400ml/100sqft max wg TSHHU.',
   },
   'ecovacs_t20_omni': {
     label: 'Ecovacs Deebot T20 Omni',
-    tank_ml: 80,
-    water_per_m2: { low: 5, medium: 10, high: 15, deep: 20 },
+    tank_ml: 4000,
+    robot_tank_ml: 180,
+    water_per_m2: { 'low': 4.0, 'medium': 7.5, 'high': 11.5, 'deep': 15.0 },    mop_wash_ml: 160,
+    mop_wash_modes: { quick: 100, standard: 160, deep: 210 },
+    mop_modes: { low: 4.0, medium: 7.5, high: 11.5, deep: 15.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
     avg_area_per_charge: 240,
-    mop_type: 'OZMO Turbo 2.0 rotating',
-    notes: 'Hot water mop washing at 55°C',
+    mop_type: 'OZMO Turbo spinning 180rpm',
+    notes: 'Stacja 4L/4L. Mycie 60\u00b0C. 4 tryby.',
+  },
+  'ecovacs_t30_omni': {
+    label: 'Ecovacs Deebot T30S Omni',
+    tank_ml: 4000,
+    robot_tank_ml: 55,
+    water_per_m2: { 'low': 4.5, 'medium': 8.0, 'high': 12.5, 'deep': 16.0 },
+    mop_wash_ml: 170,
+    mop_wash_modes: { quick: 110, standard: 170, deep: 230 },
+    mop_modes: { low: 4.5, medium: 8.0, high: 12.5, deep: 16.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 250,
+    mop_type: 'Dual spin mops 180rpm',
+    notes: 'Stacja 4L/4L. Mycie 70\u00b0C. Robot 55ml ci\u0105g\u0142e uzup. Auto-detergent.',
+  },
+  'ecovacs_n20_plus': {
+    label: 'Ecovacs Deebot N20 Plus',
+    tank_ml: 220,
+    robot_tank_ml: 220,
+    water_per_m2: { 'low': 2.0, 'medium': 3.5, 'high': 5.5 },
+    mop_modes: { low: 2.0, medium: 3.5, high: 5.5 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 120,    mop_type: 'OZMO fixed pad (no lift)',
+    notes: 'Bud\u017cetowy. 220ml, brak mycia mopa. R\u0119czne zdejmowanie na dywanie.',
   },
   'irobot_combo_j9': {
     label: 'iRobot Roomba Combo j9+',
-    tank_ml: 210,
-    water_per_m2: { low: 3, medium: 6, high: 10 },
+    tank_ml: 3000,
+    robot_tank_ml: 210,
+    water_per_m2: { 'low': 2.0, 'medium': 4.0, 'high': 7.0 },
+    mop_modes: { low: 2.0, medium: 4.0, high: 7.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
     avg_area_per_charge: 150,
-    mop_type: 'Retractable pad on top',
-    notes: 'Auto mop retraction onto top, self-emptying bin',
+    mop_type: 'SmartScrub retractable microfiber',
+    notes: 'Stacja 3L auto-refill. Mop chowa si\u0119 na g\u00f3r\u0119. D.R.I. dywany. 3 poziomy.',
+  },
+  'irobot_combo_j7': {
+    label: 'iRobot Roomba Combo j7+',
+    tank_ml: 210,
+    robot_tank_ml: 210,
+    water_per_m2: { 'low': 2.0, 'medium': 4.0, 'high': 7.0 },
+    mop_modes: { low: 2.0, medium: 4.0, high: 7.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 140,
+    mop_type: 'Retractable microfiber pad',
+    notes: 'Zbiornik 210ml. Mop chowa si\u0119 na g\u00f3r\u0119. Pompa elektroniczna. Obs\u0142. Bona.',
+  },
+  'irobot_combo_essential': {
+    label: 'iRobot Roomba Combo Essential',
+    tank_ml: 200,
+    robot_tank_ml: 200,    water_per_m2: { 'low': 1.5, 'medium': 3.0, 'high': 5.0 },
+    mop_modes: { low: 1.5, medium: 3.0, high: 5.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 46,
+    mop_type: 'Fixed microfiber pad (drag)',
+    notes: 'Bud\u017cetowy. 200ml, brak podnoszenia mopa. ~46m\u00b2/zbiornik. 3 poziomy.',
+  },
+  'narwal_freo_x_ultra': {
+    label: 'Narwal Freo X Ultra',
+    tank_ml: 5000,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 5.0, 'medium': 9.0, 'high': 14.0 },
+    mop_wash_ml: 210,
+    mop_wash_modes: { quick: 140, standard: 210, deep: 280 },
+    mop_modes: { low: 5.0, medium: 9.0, high: 14.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 250,
+    mop_type: 'Dual rotating pads',
+    notes: 'Stacja 5L/4.5L. ~210ml/mycie mopa wg TSHHU. Najwy\u017csze zu\u017cycie wody w klasie.',
+  },
+  'narwal_freo_x_plus': {
+    label: 'Narwal Freo X Plus',
+    tank_ml: 280,
+    robot_tank_ml: 280,
+    water_per_m2: { 'low': 4.0, 'medium': 7.0, 'high': 11.0 },
+    mop_modes: { low: 4.0, medium: 7.0, high: 11.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 200,    mop_type: 'Dual rotating pads',
+    notes: 'Kompaktowa baza, brak mycia w stacji. 280ml zbiornik. 450m\u00b2 zasi\u0119g.',
+  },
+  'eufy_x10_pro_omni': {
+    label: 'Eufy X10 Pro Omni',
+    tank_ml: 3000,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 3.5, 'medium': 6.5, 'high': 10.0 },
+    mop_wash_ml: 140,
+    mop_wash_modes: { quick: 90, standard: 140, deep: 190 },
+    mop_modes: { low: 3.5, medium: 6.5, high: 10.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 180,
+    mop_type: 'MopMaster 2.0 pentagon dual 180rpm',
+    notes: 'Stacja 3L. Nacisk 1kg. Suszenie 45\u00b0C. 188ml/100sqft max wg TSHHU.',
+  },
+  'samsung_jet_bot_combo': {
+    label: 'Samsung Jet Bot Combo AI',
+    tank_ml: 4000,
+    robot_tank_ml: 100,
+    water_per_m2: { 'low': 4.0, 'medium': 7.0, 'high': 11.0 },
+    mop_wash_ml: 160,
+    mop_wash_modes: { quick: 100, standard: 160, deep: 210 },
+    mop_modes: { low: 4.0, medium: 7.0, high: 11.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 200,
+    mop_type: 'Dual spin mops',
+    notes: 'Stacja 4L/3.6L. Auto-steam 70\u00b0C+. Samsung AI.',
+  },  'xiaomi_x20_max': {
+    label: 'Xiaomi Robot Vacuum X20 Max',
+    tank_ml: 4000,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 4.0, 'medium': 7.0, 'high': 11.0 },
+    mop_wash_ml: 150,
+    mop_wash_modes: { quick: 100, standard: 150, deep: 200 },
+    mop_modes: { low: 4.0, medium: 7.0, high: 11.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 200,
+    mop_type: 'Rotating dual pads, hot wash',
+    notes: 'Stacja 4L/3.8L. Gor\u0105ca woda. 2 poziomy wyj\u015bcia. 200m\u00b2.',
+  },
+  'xiaomi_x20_pro': {
+    label: 'Xiaomi Robot Vacuum X20 Pro',
+    tank_ml: 4000,
+    robot_tank_ml: 80,
+    water_per_m2: { 'low': 3.5, 'medium': 6.5, 'high': 10.0 },
+    mop_wash_ml: 140,
+    mop_wash_modes: { quick: 90, standard: 140, deep: 190 },
+    mop_modes: { low: 3.5, medium: 6.5, high: 10.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
+    avg_area_per_charge: 120,
+    mop_type: 'Rotating dual pads, hot wash',
+    notes: 'Stacja 4L. 3 poziomy wilgotno\u015bci. 120m\u00b2 mopowania.',
   },
   'generic': {
-    label: 'Generic / Unknown',
-    tank_ml: 300,
-    water_per_m2: { low: 5, medium: 10, high: 15 },
+    label: 'Generic / Nieznany model',
+    tank_ml: 300,    robot_tank_ml: 300,
+    water_per_m2: { 'low': 3.0, 'medium': 6.0, 'high': 10.0 },
+    mop_modes: { low: 3.0, medium: 6.0, high: 10.0 },
+    intensity_factors: { low: 0.8, medium: 1.0, high: 1.2 },
     avg_area_per_charge: 150,
     mop_type: 'Standard',
-    notes: 'Default estimates — adjust based on your model',
+    notes: 'Domy\u015blne szacunki \u2014 dostosuj do swojego modelu.',
   },
 };
 
@@ -163,6 +436,9 @@ class HAVacuumWaterMonitor extends HTMLElement {
     this._activeTab = 'water';
     this._activeDeviceIdx = 0;
     this._maintenanceItems = []; // custom maintenance items from localStorage
+    this._userDevices = []; // user-added devices from localStorage
+    this._refillConfig = {}; // refill method config from localStorage
+    this._lastHtml = ''; // cache to prevent unnecessary DOM updates
   }
 
   set hass(hass) {
@@ -170,14 +446,14 @@ class HAVacuumWaterMonitor extends HTMLElement {
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
-    if (!this._firstRender && now - this._lastRenderTime < 5000) {
+    if (!this._firstRender && now - this._lastRenderTime < 10000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
         setTimeout(() => {
           this._renderScheduled = false;
           this._render();
           this._lastRenderTime = Date.now();
-        }, 5000 - (now - this._lastRenderTime));
+        }, 10000 - (now - this._lastRenderTime));
       }
       return;
     }
@@ -215,6 +491,9 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
     this._activeTab = this._config.default_tab || 'water';
     this._loadMaintenanceItems();
+    this._loadUserDevices();
+    this._loadRefillConfig();
+    this._loadCustomCalibration();
   }
 
   getCardSize() { return 4; }
@@ -248,6 +527,148 @@ class HAVacuumWaterMonitor extends HTMLElement {
       localStorage.setItem(this._storageKey(), JSON.stringify(this._maintenanceItems));
     } catch {}
   }
+
+  _userDevicesKey() {
+    return 'ha-vwm-user-devices-' + (this._config.title || 'default').replace(/\s+/g, '_');
+  }
+
+  _loadUserDevices() {
+    try {
+      const raw = localStorage.getItem(this._userDevicesKey());
+      this._userDevices = raw ? JSON.parse(raw) : [];
+    } catch { this._userDevices = []; }
+  }
+
+  _saveUserDevices() {
+    try {
+      localStorage.setItem(this._userDevicesKey(), JSON.stringify(this._userDevices));
+    } catch {}
+  }
+
+  _addUserDevice(entityId) {
+    if (!entityId || !entityId.startsWith('vacuum.')) return false;
+    if (this._userDevices.find(d => d.vacuum_entity === entityId)) return false;
+    const state = this._hass && this._hass.states[entityId];
+    const name = (state && state.attributes && state.attributes.friendly_name) || entityId;
+    // Try to match a brand profile
+    let profile = {};
+    for (const [key, bp] of Object.entries(BRAND_PROFILES)) {
+      if (bp.vacuum_entity === entityId) { profile = { ...bp, brand_profile: key }; break; }
+    }
+    this._userDevices.push({
+      vacuum_entity: entityId,
+      name: profile.label || name,
+      icon: profile.icon || '\uD83E\uDDA4',
+      ...profile,
+    });
+    this._saveUserDevices();
+    return true;
+  }
+
+  _removeUserDevice(entityId) {
+    this._userDevices = this._userDevices.filter(d => d.vacuum_entity !== entityId);
+    this._saveUserDevices();
+  }
+  _refillConfigKey() {
+    return 'ha-vwm-refill-config-' + (this._config.title || 'default').replace(/\s+/g, '_');
+  }
+
+  _loadRefillConfig() {
+    try {
+      const raw = localStorage.getItem(this._refillConfigKey());
+      this._refillConfig = raw ? JSON.parse(raw) : {};
+    } catch { this._refillConfig = {}; }
+  }
+
+  _saveRefillConfig() {
+    try {
+      localStorage.setItem(this._refillConfigKey(), JSON.stringify(this._refillConfig || {}));
+    } catch {}
+  }
+
+  // Get all input_button entities from HA
+  _getInputButtons() {
+    if (!this._hass) return [];
+    return Object.values(this._hass.states)
+      .filter(s => s.entity_id.startsWith('input_button.'))
+      .map(s => ({ id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id }));
+  }
+
+  // Get all binary_sensor door/window/opening entities
+  _getDoorSensors() {
+    if (!this._hass) return [];
+    return Object.values(this._hass.states)
+      .filter(s => s.entity_id.startsWith('binary_sensor.') &&
+        s.attributes && ['door', 'window', 'opening', 'garage_door'].includes(s.attributes.device_class))
+      .map(s => ({ id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id, state: s.state }));
+  }
+
+  // Create input_button helper via HA API
+  async _createRefillButton(device) {
+    const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
+    try {
+      await this._hass.callWS({
+        type: 'input_button/create',
+        name: `Refill ${shortId}`,
+        icon: 'mdi:water-sync',
+      });
+      return `input_button.refill_${shortId}`;
+    } catch (e) {
+      console.error('[VWM] Create input_button failed:', e);
+      return null;
+    }
+  }
+
+  // Create automation via HA API
+  async _createRefillAutomation(device, method, triggerEntity) {
+    const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
+    const inputNum = device.water_used_input || `input_number.${shortId}_water_used_ml`;
+    const inputDt = device.last_reset_entity || `input_datetime.${shortId}_last_water_reset`;
+    const autoId = `vwm_refill_${shortId}_${method}`;
+
+    let trigger, conditions = [];
+    if (method === 'button') {
+      trigger = [{ platform: 'state', entity_id: triggerEntity }];
+    } else {
+      trigger = [{ platform: 'state', entity_id: triggerEntity, from: 'on', to: 'off' }];
+      if (device.vacuum_entity) {
+        conditions = [{ condition: 'state', entity_id: device.vacuum_entity, state: 'docked' }];
+      }
+    }
+
+    const actions = [];
+    if (method === 'sensor') actions.push({ delay: '00:00:05' });
+
+    // Reset water counter
+    const hasInputNum = this._hass.states[inputNum];
+    if (hasInputNum) {
+      actions.push({ service: 'input_number.set_value', target: { entity_id: inputNum }, data: { value: 0 } });
+    }
+    const hasInputDt = this._hass.states[inputDt];
+    if (hasInputDt) {
+      actions.push({ service: 'input_datetime.set_datetime', target: { entity_id: inputDt }, data: { datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}" } });
+    }
+    actions.push({
+      service: 'persistent_notification.create',
+      data: { title: '\uD83D\uDCA7 Zbiornik', message: `${shortId}: Licznik wody zresetowany (${method}).` }
+    });
+
+    try {
+      await this._hass.callApi('POST', `config/automation/config/${autoId}`, {
+        alias: `VWM: Reset wody ${shortId} (${method === 'button' ? 'przycisk' : 'czujnik'})`,
+        description: `Auto-generated by Vacuum Water Monitor`,
+        trigger: trigger,
+        condition: conditions,
+        action: actions,
+        mode: 'single',
+      });
+      return autoId;
+    } catch (e) {
+      console.error('[VWM] Create automation failed:', e);
+      return null;
+    }
+  }
+
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
 
@@ -285,9 +706,24 @@ class HAVacuumWaterMonitor extends HTMLElement {
       'last_clean_start','last_clean_end','charge_sensor','icon',
     ];
     keys.forEach(k => { if (this._config[k] != null) single[k] = this._config[k]; });
-    if (Object.keys(single).length === 0) return [];
+    if (Object.keys(single).length === 0) {
+      // No config devices - return user-added devices from localStorage
+      return (this._userDevices || []).map(d => {
+        if (d.brand_profile && BRAND_PROFILES[d.brand_profile]) {
+          return { ...BRAND_PROFILES[d.brand_profile], ...d };
+        }
+        return d;
+      });
+    }
     single.name = single.device_name || this._config.device_name || 'Vacuum';
-    return [single];
+    // Merge config single device + user-added devices
+    const userDevs = (this._userDevices || []).filter(ud => ud.vacuum_entity !== single.vacuum_entity).map(d => {
+      if (d.brand_profile && BRAND_PROFILES[d.brand_profile]) {
+        return { ...BRAND_PROFILES[d.brand_profile], ...d };
+      }
+      return d;
+    });
+    return [single, ...userDevs];
   }
 
   // Auto-discover vacuum entities from HA states
@@ -423,7 +859,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const dashOffset = circumference * (1 - clampedPct / 100);
     return `
       <svg width="${size}" height="${size}" viewBox="0 0 110 110">
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="9"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--vwm-overlay-medium, rgba(0,0,0,0.1))" stroke-width="9"/>
         <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
           stroke="${color}" stroke-width="9"
           stroke-dasharray="${circumference}"
@@ -431,10 +867,10 @@ class HAVacuumWaterMonitor extends HTMLElement {
           stroke-linecap="round"
           transform="rotate(-90 ${cx} ${cy})"
           style="transition: stroke-dashoffset 0.6s ease; filter: drop-shadow(0 0 4px ${color})"/>
-        <text x="${cx}" y="${cy - 3}" text-anchor="middle" fill="white" font-size="17" font-weight="700" font-family="Inter,sans-serif">
+        <text x="${cx}" y="${cy - 3}" text-anchor="middle" fill="var(--vwm-text, #1a1a2e)" font-size="17" font-weight="700" font-family="Inter,sans-serif">
           ${percent !== null ? Math.round(clampedPct) + '%' : '--'}
         </text>
-        <text x="${cx}" y="${cy + 13}" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="9" font-family="Inter,sans-serif">remaining</text>
+        <text x="${cx}" y="${cy + 13}" text-anchor="middle" fill="var(--vwm-text-secondary, #6b7280)" font-size="9" font-family="Inter,sans-serif">remaining</text>
       </svg>`;
   }
 
@@ -534,6 +970,95 @@ class HAVacuumWaterMonitor extends HTMLElement {
       </div>`;
   }
 
+
+  // ── REFILL METHODS SECTION ──────────────────────────────────────────────
+
+  _buildRefillMethodsSection(device) {
+    const vacId = device.vacuum_entity || '';
+    const shortId = vacId.replace('vacuum.', '') || 'robot';
+    const rc = this._refillConfig[shortId] || {};
+
+    // Get available entities
+    const buttons = this._getInputButtons();
+    const sensors = this._getDoorSensors();
+
+    const buttonOpts = buttons.map(b =>
+      `<option value="${b.id}" ${rc.buttonEntity === b.id ? 'selected' : ''}>${b.name}</option>`
+    ).join('');
+
+    const sensorOpts = sensors.map(s =>
+      `<option value="${s.id}" ${rc.sensorEntity === s.id ? 'selected' : ''}>${s.name} (${s.state})</option>`
+    ).join('');
+
+    const methodStyle = 'margin-bottom:10px;padding:12px;background:var(--vwm-overlay-light,rgba(0,0,0,0.04));border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)';
+    const labelStyle = 'font-weight:700;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:6px';
+    const descStyle = 'font-size:12px;color:var(--vwm-text-secondary,#6b7280);line-height:1.4;margin-bottom:8px';
+    const selectStyle = 'width:100%;padding:7px 10px;border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:8px;font-size:12px;background:var(--vwm-bg,#fff);color:var(--vwm-text,#1e293b);font-family:Inter,sans-serif';
+    const btnStyle = 'padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;margin-top:6px';
+    const btnPrimary = btnStyle + ';background:rgba(59,130,246,0.12);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)';
+    const btnSuccess = btnStyle + ';background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.3)';
+    const statusOk = '<span style="color:#22c55e;font-size:11px;font-weight:600">\u2705 Skonfigurowane</span>';
+    const statusNone = '<span style="color:var(--vwm-text-muted,#9ca3af);font-size:11px">\u2014 Nie skonfigurowane</span>';
+
+    return `
+      <div class="section-block">
+        <div class="section-title" style="cursor:pointer;display:flex;align-items:center;gap:6px" id="refill-methods-toggle">
+          \uD83D\uDD04 Metody resetu zbiornika <span id="refill-methods-arrow" style="font-size:10px;transition:transform 0.2s">\u25B6</span>
+        </div>
+        <div id="refill-methods-body" style="display:none">
+
+          <div style="margin:8px 0;padding:10px 14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:10px;font-size:12px;line-height:1.5;color:var(--vwm-text,#1e293b)">
+            \u26A0\uFE0F Wi\u0119kszo\u015B\u0107 robot\u00F3w <strong>nie raportuje</strong> wyj\u0119cia/w\u0142o\u017Cenia zbiornika. Wybierz metod\u0119 resetu, kt\u00F3ra Ci odpowiada.
+          </div>
+
+          <!-- Method 1: Card button -->
+          <div style="${methodStyle}">
+            <div style="${labelStyle}">\u2460 Przycisk w tej karcie</div>
+            <div style="${descStyle}">
+              U\u017Cyj przycisku <strong>\uD83D\uDCA7 Refilled</strong> powy\u017Cej. Najprostsza opcja \u2014 klikasz gdy uzupe\u0142nisz wod\u0119.
+            </div>
+          </div>
+
+          <!-- Method 2: Dashboard button / physical -->
+          <div style="${methodStyle}">
+            <div style="${labelStyle}">\u2461 Przycisk w dashboardzie / fizyczny ${rc.buttonEntity ? statusOk : statusNone}</div>
+            <div style="${descStyle}">
+              Utw\u00F3rz encj\u0119 <code>input_button</code> \u2014 mo\u017Cesz j\u0105 doda\u0107 jako kafelek w dashboardzie lub podpi\u0105\u0107 pod przycisk Zigbee/Z-Wave.
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              <select id="refill-btn-select" style="${selectStyle};flex:1;min-width:180px">
+                <option value="">-- Wybierz input_button --</option>
+                ${buttonOpts}
+              </select>
+              <button id="refill-btn-create" style="${btnSuccess}">+ Utw\u00F3rz nowy</button>
+            </div>
+            ${rc.buttonEntity ? '' : '<div style="margin-top:6px">'}
+            <button id="refill-btn-save" style="${btnPrimary};margin-top:6px">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+            ${rc.buttonEntity ? '<button id="refill-btn-remove" style="' + btnStyle + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);margin-left:6px">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
+            <span id="refill-btn-status" style="font-size:11px;margin-left:8px"></span>
+          </div>
+
+          <!-- Method 3: Door sensor -->
+          <div style="${methodStyle}">
+            <div style="${labelStyle}">\u2462 Czujnik drzwi / kontaktron ${rc.sensorEntity ? statusOk : statusNone}</div>
+            <div style="${descStyle}">
+              Przyklej czujnik otwarcia (np. Aqara Door Sensor) do zbiornika lub klapki stacji. Zamkni\u0119cie = zbiornik na miejscu = auto-reset.
+            </div>
+            <select id="refill-sensor-select" style="${selectStyle}">
+              <option value="">-- Wybierz binary_sensor (door/window) --</option>
+              ${sensorOpts}
+            </select>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+              <button id="refill-sensor-save" style="${btnPrimary}">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+              ${rc.sensorEntity ? '<button id="refill-sensor-remove" style="' + btnStyle + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
+              <span id="refill-sensor-status" style="font-size:11px"></span>
+            </div>
+          </div>
+
+        </div>
+      </div>`;
+  }
+
   _buildDockSection(device, data) {
     const items = [];
     if (device.dock_clean_water_sensor) {
@@ -619,6 +1144,70 @@ class HAVacuumWaterMonitor extends HTMLElement {
               <option value="\uD83E\uDEA3">\uD83E\uDEA3 Container</option>
             </select>
             <button class="maint-add-btn">\u2795 Add</button>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+            \u2699\uFE0F W\u0142asne warto\u015Bci kalibracji <span style="font-size:10px;color:var(--vwm-text-muted);font-weight:400">(kliknij aby rozwi\u0144\u0105\u0107)</span>
+          </div>
+          <div style="display:none;margin-top:8px">
+            <div style="font-size:11px;color:var(--vwm-text-secondary);margin-bottom:10px;line-height:1.5">
+              Je\u015Bli Twojego robota nie ma na li\u015Bcie lub chcesz skorygowa\u0107 warto\u015Bci \u2014 wpisz w\u0142asne dane. Zostan\u0105 zapisane w pami\u0119ci przegl\u0105darki.
+            </div>
+            <div id="vwm-custom-form" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Zbiornik stacji (ml)
+                <input type="number" id="vwm-custom-tank" placeholder="np. 3000" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
+              </label>
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Zbiornik robota (ml)
+                <input type="number" id="vwm-custom-robot-tank" placeholder="np. 350" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
+              </label>
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Mycie mopa (ml/cykl)
+                <input type="number" id="vwm-custom-wash" placeholder="np. 150" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
+              </label>
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Zasi\u0119g / \u0142adowanie (m\u00B2)                <input type="number" id="vwm-custom-area" placeholder="np. 250" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
+              </label>
+            </div>
+            <div style="margin-top:10px">
+              <div style="font-size:11px;color:var(--vwm-text-secondary);margin-bottom:6px">Tryby mopowania \u2014 nazwa trybu i zu\u017Cycie ml/m\u00B2:</div>
+              <div id="vwm-custom-modes" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="text" placeholder="np. low" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
+                </div>
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="text" placeholder="np. medium" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
+                </div>
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="text" placeholder="np. high" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
+                </div>
+              </div>
+              <div style="margin-top:6px;text-align:right">
+                <button onclick="this.getRootNode().host._addCustomMode()" style="padding:4px 10px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-surface);color:var(--vwm-text-secondary);font-size:10px;cursor:pointer">+ Dodaj tryb</button>
+              </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button onclick="this.getRootNode().host._saveCustomCalibration()" style="flex:1;padding:8px 16px;border:none;border-radius:8px;background:#3b82f6;color:white;font-weight:600;font-size:12px;cursor:pointer">\uD83D\uDCBE Zapisz</button>
+              <button onclick="this.getRootNode().host._clearCustomCalibration()" style="padding:8px 16px;border:1px solid var(--vwm-border);border-radius:8px;background:var(--vwm-surface);color:var(--vwm-text-secondary);font-size:12px;cursor:pointer">\uD83D\uDDD1 Wyczy\u015B\u0107</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-block" style="text-align:center;padding:16px">
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:8px">
+            Brakuje Twojego robota lub masz dok\u0142adniejsze dane?
+          </div>
+          <a href="https://github.com/MacSiem/ha-vacuum-water-monitor/issues/new?title=Calibration+data+for+[MODEL]&body=Model:%0ATank+ml:%0AWater+per+m2:%0AMop+wash+ml:%0ASource:%0A" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:8px;background:#24292e;color:white;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            Zg\u0142o\u015B dane lub korekt\u0119 na GitHub
+          </a>
+          <div style="margin-top:6px;font-size:10px;color:var(--vwm-text-muted)">
+            Dane kalibracyjne: specyfikacje producent\u00F3w + testy Smart Home Hookup / Vacuum Wars + pomiary u\u017Cytkownik\u00F3w.
           </div>
         </div>
       </div>`;
@@ -722,36 +1311,11 @@ class HAVacuumWaterMonitor extends HTMLElement {
       </div>`;
     }).join('');
 
-    // Discovered vacuums not in config
-    const discovered = this._autoDiscoverVacuums();
-    const configuredIds = devices.map(d => d.vacuum_entity).filter(Boolean);
-    const undiscovered = discovered.filter(v => !configuredIds.includes(v.entity_id));
-
-    const discoveredHtml = undiscovered.length > 0 ? `
-      <div class="section-block">
-        <div class="section-title">\uD83D\uDD0E Discovered Vacuums (not configured)</div>
-        ${undiscovered.map(v => `<div class="disc-row">
-          <span class="disc-name">\uD83E\uDDA4 ${this._sanitize(v.name)}</span>
-          <span class="disc-id">${v.entity_id}</span>
-          <span class="disc-state" style="color:${v.state === 'cleaning' ? '#22c55e' : '#6b7280'}">${v.state}</span>
-          ${v.battery ? `<span class="disc-bat">\uD83D\uDD0B ${v.battery}%</span>` : ''}
-        </div>`).join('')}
-      </div>` : '';
-
     return `
       <div class="tab-content">
         ${devices.length > 1 ? `<div class="section-block"><div class="section-title">\uD83D\uDCCA All Devices</div>${rows}</div>` : ''}
         ${devices.length > 0 ? this._buildWeeklyStats(devices) : ''}
-        ${discoveredHtml}
-        <div class="section-block" style="margin-top:12px">
-          <div class="section-title">Reczne dodanie odkurzacza</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
-            <input type="text" id="manual-vacuum-entity" placeholder="vacuum.roborock_s7" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;background:var(--bento-card,#fff);color:var(--bento-text,#1e293b)">
-            <button class="btn-primary" id="btn-add-manual-vacuum" style="padding:8px 16px;white-space:nowrap">+ Dodaj</button>
-          </div>
-          <p style="margin:6px 0 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">Wpisz entity_id odkurzacza jesli auto-discover go nie znalazl</p>
-        </div>
-        ${devices.length === 0 ? '<div class="empty-state">No devices configured.<br>Add device config or use brand_profile.</div>' : ''}
+        ${devices.length === 0 ? '<div class="empty-state">Brak skonfigurowanych urządzeń.<br>Dodaj odkurzacz w zakładce ⚙️ Ustawienia.</div>' : ''}
       </div>`;
   }
 
@@ -777,6 +1341,333 @@ class HAVacuumWaterMonitor extends HTMLElement {
         <div class="stat-box"><div class="stat-num">${((totalWater || 0) / 1000).toFixed(1)}</div><div class="stat-label">L water</div></div>
       </div>
     </div>`;
+  }
+
+
+  // ── TAB: DATABASE ─────────────────────────────────────────────────────────
+
+
+  _saveCustomCalibration() {
+    const shadow = this.shadowRoot;
+    const tank = shadow.getElementById('vwm-custom-tank')?.value;
+    const robotTank = shadow.getElementById('vwm-custom-robot-tank')?.value;    const wash = shadow.getElementById('vwm-custom-wash')?.value;
+    const area = shadow.getElementById('vwm-custom-area')?.value;
+    const modeNames = shadow.querySelectorAll('.vwm-mode-name');
+    const modeVals = shadow.querySelectorAll('.vwm-mode-val');
+    const modes = {};
+    modeNames.forEach((n, i) => {
+      const name = n.value?.trim();
+      const val = parseFloat(modeVals[i]?.value);
+      if (name && !isNaN(val)) modes[name] = val;
+    });
+    const custom = {};
+    if (tank) custom.tank_ml = parseInt(tank);
+    if (robotTank) custom.robot_tank_ml = parseInt(robotTank);
+    if (wash) custom.mop_wash_ml = parseInt(wash);
+    if (area) custom.avg_area_per_charge = parseInt(area);
+    if (Object.keys(modes).length > 0) {
+      custom.water_per_m2 = modes;
+      custom.mop_modes = modes;
+    }
+    if (Object.keys(custom).length === 0) return;
+    const key = `vwm_custom_calib_${this._config?.brand_profile || 'default'}`;
+    localStorage.setItem(key, JSON.stringify(custom));
+    this._customCalib = custom;
+    this._lastHtml = '';
+    this._updateContent();
+    const btn = shadow.querySelector('[onclick*="saveCustom"]');
+    if (btn) { const orig = btn.textContent; btn.textContent = '\u2705 Zapisano!'; setTimeout(() => btn.textContent = orig, 2000); }
+  }
+
+  _clearCustomCalibration() {    const key = `vwm_custom_calib_${this._config?.brand_profile || 'default'}`;
+    localStorage.removeItem(key);
+    this._customCalib = null;
+    this._lastHtml = '';
+    this._updateContent();
+  }
+
+  _loadCustomCalibration() {
+    const key = `vwm_custom_calib_${this._config?.brand_profile || 'default'}`;
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) this._customCalib = JSON.parse(stored);
+    } catch(e) { /* ignore */ }
+  }
+
+  _addCustomMode() {
+    const container = this.shadowRoot.getElementById('vwm-custom-modes');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:4px;align-items:center';
+    div.innerHTML = '<input type="text" placeholder="tryb" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name"><input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val"><span onclick="this.parentElement.remove()" style="cursor:pointer;color:var(--vwm-text-muted);font-size:14px">\u00D7</span>';
+    container.appendChild(div);
+  }
+  _buildDatabaseTab() {
+    const models = Object.entries(CALIBRATION_DATA);
+    const cellSt = 'padding:6px 8px;font-size:11px;border-bottom:1px solid var(--vwm-border,#e5e7eb);vertical-align:top';
+    const headSt = cellSt + ';font-weight:700;color:var(--vwm-text-secondary,#6b7280);background:var(--vwm-surface,#f3f4f6);position:sticky;top:0;z-index:1';
+    const numSt = 'text-align:center;font-weight:600';
+    const tagSt = 'display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:600;margin:1px 2px';
+
+    const levelColor = (val) => {
+      if (val <= 6) return 'background:rgba(34,197,94,0.15);color:#16a34a';
+      if (val <= 12) return 'background:rgba(59,130,246,0.12);color:#3b82f6';
+      if (val <= 18) return 'background:rgba(245,158,11,0.12);color:#d97706';
+      return 'background:rgba(239,68,68,0.12);color:#ef4444';
+    };
+
+    const rows = models.map(([key, m]) => {
+      const levels = Object.entries(m.water_per_m2);
+      const levelTags = levels.map(([mode, val]) => {
+        const estArea = Math.round(m.tank_ml / val);
+        return `<span style="${tagSt};${levelColor(val)}" title="${mode}: ${val} ml/m\u00B2 \u2192 ~${estArea} m\u00B2/zbiornik">${mode}: ${val}</span>`;
+      }).join(' ');
+
+      // Area estimates per mode
+      const areaEstimates = levels.map(([mode, val]) => {
+        const area = Math.round(m.tank_ml / val);
+        return `<span style="${tagSt};background:var(--vwm-overlay-light,rgba(0,0,0,0.04));color:var(--vwm-text-secondary,#6b7280)">${mode}: ~${area} m\u00B2</span>`;
+      }).join(' ');
+
+      const isActive = this._config.brand_profile === key;
+      const rowBg = isActive ? 'background:rgba(59,130,246,0.06)' : '';
+
+      return `<tr style="${rowBg}">
+        <td style="${cellSt}">
+          <div style="font-weight:600;font-size:12px">${m.label}${isActive ? ' <span style="color:#3b82f6;font-size:10px">\u2705 aktywny</span>' : ''}</div>
+          <div style="font-size:10px;color:var(--vwm-text-muted,#9ca3af);margin-top:2px">${m.mop_type}</div>
+        </td>
+        <td style="${cellSt};${numSt}">${m.tank_ml} ml</td>
+        <td style="${cellSt}">${levelTags}</td>
+        <td style="${cellSt}">${areaEstimates}</td>
+        <td style="${cellSt};${numSt}">${m.avg_area_per_charge} m\u00B2</td>
+        <td style="${cellSt};font-size:10px;color:var(--vwm-text-secondary,#6b7280);max-width:140px">${m.notes || ''}${m.mop_wash_ml ? ' | Mycie: ' + m.mop_wash_ml + 'ml/cykl' : ''}</td>
+      </tr>`;
+    }).join('');
+
+    // Summary card for active profile
+    let activeCard = '';
+    const profileKey = this._config.brand_profile;
+    const active = profileKey ? CALIBRATION_DATA[profileKey] : null;
+    if (active) {
+      const levels = Object.entries(active.water_per_m2);
+      activeCard = `
+        <div style="margin-bottom:14px;padding:14px;background:rgba(59,130,246,0.06);border:1.5px solid rgba(59,130,246,0.2);border-radius:12px">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px">\uD83E\uDDA4 ${active.label} <span style="font-size:11px;color:#3b82f6;font-weight:500">(aktywny profil)</span></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">
+            <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${active.tank_ml}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">ml zbiornik</div>
+            </div>
+            <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${active.avg_area_per_charge}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">m\u00B2 / \u0142adowanie</div>
+            </div>
+            <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${levels.length}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">tryb\u00F3w mopu</div>
+            </div>
+          </div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px">Zu\u017Cycie wody wg trybu:</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px">
+            ${levels.map(([mode, val]) => {
+              const area = Math.round(active.tank_ml / val);
+              const pct = Math.round((val / Math.max(...levels.map(l => l[1]))) * 100);
+              return `<div style="padding:8px;background:var(--vwm-bg,#fff);border-radius:8px;border:1px solid var(--vwm-border,#e5e7eb)">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--vwm-text-secondary);margin-bottom:4px">${mode}</div>
+                <div style="font-size:16px;font-weight:700;color:var(--vwm-text)">${val} <span style="font-size:10px;font-weight:400">ml/m\u00B2</span></div>
+                <div style="margin:4px 0;height:4px;background:var(--vwm-overlay-medium);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;border-radius:2px;background:${val <= 8 ? '#22c55e' : val <= 14 ? '#3b82f6' : val <= 18 ? '#f59e0b' : '#ef4444'}"></div></div>
+                <div style="font-size:10px;color:var(--vwm-text-muted)">\u2248 ${area} m\u00B2 / zbiornik</div>
+              </div>`;
+            }).join('')}
+          </div>
+          ${active.mop_type ? `<div style="margin-top:8px;font-size:11px;color:var(--vwm-text-secondary)">\uD83E\uDDF9 ${active.mop_type}</div>` : ''}
+          ${active.notes ? `<div style="margin-top:4px;font-size:11px;color:var(--vwm-text-muted);font-style:italic">\uD83D\uDCA1 ${active.notes}</div>` : ''}
+          ${active.mop_wash_ml ? `<div style="margin-top:4px;font-size:11px;color:var(--vwm-text-secondary)">\uD83D\uDEBF Mycie mopa w stacji: ${active.mop_wash_ml}ml/cykl${active.mop_wash_modes ? ' (' + Object.entries(active.mop_wash_modes).map(([k,v]) => k + ': ' + v + 'ml').join(', ') + ')' : ''}</div>` : ''}
+        </div>`;
+    }
+
+    return `
+      <div class="tab-content">
+        ${activeCard}
+        <div class="section-block">
+          <div class="section-title">\uD83D\uDCDA Baza konfiguracji robot\u00F3w</div>
+          <div style="overflow-x:auto;margin-top:8px;border:1px solid var(--vwm-border,#e5e7eb);border-radius:10px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr>
+                  <th style="${headSt};text-align:left;min-width:140px">Model</th>
+                  <th style="${headSt};${numSt};min-width:60px">Zbiornik</th>
+                  <th style="${headSt};text-align:left;min-width:160px">Zu\u017Cycie wody (ml/m\u00B2)</th>
+                  <th style="${headSt};text-align:left;min-width:160px">Zasi\u0119g / zbiornik</th>
+                  <th style="${headSt};${numSt};min-width:70px">Zasi\u0119g / \u0142ad.</th>
+                  <th style="${headSt};text-align:left;min-width:120px">Uwagi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title">\u2139\uFE0F Legenda tryb\u00F3w</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-top:8px;font-size:11px">
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(5)}">low</span> Delikatne \u2014 drewno, panele</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(10)}">medium</span> Standard \u2014 p\u0142ytki</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(16)}">high</span> Intensywne \u2014 gres</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(22)}">max/deep</span> G\u0142\u0119bokie mycie</div>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:var(--vwm-text-secondary);line-height:1.5">
+            <strong>Zbiornik</strong> \u2014 pojemno\u015B\u0107 wbudowanego zbiornika robota (nie stacji). Roboty z auto-refill (Dreame, Ecovacs) maj\u0105 ma\u0142e zbiorniki (~80 ml), bo uzupe\u0142niaj\u0105 je automatycznie ze stacji (3\u20134L).<br>
+            <strong>Zasi\u0119g / zbiornik</strong> \u2014 szacowana powierzchnia kt\u00F3r\u0105 robot wyczy\u015Bci na jednym pe\u0142nym zbiorniku w danym trybie.<br>
+            <strong>Zasi\u0119g / \u0142ad.</strong> \u2014 max powierzchnia na jednym \u0142adowaniu baterii (niezale\u017Cnie od wody).
+          </div>
+        </div>
+      </div>`;
+  }
+
+  _buildSettingsTab(device, data) {
+    const devices = this._getDevices();
+
+    // --- Device discovery section ---
+    const discovered = this._autoDiscoverVacuums();
+    const configuredIds = devices.map(d => d.vacuum_entity).filter(Boolean);
+    const undiscovered = discovered.filter(v => !configuredIds.includes(v.entity_id));
+
+    const fullTankTip = (undiscovered.length > 0 || devices.length === 0) ? '<div style="margin:10px 0;padding:10px 14px;background:rgba(59,130,246,0.1);border:1.5px solid rgba(59,130,246,0.25);border-radius:10px;font-size:12px;line-height:1.5;color:var(--vwm-text,#1e293b)">\uD83D\uDCA1 <strong>Wskaz\u00F3wka:</strong> Dodaj odkurzacz gdy jego zbiornik jest <strong>pe\u0142ny</strong> \u2014 dzi\u0119ki temu \u015Bledzenie poziomu wody b\u0119dzie dok\u0142adne od pocz\u0105tku.</div>' : '';
+
+    const discoveredHtml = undiscovered.length > 0 ? `
+      <div class="section-block">
+        <div class="section-title">\uD83D\uDD0E Wykryte odkurzacze (nie skonfigurowane)</div>
+        ${undiscovered.map(v => `<div class="disc-row" style="cursor:pointer" data-entity="${v.entity_id}">
+          <span class="disc-name">\uD83E\uDDA4 ${this._sanitize(v.name)}</span>
+          <span class="disc-id">${v.entity_id}</span>
+          <span class="disc-state" style="color:${v.state === 'cleaning' ? '#22c55e' : '#6b7280'}">${v.state}</span>
+          ${v.battery ? `<span class="disc-bat">\uD83D\uDD0B ${v.battery}%</span>` : ''}
+          <button class="maint-add-btn disc-add-btn" data-entity="${v.entity_id}" style="padding:3px 10px;font-size:11px">+ Dodaj</button>
+        </div>`).join('')}
+      </div>` : '';
+
+    const userDevsHtml = (this._userDevices || []).length > 0 ? `<div class="section-block"><div class="section-title">\u2795 Dodane r\u0119cznie</div>${this._userDevices.map(ud => `<div class="disc-row"><span class="disc-name">${ud.icon || '\uD83E\uDDA4'} ${this._sanitize(ud.name)}</span><span class="disc-id">${ud.vacuum_entity}</span><button class="maint-del-btn user-dev-remove" data-entity="${ud.vacuum_entity}" title="Usu\u0144">\uD83D\uDDD1\uFE0F</button></div>`).join('')}</div>` : '';
+
+    return `
+      <div class="tab-content">
+        <div style="margin-bottom:16px">
+          <div style="font-size:15px;font-weight:700;color:var(--vwm-text);margin-bottom:4px">\u2699\uFE0F Ustawienia</div>
+          <div style="font-size:12px;color:var(--vwm-text-secondary)">Zarz\u0105dzanie urz\u0105dzeniami, metody resetu zbiornika i automatyzacje.</div>
+        </div>
+
+        <!-- Device management -->
+        <div style="background:var(--vwm-overlay-light,rgba(0,0,0,0.03));border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:14px;padding:16px;margin-bottom:16px">
+          <div style="font-size:14px;font-weight:700;color:var(--vwm-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
+            \uD83E\uDDA4 Urz\u0105dzenia
+          </div>
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:12px;line-height:1.5">
+            Dodaj, usu\u0144 lub odkryj odkurzacze w Home Assistant.
+          </div>
+          ${userDevsHtml}
+          ${fullTankTip}
+          ${discoveredHtml}
+          <div class="section-block" style="margin-top:12px">
+            <div class="section-title">R\u0119czne dodanie odkurzacza</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+              <input type="text" id="manual-vacuum-entity" placeholder="vacuum.roborock_s7" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;background:var(--bento-card,#fff);color:var(--bento-text,#1e293b)">
+              <button class="btn-primary" id="btn-add-manual-vacuum" style="padding:8px 16px;white-space:nowrap">+ Dodaj</button>
+            </div>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">Wpisz entity_id odkurzacza je\u015Bli auto-discover go nie znalaz\u0142</p>
+          </div>
+        </div>
+
+        <!-- Refill methods -->
+        <div style="background:var(--vwm-overlay-light,rgba(0,0,0,0.03));border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:14px;padding:16px">
+          <div style="font-size:14px;font-weight:700;color:var(--vwm-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
+            \uD83D\uDD04 Metody resetu zbiornika
+          </div>
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:12px;line-height:1.5">
+            Wybierz jak chcesz resetowa\u0107 licznik wody po uzupe\u0142nieniu zbiornika. Mo\u017Cesz u\u017Cy\u0107 jednej lub kilku metod jednocze\u015Bnie.
+          </div>
+
+          <div style="margin:8px 0 12px;padding:10px 14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:10px;font-size:12px;line-height:1.5;color:var(--vwm-text,#1e293b)">
+            \u26A0\uFE0F Wi\u0119kszo\u015B\u0107 robot\u00F3w <strong>nie raportuje</strong> wyj\u0119cia/w\u0142o\u017Cenia zbiornika. Wybierz metod\u0119 resetu, kt\u00F3ra Ci odpowiada.
+          </div>
+
+          ${this._buildRefillMethodCard(device)}
+        </div>
+      </div>`;
+  }
+
+  _buildRefillMethodCard(device) {
+    const vacId = device.vacuum_entity || '';
+    const shortId = vacId.replace('vacuum.', '') || 'robot';
+    const rc = this._refillConfig[shortId] || {};
+    const buttons = this._getInputButtons();
+    const sensors = this._getDoorSensors();
+
+    const buttonOpts = buttons.map(b =>
+      `<option value="${b.id}" ${rc.buttonEntity === b.id ? 'selected' : ''}>${b.name}</option>`
+    ).join('');
+    const sensorOpts = sensors.map(s =>
+      `<option value="${s.id}" ${rc.sensorEntity === s.id ? 'selected' : ''}>${s.name} (${s.state})</option>`
+    ).join('');
+
+    const statusOk = '<span style="color:#22c55e;font-size:11px;font-weight:600">\u2705 Skonfigurowane</span>';
+    const statusNone = '<span style="color:var(--vwm-text-muted,#9ca3af);font-size:11px">\u2014 Nie skonfigurowane</span>';
+
+    const cardSt = 'margin-bottom:10px;padding:14px;background:var(--vwm-bg,#fff);border-radius:12px;border:1.5px solid var(--vwm-border,#e5e7eb)';
+    const labelSt = 'font-weight:700;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:6px';
+    const descSt = 'font-size:12px;color:var(--vwm-text-secondary,#6b7280);line-height:1.5;margin-bottom:10px';
+    const selectSt = 'width:100%;padding:8px 12px;border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:8px;font-size:12px;background:var(--vwm-bg,#fff);color:var(--vwm-text,#1e293b);font-family:Inter,sans-serif';
+    const btnSt = 'padding:7px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;margin-top:8px';
+    const btnPrimary = btnSt + ';background:rgba(59,130,246,0.12);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)';
+    const btnSuccess = btnSt + ';background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.3)';
+
+    return `
+      <!-- Method 1: Card button -->
+      <div style="${cardSt}">
+        <div style="${labelSt}">\u2460 Przycisk w tej karcie</div>
+        <div style="${descSt}">
+          U\u017Cyj przycisku <strong>\uD83D\uDCA7 Refilled</strong> w zak\u0142adce Water. Najprostsza opcja \u2014 klikasz gdy uzupe\u0142nisz wod\u0119.
+        </div>
+      </div>
+
+      <!-- Method 2: Dashboard button -->
+      <div style="${cardSt}">
+        <div style="${labelSt}">\u2461 Przycisk w dashboardzie / fizyczny ${rc.buttonEntity ? statusOk : statusNone}</div>
+        <div style="${descSt}">
+          Utw\u00F3rz encj\u0119 <code>input_button</code> \u2014 mo\u017Cesz j\u0105 doda\u0107 jako kafelek lub podpi\u0105\u0107 pod przycisk Zigbee/Z-Wave.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="refill-btn-select" style="${selectSt};flex:1;min-width:180px">
+            <option value="">-- Wybierz input_button --</option>
+            ${buttonOpts}
+          </select>
+          <button id="refill-btn-create" style="${btnSuccess}">+ Utw\u00F3rz nowy</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <button id="refill-btn-save" style="${btnPrimary}">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+          ${rc.buttonEntity ? '<button id="refill-btn-remove" style="' + btnSt + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
+          <span id="refill-btn-status" style="font-size:11px;margin-left:4px"></span>
+        </div>
+      </div>
+
+      <!-- Method 3: Door sensor -->
+      <div style="${cardSt}">
+        <div style="${labelSt}">\u2462 Czujnik drzwi / kontaktron ${rc.sensorEntity ? statusOk : statusNone}</div>
+        <div style="${descSt}">
+          Przyklej czujnik otwarcia (np. Aqara Door Sensor) do zbiornika lub klapki stacji. Zamkni\u0119cie = auto-reset.
+        </div>
+        <select id="refill-sensor-select" style="${selectSt}">
+          <option value="">-- Wybierz binary_sensor (door/window) --</option>
+          ${sensorOpts}
+        </select>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <button id="refill-sensor-save" style="${btnPrimary}">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+          ${rc.sensorEntity ? '<button id="refill-sensor-remove" style="' + btnSt + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
+          <span id="refill-sensor-status" style="font-size:11px"></span>
+        </div>
+      </div>`;
   }
 
   // ── MULTI-DEVICE TABS ──────────────────────────────────────────────────────
@@ -805,6 +1696,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
       { id: 'maintenance', icon: '\uD83D\uDD27', label: 'Maint.' },
       { id: 'history', icon: '\uD83D\uDDD3\uFE0F', label: 'History' },
       { id: 'stats', icon: '\uD83D\uDCCA', label: 'Stats' },
+      { id: 'database', icon: '\uD83D\uDCDA', label: 'Baza' },
+      { id: 'settings', icon: '\u2699\uFE0F', label: 'Ustawienia' },
     ];
 
     const tabNav = `<div class="tab-nav">
@@ -822,55 +1715,75 @@ class HAVacuumWaterMonitor extends HTMLElement {
     else if (this._activeTab === 'maintenance') tabContent = this._buildMaintenanceTab(device, data);
     else if (this._activeTab === 'history') tabContent = this._buildHistoryTab(device, data);
     else if (this._activeTab === 'stats') tabContent = this._buildStatsTab(devices);
+    else if (this._activeTab === 'database') tabContent = this._buildDatabaseTab();
+    else if (this._activeTab === 'settings') tabContent = this._buildSettingsTab(device, data);
 
     const deviceTabsHtml = this._buildDeviceTabs(devices);
 
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host { display: block; font-family: Inter, sans-serif; }
-        .card { background: #1a1a2e; border-radius: 16px; padding: 16px; color: white; }
-        .card-title { font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.75); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    const _newHtml = `
+      <style>${window.HAToolsBentoCSS || ""}
+
+        :host {
+  display: block;
+  font-family: Inter, sans-serif;
+  --vwm-bg: var(--card-background-color, #fff);
+  --vwm-text: var(--primary-text-color, #1a1a2e);
+  --vwm-text-secondary: var(--secondary-text-color, #6b7280);
+  --vwm-text-muted: var(--disabled-text-color, #9ca3af);
+  --vwm-border: var(--divider-color, #e5e7eb);
+  --vwm-surface: var(--primary-background-color, #f3f4f6);
+  --vwm-overlay-light: rgba(0,0,0,0.04);
+  --vwm-overlay-medium: rgba(0,0,0,0.08);
+  --bento-bg: var(--vwm-surface);
+  --bento-card: var(--vwm-bg);
+  --bento-border: var(--vwm-border);
+  --bento-text: var(--vwm-text);
+  --bento-text-secondary: var(--vwm-text-secondary);
+  --bento-text-muted: var(--vwm-text-muted);
+}
+        .card { background: var(--vwm-bg); border-radius: 16px; padding: 16px; color: var(--vwm-text); ; }
+        .card-title { font-size: 15px; font-weight: 700; color: var(--vwm-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         .device-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .device-name { font-weight: 600; font-size: 14px; }
         .status-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.3px; }
         /* Device tabs */
         .device-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .dtab { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .dtab { background: var(--vwm-overlay-light); color: var(--vwm-text-secondary); border: 1px solid var(--vwm-border); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
         .dtab-active { background: rgba(99,102,241,0.2); color: #818cf8; border-color: rgba(99,102,241,0.4); }
         /* Tab navigation */
-        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 3px; }
-        .tab-btn { flex: 1; background: transparent; color: rgba(255,255,255,0.4); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
-        .tab-active { background: rgba(255,255,255,0.1); color: white; }
+        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: var(--vwm-overlay-light); border-radius: 10px; padding: 3px; border-bottom: none !important; }
+        .tab-btn { flex: 1; background: transparent; color: var(--vwm-text-muted); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .tab-active { background: var(--vwm-overlay-medium); color: var(--vwm-text); }
         /* Content */
-        .tab-content { animation: fadeIn 0.2s ease; }
+        .tab-content { }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         .device-body { display: flex; align-items: center; gap: 16px; }
         .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
         .details { flex: 1; display: flex; flex-direction: column; gap: 6px; }
         .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-        .row-label { color: rgba(255,255,255,0.5); }
-        .row-val { font-weight: 600; color: rgba(255,255,255,0.9); }
+        .row-label { color: var(--vwm-text-secondary); }
+        .row-val { font-weight: 600; color: var(--vwm-text); }
         .chip { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
         .chip-active { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); animation: pulse 1.5s infinite; }
-        .chip-idle { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.12); }
+        .chip-idle { background: var(--vwm-overlay-light); color: var(--vwm-text-muted); border: 1px solid var(--vwm-border); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .refill-wrap { margin-top: 12px; text-align: right; }
         .refill-btn { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: Inter, sans-serif; }
         .refill-btn:hover { background: rgba(59,130,246,0.25); }
         .alert-banner { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 500; margin-bottom: 10px; }
         .alert-warn { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
-        .no-water-note { color: rgba(255,255,255,0.4); font-size: 12px; text-align: center; padding: 12px 0; }
+        .no-water-note { color: var(--vwm-text-muted); font-size: 12px; text-align: center; padding: 12px 0; }
         /* Sections */
-        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
-        .section-title { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vwm-border); }
+        .section-title { font-size: 11px; font-weight: 700; color: var(--vwm-text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
         /* Dock */
         .dock-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 3px 0; }
         .dock-val { font-weight: 600; font-size: 12px; }
         /* Consumables */
         .consumable-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-        .con-label { font-size: 11px; color: rgba(255,255,255,0.5); width: 100px; flex-shrink: 0; }
+        .con-label { font-size: 11px; color: var(--vwm-text-secondary); width: 100px; flex-shrink: 0; }
         .con-bar-wrap { flex: 1; }
-        .con-bar { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+        .con-bar { height: 4px; background: var(--vwm-overlay-medium); border-radius: 2px; overflow: hidden; }
         .con-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
         .con-val { font-size: 11px; font-weight: 600; width: 55px; text-align: right; flex-shrink: 0; }
         /* Custom maintenance */
@@ -879,42 +1792,42 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .maint-done-btn, .maint-del-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px; }
         /* Add form */
         .add-maint-form { display: flex; gap: 6px; flex-wrap: wrap; }
-        .maint-input { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: white; padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
+        .maint-input { background: var(--vwm-overlay-light); border: 1px solid var(--vwm-border); border-radius: 6px; color: var(--vwm-text); padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
         .maint-days, .maint-icon { max-width: 100px; }
-        .maint-input::placeholder { color: rgba(255,255,255,0.3); }
+        .maint-input::placeholder { color: var(--vwm-text-muted); }
         .maint-add-btn { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; white-space: nowrap; }
         /* History */
         .current-session-card { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
         .cs-title { font-size: 12px; font-weight: 700; color: #22c55e; margin-bottom: 6px; }
-        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: rgba(255,255,255,0.7); }
-        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
-        .session-date { color: rgba(255,255,255,0.7); font-weight: 500; }
-        .session-time { color: rgba(255,255,255,0.4); font-size: 11px; }
+        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--vwm-text-secondary); }
+        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--vwm-border); font-size: 12px; }
+        .session-date { color: var(--vwm-text-secondary); font-weight: 500; }
+        .session-time { color: var(--vwm-text-muted); font-size: 11px; }
         .session-stats { display: flex; gap: 8px; }
-        .session-stat { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: rgba(255,255,255,0.6); }
+        .session-stat { background: var(--vwm-overlay-light); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--vwm-text-secondary); }
         /* Stats */
-        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); }
         .stats-device { flex: 1; font-weight: 500; }
         .stats-status { font-size: 11px; }
         .stats-pct { font-weight: 700; font-size: 13px; width: 35px; text-align: right; }
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
-        .stat-box { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 10px; text-align: center; }
-        .stat-num { font-size: 20px; font-weight: 700; color: white; }
-        .stat-label { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+        .stat-box { background: var(--vwm-overlay-light); border-radius: 10px; padding: 10px; text-align: center; }
+        .stat-num { font-size: 20px; font-weight: 700; color: var(--vwm-text); }
+        .stat-label { font-size: 10px; color: var(--vwm-text-muted); margin-top: 2px; }
         /* Discovered */
-        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; }
+        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); flex-wrap: wrap; }
         .disc-name { font-weight: 500; }
-        .disc-id { color: rgba(255,255,255,0.35); font-size: 10px; font-family: monospace; flex: 1; }
+        .disc-id { color: var(--vwm-text-muted); font-size: 10px; font-family: monospace; flex: 1; }
         .disc-state { font-size: 11px; font-weight: 600; }
-        .disc-bat { font-size: 11px; color: rgba(255,255,255,0.5); }
+        .disc-bat { font-size: 11px; color: var(--vwm-text-secondary); }
         /* Battery */
         .battery-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; }
         .battery-icon { flex-shrink: 0; }
-        .battery-track { flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+        .battery-track { flex: 1; height: 6px; background: var(--vwm-overlay-medium); border-radius: 3px; overflow: hidden; }
         .battery-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
         .battery-pct { font-weight: 700; font-size: 12px; width: 35px; text-align: right; }
         /* Empty */
-        .empty-state { text-align: center; color: rgba(255,255,255,0.3); padding: 20px; font-size: 13px; line-height: 1.5; }
+        .empty-state { text-align: center; color: var(--vwm-text-muted); padding: 20px; font-size: 13px; line-height: 1.5; }
 
 /* Tips banner */
 .tip-banner {
@@ -940,37 +1853,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
       
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
+
+
 </style>
       <div class="card">
         <div class="card-title">${this._config.title}</div>
@@ -989,12 +1873,18 @@ class HAVacuumWaterMonitor extends HTMLElement {
         ${deviceHeader}
         ${tabNav}
         ${tabContent}
+
       </div>`;
 
-    this._attachListeners(devices, device);
+    // Only update DOM if content actually changed
+    if (_newHtml !== this._lastHtml) {
+      this.shadowRoot.innerHTML = _newHtml;
+      this._lastHtml = _newHtml;
+      this._attachListeners(devices, device);
+    }
    } catch(err) {
     // Show error with tip banner
-    this.shadowRoot.innerHTML = `
+    const _newHtml = `
       <style>
         :host { display: block; font-family: 'Inter', sans-serif; color: var(--primary-text-color, #1a1a2e); }
         .err-container { max-width: 700px; margin: 30px auto; padding: 20px; }
@@ -1007,39 +1897,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .tip-banner li { margin-bottom: 3px; }
       
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
-
-        /* === MOBILE FIX === */
+/* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
@@ -1058,7 +1916,19 @@ class HAVacuumWaterMonitor extends HTMLElement {
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+      
+        @media (prefers-color-scheme: dark) {
+          :host {
+            --bento-bg: #1a1a2e;
+            --bento-card: #16213e;
+            --bento-text: #e2e8f0;
+            --bento-text-secondary: #94a3b8;
+            --bento-border: #334155;
+            --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+          }
+        }
+        </style>
       <div class="err-container">
         <div class="err-card">
           <div class="err-icon">\u26A0\uFE0F</div>
@@ -1189,6 +2059,154 @@ class HAVacuumWaterMonitor extends HTMLElement {
       });
     }
 
+    // Refill methods toggle
+    const refillToggle = sr.querySelector('#refill-methods-toggle');
+    if (refillToggle) {
+      const body = sr.querySelector('#refill-methods-body');
+      const arrow = sr.querySelector('#refill-methods-arrow');
+      const wasOpen = localStorage.getItem('ha-vwm-refill-expanded') === 'open';
+      if (wasOpen && body) { body.style.display = 'block'; if (arrow) arrow.style.transform = 'rotate(90deg)'; }
+      refillToggle.addEventListener('click', () => {
+        const isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
+        localStorage.setItem('ha-vwm-refill-expanded', isOpen ? 'closed' : 'open');
+      });
+    }
+
+    // Method 2: Button - Create new input_button
+    const btnCreate = sr.querySelector('#refill-btn-create');
+    if (btnCreate) {
+      btnCreate.addEventListener('click', async () => {
+        btnCreate.textContent = '\u23F3 Tworz\u0119...';
+        const newId = await this._createRefillButton(device);
+        if (newId) {
+          btnCreate.textContent = '\u2705 Utworzono!';
+          setTimeout(() => this._render(), 1500);
+        } else {
+          btnCreate.textContent = '\u274C B\u0142\u0105d';
+          setTimeout(() => { btnCreate.textContent = '+ Utw\u00F3rz nowy'; }, 2000);
+        }
+      });
+    }
+
+    // Method 2: Button - Save & create automation
+    const btnSave = sr.querySelector('#refill-btn-save');
+    if (btnSave) {
+      btnSave.addEventListener('click', async () => {
+        const select = sr.querySelector('#refill-btn-select');
+        const entityId = select && select.value;
+        const status = sr.querySelector('#refill-btn-status');
+        if (!entityId) { if (status) status.textContent = '\u26A0\uFE0F Wybierz encj\u0119'; return; }
+        btnSave.textContent = '\u23F3 Tworz\u0119 automatyzacj\u0119...';
+        const autoId = await this._createRefillAutomation(device, 'button', entityId);
+        const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
+        if (autoId) {
+          this._refillConfig[shortId] = { ...this._refillConfig[shortId], buttonEntity: entityId, buttonAutoId: autoId };
+          this._saveRefillConfig();
+          if (status) status.innerHTML = '<span style="color:#22c55e">\u2705 Zapisano i utworzono automatyzacj\u0119!</span>';
+          setTimeout(() => this._render(), 1500);
+        } else {
+          btnSave.textContent = '\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119';
+          if (status) status.innerHTML = '<span style="color:#ef4444">\u274C B\u0142\u0105d tworzenia automatyzacji</span>';
+        }
+      });
+    }
+
+    // Method 2: Button - Remove
+    const btnRemove = sr.querySelector('#refill-btn-remove');
+    if (btnRemove) {
+      btnRemove.addEventListener('click', () => {
+        const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
+        const rc = this._refillConfig[shortId] || {};
+        delete rc.buttonEntity; delete rc.buttonAutoId;
+        this._refillConfig[shortId] = rc;
+        this._saveRefillConfig();
+        this._render();
+      });
+    }
+
+    // Method 3: Sensor - Save & create automation
+    const sensorSave = sr.querySelector('#refill-sensor-save');
+    if (sensorSave) {
+      sensorSave.addEventListener('click', async () => {
+        const select = sr.querySelector('#refill-sensor-select');
+        const entityId = select && select.value;
+        const status = sr.querySelector('#refill-sensor-status');
+        if (!entityId) { if (status) status.textContent = '\u26A0\uFE0F Wybierz czujnik'; return; }
+        sensorSave.textContent = '\u23F3 Tworz\u0119 automatyzacj\u0119...';
+        const autoId = await this._createRefillAutomation(device, 'sensor', entityId);
+        const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
+        if (autoId) {
+          this._refillConfig[shortId] = { ...this._refillConfig[shortId], sensorEntity: entityId, sensorAutoId: autoId };
+          this._saveRefillConfig();
+          if (status) status.innerHTML = '<span style="color:#22c55e">\u2705 Zapisano i utworzono automatyzacj\u0119!</span>';
+          setTimeout(() => this._render(), 1500);
+        } else {
+          sensorSave.textContent = '\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119';
+          if (status) status.innerHTML = '<span style="color:#ef4444">\u274C B\u0142\u0105d tworzenia automatyzacji</span>';
+        }
+      });
+    }
+
+    // Method 3: Sensor - Remove
+    const sensorRemove = sr.querySelector('#refill-sensor-remove');
+    if (sensorRemove) {
+      sensorRemove.addEventListener('click', () => {
+        const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
+        const rc = this._refillConfig[shortId] || {};
+        delete rc.sensorEntity; delete rc.sensorAutoId;
+        this._refillConfig[shortId] = rc;
+        this._saveRefillConfig();
+        this._render();
+      });
+    }
+    // Add manual vacuum
+    const addManualBtn = sr.querySelector('#btn-add-manual-vacuum');
+    if (addManualBtn) {
+      addManualBtn.addEventListener('click', () => {
+        const input = sr.querySelector('#manual-vacuum-entity');
+        const entityId = (input && input.value || '').trim();
+        if (!entityId) return;
+        if (!entityId.startsWith('vacuum.')) {
+          addManualBtn.textContent = '\u274C Musi zaczynac sie od vacuum.';
+          addManualBtn.style.color = '#ef4444';
+          setTimeout(() => { addManualBtn.textContent = '+ Dodaj'; addManualBtn.style.color = ''; }, 2000);
+          return;
+        }
+        if (this._addUserDevice(entityId)) {
+          addManualBtn.textContent = '\u2705 Dodano!';
+          addManualBtn.style.color = '#22c55e';
+          setTimeout(() => { addManualBtn.textContent = '+ Dodaj'; addManualBtn.style.color = ''; this._render(); }, 800);
+        } else {
+          addManualBtn.textContent = 'Juz dodany';
+          setTimeout(() => { addManualBtn.textContent = '+ Dodaj'; addManualBtn.style.color = ''; }, 1500);
+        }
+      });
+    }
+
+    // Click discovered vacuum to add
+    sr.querySelectorAll('.disc-add-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const entityId = btn.dataset.entity;
+        if (this._addUserDevice(entityId)) {
+          btn.textContent = '\u2705 Dodano!';
+          btn.style.color = '#22c55e';
+          setTimeout(() => this._render(), 800);
+        }
+      });
+    });
+
+    // Remove user-added device
+    sr.querySelectorAll('.user-dev-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._removeUserDevice(btn.dataset.entity);
+        this._render();
+      });
+    });
+
     // Discovery injection
     this._injectDiscovery();
   }
@@ -1217,3 +2235,4 @@ if (!window.customCards.find(c => c.type === 'ha-vacuum-water-monitor')) {
     preview: true,
   });
 }
+

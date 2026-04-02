@@ -1,4 +1,4 @@
-﻿class HAAutomationAnalyzer extends HTMLElement {
+class HAAutomationAnalyzer extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -678,7 +678,7 @@
         --aa-anim: var(--ha-animation-duration-normal, 250ms);
       }
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      .container {
+      .card {
         padding: var(--aa-space-6);
         font-family: var(--aa-font);
         background: var(--aa-bg);
@@ -722,7 +722,7 @@
         overflow-x: auto;
         flex-wrap: wrap;
       }
-      .tab-button {
+      .tab-btn {
         padding: var(--aa-space-3) var(--aa-space-4);
         border: none; background: none; cursor: pointer;
         font-size: 14px; font-weight: 500;
@@ -733,12 +733,12 @@
         border-radius: 4px 4px 0 0;
         white-space: nowrap;
       }
-      .tab-button.active {
+      .tab-btn.active {
         color: var(--aa-primary);
         border-bottom-color: var(--aa-primary);
         background: color-mix(in srgb, var(--aa-primary) 8%, transparent);
       }
-      .tab-button:hover {
+      .tab-btn:hover {
         color: var(--aa-text);
         background: color-mix(in srgb, var(--aa-text) 4%, transparent);
       }
@@ -1235,44 +1235,14 @@
       `;
 
     this.shadowRoot.innerHTML = `
-      <style>${styles}
+      <style>${window.HAToolsBentoCSS || ""}
+${styles}
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -1284,12 +1254,13 @@
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
-      <div class="container">
+
+</style>
+      <div class="card">
         <div class="header">
           <div class="header-left">
             <h1>${this.config.title}</h1>
@@ -1313,9 +1284,9 @@
         </div>
         ` : ""}
         <div class="tabs">
-          <button class="tab-button ${this.currentTab === "overview" ? "active" : ""}" data-tab="overview">Przegl\u0105d</button>
-          <button class="tab-button ${this.currentTab === "performance" ? "active" : ""}" data-tab="performance">Wydajno\u015B\u0107</button>
-          <button class="tab-button ${this.currentTab === "optimization" ? "active" : ""}" data-tab="optimization">Optymalizacja</button>
+          <button class="tab-btn ${this.currentTab === "overview" ? "active" : ""}" data-tab="overview">Przegl\u0105d</button>
+          <button class="tab-btn ${this.currentTab === "performance" ? "active" : ""}" data-tab="performance">Wydajno\u015B\u0107</button>
+          <button class="tab-btn ${this.currentTab === "optimization" ? "active" : ""}" data-tab="optimization">Optymalizacja</button>
         </div>
         ${mainContent}
       </div>
@@ -1329,7 +1300,7 @@
 
   _setupEventListeners() {
     // Tab switching
-    this.shadowRoot.querySelectorAll(".tab-button").forEach(btn => {
+    this.shadowRoot.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         this.currentTab = e.target.dataset.tab;
         this.render();

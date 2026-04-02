@@ -1,4 +1,4 @@
-﻿class HATraceViewer extends HTMLElement {
+class HATraceViewer extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -77,7 +77,7 @@
 
   _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
 
-  // ═══════════ SETTINGS PERSISTENCE ═══════════
+  // ============================================================
 
   _loadSetting(key, fallback) {
     try {
@@ -116,7 +116,7 @@
     this._saveSetting('traceFilterResult', this.traceFilterResult);
   }
 
-  // ═══════════ TRACE PERSISTENCE ═══════════
+  // ============================================================
 
   _loadStoredTraces() {
     try {
@@ -181,7 +181,7 @@
     return Object.keys(this._storedTraces).length;
   }
 
-  // ─────────── TRANSLATIONS ───────────
+  // ============================================================
 
   static get _translations() {
     return {
@@ -272,7 +272,7 @@
     }
   }
 
-  // ─────────── DATA ───────────
+  // ============================================================
 
   async updateAutomationData() {
     if (!this._hass) return;
@@ -343,7 +343,7 @@
     return 'success';
   }
 
-  // ─────────── FILTERS ───────────
+  // ============================================================
 
   _timeCutoff() {
     if (this.timeRange === 'all') return null;
@@ -406,7 +406,7 @@
     return { n, ok, err, avg, rate: n ? Math.round((ok / n) * 100) : 0 };
   }
 
-  // ─────────── TIME HELPERS ───────────
+  // ============================================================
 
   _startTimer() {
     if (this.relativeTimeUpdater) clearInterval(this.relativeTimeUpdater);
@@ -440,7 +440,7 @@
     return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
-  // ─────────── ACTIONS ───────────
+  // ============================================================
 
   onAutoClick(entity) {
     this.selectedAutomation = entity;
@@ -514,7 +514,7 @@
     this.render();
   }
 
-  // ─────────── TRACE DETAIL BUILDER ───────────
+  // ============================================================
 
   _buildDetail(trace, detail) {
     const steps = [];
@@ -694,7 +694,7 @@
     return String(obj);
   }
 
-  // ─────────── FLOW GRAPH (SVG) ───────────
+  // ============================================================
 
   _renderFlowGraph(steps) {
     if (!steps || steps.length < 2) return '';
@@ -751,7 +751,7 @@
 
   _escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-  // ─────────── EXPORT ───────────
+  // ============================================================
 
   async _export(fmt, onlySelected) {
     let list = onlySelected && this.selectedTraceIds.size > 0
@@ -851,7 +851,7 @@
     a.download = filename; a.click();
   }
 
-  // ─────────── SAFE JSON ───────────
+  // ============================================================
 
   _safeJson(obj) {
     try {
@@ -863,12 +863,12 @@
     } catch (e) { return 'Error: ' + e.message; }
   }
 
-  // ─────────── STATUS HELPERS ───────────
+  // ============================================================
 
   _ico(s) { return s === 'success' ? '\u2714' : s === 'running' ? '\u21BB' : s === 'error' ? '\u274C' : s === 'aborted' ? '\u23F9' : '\u2753'; }
   _sLabel(s) { return this._t(s) || s; }
 
-  // ─────────── RENDER: AUTOMATIONS LIST ───────────
+  // ============================================================
 
   _renderAutoList() {
     if (!this.automations.length) return `<div class="empty"><div class="empty-ico">\u26A0</div><div>${this._t('noAutomations')}</div></div>`;
@@ -899,7 +899,7 @@
         <div style="flex:1;min-width:0">
           <div class="auto-name">${this._sanitize(a.name)}</div>
           <div class="auto-meta">
-            <span class="auto-dot s-${a.status}">\u25CF</span>
+            <span class="auto-dot s-${a.status}"></span>
             <span data-ts="${a.lastTriggered?.toISOString() || ''}">${a.lastTriggered ? this._relTime(a.lastTriggered) : 'Never'}</span>
             <span class="auto-count">${a.triggerCount}</span>
           </div>
@@ -908,7 +908,7 @@
     }).join('')}</div>` + pag;
   }
 
-  // ─────────── RENDER: TRACES LIST ───────────
+  // ============================================================
 
   _renderTracesList() {
     if (this.viewMode === 'automations' && !this.selectedAutomation)
@@ -962,7 +962,7 @@
       </div>`;
   }
 
-  // ─────────── RENDER: DETAIL ───────────
+  // ============================================================
 
   _renderDetail() {
     if (!this.traceDetail) {
@@ -1058,7 +1058,7 @@
     `;
   }
 
-  // ─────────── MAIN RENDER ───────────
+  // ============================================================
 
   render() {
     const selN = this.selectedTraceIds.size;
@@ -1069,14 +1069,13 @@
         <div class="topbar">
           <span class="title">${this.config.title || this._t('traceViewer')}</span>
           <div class="topbar-r">
-            <span class="trace-saved-badge" id="traceStorageInfo" title="${this._lang === 'pl' ? 'Kliknij aby zmieni\u0107 ustawienia przechowywania trace\u00f3w' : 'Click to change trace storage settings'}" style="font-size:11px;color:var(--ts);padding:4px 8px;background:var(--bg);border-radius:var(--radius-xs);border:1px solid var(--dc);cursor:pointer;display:inline-flex;align-items:center;gap:4px">\u{1F4BE} ${this._getStoredTraceCount()} saved <span style="font-size:9px;opacity:0.6">\u2699\uFE0F</span></span>
+            <span class="trace-saved-badge" id="traceStorageInfo" title="${this._lang === 'pl' ? 'Zapisane trace\u2019y' : 'Saved traces'}" style="font-size:11px;color:var(--ts);padding:4px 8px;background:var(--bg);border-radius:var(--radius-xs);border:1px solid var(--dc);display:inline-flex;align-items:center;gap:4px">\u{1F4BE} ${this._getStoredTraceCount()} saved</span><span class="trace-settings-btn" id="goToSettingsBtn" title="${this._lang === 'pl' ? 'Ustawienia Trace Viewer' : 'Trace Viewer Settings'}" style="font-size:11px;color:var(--ts);padding:4px 8px;background:var(--bg);border-radius:var(--radius-xs);border:1px solid var(--dc);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:6px">\u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</span>
             <div class="dd" id="expDD">
-              <button class="btn-s" id="expBtn">${this._t('export')} \u25BE</button>
+              <button class="btn-s" id="expBtn" ${selN === 0 && this.selectedAutoIds.size === 0 ? 'disabled style="opacity:0.4;pointer-events:none;cursor:default"' : ''}>${this._t('export')} \u25BE</button>
               <div class="dd-menu">
                 ${selN > 0 ? `<div class="dd-i" data-exp="sel-json">JSON (${selN} traces ${this._t('selected')})</div><div class="dd-i" data-exp="sel-csv">CSV (${selN} traces ${this._t('selected')})</div><div class="dd-div"></div>` : ''}
                 ${this.selectedAutoIds.size > 0 ? `<div class="dd-i" data-exp="auto-json">JSON (${this.selectedAutoIds.size} ${this._t('automations')})</div><div class="dd-i" data-exp="auto-csv">CSV (${this.selectedAutoIds.size} ${this._t('automations')})</div><div class="dd-div"></div>` : ''}
-                <div class="dd-i" data-exp="all-json">${this._t('exportJson')}</div>
-                <div class="dd-i" data-exp="all-csv">${this._t('exportCsv')}</div>
+                
               </div>
             </div>
           </div>
@@ -1150,13 +1149,13 @@
     this._bindEvents();
   }
 
-  // ─────────── EVENTS ───────────
+  // ============================================================
 
   _bindEvents() {
     const $ = s => this.shadowRoot.querySelector(s);
     const $$ = s => this.shadowRoot.querySelectorAll(s);
 
-    // Trace storage info badge — navigate to panel Settings > Trace Viewer
+    // Trace storage info badge -- navigate to panel Settings >
     $('#traceStorageInfo')?.addEventListener('click', () => {
       // Shadow DOM: this element lives inside ha-tools-panel's shadowRoot
       // closest() can't cross shadow boundaries, use getRootNode().host instead
@@ -1166,6 +1165,21 @@
         if (root && root.host && root.host.tagName === 'HA-TOOLS-PANEL') {
           panel = root.host;
         }
+      } catch (e) {}
+      if (!panel) panel = document.querySelector('ha-tools-panel');
+      if (panel && panel._navigateToSettings) {
+        panel._navigateToSettings('trace-backend');
+      } else {
+        this.dispatchEvent(new CustomEvent('navigate-settings', { bubbles: true, composed: true, detail: { section: 'trace-backend' } }));
+      }
+    });
+
+    // Settings info bar button
+    $('#goToSettingsBtn')?.addEventListener('click', () => {
+      let panel = null;
+      try {
+        const root = this.getRootNode();
+        if (root && root.host && root.host.tagName === 'HA-TOOLS-PANEL') panel = root.host;
       } catch (e) {}
       if (!panel) panel = document.querySelector('ha-tools-panel');
       if (panel && panel._navigateToSettings) {
@@ -1273,10 +1287,10 @@
     });
   }
 
-  // ─────────── STYLES ───────────
+  // ============================================================
 
   _css() {
-    return `<style>
+    return `<style>${window.HAToolsBentoCSS || ""}
 
 :host {
   --pc: #3B82F6;
@@ -1661,42 +1675,11 @@
 }
 
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -1708,14 +1691,17 @@
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>`;
+      
+        /* Settings Info Bar */
+
+</style>`;
   }
 
-  // ─────────── LIFECYCLE ───────────
+  // ============================================================
 
   connectedCallback() { if (this._hass) this.updateAutomationData(); }
   disconnectedCallback() { if (this.relativeTimeUpdater) clearInterval(this.relativeTimeUpdater); }

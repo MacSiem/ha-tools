@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HA YAML Checker v2.0
  * Advanced YAML validator for Home Assistant configuration files.
  * Part of HA Tools Panel - Debug category
@@ -54,7 +54,6 @@ class HAYamlChecker extends HTMLElement {
     ];
   }
 
-
   static get DEPRECATED_PATTERNS() {
     return [
       { pattern: /^\s*initial:\s*(on|off)\s*$/i, msg: 'Deprecated: initial on/off \u2014 uzyj true/false (HA 2021.12+)', severity: 'warning' },
@@ -67,6 +66,11 @@ class HAYamlChecker extends HTMLElement {
       { pattern: /^\s*platform:\s+mqtt$/, msg: 'Deprecated: platform: mqtt \u2014 uzyj mqtt: w configuration.yaml (HA 2022.6+)', severity: 'warning' },
       { pattern: /service:\s+homeassistant\.turn/, msg: 'Info: homeassistant.turn_on/off \u2014 mozesz uzywac domain-specific service', severity: 'info' },
       { pattern: /^\s*condition:\s+template$/, msg: 'Info: condition: template \u2014 rozwaz shorthand template conditions (HA 2023.x+)', severity: 'info' },
+      { pattern: /^\s*automation:\s*$/, msg: 'Deprecated: automation: \u2192 automations: (HA 2024.4+)', severity: 'warning' },
+      { pattern: /^\s*script:\s*$/, msg: 'Deprecated: script: \u2192 scripts: (HA 2024.4+)', severity: 'warning' },
+      { pattern: /^\s*trigger:\s*$/, msg: 'Deprecated: trigger: \u2192 triggers: in automations (HA 2024.4+)', severity: 'warning' },
+      { pattern: /^\s*condition:\s*$/, msg: 'Deprecated: condition: \u2192 conditions: in automations (HA 2024.4+)', severity: 'warning' },
+      { pattern: /^\s*action:\s*$/, msg: 'Deprecated: action: \u2192 actions: in automations (HA 2024.4+)', severity: 'warning' },
     ];
   }
   static get COMMON_ISSUES() {
@@ -316,6 +320,52 @@ class HAYamlChecker extends HTMLElement {
         .filter(a => !a.description)
         .map(a => ({ id: a.id || a.entity_id || '?', alias: a.alias || '(brak alias)' }));
 
+      // Enhanced: Check for scripts referenced in automations
+      const scriptRefs = [];
+      automations.forEach((auto) => {
+        const autoStr = JSON.stringify(auto);
+        const scripts_used = new Set();
+        const scriptMatches = autoStr.match(/"service"\s*:\s*"script\.([a-z0-9_]+)"/gi) || [];
+        scriptMatches.forEach(call => {
+          const scriptId = call.match(/script\.([a-z0-9_]+)/i)[1];
+          const scriptEntity = `script.${scriptId}`;
+          if (!allEntityIds.has(scriptEntity) && !scripts_used.has(scriptId)) {
+            scriptRefs.push({ auto: auto.alias || auto.id || '?', script: scriptEntity });
+            scripts_used.add(scriptId);
+          }
+        });
+      });
+
+      // Enhanced: Check for scene references
+      const sceneRefs = [];
+      automations.forEach((auto) => {
+        const autoStr = JSON.stringify(auto);
+        const sceneMatches = autoStr.match(/"scene"\s*:\s*"([^"]+)"/gi) || [];
+        sceneMatches.forEach(call => {
+          const sceneId = call.match(/"([^"]+)"/)[1];
+          if (sceneId.startsWith('scene.') && !allEntityIds.has(sceneId)) {
+            sceneRefs.push({ auto: auto.alias || auto.id || '?', scene: sceneId });
+          }
+        });
+      });
+
+      // Enhanced: Check for input helper references
+      const inputRefs = [];
+      const inputTypes = ['input_boolean', 'input_number', 'input_select', 'input_text', 'input_datetime'];
+      automations.forEach((auto) => {
+        const autoStr = JSON.stringify(auto);
+        inputTypes.forEach(inputType => {
+          const regex = new RegExp(`"${inputType}\\.([a-z0-9_]+)"`, 'gi');
+          let match;
+          while ((match = regex.exec(autoStr)) !== null) {
+            const fullId = `${inputType}.${match[1]}`;
+            if (!allEntityIds.has(fullId)) {
+              inputRefs.push({ auto: auto.alias || auto.id || '?', helper: fullId });
+            }
+          }
+        });
+      });
+
       this._entityResult = {
         totalEntities: allEntityIds.size,
         totalAutomations: automations.length,
@@ -326,6 +376,9 @@ class HAYamlChecker extends HTMLElement {
         problemStates,
         noFriendlyName,
         autoNoDesc,
+        scriptRefs,
+        sceneRefs,
+        inputRefs,
         checkedCount: new Set(checked).size,
         ts: new Date().toLocaleTimeString('pl-PL'),
       };
@@ -495,6 +548,19 @@ class HAYamlChecker extends HTMLElement {
       }
     });
 
+    // ── Check for include directives ──────────────────────────────────
+    const includePattern = /(!include(?:_dir)?(?:_merge_)?(?:named|list)?\s+)([^\s#]+)/;
+    lines.forEach((line, i) => {
+      const match = line.match(includePattern);
+      if (match) {
+        warnings.push({
+          line: i + 1,
+          msg: `Include: ${match[1].trim()} referenced file "${match[2]}" — verify path relative to config/`,
+          severity: 'info'
+        });
+      }
+    });
+
     // Check for common HA mistakes: trigger: instead of triggers:
     lines.forEach((line, i) => {
       const t = line.trim();
@@ -528,44 +594,14 @@ class HAYamlChecker extends HTMLElement {
 
   // ── Render ───────────────────────────────────────────────────────────────
   _render() {
-    this.shadowRoot.innerHTML = `<style>${this._css()}
+    this.shadowRoot.innerHTML = `<style>${window.HAToolsBentoCSS || ""}
+${this._css()}
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -577,11 +613,12 @@ class HAYamlChecker extends HTMLElement {
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>${this._html()}`;
+
+</style>${this._html()}`
     this._attachEvents();
     this._injectDiscovery();
   }

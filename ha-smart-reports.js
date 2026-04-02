@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Home Assistant Smart Reports Card
  * Energy reports, automation statistics, and system health overview
  */
@@ -83,7 +83,8 @@ class HASmartReports extends HTMLElement {
     if (this._config.show_system) tabs.push({ id: 'system', label: 'System', icon: '🖥️' });
 
     this.shadowRoot.innerHTML = `
-      <style>
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -443,7 +444,9 @@ canvas {
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+      
+
+</style>
       <ha-card>
         <div class="reports-card">
           <div class="card-header">

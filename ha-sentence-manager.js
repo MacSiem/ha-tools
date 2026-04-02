@@ -1,4 +1,4 @@
-﻿class HASentenceManager extends HTMLElement {
+class HASentenceManager extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -539,12 +539,12 @@
       </div>
 
       <div class="tabs">
-        <button class="tab-button ${this.currentTab === 'ha-sentences' ? 'active' : ''}" data-tab="ha-sentences">\u{1F3E0} HA Sentences</button>
-        <button class="tab-button ${this.currentTab === 'editor' ? 'active' : ''}" data-tab="editor">\u270F\uFE0F Editor</button>
-        <button class="tab-button ${this.currentTab === 'list' ? 'active' : ''}" data-tab="list">\u{1F4CB} Sentences</button>
-        <button class="tab-button ${this.currentTab === 'test' ? 'active' : ''}" data-tab="test">\u{1F9EA} Test</button>
-        <button class="tab-button ${this.currentTab === 'export' ? 'active' : ''}" data-tab="export">\u{1F4E6} Import/Export</button>
-        <button class="tab-button ${this.currentTab === 'actions' ? 'active' : ''}" data-tab="actions">⚡ Custom Actions</button>
+        <button class="tab-btn ${this.currentTab === 'ha-sentences' ? 'active' : ''}" data-tab="ha-sentences">\u{1F3E0} HA Sentences</button>
+        <button class="tab-btn ${this.currentTab === 'editor' ? 'active' : ''}" data-tab="editor">\u270F\uFE0F Editor</button>
+        <button class="tab-btn ${this.currentTab === 'list' ? 'active' : ''}" data-tab="list">\u{1F4CB} Sentences</button>
+        <button class="tab-btn ${this.currentTab === 'test' ? 'active' : ''}" data-tab="test">\u{1F9EA} Test</button>
+        <button class="tab-btn ${this.currentTab === 'export' ? 'active' : ''}" data-tab="export">\u{1F4E6} Import/Export</button>
+        <button class="tab-btn ${this.currentTab === 'actions' ? 'active' : ''}" data-tab="actions">⚙️ Custom Actions</button>
       </div>
 
       <div class="tab-content active">
@@ -552,9 +552,16 @@
       </div>
     `;
 
+    const html = container.innerHTML;
     const oldContainer = this.shadowRoot.querySelector('.card');
-    if (oldContainer) oldContainer.replaceWith(container);
-    else this.shadowRoot.appendChild(container);
+    if (oldContainer) {
+      if (this._lastHtml === html) return;
+      this._lastHtml = html;
+      oldContainer.innerHTML = html;
+    } else {
+      this._lastHtml = html;
+      this.shadowRoot.appendChild(container);
+    }
 
     this.attachEventListeners();
   }
@@ -713,7 +720,6 @@
               <textarea id="ha-yaml-paste" class="yaml-editor" style="margin-top:8px;" placeholder="Wklej zawarto\u015B\u0107 pliku custom_sentences/${lang}/*.yaml tutaj..."></textarea>
               <button class="btn btn-primary" id="parse-ha-yaml-btn" style="margin-top:8px;">\u{1F50D} Parsuj YAML</button>
             </div>
-
 
           </div>
         </div>
@@ -1018,10 +1024,24 @@
       }
     }
     // Tab switching
-    this.shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         this.currentTab = e.target.dataset.tab;
-        this.render();
+        // Update tab buttons active state without full re-render
+        this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === this.currentTab));
+        // Update only tab content
+        let tabHtml = '';
+        switch (this.currentTab) {
+          case 'ha-sentences': tabHtml = this._renderHaSentencesTab(); break;
+          case 'editor': tabHtml = this.renderEditor(); break;
+          case 'list': tabHtml = this.renderList(); break;
+          case 'test': tabHtml = this.renderTest(); break;
+          case 'export': tabHtml = this.renderExport(); break;
+          case 'actions': tabHtml = this._renderActionsTab(); break;
+        }
+        const tc = this.shadowRoot.querySelector('.tab-content');
+        if (tc) { tc.innerHTML = tabHtml; this._lastHtml = null; }
+        this.attachEventListeners();
         // Auto-detect intents on first visit to HA Sentences tab
         if (this.currentTab === 'ha-sentences' && !this._autoDetectRan && !this._haSentences && !this._haSentencesLoading && this._hass) {
           this._autoDetectRan = true;
@@ -1174,7 +1194,8 @@
   getStyles() {
     return `
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-      <style>
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -1235,7 +1256,7 @@
   padding: 0 4px;
   margin-bottom: 20px;
 }
-.tab, .tab-btn, .tab-button {
+.tab, .tab-btn, .tab-btn {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -1250,11 +1271,11 @@
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-button:hover {
+.tab:hover, .tab-btn:hover, .tab-btn:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-button.active {
+.tab.active, .tab-btn.active, .tab-btn.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -1450,7 +1471,7 @@ canvas {
           background: var(--ha-card-background);
         }
 
-        .tab-button {
+        .tab-btn {
           flex: 1;
           padding: 12px 16px;
           border: none;
@@ -1462,11 +1483,11 @@ canvas {
           transition: all 0.3s ease;
         }
 
-        .tab-button:hover {
+        .tab-btn:hover {
           color: var(--text-color);
         }
 
-        .tab-button.active {
+        .tab-btn.active {
           color: var(--primary-color);
           border-bottom-color: var(--primary-color);
         }
@@ -1846,7 +1867,6 @@ canvas {
       
 /* === Modern Bento Light Mode === */
 
-
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
   --bento-card: var(--card-background-color, #FFFFFF);
@@ -1879,9 +1899,9 @@ canvas {
 .card-title, .title, .header-title, .pan-title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; padding-bottom: 0; }
-.tab, .tab-btn, .tab-button { padding: 8px 14px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
-.tab.active, .tab-btn.active, .tab-button.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-.tab:hover, .tab-btn:hover, .tab-button:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab, .tab-btn, .tab-btn { padding: 8px 14px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
+.tab.active, .tab-btn.active, .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab:hover, .tab-btn:hover, .tab-btn:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab-icon { margin-right: 6px; }
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeSlideIn 0.3s ease-out; }
@@ -2149,7 +2169,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .form-group input, .form-group select, .form-group textarea { font-size: 16px !important; }
 }
 
-
 /* Tips banner */
 .tip-banner {
   background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03));
@@ -2173,43 +2192,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .tip-banner.hidden { display: none; }
 
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
+
 /* B8: voice section added */
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -2221,14 +2210,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+
+</style>
     `;
   }
-
 
   _renderActionsTab() {
     const defaultActions = [
@@ -2244,7 +2233,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const customActions = this._customActions || [];
 
-    let html = '<div class="section-title">⚡ Custom Actions Panel</div>';
+    let html = '<div class="section-title">⚙️ Custom Actions Panel</div>';
     html += '<p style="color:var(--bento-text-secondary,#64748b);font-size:13px;margin-bottom:16px;">Twórz własne akcje głosowe powiązane z usługami HA. Każda akcja generuje sentence + automation YAML.</p>';
 
     // Built-in intents reference
@@ -2267,7 +2256,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">HA Service</label><input type="text" id="action-service" placeholder="np. scene.turn_on, script.movie_mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;"></div>';
     html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">Entity ID</label><input type="text" id="action-entity" placeholder="np. scene.movie_mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;"></div>';
     html += '</div>';
-    html += '<button class="btn-primary" id="btn-generate-action" style="margin-top:8px;">🔧 Generate YAML</button>';
+    html += '<button class="btn-primary" id="btn-generate-action" style="margin-top:8px;">📝 Generate YAML</button>';
     html += '</div>';
 
     // Generated YAML output
@@ -2281,7 +2270,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (customActions.length > 0) {
       html += '<div class="section-title" style="margin-top:24px;">💾 Saved Actions (' + customActions.length + ')</div>';
       customActions.forEach((a, idx) => {
-        html += `<div style="padding:10px 14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><div><strong style="font-size:13px;">"${a.trigger}"</strong> <span style="font-size:12px;color:var(--bento-text-secondary,#64748b);">→ ${a.service} (${a.entity})</span></div><button class="btn-danger-sm" data-remove-action="${idx}" style="padding:4px 10px;font-size:11px;border-radius:6px;background:var(--bento-error,#ef4444);color:white;border:none;cursor:pointer;">✕</button></div>`;
+        html += `<div style="padding:10px 14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><div><strong style="font-size:13px;">"${a.trigger}"</strong> <span style="font-size:12px;color:var(--bento-text-secondary,#64748b);">⚡ ${a.service} (${a.entity})</span></div><button class="btn-danger-sm" data-remove-action="${idx}" style="padding:4px 10px;font-size:11px;border-radius:6px;background:var(--bento-error,#ef4444);color:white;border:none;cursor:pointer;">🗑️</button></div>`;
       });
     }
 
@@ -2300,6 +2289,10 @@ class HASentenceManagerEditor extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <div style="padding: 20px;">
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
         <h2>Sentence Manager Configuration</h2>
         <p>Basic card configuration. Most settings are managed within the card interface.</p>
         <div style="margin: 20px 0;">
@@ -2373,7 +2366,6 @@ class HASentenceManagerEditor extends HTMLElement {
       return (h >>> 0) / 4294967296;
     };
   }
-
 
 }
 

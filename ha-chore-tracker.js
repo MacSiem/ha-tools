@@ -1,4 +1,4 @@
-﻿class HaChoreTracker extends HTMLElement {
+class HaChoreTracker extends HTMLElement {
   static getConfigElement() {
     return document.createElement('ha-chore-tracker-editor');
   }
@@ -30,10 +30,28 @@
     this.config = {};
     this.hass = null;
     this._dataLoaded = false;
+    this._lastHtml = '';
   }
 
   _storageKey() {
     return 'ha-chore-tracker-' + (this.config.storage_key || 'default');
+  }
+
+  _membersKey() {
+    return 'ha-chore-tracker-members-' + (this.config.storage_key || 'default');
+  }
+
+  _loadMembers() {
+    try {
+      const stored = localStorage.getItem(this._membersKey());
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) { return null; }
+  }
+
+  _saveMembers() {
+    try {
+      localStorage.setItem(this._membersKey(), JSON.stringify(this.members));
+    } catch (e) { }
   }
 
   _saveData() {
@@ -62,11 +80,16 @@
   setConfig(config) {
     if (!config) return;
     this.config = config;
-    this.members = config.members || [{ name: 'Person 1', color: '#4CAF50' }];
+    const storedMembers = this._loadMembers();
+    this.members = storedMembers || config.members || [{ name: 'Person 1', color: '#4CAF50' }];
     this._loadData();
     this.render();
   }
 
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
   set hass(hass) {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
@@ -96,11 +119,82 @@
   get hass() {
     return this._hass;
   }
+  _addMember() {
+    const colors = ['#4CAF50','#2196F3','#FF9800','#E91E63','#9C27B0','#00BCD4','#FF5722','#795548'];
+    const color = colors[this.members.length % colors.length];
+    this.members.push({name: 'Osoba ' + (this.members.length + 1), color: color});
+    this._saveMembers();
+    this.render();
+  }
+
+  _removeMember(idx) {
+    if (this.members.length <= 1) return;
+    const removedName = this.members[idx].name;
+    this.members.splice(idx, 1);
+    this.chores.forEach(c => { if (c.assignee === removedName) c.assignee = this.members[0].name; });
+    this._saveData();
+    this._saveMembers();
+    this.render();
+  }
+
+  _saveMemberNames() {
+    const inputs = this.shadowRoot.querySelectorAll('.member-name-input');
+    inputs.forEach(input => {
+      const idx = parseInt(input.dataset.memberIdx);
+      if (this.members[idx]) {
+        const oldName = this.members[idx].name;
+        const newName = input.value.trim() || ('Osoba ' + (idx + 1));
+        if (oldName !== newName) {
+          this.chores.forEach(c => { if (c.assignee === oldName) c.assignee = newName; });
+          this.members[idx].name = newName;
+        }
+      }
+    });
+    this._saveMembers();
+    this._saveData();
+    this.render();
+  }
+
+  _checkRecurringReset() {
+    const now = new Date();
+    let changed = false;
+    this.chores.forEach(chore => {
+      if (chore.status !== 'done' || !chore.lastCompleted) return;
+      const last = new Date(chore.lastCompleted);
+      let shouldReset = false;
+      
+      if (chore.frequency === 'daily') {
+        shouldReset = now.toDateString() !== last.toDateString();
+      } else if (chore.frequency === 'every_2_days') {
+        shouldReset = (now - last) / (1000*60*60*24) >= 2;
+      } else if (chore.frequency === 'every_3_days') {
+        shouldReset = (now - last) / (1000*60*60*24) >= 3;
+      } else if (chore.frequency === 'weekly') {
+        const diffDays = (now - last) / (1000*60*60*24);
+        shouldReset = diffDays >= 7;
+      } else if (chore.frequency === 'biweekly') {
+        const diffDays = (now - last) / (1000*60*60*24);
+        shouldReset = diffDays >= 14;
+      } else if (chore.frequency === 'monthly') {
+        shouldReset = (now.getMonth() !== last.getMonth()) || (now.getFullYear() !== last.getFullYear());
+      } else if (chore.frequency === 'once') {
+        shouldReset = false;
+      }
+      
+      if (shouldReset) {
+        chore.status = 'todo';
+        changed = true;
+      }
+    });
+    if (changed) this._saveData();
+  }
 
   render() {
+    this._checkRecurringReset();
     const L = this._lang === 'pl';
-    this.shadowRoot.innerHTML = `
-      <style>
+    const html = `
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -671,7 +765,6 @@ canvas {
       
 /* === Modern Bento Light Mode === */
 
-
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
   --bento-card: var(--card-background-color, #FFFFFF);
@@ -958,39 +1051,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .column { min-width: unset; }
 }
 
-
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
@@ -1011,7 +1072,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+
+</style>
 
       <div class="card">
         <div class="card-header">
@@ -1022,6 +1084,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">📋 Board</button>
           <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">📅 Schedule</button>
           <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">🏆 Stats</button>
+          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">⚙️ Ustawienia</button>
         </div>
 
         <!-- Board Tab -->
@@ -1057,10 +1120,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Frequency</label>
                 <select id="chore-frequency">
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="biweekly">Bi-weekly</option>
-                  <option value="monthly">Monthly</option>
+                  <option value="daily">Codziennie</option>
+            <option value="every_2_days">Co 2 dni</option>
+            <option value="every_3_days">Co 3 dni</option>
+            <option value="weekly">Co tydzień</option>
+            <option value="biweekly">Co 2 tygodnie</option>
+            <option value="monthly">Co miesiąc</option>
+            <option value="once">Jednorazowe</option>
                 </select>
               </div>
               <div>
@@ -1125,6 +1191,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         ` : ''}
       </div>
     `;
+
+    if (this._lastHtml === html) return;
+    this._lastHtml = html;
+    this.shadowRoot.innerHTML = html;
 
     this.setupEventListeners();
     this.updateBoard();

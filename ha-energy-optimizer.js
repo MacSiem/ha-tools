@@ -1,4 +1,4 @@
-﻿class HaEnergyOptimizer extends HTMLElement {
+class HaEnergyOptimizer extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -17,6 +17,9 @@
     this._weeklyData = [];
     this._recommendations = [];
     this._comparisonData = null;
+    this._compareMode = 'week'; // 'week' | 'month'
+    this._comparePeriod = 'w-w'; // 'w-w' | 'm-m' | 'y-y'
+    this._longTermData = null; // daily totals for 13 months
     // --- Real data fields ---
     this._hasRealData = false;
     this._currentPowerW = 0;
@@ -24,6 +27,8 @@
     this._lastStatsFetch = 0;
     this._energySensorIds = [];    this._charts = {};
     this._chartJsLoaded = false;
+    this._domBuilt = false;
+    this._lastHtml = '';
   }
   disconnectedCallback() {
     this._destroyAllCharts();
@@ -43,12 +48,66 @@
     };
   }
 
+
+
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
+
   setConfig(config) {
     this._config = config;
+    this._domBuilt = false;
     this._generateFallbackData();
     this._generateRecommendations();
     this._generateComparisonData();
   }
+
+  _getRate(hour, dayOfWeek) {
+    const c = this._config;
+    const mode = c.energy_tariff_mode || 'flat';
+    const dayStart = c.energy_day_hour_start || 6;
+    const nightStart = c.energy_night_hour_start || 22;
+    const isDay = (dayStart < nightStart) ? (hour >= dayStart && hour < nightStart) : (hour >= dayStart || hour < nightStart);
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+    switch (mode) {
+      case 'day_night':
+        return isDay ? (c.energy_price_day || 0.65) : (c.energy_price_night || 0.45);
+      case 'weekday_weekend':
+        return isWeekend ? (c.energy_price_weekend || 0.50) : (c.energy_price_weekday || 0.65);
+      case 'mixed':
+        if (isWeekend) return isDay ? (c.energy_price_we_day || 0.55) : (c.energy_price_we_night || 0.40);
+        return isDay ? (c.energy_price_wd_day || 0.65) : (c.energy_price_wd_night || 0.45);
+      default:
+        return c.energy_price || 0.65;
+    }
+  }
+
+  _getAvgRate() {
+    const c = this._config;
+    const mode = c.energy_tariff_mode || 'flat';
+    if (mode === 'flat') return c.energy_price || 0.65;
+    let sum = 0;
+    for (let dow = 0; dow < 7; dow++) {
+      for (let h = 0; h < 24; h++) {
+        sum += this._getRate(h, dow);
+      }
+    }
+    return sum / 168;
+  }
+
+  _getTariffLabel() {
+    const c = this._config;
+    const mode = c.energy_tariff_mode || 'flat';
+    const cur = c.currency || 'PLN';
+    switch (mode) {
+      case 'day_night': return cur + ' ' + (c.energy_price_day || 0.65) + '/' + (c.energy_price_night || 0.45) + ' (dzień/noc)';
+      case 'weekday_weekend': return cur + ' ' + (c.energy_price_weekday || 0.65) + '/' + (c.energy_price_weekend || 0.50) + ' (roboczy/weekend)';
+      case 'mixed': return cur + ' mix';
+      default: return cur + ' @ ' + (c.energy_price || 0.65) + '/kWh';
+    }
+  }
+
 
   set hass(hass) {
 
@@ -117,7 +176,8 @@
         start_time: weekAgo.toISOString(),
         end_time: now.toISOString(),
         statistic_ids: kwhIds,
-        period: 'hour'
+        period: 'hour',
+        types: ['change']
       });
 
       // Step 3: Aggregate all sensors into hourly totals for today (24h)
@@ -129,8 +189,12 @@
 
       kwhIds.forEach(id => {
         const sensorData = stats[id] || [];
+        // Check unit - convert Wh to kWh if needed
+        const attrs = this._hass.states?.[id]?.attributes || {};
+        const isWh = attrs.unit_of_measurement === 'Wh';
         sensorData.forEach(entry => {
-          const change = Math.max(0, entry.change || 0); // ignore negative (meter resets)
+          let change = Math.max(0, entry.change ?? 0); // ignore negative (meter resets)
+          if (isWh) change /= 1000; // Wh → kWh
           const entryDate = new Date(entry.start);
           const hour = entryDate.getHours();
 
@@ -152,9 +216,45 @@
       this._weeklyData = weeklyHourly;
       this._hasRealData = true;
 
+      // Step 5: Fetch long-term daily data (13 months) for comparison modes
+      try {
+        const yearAgo = new Date(now.getTime() - 400 * 24 * 3600000);
+        const longStats = await this._hass.callWS({
+          type: 'recorder/statistics_during_period',
+          start_time: yearAgo.toISOString(),
+          end_time: now.toISOString(),
+          statistic_ids: kwhIds,
+          period: 'day',
+          types: ['change']
+        });
+        // Aggregate into daily totals keyed by 'YYYY-MM-DD'
+        const dailyMap = {};
+        kwhIds.forEach(id => {
+          const sensorData = longStats[id] || [];
+          const attrs = this._hass.states?.[id]?.attributes || {};
+          const isWh = attrs.unit_of_measurement === 'Wh';
+          sensorData.forEach(entry => {
+            let change = Math.max(0, entry.change ?? 0);
+            if (isWh) change /= 1000;
+            const d = new Date(entry.start);
+            const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            dailyMap[key] = (dailyMap[key] || 0) + change;
+          });
+        });
+        this._longTermData = dailyMap;
+      } catch (e) {
+        console.warn('Energy Optimizer: Long-term fetch failed:', e.message);
+        this._longTermData = {};
+      }
+
       // Recalculate dependent data
       this._generateRecommendations();
       this._generateComparisonData();
+      // Update DOM in place (no full rebuild)
+      if (this._domBuilt) {
+        this._updateDomValues();
+        this._showTab(this._currentTab);
+      }
 
     } catch (err) {
       console.warn('Energy Optimizer: Failed to fetch stats, using demo fallback:', err.message);
@@ -269,697 +369,337 @@
     ];
   }
 
+  // Helper: sum dailyMap values in date range [from, to)
+  _sumRange(from, to) {
+    const dm = this._longTermData || {};
+    let sum = 0;
+    const d = new Date(from);
+    while (d < to) {
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      sum += dm[key] || 0;
+      d.setDate(d.getDate() + 1);
+    }
+    return sum;
+  }
+
+  // Helper: get daily totals array in date range [from, to)
+  _dailyRange(from, to) {
+    const dm = this._longTermData || {};
+    const result = [];
+    const d = new Date(from);
+    while (d < to) {
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      result.push(dm[key] || 0);
+      d.setDate(d.getDate() + 1);
+    }
+    return result;
+  }
+
   _generateComparisonData() {
     if (!this._energyData || this._energyData.length === 0) return;
-    const todayTotal = this._energyData.reduce((a, b) => a + b, 0);
-    const dailyTotals = this._weeklyData.map(day => day.reduce((a, b) => a + b, 0));
-    const thisWeekTotal = dailyTotals.reduce((a, b) => a + b, 0);
-    // For "last week", if we have real data the weeklyData IS this week
-    // Use average * 7 as estimate for comparison
-    const avgDaily = thisWeekTotal / Math.max(1, dailyTotals.filter(d => d > 0).length);
-    const lastWeekEstimate = thisWeekTotal * 0.95; // Conservative estimate
+    const rate = this._getAvgRate();
+    const currency = this._config.currency || 'PLN';
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const peakRate = this._config.peak_rate || this._config.energy_price || 0.65;
-    const offPeakRate = this._config.off_peak_rate || peakRate;
-    const hasDualTariff = peakRate !== offPeakRate;
+    // === Week-to-week ===
+    const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
+    if (thisWeekStart > today) thisWeekStart.setDate(thisWeekStart.getDate() - 7);
+    const lastWeekStart = new Date(thisWeekStart); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const thisWeekKwh = this._sumRange(thisWeekStart, today);
+    const lastWeekKwh = this._sumRange(lastWeekStart, thisWeekStart);
+    const thisWeekDaily = this._dailyRange(thisWeekStart, today);
+    const lastWeekDaily = this._dailyRange(lastWeekStart, thisWeekStart);
+
+    // === Month-to-month ===
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const thisMonthKwh = this._sumRange(thisMonthStart, today);
+    const lastMonthKwh = this._sumRange(lastMonthStart, thisMonthStart);
+    const thisMonthDaily = this._dailyRange(thisMonthStart, today);
+    const lastMonthDaily = this._dailyRange(lastMonthStart, thisMonthStart);
+
+    // === Year-to-year (same month last year vs this year) ===
+    const lastYearMonthStart = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    const lastYearMonthEnd = new Date(now.getFullYear() - 1, now.getMonth() + 1, 0);
+    lastYearMonthEnd.setDate(lastYearMonthEnd.getDate() + 1); // exclusive end
+    const lastYearMonthKwh = this._sumRange(lastYearMonthStart, lastYearMonthEnd);
+    const lastYearMonthDaily = this._dailyRange(lastYearMonthStart, lastYearMonthEnd);
+
+    // Monthly totals for last 12 months (for chart)
+    const monthlyTotals = [];
+    for (let i = 11; i >= 0; i--) {
+      const ms = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const me = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const label = ms.toLocaleString('default', { month: 'short', year: '2-digit' });
+      monthlyTotals.push({ label, kwh: this._sumRange(ms, me) });
+    }
+
+    // Weekly totals for last 8 weeks
+    const weeklyTotals = [];
+    for (let i = 7; i >= 0; i--) {
+      const ws = new Date(thisWeekStart); ws.setDate(ws.getDate() - i * 7);
+      const we = new Date(ws); we.setDate(we.getDate() + 7);
+      const wn = ws.toLocaleDateString('default', { day: 'numeric', month: 'short' });
+      weeklyTotals.push({ label: wn, kwh: this._sumRange(ws, we > now ? today : we) });
+    }
 
     this._comparisonData = {
-      thisWeek: thisWeekTotal,
-      lastWeek: lastWeekEstimate,
-      thisMonth: thisWeekTotal * 4.3,
-      lastMonth: lastWeekEstimate * 4.3,
-      dailyBreakdown: dailyTotals,
-      costCurrency: this._config.currency || 'PLN',
-      costPerKwh: peakRate,
-      offPeakRate: offPeakRate,
-      hasDualTariff: hasDualTariff,
-      peakCostWeekly: hasDualTariff ? thisWeekTotal * 0.65 * peakRate : thisWeekTotal * peakRate,
-      offPeakCostWeekly: hasDualTariff ? thisWeekTotal * 0.35 * offPeakRate : 0
+      rate, currency,
+      // Week
+      thisWeekKwh, lastWeekKwh, thisWeekDaily, lastWeekDaily,
+      // Month
+      thisMonthKwh, lastMonthKwh, thisMonthDaily, lastMonthDaily,
+      // Year
+      lastYearMonthKwh, lastYearMonthDaily, thisMonthLabel: now.toLocaleString('default', { month: 'long' }),
+      // Aggregates
+      monthlyTotals, weeklyTotals
     };
+  }
+
+  _renderCompareBody() {
+    const c = this._comparisonData;
+    if (!c) return '<div style="text-align:center;color:var(--bento-text-secondary);padding:40px">Ładowanie danych...</div>';
+    const mode = this._comparePeriod;
+    const r = c.rate;
+    const cur = c.currency;
+
+    let currentKwh, prevKwh, currentLabel, prevLabel, chartLabels, chartCurrent, chartPrev;
+
+    if (mode === 'w-w') {
+      currentKwh = c.thisWeekKwh; prevKwh = c.lastWeekKwh;
+      currentLabel = 'Ten tydzień'; prevLabel = 'Poprzedni tydz.';
+      const days = ['Pn','Wt','Śr','Cz','Pt','So','Nd'];
+      chartLabels = days.slice(0, Math.max(c.thisWeekDaily.length, c.lastWeekDaily.length));
+      chartCurrent = c.thisWeekDaily; chartPrev = c.lastWeekDaily;
+    } else if (mode === 'm-m') {
+      currentKwh = c.thisMonthKwh; prevKwh = c.lastMonthKwh;
+      currentLabel = 'Ten miesiąc'; prevLabel = 'Poprzedni mies.';
+      const maxLen = Math.max(c.thisMonthDaily.length, c.lastMonthDaily.length);
+      chartLabels = Array.from({length: maxLen}, (_, i) => i + 1);
+      chartCurrent = c.thisMonthDaily; chartPrev = c.lastMonthDaily;
+    } else { // y-y
+      currentKwh = c.thisMonthKwh; prevKwh = c.lastYearMonthKwh;
+      currentLabel = `${c.thisMonthLabel} ${new Date().getFullYear()}`;
+      prevLabel = `${c.thisMonthLabel} ${new Date().getFullYear() - 1}`;
+      const maxLen = Math.max(c.thisMonthDaily.length, c.lastYearMonthDaily.length);
+      chartLabels = Array.from({length: maxLen}, (_, i) => i + 1);
+      chartCurrent = c.thisMonthDaily; chartPrev = c.lastYearMonthDaily;
+    }
+
+    const diff = prevKwh > 0 ? ((currentKwh - prevKwh) / prevKwh * 100) : 0;
+    const isUp = currentKwh > prevKwh;
+    const costDiff = (currentKwh - prevKwh) * r;
+
+    return `
+      <div class="comparison-grid">
+        <div class="comparison-card">
+          <div class="comparison-title">${currentLabel}</div>
+          <div class="comparison-value">${currentKwh.toFixed(1)}</div>
+          <div class="comparison-title">kWh • ${(currentKwh * r).toFixed(2)} ${cur}</div>
+        </div>
+        <div class="comparison-card">
+          <div class="comparison-title">${prevLabel}</div>
+          <div class="comparison-value">${prevKwh.toFixed(1)}</div>
+          <div class="comparison-title">kWh • ${(prevKwh * r).toFixed(2)} ${cur}</div>
+          <div class="change-indicator ${isUp ? 'change-up' : 'change-down'}">
+            ${isUp ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}%
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">
+          <span>${currentLabel} vs ${prevLabel}</span>
+          <span style="font-size:12px;color:var(--bento-text-secondary);font-weight:400">kWh/dzień</span>
+        </div>
+        <canvas id="comparison-chart"></canvas>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-item">
+          <div class="stat-label">Różnica kosztów</div>
+          <div class="stat-value" style="color:${isUp ? 'var(--bento-error)' : 'var(--bento-success)'}">${costDiff >= 0 ? '+' : ''}${costDiff.toFixed(2)} ${cur}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Śr. dzienny koszt (teraz)</div>
+          <div class="stat-value">${chartCurrent.length > 0 ? ((currentKwh / chartCurrent.length) * r).toFixed(2) : '—'} ${cur}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Śr. dzienny koszt (poprz.)</div>
+          <div class="stat-value">${chartPrev.length > 0 ? ((prevKwh / chartPrev.length) * r).toFixed(2) : '—'} ${cur}</div>
+        </div>
+      </div>
+
+      ${mode !== 'y-y' ? `
+      <div class="chart-container" style="height:200px">
+        <div class="chart-title">
+          <span>${mode === 'w-w' ? 'Ostatnie 8 tygodni' : 'Ostatnie 12 miesięcy'}</span>
+        </div>
+        <canvas id="trend-bar-chart"></canvas>
+      </div>` : ''}
+    `;
   }
 
   _render() {
     const L = this._lang === 'pl';
-    this._destroyAllCharts();
-    this.shadowRoot.innerHTML = this._getStyles() + this._getTemplate();
-    this._setupEventListeners();
-    this._renderCurrentTab();
+    if (!this._domBuilt) {
+      // First render: full DOM build
+      this._destroyAllCharts();
+      const html = this._getStyles() + this._getTemplate();
+      if (this._lastHtml === html) return;
+      this._lastHtml = html;
+      this.shadowRoot.innerHTML = html;
+      this._setupEventListeners();
+      this._renderCurrentTab();
+      this._domBuilt = true;
+    } else {
+      // Subsequent renders: update values in place without rebuilding DOM
+      this._updateDomValues();
+      // Re-draw chart for current tab only
+      this._showTab(this._currentTab);
+    }
+  }
+
+  _updateDomValues() {
+    const sr = this.shadowRoot;
+    if (!sr) return;
+    // Update summary cards
+    const summaryValues = sr.querySelectorAll('.summary-value');
+    if (summaryValues[0]) summaryValues[0].textContent = this._calculateTodayUsage().toFixed(2);
+    if (summaryValues[1]) summaryValues[1].textContent = this._calculateTodayCost().toFixed(2);
+    // 3rd card: either savings or peak hour
+    if (summaryValues[2]) {
+      const hasDualTariff = (this._config.energy_tariff_mode || 'flat') !== 'flat';
+      summaryValues[2].textContent = hasDualTariff
+        ? this._calculatePotentialSavings().toFixed(2)
+        : this._getPeakHour() + ':00';
+    }
+    if (summaryValues[3]) summaryValues[3].textContent = this._calculateEfficiencyScore();
+    // Update power draw
+    const powerVal = sr.querySelector('.power-draw-value');
+    if (powerVal) powerVal.textContent = (this._currentPowerW / 1000).toFixed(2);
+    // Update data source badge
+    const badge = sr.querySelector('.data-source-badge');
+    if (badge) {
+      badge.textContent = this._hasRealData
+        ? `\u{1F4CA} Dane z ${(this._energySensorIds || []).length} sensor\u00F3w energii`
+        : (this._statsLoading ? '\u23F3 Wczytywanie danych z recorder...' : '\u26A0\uFE0F Demo data \u2014 brak sensor\u00F3w kWh');
+    }
+    // Update comparison tab body
+    if (this._comparisonData) {
+      const cmpBody = sr.querySelector('#compare-body');
+      if (cmpBody) cmpBody.innerHTML = this._renderCompareBody();
+    }
+    // Update pattern stats
+    const statValues = sr.querySelectorAll('#patterns .stat-value');
+    if (statValues[0]) statValues[0].textContent = this._energyData.reduce((a, b) => Math.max(a, b), 0).toFixed(2) + ' kWh';
+    if (statValues[1]) statValues[1].textContent = (this._energyData.slice(0, this._config.peak_hours?.start || 6).reduce((a, b) => a + b, 0) / (this._config.peak_hours?.start || 6)).toFixed(2) + ' kWh/h';
+    if (statValues[2]) statValues[2].textContent = this._calculatePeakRatio().toFixed(1) + ':1';
   }
 
   _getStyles() {
     return `
-      <style>
-/* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-/* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-  background: var(--bento-card) !important;
-  border: 1px solid var(--bento-border) !important;
-  border-radius: var(--bento-radius-md) !important;
-  box-shadow: var(--bento-shadow-sm) !important;
-  font-family: 'Inter', sans-serif !important;
-  color: var(--bento-text) !important;
-  overflow: hidden;
-  padding: 20px;
-}
-
-/* Headers */
-.card-header, .header, .card-title, h1, h2, h3 {
-  color: var(--bento-text) !important;
-  font-family: 'Inter', sans-serif !important;
-}
-.card-header, .header {
-  border-bottom: 1px solid var(--bento-border) !important;
-  padding-bottom: 12px !important;
-  margin-bottom: 16px !important;
-}
-
-/* Tabs */
-.tabs, .tab-bar, .tab-nav, .tab-header {
-  display: flex;
-  gap: 4px;
-  border-bottom: 2px solid var(--bento-border);
-  padding: 0 4px;
-  margin-bottom: 20px;
-  overflow-x: auto;
-}
-.tab, .tab-btn, .tab-button {
-  padding: 10px 18px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: 'Inter', sans-serif;
-  color: var(--bento-text-secondary);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: var(--bento-transition);
-  white-space: nowrap;
-  border-radius: 0;
-}
-.tab:hover, .tab-btn:hover, .tab-button:hover {
-  color: var(--bento-primary);
-  background: var(--bento-primary-light);
-}
-.tab.active, .tab-btn.active, .tab-button.active {
-  color: var(--bento-primary);
-  border-bottom-color: var(--bento-primary);
-  background: rgba(59, 130, 246, 0.04);
-  font-weight: 600;
-}
-
-/* Tab content */
-.tab-content { display: none; }
-.tab-content.active { display: block; animation: bentoFadeIn 0.3s ease-out; }
-@keyframes bentoFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-/* Buttons */
-button, .btn, .action-btn {
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: var(--bento-radius-xs);
-  transition: var(--bento-transition);
-  cursor: pointer;
-}
-button.active, .btn.active, .btn-primary, .action-btn.active {
-  background: var(--bento-primary) !important;
-  color: white !important;
-  border-color: var(--bento-primary) !important;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
-}
-
-/* Status badges */
-.badge, .status-badge, .tag, .chip {
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: 'Inter', sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.badge-success, .status-ok, .status-good { background: var(--bento-success-light); color: var(--bento-success); }
-.badge-error, .status-error, .status-critical { background: var(--bento-error-light); color: var(--bento-error); }
-.badge-warning, .status-warning { background: var(--bento-warning-light); color: var(--bento-warning); }
-.badge-info, .status-info { background: var(--bento-primary-light); color: var(--bento-primary); }
-
-/* Tables */
-table { width: 100%; border-collapse: separate; border-spacing: 0; font-family: 'Inter', sans-serif; }
-th { background: var(--bento-bg); color: var(--bento-text-secondary); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 2px solid var(--bento-border); }
-td { padding: 12px 14px; border-bottom: 1px solid var(--bento-border); color: var(--bento-text); font-size: 13px; }
-tr:hover td { background: var(--bento-primary-light); }
-tr:last-child td { border-bottom: none; }
-
-/* Inputs & selects */
-input, select, textarea {
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  padding: 8px 12px;
-  border: 1.5px solid var(--bento-border);
-  border-radius: var(--bento-radius-xs);
-  background: var(--bento-card);
-  color: var(--bento-text);
-  transition: var(--bento-transition);
-  outline: none;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: var(--bento-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* Stat cards */
-.stat-card, .stat, .metric-card, .stat-box, .overview-stat, .kpi-card {
-  background: var(--bento-card);
-  border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius-sm);
-  padding: 16px;
-  transition: var(--bento-transition);
-}
-.stat-card:hover, .stat:hover, .metric-card:hover { box-shadow: var(--bento-shadow-md); transform: translateY(-1px); }
-.stat-value, .metric-value, .stat-number { font-size: 28px; font-weight: 700; color: var(--bento-text); font-family: 'Inter', sans-serif; }
-.stat-label, .metric-label, .stat-title { font-size: 12px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-
-/* Canvas override (prevent Bento CSS from distorting charts) */
-canvas {
-  max-width: 100% !important;
-  height: auto !important;
-  width: auto !important;
-  border: none !important;
-}
-
-/* Pagination */
-.pagination, .pag {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 20px;
-  padding: 16px 0;
-  border-top: 1px solid var(--bento-border);
-}
-.pagination-btn, .pag-btn {
-  padding: 8px 14px;
-  border: 1.5px solid var(--bento-border);
-  background: var(--bento-card);
-  color: var(--bento-text);
-  border-radius: var(--bento-radius-xs);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: 'Inter', sans-serif;
-  transition: var(--bento-transition);
-}
-.pagination-btn:hover:not(:disabled), .pag-btn:hover:not(:disabled) { background: var(--bento-primary); color: white; border-color: var(--bento-primary); }
-.pagination-btn:disabled, .pag-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.pagination-info, .pag-info { font-size: 13px; color: var(--bento-text-secondary); font-weight: 500; padding: 0 8px; }
-.page-size-select { padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs); font-size: 12px; font-family: 'Inter', sans-serif; }
-
-/* Empty state */
-.empty-state, .no-data, .no-results {
-  text-align: center;
-  padding: 48px 24px;
-  color: var(--bento-text-secondary);
-  font-size: 14px;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--bento-text-muted); }
-
-/* ===== END BENTO LIGHT MODE ===== */
+      <style>${window.HAToolsBentoCSS || ""}
 
         :host {
-          --text-color: var(--primary-text-color, #000);
-          --secondary-text: var(--secondary-text-color, #666);
-          --bg-color: var(--card-background-color, #fff);
-          --primary: var(--primary-color, #3498db);
-          --divider: var(--divider-color, #e0e0e0);
-          --success: #4caf50;
-          --warning: #ff9800;
-          --danger: #f44336;
+          font-family: 'Inter', sans-serif;
         }
-
-        * {
-          box-sizing: border-box;
+        @media (prefers-color-scheme: dark) {
+          :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
         }
-
-        .card-container {
-          background: var(--bg-color);
-          border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          padding: 16px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        .card-title {
-          font-size: 20px;
-          font-weight: 600;
-          color: var(--text-color);
-          margin: 0 0 16px 0;
-        }
-
-        .data-source-badge {
-          font-size: 11px;
-          color: var(--bento-text-muted);
-          margin-bottom: 8px;
-        }
-
-        .tabs {
-          display: flex;
-          gap: 8px;
-          border-bottom: 1px solid var(--divider);
-          margin-bottom: 20px;
-          overflow-x: auto;
-        }
-
-        .tab-button {
-          padding: 8px 16px;
-          border: none;
-          background: none;
-          color: var(--secondary-text);
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          border-bottom: 3px solid transparent;
-          transition: all 0.3s ease;
-          white-space: nowrap;
-        }
-
-        .tab-button:hover {
-          color: var(--text-color);
-        }
-
-        .tab-button.active {
-          color: var(--primary);
-          border-bottom-color: var(--primary);
-        }
-
-        .tab-content {
-          display: none;
-        }
-
-        .tab-content.active {
-          display: block;
-        }
-
-        .grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        .summary-card {
-          background: linear-gradient(135deg, var(--primary) 0%, var(--primary)cc 100%);
-          color: white;
-          padding: 16px;
-          border-radius: 8px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-
-        .summary-card.alt {
-          background: linear-gradient(135deg, var(--success) 0%, var(--success)cc 100%);
-        }
-
-        .summary-card.warn {
-          background: linear-gradient(135deg, var(--warning) 0%, var(--warning)cc 100%);
-        }
-
-        .summary-value {
-          font-size: 28px;
-          font-weight: 700;
-          margin: 8px 0;
-        }
-
-        .summary-label {
-          font-size: 12px;
-          opacity: 0.9;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .chart-container {
-          background: rgba(0, 0, 0, 0.02);
-          border-radius: 8px;
-          padding: 12px;
-          margin-bottom: 20px;
-          border: 1px solid var(--divider);
-        }
-
-        .chart-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-color);
-          margin-bottom: 12px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        canvas {
-          max-width: 100%;
-          height: auto;
-          display: block;
-        }
-
-        .stats-row {
-          display: flex;
-          gap: 20px;
-          margin: 16px 0;
-          padding: 12px;
-          background: rgba(0, 0, 0, 0.02);
-          border-radius: 6px;
-        }
-
-        .stat-item {
-          flex: 1;
-        }
-
-        .stat-label {
-          font-size: 12px;
-          color: var(--secondary-text);
-          text-transform: uppercase;
-          margin-bottom: 4px;
-        }
-
-        .stat-value {
-          font-size: 18px;
-          font-weight: 600;
-          color: var(--text-color);
-        }
-
-        .recommendation {
-          background: rgba(0, 0, 0, 0.02);
-          border-left: 4px solid var(--primary);
-          padding: 16px;
-          margin-bottom: 12px;
-          border-radius: 4px;
-          display: flex;
-          gap: 12px;
-        }
-
-        .recommendation.high {
-          border-left-color: var(--danger);
-        }
-
-        .recommendation.medium {
-          border-left-color: var(--warning);
-        }
-
-        .recommendation.low {
-          border-left-color: var(--success);
-        }
-
-        .rec-icon {
-          font-size: 24px;
-          min-width: 32px;
-        }
-
-        .rec-content {
-          flex: 1;
-        }
-
-        .rec-title {
-          font-weight: 600;
-          color: var(--text-color);
-          margin-bottom: 4px;
-        }
-
-        .rec-description {
-          font-size: 12px;
-          color: var(--secondary-text);
-          margin-bottom: 8px;
-        }
-
-        .rec-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 12px;
-        }
-
-        .savings-badge {
-          background: var(--success);
-          color: white;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-weight: 600;
-        }
-
-        .difficulty-badge {
-          background: rgba(0, 0, 0, 0.1);
-          color: var(--text-color);
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 11px;
-        }
-
-        .comparison-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        .comparison-card {
-          background: rgba(0, 0, 0, 0.02);
-          padding: 16px;
-          border-radius: 8px;
-          border: 1px solid var(--divider);
-        }
-
-        .comparison-title {
-          font-size: 12px;
-          color: var(--secondary-text);
-          text-transform: uppercase;
-          margin-bottom: 8px;
-        }
-
-        .comparison-value {
-          font-size: 24px;
-          font-weight: 700;
-          color: var(--text-color);
-          margin-bottom: 4px;
-        }
-
-        .change-indicator {
-          font-size: 12px;
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .change-up {
-          color: var(--danger);
-        }
-
-        .change-down {
-          color: var(--success);
-        }
-
-        .heatmap-legend {
-          display: flex;
-          gap: 8px;
-          margin-top: 12px;
-          font-size: 11px;
-          justify-content: flex-end;
-        }
-
-        .legend-item {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .legend-color {
-          width: 12px;
-          height: 12px;
-          border-radius: 2px;
-        }
-
-        .power-draw {
-          background: linear-gradient(135deg, var(--primary) 0%, var(--primary)cc 100%);
-          color: white;
-          padding: 16px;
-          border-radius: 8px;
-          text-align: center;
-        }
-
-        .power-draw-value {
-          font-size: 36px;
-          font-weight: 700;
-          margin: 8px 0;
-        }
-
-        .power-draw-unit {
-          font-size: 14px;
-          opacity: 0.9;
-        }
-
-        @media (max-width: 768px) {
-          .grid {
-            grid-template-columns: 1fr;
-          }
-
-          .comparison-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .stats-row {
-            flex-direction: column;
-            gap: 12px;
-          }
-
-          .tabs {
-            gap: 4px;
-          }
-
-          .tab-button {
-            padding: 8px 12px;
-            font-size: 12px;
-          }
-        }
-      
-/* ===== MOBILE RESPONSIVE TABLE STYLES ===== */
-.table-container {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-@media (max-width: 768px) {
-  .table-container {
-    margin: 0 -16px;
-    padding: 0 16px;
-  }
-
-  table {
-    min-width: 600px;
-  }
-
-  th, td {
-    padding: 10px 10px;
-    font-size: 12px;
-  }
-
-  /* Hide non-essential columns on mobile */
-  th:nth-child(n+4),
-  td:nth-child(n+4) {
-    display: none;
-  }
-
-  /* Adjust first few columns on mobile */
-  th:first-child,
-  td:first-child {
-    min-width: 120px;
-  }
-
-  th:nth-child(2),
-  td:nth-child(2) {
-    min-width: 100px;
-  }
-
-  th:nth-child(3),
-  td:nth-child(3) {
-    min-width: 80px;
-  }
-}
-/* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
-
-        /* === MOBILE FIX === */
+        .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); }
+        .card-title { font-size: 17px; font-weight: 700; color: var(--bento-text); margin: 0 0 4px; }
+        .data-source-badge { font-size: 11px; color: var(--bento-text-muted); margin-bottom: 14px; }
+        .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; }
+        .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--bento-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; font-family: 'Inter', sans-serif; border-radius: 0; }
+        .tab-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
+        .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .summary-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; }
+        .summary-card.alt { border-left: 3px solid var(--bento-primary); }
+        .summary-card.warn { border-left: 3px solid var(--bento-warning); }
+        .summary-label { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; }
+        .summary-value { font-size: 24px; font-weight: 700; color: var(--bento-text); }
+        .power-draw { text-align: center; padding: 14px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 16px; }
+        .power-draw-value { font-size: 28px; font-weight: 700; color: var(--bento-primary); }
+        .power-draw-unit { font-size: 11px; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; }
+        .chart-container { position: relative; height: 280px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 16px; }
+        .chart-title { font-size: 13px; font-weight: 600; color: var(--bento-text); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .chart-title span:last-child { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; }
+        canvas { max-width: 100% !important; border: none !important; display: block !important; }
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .stat-item { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; }
+        .stat-label { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+        .stat-value { font-size: 18px; font-weight: 700; color: var(--bento-text); }
+        .heatmap-legend { display: flex; gap: 16px; justify-content: center; margin-top: 10px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--bento-text-secondary); }
+        .legend-color { width: 14px; height: 14px; border-radius: 3px; }
+        .compare-mode-bar { display: flex; gap: 4px; margin-bottom: 16px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 4px; }
+        .compare-mode-btn { flex: 1; padding: 8px 10px; border: none; background: transparent; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--bento-text-secondary); border-radius: 8px; transition: all .2s; font-family: 'Inter', sans-serif; white-space: nowrap; }
+        .compare-mode-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
+        .compare-mode-btn.active { color: #fff; background: var(--bento-primary); font-weight: 600; box-shadow: 0 2px 6px rgba(59,130,246,.3); }
+        .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .comparison-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; }
+        .comparison-title { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; }
+        .comparison-value { font-size: 24px; font-weight: 700; color: var(--bento-text); margin: 4px 0; }
+        .change-indicator { font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; }
+        .change-up { color: var(--bento-error); background: var(--bento-error-light); }
+        .change-down { color: var(--bento-success); background: var(--bento-success-light); }
+        .change-up { color: var(--bento-error); }
+        .change-down { color: var(--bento-success); }
+        .section-title { font-size: 13px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+        .recommendation { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 10px; transition: background .15s; }
+        .recommendation:hover { background: var(--bento-primary-light); }
+        .recommendation.high { border-left: 3px solid var(--bento-error); }
+        .recommendation.medium { border-left: 3px solid var(--bento-warning); }
+        .recommendation.low { border-left: 3px solid var(--bento-success); }
+        .rec-icon { font-size: 20px; flex-shrink: 0; }
+        .rec-content { flex: 1; }
+        .rec-title { font-size: 13px; font-weight: 600; color: var(--bento-text); margin-bottom: 4px; }
+        .rec-description { font-size: 12px; color: var(--bento-text-secondary); line-height: 1.5; }
+        .rec-footer { display: flex; gap: 8px; margin-top: 8px; }
+        .savings-badge { display: inline-flex; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--bento-success-light); color: var(--bento-success); }
+        .difficulty-badge { display: inline-flex; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--bento-primary-light); color: var(--bento-primary); text-transform: capitalize; }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--bento-border); }
+        .pagination-btn { padding: 6px 14px; border: 1.5px solid var(--bento-border); background: var(--bento-card); color: var(--bento-text); border-radius: var(--bento-radius-xs); cursor: pointer; font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif; transition: all .2s; }
+        .pagination-btn:hover:not(:disabled) { background: var(--bento-primary); color: #fff; border-color: var(--bento-primary); }
+        .pagination-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .pagination-info { font-size: 12px; color: var(--bento-text-secondary); }
+        .page-size-select { padding: 5px 8px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs); font-size: 12px; font-family: 'Inter', sans-serif; background: var(--bento-card); color: var(--bento-text); }
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
-          .card, .card-container { padding: 14px; }
-          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
-          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
-          .panels, .board { flex-direction: column; }
-          .column { min-width: unset; }
-          h2 { font-size: 18px; }
-          h3 { font-size: 15px; }
+          .tab-btn { padding: 6px 10px; font-size: 12px; }
+          .card { padding: 14px; }
+          .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .summary-value, .comparison-value { font-size: 18px; }
+          .summary-label, .comparison-title { font-size: 10px; }
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
-          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
-          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+          .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .summary-value, .comparison-value { font-size: 16px; }
         }
-      </style>
+      
+
+
+        /* G6: Chart container constraints */
+        .chart-container { max-height: 300px; overflow: hidden; position: relative; }
+        .chart-container canvas { max-height: 250px; width: 100%; }
+        canvas { max-height: 300px; }
+        </style>
     `;
   }
 
   _getTemplate() {
     return `
-      <div class="card-container">
+      <div class="card">
         <h2 class="card-title">${this._config.title || 'Energy Optimizer'}</h2>
 
         <div class="data-source-badge">
-          ${this._hasRealData ? '\u{1F4CA} Dane z ' + (this._energySensorIds || []).length + ' sensor\u00F3w energii' : '\u26A0\uFE0F Demo data \u2014 brak sensor\u00F3w kWh'}
+          ${this._hasRealData ? '\u{1F4CA} Dane z ' + (this._energySensorIds || []).length + ' sensor\u00F3w energii' : (this._statsLoading ? '\u23F3 Wczytywanie danych z recorder...' : '\u26A0\uFE0F Demo data \u2014 brak sensor\u00F3w kWh')}
         </div>
 
         <div class="tabs">
@@ -979,10 +719,10 @@ canvas {
             <div class="summary-card alt">
               <span class="summary-label">Cost Estimate</span>
               <div class="summary-value">${this._calculateTodayCost().toFixed(2)}</div>
-              <span class="summary-label">${this._config.currency || 'PLN'}${(this._config.off_peak_rate && this._config.peak_rate !== this._config.off_peak_rate) ? ' (dual-tariff)' : ''}</span>
+              <span class="summary-label">${this._config.currency || 'PLN'}${((this._config.energy_tariff_mode || 'flat') !== 'flat') ? ' (dual-tariff)' : ''}</span>
             </div>
-            ${(this._config.off_peak_rate && this._config.peak_rate !== this._config.off_peak_rate) ? `
-            <div class="summary-card" style="border-left:3px solid var(--success)">
+            ${((this._config.energy_tariff_mode || 'flat') !== 'flat') ? `
+            <div class="summary-card" style="border-left:3px solid var(--bento-success)">
               <span class="summary-label">Potential Savings</span>
               <div class="summary-value">${this._calculatePotentialSavings().toFixed(2)}</div>
               <span class="summary-label">${this._config.currency || 'PLN'}/day by shifting to off-peak</span>
@@ -1008,7 +748,7 @@ canvas {
           <div class="chart-container">
             <div class="chart-title">
               <span>24-Hour Usage</span>
-              <span style="font-size: 12px; color: var(--secondary-text); font-weight: 400;">kWh by hour</span>
+              <span style="font-size: 12px; color: var(--bento-text-secondary); font-weight: 400;">kWh by hour</span>
             </div>
             <canvas id="dashboard-chart"></canvas>
           </div>
@@ -1018,7 +758,7 @@ canvas {
           <div class="chart-container">
             <div class="chart-title">
               <span>Weekly Heat Map</span>
-              <span style="font-size: 12px; color: var(--secondary-text); font-weight: 400;">Energy intensity by day & hour</span>
+              <span style="font-size: 12px; color: var(--bento-text-secondary); font-weight: 400;">Energy intensity by day & hour</span>
             </div>
             <canvas id="heatmap-canvas"></canvas>
             <div class="heatmap-legend">
@@ -1059,7 +799,7 @@ canvas {
           <div class="chart-container">
             <div class="chart-title">
               <span>7-Day Trend</span>
-              <span style="font-size: 12px; color: var(--secondary-text); font-weight: 400;">Daily consumption average</span>
+              <span style="font-size: 12px; color: var(--bento-text-secondary); font-weight: 400;">Daily consumption average</span>
             </div>
             <canvas id="trend-chart"></canvas>
           </div>
@@ -1067,7 +807,7 @@ canvas {
           <div class="chart-container">
             <div class="chart-title">
               <span>Day-of-Week Comparison</span>
-              <span style="font-size: 12px; color: var(--secondary-text); font-weight: 400;">Average daily usage</span>
+              <span style="font-size: 12px; color: var(--bento-text-secondary); font-weight: 400;">Average daily usage</span>
             </div>
             <canvas id="weekday-chart"></canvas>
           </div>
@@ -1078,70 +818,38 @@ canvas {
         </div>
 
         <div id="compare" class="tab-content">
-          <div class="comparison-grid">
-            <div class="comparison-card">
-              <div class="comparison-title">This Week</div>
-              <div class="comparison-value">${this._comparisonData.thisWeek.toFixed(2)}</div>
-              <div class="comparison-title">kWh</div>
-            </div>
-            <div class="comparison-card">
-              <div class="comparison-title">Last Week</div>
-              <div class="comparison-value">${this._comparisonData.lastWeek.toFixed(2)}</div>
-              <div class="change-indicator ${this._comparisonData.thisWeek > this._comparisonData.lastWeek ? 'change-up' : 'change-down'}">
-                ${this._comparisonData.thisWeek > this._comparisonData.lastWeek ? '📈' : '📉'}
-                ${Math.abs(((this._comparisonData.thisWeek - this._comparisonData.lastWeek) / this._comparisonData.lastWeek * 100)).toFixed(1)}%
-              </div>
-            </div>
+          <div class="compare-mode-bar">
+            <button class="compare-mode-btn ${this._comparePeriod === 'w-w' ? 'active' : ''}" data-cmp="w-w">Week vs Week</button>
+            <button class="compare-mode-btn ${this._comparePeriod === 'm-m' ? 'active' : ''}" data-cmp="m-m">Month vs Month</button>
+            <button class="compare-mode-btn ${this._comparePeriod === 'y-y' ? 'active' : ''}" data-cmp="y-y">Year vs Year</button>
           </div>
-
-          <div class="comparison-grid">
-            <div class="comparison-card">
-              <div class="comparison-title">This Month</div>
-              <div class="comparison-value">${this._comparisonData.thisMonth.toFixed(0)}</div>
-              <div class="comparison-title">kWh</div>
-            </div>
-            <div class="comparison-card">
-              <div class="comparison-title">Last Month</div>
-              <div class="comparison-value">${this._comparisonData.lastMonth.toFixed(0)}</div>
-              <div class="change-indicator ${this._comparisonData.thisMonth > this._comparisonData.lastMonth ? 'change-up' : 'change-down'}">
-                ${this._comparisonData.thisMonth > this._comparisonData.lastMonth ? '📈' : '📉'}
-                ${Math.abs(((this._comparisonData.thisMonth - this._comparisonData.lastMonth) / this._comparisonData.lastMonth * 100)).toFixed(1)}%
-              </div>
-            </div>
-          </div>
-
-          <div class="chart-container">
-            <div class="chart-title">
-              <span>Weekly Comparison</span>
-              <span style="font-size: 12px; color: var(--secondary-text); font-weight: 400;">This week vs last week</span>
-            </div>
-            <canvas id="comparison-chart"></canvas>
-          </div>
-
-          <div class="stats-row">
-            <div class="stat-item">
-              <div class="stat-label">Cost Difference (Week)</div>
-              <div class="stat-value" style="${this._comparisonData.thisWeek > this._comparisonData.lastWeek ? 'color: var(--danger)' : 'color: var(--success)'}">${((this._comparisonData.thisWeek - this._comparisonData.lastWeek) * this._comparisonData.costPerKwh).toFixed(2)} ${this._config.currency}</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">Weekly Average Cost</div>
-              <div class="stat-value">${(this._comparisonData.thisWeek * this._comparisonData.costPerKwh).toFixed(2)} ${this._config.currency}</div>
-            </div>
-          </div>
+          <div id="compare-body">${this._renderCompareBody()}</div>
         </div>
       </div>
     `;
   }
 
   _setupEventListeners() {
-    const buttons = this.shadowRoot.querySelectorAll('.tab-button');
-    buttons.forEach(button => {
+    const sr = this.shadowRoot;
+    sr.querySelectorAll('.tab-btn').forEach(button => {
       button.addEventListener('click', (e) => {
-        buttons.forEach(b => b.classList.remove('active'));
+        sr.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         this._currentTab = e.target.dataset.tab;
         this._showTab(e.target.dataset.tab);
       });
+    });
+    // Comparison mode buttons (use delegation since body is rebuilt)
+    sr.addEventListener('click', (e) => {
+      const btn = e.target.closest('.compare-mode-btn');
+      if (!btn) return;
+      this._comparePeriod = btn.dataset.cmp;
+      sr.querySelectorAll('.compare-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const body = sr.querySelector('#compare-body');
+      if (body) body.innerHTML = this._renderCompareBody();
+      this._drawComparisonChart().catch(() => {});
+      this._drawTrendBarChart().catch(() => {});
     });
   }
   async _loadChartJS() {
@@ -1197,6 +905,7 @@ canvas {
         this._renderRecommendations();
       } else if (tabName === 'compare') {
         this._drawComparisonChart().catch(err => console.error('Comparison chart error:', err));
+        this._drawTrendBarChart().catch(err => console.error('Trend bar chart error:', err));
       }
     }, 100);
   }
@@ -1305,6 +1014,10 @@ _drawHeatmap() {
     const maxVal = allValues.length > 0 ? Math.max(...allValues) : 1;
     const range = maxVal - minVal || 1;
 
+    // Detect dark mode for text and border colors
+    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const textColor = isDark ? 'rgba(226, 232, 240, 0.85)' : 'rgba(0, 0, 0, 0.7)';
+
     // Helper to get color from value (blue to red gradient)
     const getColor = (val) => {
       const normalized = (val - minVal) / range;
@@ -1322,14 +1035,14 @@ _drawHeatmap() {
         ctx.fillRect(x, y, cellWidth - 1, cellHeight - 1);
 
         // Draw cell border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, cellWidth - 1, cellHeight - 1);
       });
     });
 
     // Day labels (Y-axis)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = textColor;
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
@@ -1347,7 +1060,7 @@ _drawHeatmap() {
     }
 
     // Legend
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = textColor;
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'left';
     const legendX = padding;
@@ -1511,87 +1224,80 @@ async _drawComparisonChart() {
       await this._loadChartJS();
       const canvas = this.shadowRoot.getElementById('comparison-chart');
       if (!canvas) return;
-
       this._destroyChart('comparison');
-
       const ctx = canvas.getContext('2d');
-      
-      const compData = this._comparisonData || {
-        thisWeek: [0, 0, 0, 0, 0, 0, 0],
-        lastWeek: [0, 0, 0, 0, 0, 0, 0],
-        average: [0, 0, 0, 0, 0, 0, 0]
-      };
+      const c = this._comparisonData;
+      if (!c) return;
+      const mode = this._comparePeriod;
 
-      const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      let currentData, prevData, currentLabel, prevLabel, xLabels;
+      if (mode === 'w-w') {
+        currentData = c.thisWeekDaily; prevData = c.lastWeekDaily;
+        currentLabel = 'Ten tydzień'; prevLabel = 'Poprzedni tydz.';
+        xLabels = ['Pn','Wt','Śr','Cz','Pt','So','Nd'].slice(0, Math.max(currentData.length, prevData.length));
+      } else if (mode === 'm-m') {
+        currentData = c.thisMonthDaily; prevData = c.lastMonthDaily;
+        currentLabel = 'Ten miesiąc'; prevLabel = 'Poprzedni mies.';
+        xLabels = Array.from({length: Math.max(currentData.length, prevData.length)}, (_, i) => i + 1);
+      } else {
+        currentData = c.thisMonthDaily; prevData = c.lastYearMonthDaily;
+        currentLabel = `${c.thisMonthLabel} ${new Date().getFullYear()}`;
+        prevLabel = `${c.thisMonthLabel} ${new Date().getFullYear() - 1}`;
+        xLabels = Array.from({length: Math.max(currentData.length, prevData.length)}, (_, i) => i + 1);
+      }
 
-      const chartConfig = {
+      this._charts['comparison'] = new window.Chart(ctx, {
         type: 'bar',
         data: {
-          labels: labels,
+          labels: xLabels,
           datasets: [
-            {
-              label: 'This Week (kWh)',
-              data: compData.thisWeek,
-              backgroundColor: 'rgba(59, 130, 246, 0.7)',
-              borderColor: 'rgb(59, 130, 246)',
-              borderWidth: 1,
-              borderRadius: 4
-            },
-            {
-              label: 'Last Week (kWh)',
-              data: compData.lastWeek,
-              backgroundColor: 'rgba(200, 200, 200, 0.7)',
-              borderColor: 'rgb(200, 200, 200)',
-              borderWidth: 1,
-              borderRadius: 4
-            },
-            {
-              label: 'Average (kWh)',
-              data: compData.average,
-              backgroundColor: 'rgba(100, 200, 100, 0.7)',
-              borderColor: 'rgb(100, 200, 100)',
-              borderWidth: 1,
-              borderRadius: 4
-            }
+            { label: currentLabel, data: currentData, backgroundColor: 'rgba(59,130,246,.7)', borderColor: '#3B82F6', borderWidth: 1, borderRadius: 4 },
+            { label: prevLabel, data: prevData, backgroundColor: 'rgba(148,163,184,.5)', borderColor: '#94A3B8', borderWidth: 1, borderRadius: 4 }
           ]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top'
-            },
-            tooltip: {
-              callbacks: {
-                label: (context) => {
-                  return `${context.dataset.label}: ${context.formattedValue} kWh`;
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Daily Total (kWh)'
-              }
-            },
-            x: {
-              title: {
-                display: true,
-                text: 'Day of Week'
-              }
-            }
-          }
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: true, position: 'top' }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${parseFloat(c.formattedValue).toFixed(2)} kWh` } } },
+          scales: { y: { beginAtZero: true, title: { display: true, text: 'kWh' } }, x: { title: { display: true, text: mode === 'w-w' ? 'Dzień tygodnia' : 'Dzień miesiąca' } } }
         }
-      };
-
-      this._charts['comparison'] = new window.Chart(ctx, chartConfig);
+      });
     } catch (error) {
       console.error('Error drawing comparison chart:', error);
+    }
+  }
+
+  async _drawTrendBarChart() {
+    try {
+      await this._loadChartJS();
+      const canvas = this.shadowRoot.getElementById('trend-bar-chart');
+      if (!canvas) return;
+      this._destroyChart('trendBar');
+      const ctx = canvas.getContext('2d');
+      const c = this._comparisonData;
+      if (!c) return;
+      const mode = this._comparePeriod;
+
+      const data = mode === 'w-w' ? c.weeklyTotals : c.monthlyTotals;
+      if (!data || data.length === 0) return;
+
+      const labels = data.map(d => d.label);
+      const values = data.map(d => d.kwh);
+      const colors = values.map((_, i) => i === values.length - 1 ? 'rgba(59,130,246,.8)' : 'rgba(148,163,184,.5)');
+
+      this._charts['trendBar'] = new window.Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'kWh', data: values, backgroundColor: colors, borderRadius: 4, borderSkipped: false }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${parseFloat(c.formattedValue).toFixed(1)} kWh` } } },
+          scales: { y: { beginAtZero: true }, x: {} }
+        }
+      });
+    } catch (error) {
+      console.error('Error drawing trend bar chart:', error);
     }
   }
 
@@ -1618,28 +1324,26 @@ async _drawComparisonChart() {
   }
 
   _calculateTodayCost() {
-    const peakRate = this._config.peak_rate || this._config.energy_price || 0.65;
-    const offPeakRate = this._config.off_peak_rate || peakRate;
-    const peakStart = this._config.peak_hours?.start || 6;
-    const peakEnd = this._config.peak_hours?.end || 22;
+    const dow = new Date().getDay();
     let cost = 0;
     this._energyData.forEach((kwh, hour) => {
-      const rate = (hour >= peakStart && hour < peakEnd) ? peakRate : offPeakRate;
-      cost += kwh * rate;
+      cost += kwh * this._getRate(hour, dow);
     });
     return cost;
   }
 
   _calculatePotentialSavings() {
-    const peakRate = this._config.peak_rate || this._config.energy_price || 0.65;
-    const offPeakRate = this._config.off_peak_rate || peakRate;
-    if (peakRate === offPeakRate) return 0;
-    const peakStart = this._config.peak_hours?.start || 6;
-    const peakEnd = this._config.peak_hours?.end || 22;
+    const mode = this._config.energy_tariff_mode || 'flat';
+    if (mode === 'flat') return 0;
+    const dow = new Date().getDay();
+    const nightStart = this._config.energy_night_hour_start || 22;
+    const dayStart = this._config.energy_day_hour_start || 6;
     let savings = 0;
     this._energyData.forEach((kwh, hour) => {
-      if (hour >= peakStart && hour < peakEnd) {
-        savings += kwh * (peakRate - offPeakRate) * 0.3;
+      const currentRate = this._getRate(hour, dow);
+      const nightRate = this._getRate(nightStart, dow);
+      if (currentRate > nightRate) {
+        savings += kwh * (currentRate - nightRate) * 0.3;
       }
     });
     return savings;

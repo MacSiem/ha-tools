@@ -1,7 +1,7 @@
 {
   "name": "HA Tools Panel",
-  "filename": "ha-tools-panel.js",
+  "filename": "ha-tools-loader.js",
   "render_readme": true,
   "content_in_root": true,
-  "homeassistant": "2023.1.0"
+  "homeassistant": "2024.1.0"
 }

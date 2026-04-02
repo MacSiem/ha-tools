@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HA Security Check - Security audit tool for Home Assistant
  * Checks for common security issues: exposed ports, SSL, outdated addons, insecure integrations, etc.
  */
@@ -20,6 +20,7 @@ class HASecurityCheck extends HTMLElement {
     this._loading = true;
     this._auditData = null;
     this._lastScan = null;
+    this._lastHtml = '';
   }
 
   // -- Persistence --
@@ -517,7 +518,14 @@ class HASecurityCheck extends HTMLElement {
         hostInfo = infoResp || null;
       } catch(ne3) {}
 
-      this._auditData = { findings, score, critCount, warnCount, passCount, infoCount, totalChecks, users, addons: installedAddons, entities: allEntities.length, networkInterfaces: networkInfo, hostInfo: hostInfo };
+      // Fetch config entries (integrations)
+      let cfgEntries = [];
+      try {
+        const entries = await this._hass.callWS({type: 'config_entries/list'});
+        cfgEntries = entries || [];
+      } catch(e) {}
+
+      this._auditData = { findings, score, critCount, warnCount, passCount, infoCount, totalChecks, users, addons: installedAddons, integrations: cfgEntries, entities: allEntities.length, networkInterfaces: networkInfo, hostInfo: hostInfo };
       this._lastScan = new Date();
     this._saveScanData();
 
@@ -531,8 +539,9 @@ class HASecurityCheck extends HTMLElement {
   }
 
   _render() {
-    this.shadowRoot.innerHTML = `
-      <style>
+    const html = `
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -1117,7 +1126,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+      
+
+</style>
       <ha-card>
         <div class="security-card">
           <div class="card-header">
@@ -1130,12 +1141,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <button class="tab-button ${this._activeTab === 'addons' ? 'active' : ''}" data-tab="addons">Addons</button>
             <button class="tab-button ${this._activeTab === 'network' ? 'active' : ''}" data-tab="network">Network</button>
             <button class="tab-button ${this._activeTab === 'users' ? 'active' : ''}" data-tab="users">Users</button>
+            <button class="tab-button ${this._activeTab === 'integrations' ? 'active' : ''}" data-tab="integrations">Integrations</button>
             <button class="tab-button ${this._activeTab === 'tips' ? 'active' : ''}" data-tab="tips">Tips</button>
           </div>
           <div id="content"></div>
         </div>
       </ha-card>
     `;
+    if (this._lastHtml === html) return;
+    this._lastHtml = html;
+    this.shadowRoot.innerHTML = html;
 
     this.shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1162,6 +1177,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       case 'addons': content.innerHTML = this._renderAddons(d); break;
       case 'network': content.innerHTML = this._renderNetwork(d); break;
       case 'users': content.innerHTML = this._renderUsers(d); break;
+      case 'integrations': content.innerHTML = this._renderIntegrations(d); break;
       case 'tips': content.innerHTML = this._renderTips(d); break;
     }
   }
@@ -1326,7 +1342,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return html;
   }
 
-  _renderTips(d) {
+  _renderIntegrations(d) {
+    if (!d.integrations || !d.integrations.length) return '<div class="empty-msg">No integrations configured</div>';
+    return `<div class="table-container"><table class="entity-table"><thead><tr><th>Integration</th><th>Domain</th><th>Status</th></tr></thead><tbody>${d.integrations.map(e => {
+      const statusColor = e.state === 'loaded' ? '#4caf50' : e.state === 'setup_error' ? '#f44336' : e.state === 'not_loaded' ? '#ff9800' : '#9e9e9e';
+      const statusLabel = e.state === 'loaded' ? 'OK Loaded' : e.state === 'setup_error' ? 'X Error' : e.state === 'not_loaded' ? 'U Unloaded' : e.state;
+      return `<tr><td>${this._sanitize(e.title || e.domain)}</td><td style="font-family:monospace;font-size:12px">${e.domain}</td><td style="color:${statusColor};font-weight:600">${statusLabel}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  }
+
+    _renderTips(d) {
     return `
       <div class="tip-box"><strong>\u{1F510} Authentication</strong><br>Enable multi-factor authentication (TOTP) for all user accounts, especially owner accounts. Go to Profile \u2192 Multi-factor Authentication.</div>
       <div class="tip-box" style="margin-top:8px"><strong>\u{1F310} Network Security</strong><br>Never expose your HA instance directly to the internet. Use Cloudflare Tunnel, Nabu Casa, or a reverse proxy with SSL. Keep port 8123 behind a firewall.</div>

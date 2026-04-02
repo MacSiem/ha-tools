@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HA Tools Panel v2.2 — Auto-loading addons with progress notification
  * Author: MacSiem
  * Features: Auto-loads addon scripts, polls for customElements registration,
@@ -8,8 +8,8 @@
 // ── Build version & auto-update detection ──
 // Zmień BUILD_VERSION przy każdej aktualizacji kodu.
 // Panel automatycznie wykryje nową wersję i pokaże toast z przyciskiem "Odśwież".
-const HA_TOOLS_BUILD = '3.5.2';
-const HA_TOOLS_BUILD_TS = '20260327-1800';
+const HA_TOOLS_BUILD = '3.7.0';
+const HA_TOOLS_BUILD_TS = '20260402-1200';
 
 (function _checkVersion() {
   const KEY = 'ha-tools-build';
@@ -37,6 +37,20 @@ class HAToolsPanel extends HTMLElement {
   disconnectedCallback() {
     if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
     if (this._autoRefreshTimer) { clearInterval(this._autoRefreshTimer); this._autoRefreshTimer = null; }
+    if (this._hashHandler) window.removeEventListener('hashchange', this._hashHandler);
+  }
+
+  _navigateFromHash() {
+    const hash = location.hash.slice(1);
+    if (!hash) { if (this._activeView !== 'home') this._showHome(true); return; }
+    if (hash === 'settings') { if (this._activeView !== 'settings') this._showSettings(true); return; }
+    const tool = HAToolsPanel.TOOLS.find(t => t.id === hash);
+    if (tool) {
+      if (this._activeToolId !== hash) {
+        this._loadTool(hash, tool.tag, true);
+        this._setActiveNav(this.shadowRoot.querySelector(`.nav-item[data-tool="${hash}"]`));
+      }
+    }
   }
 
   connectedCallback() {
@@ -50,6 +64,8 @@ class HAToolsPanel extends HTMLElement {
         this[prop] = val;
       }
     }
+    this._hashHandler = () => this._navigateFromHash();
+    window.addEventListener('hashchange', this._hashHandler);
   }
 
   // Map tool tags to their script paths (all in /local/community/ha-tools/)
@@ -65,7 +81,6 @@ class HAToolsPanel extends HTMLElement {
       'ha-sentence-manager': '/local/community/ha-tools/ha-sentence-manager.js',
       'ha-chore-tracker': '/local/community/ha-tools/ha-chore-tracker.js',
       'ha-baby-tracker': '/local/community/ha-tools/ha-baby-tracker.js',
-      'ha-cry-analyzer': '/local/community/ha-tools/ha-cry-analyzer.js',
       'ha-data-exporter': '/local/community/ha-tools/ha-data-exporter.js',
       'ha-storage-monitor': '/local/community/ha-tools/ha-storage-monitor.js',
       'ha-security-check': '/local/community/ha-tools/ha-security-check.js',
@@ -75,12 +90,25 @@ class HAToolsPanel extends HTMLElement {
       'ha-yaml-checker': '/local/community/ha-tools/ha-yaml-checker.js',
       'ha-energy-insights': '/local/community/ha-tools/ha-energy-insights.js',
       'ha-purge-cache': '/local/community/ha-tools/ha-purge-cache.js',
+      'ha-entity-renamer': '/local/community/ha-tools/ha-entity-renamer.js',
+      'ha-frigate-privacy': '/local/community/ha-tools/ha-frigate-privacy.js',
+      'ha-encoding-fixer': '/local/community/ha-tools/ha-encoding-fixer.js',
     };
   }
 
   _loadAddonScripts() {
     // Always use Date.now() cache buster to avoid stale JS from HACS/browser cache
     const cb = Date.now();
+
+    // Load shared Bento Design System CSS first (sync, non-module)
+    if (!window.HAToolsBentoCSS) {
+      const bento = document.createElement('script');
+      bento.type = 'text/javascript';
+      bento.src = '/local/community/ha-tools/ha-tools-bento.js?_=' + cb;
+      bento.async = false; // load before tools
+      document.head.appendChild(bento);
+    }
+
     const scripts = HAToolsPanel.TOOL_SCRIPTS;
     for (const [tag, src] of Object.entries(scripts)) {
       if (customElements.get(tag)) continue; // already registered by HACS or previous load
@@ -112,7 +140,7 @@ class HAToolsPanel extends HTMLElement {
         this._loading = false;
         this._updateLoadingStatus();
         this._updateSidebar();
-        if (this._activeView === 'home') this._showHome();
+        if (location.hash && location.hash.length > 1) { this._navigateFromHash(); } else if (this._activeView === 'home') { this._showHome(); }
         if (this._pollTimer) clearInterval(this._pollTimer);
         this._pollTimer = null;
         // Loading complete
@@ -169,15 +197,20 @@ class HAToolsPanel extends HTMLElement {
     const { available, unavailable } = this._getToolStatus();
     // Update badge
     const badge = this.shadowRoot?.querySelector('.nav-badge');
-    if (badge) badge.textContent = `${available.length}/${HAToolsPanel.TOOLS.length}`;
+    if (badge) {
+      const avail = available.filter(t=>t.tag).length;
+      const total = HAToolsPanel.TOOLS.filter(t=>t.tag).length;
+      if (avail >= total) { badge.style.display = 'none'; }
+      else { badge.style.display = ''; badge.textContent = avail + '/' + total; }
+    }
     // Update tools count in section header
     const toolsSection = this.shadowRoot?.querySelector('.nav-section-tools');
-    if (toolsSection) toolsSection.textContent = `Narzędzia (${available.length})`;
+    if (toolsSection) toolsSection.textContent = `Narzędzia (${available.filter(t => t.tag).length})`;
     // Update unavailable section header
     const unavailSection = this.shadowRoot?.querySelector('.nav-section-unavailable');
     if (unavailSection) {
-      if (unavailable.length > 0) {
-        unavailSection.textContent = `Niedostępne (${unavailable.length})`;
+      if (unavailable.filter(t=>t.tag).length > 0) {
+        unavailSection.textContent = `Niedostępne (${unavailable.filter(t => t.tag).length})`;
         unavailSection.style.display = '';
       } else {
         unavailSection.style.display = 'none';
@@ -188,8 +221,16 @@ class HAToolsPanel extends HTMLElement {
     const unavailContainer = this.shadowRoot?.querySelector('.nav-unavail-list');
     if (toolsContainer) {
       // Build grouped sidebar with collapse/expand
-      const parents = available.filter(t => !t.group);
-      const children = available.filter(t => t.group);
+      // Filter children by dashboardCard setting
+      const children = available.filter(t => t.group && this._getSetting(t.id + '.dashboardCard', true));
+      // Show parent groups only if they have visible children (or are standalone visible tools)
+      const parents = available.filter(t => !t.group).filter(p => {
+        const hasVisibleChildren = children.some(c => c.group === p.id);
+        if (hasVisibleChildren) return true;
+        // Standalone tool (no children) — check own dashboardCard
+        if (p.tag) return this._getSetting(p.id + '.dashboardCard', true);
+        return false;
+      });
       let html = '';
       for (const t of parents) {
         const isActive = this._activeToolId === t.id;
@@ -253,7 +294,7 @@ class HAToolsPanel extends HTMLElement {
       });
     }
     if (unavailContainer) {
-      if (unavailable.length > 0) {
+      if (unavailable.filter(t=>t.tag).length > 0) {
         unavailContainer.innerHTML = unavailable.map(t => `
           <div class="nav-item unavailable" title="Nie zainstalowane">
             <span class="nav-icon">${t.icon}</span>
@@ -282,7 +323,6 @@ class HAToolsPanel extends HTMLElement {
       { id: 'home-family', name: 'Home & Family', icon: '\u{1F3E1}', tag: null, desc: 'Dom i rodzina', category: 'life' },
       { id: 'chore-tracker', group: 'home-family', name: 'Chore Tracker', icon: '\u{1F3E0}', tag: 'ha-chore-tracker', desc: 'Śledzenie obowiązków domowych', repo: 'MacSiem/ha-chore-tracker', category: 'life' },
       { id: 'baby-tracker', group: 'home-family', name: 'Baby Tracker', icon: '\u{1F37C}', tag: 'ha-baby-tracker', desc: 'Śledzenie aktywności dziecka', repo: 'MacSiem/ha-baby-tracker', category: 'life' },
-      { id: 'cry-analyzer', group: 'home-family', name: 'Cry Analyzer', icon: '\u{1F476}', tag: 'ha-cry-analyzer', desc: 'Analiza płaczu dziecka AI', repo: 'MacSiem/ha-cry-analyzer', category: 'life' },
       { id: 'data-exporter', group: 'advanced-tools', name: 'Data Exporter', icon: '\u{1F4E4}', tag: 'ha-data-exporter', desc: 'Eksportuj dane z Home Assistant', repo: 'MacSiem/ha-data-exporter', category: 'system' },
       { id: 'storage-monitor', group: 'device-health', name: 'Storage Monitor', icon: '\u{1F4BD}', tag: 'ha-storage-monitor', desc: 'Wizualizacja użycia dysku w stylu WinDirStat', repo: 'MacSiem/ha-storage-monitor', category: 'system' },
       { id: 'security-check', group: 'device-health', name: 'Security Check', icon: '\u{1F6E1}\uFE0F', tag: 'ha-security-check', desc: 'Audyt bezpieczeństwa Home Assistant', repo: 'MacSiem/ha-security-check', category: 'system' },
@@ -292,6 +332,9 @@ class HAToolsPanel extends HTMLElement {
       { id: 'energy-insights', group: 'smart-reports', name: 'Energy Insights', icon: '\u26A1', tag: 'ha-energy-insights', desc: 'Dashboard energii: zu\u017Cycie, koszty, top urz\u0105dzenia, trendy', repo: 'MacSiem/ha-energy-insights', category: 'monitor' },
       { id: 'energy-email', group: 'smart-reports', name: 'Energy Email', icon: '\uD83D\uDCE7', tag: 'ha-energy-email', desc: 'Dzienne/tygodniowe/miesi\u0119czne raporty energii emailem', repo: 'MacSiem/ha-energy-email', category: 'reports' },
       { id: 'vacuum-water-monitor', group: 'home-family', name: 'Vacuum Water Monitor', icon: '\uD83E\uDDF9', tag: 'ha-vacuum-water-monitor', desc: 'Monitor poziomu wody i serwisu dla odkurzaczy (Roborock, Dreame)', repo: 'MacSiem/ha-vacuum-water-monitor', category: 'monitor' },
+      { id: 'entity-renamer', group: 'advanced-tools', name: 'Entity Renamer', icon: '\uD83C\uDFF7\uFE0F', tag: 'ha-entity-renamer', desc: 'Zmiana nazw encji i urządzeń z propagacją do dashboardów, automatyzacji i skryptów', repo: 'MacSiem/ha-entity-renamer', category: 'system' },
+      { id: 'frigate-privacy', group: 'device-health', name: 'Frigate Privacy', icon: '🔒', tag: 'ha-frigate-privacy', desc: 'Pauza kamer Frigate z timerem i harmonogramem prywatności', repo: 'MacSiem/ha-tools-panel', category: 'system' },
+      { id: 'encoding-fixer', group: 'advanced-tools', name: 'Encoding Fixer', icon: '🔧', tag: 'ha-encoding-fixer', desc: 'Wykrywanie i naprawa mojibake, BOM i problemów z kodowaniem', repo: 'MacSiem/ha-tools-panel', category: 'debug' },
     ];
   }
 
@@ -342,11 +385,21 @@ class HAToolsPanel extends HTMLElement {
     --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
   }
   .donate-section {
-    background: linear-gradient(135deg, #2a1525 0%, #1e1530 50%, #251530 100%);
-    border-color: #4a3555;
+    --donate-bg: linear-gradient(135deg, #2a1525 0%, #1e1530 50%, #251530 100%);
+    --donate-border: #4a3555;
+    --donate-heading: #f0c0d8;
+    --donate-text: #d4a0b8;
+    --donate-coffee-bg: #b8a100;
+    --donate-coffee-text: #fff;
+    --donate-coffee-border: #8a7a00;
+    --donate-paypal-bg: #005a96;
+    --donate-paypal-text: #e0f0ff;
+    --donate-paypal-border: #004a7a;
+    background: var(--donate-bg);
+    border-color: var(--donate-border);
   }
-  .donate-section h3 { color: #f0c0d8; }
-  .donate-section p { color: #d4a0b8; }
+  .donate-section h3 { color: var(--donate-heading, #f0c0d8); }
+  .donate-section p { color: var(--donate-text, #d4a0b8); }
 }
 
 /* Dark mode: :host already uses HA CSS vars. @media dark handles browser dark. Removed :host-context override. */
@@ -697,6 +750,19 @@ class HAToolsPanel extends HTMLElement {
 .settings-group-header.collapsed .chevron { transform: rotate(-90deg); }
 .settings-group-body { padding: 4px 0; }
 .settings-group-body.hidden { display: none; }
+/* SETTINGS DASHBOARD GRID */
+.settings-dashboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; padding: 12px 16px; }
+.settings-dash-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; transition: var(--bento-transition); }
+.settings-dash-card:hover { border-color: var(--bento-primary); background: rgba(59,130,246,0.03); }
+.settings-dash-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.settings-dash-icon { font-size: 18px; flex-shrink: 0; width: 28px; text-align: center; }
+.settings-dash-name { font-size: 13px; font-weight: 500; color: var(--bento-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-dash-extra { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--bento-border); }
+.settings-dash-extra .setting-row { padding: 8px 0; border-bottom: none; }
+.settings-dash-extra .setting-row:hover { background: none; }
+.settings-dash-extra .setting-label { font-size: 12px; }
+.settings-dash-extra .setting-desc { font-size: 11px; }
+@media (max-width: 600px) { .settings-dashboard { grid-template-columns: 1fr; } }
 .setting-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 14px 20px; border-bottom: 1px solid var(--bento-border);
@@ -819,8 +885,8 @@ class HAToolsPanel extends HTMLElement {
 /* Donate Section - Bento Style */
 .donate-section {
   margin-top: 32px;
-  background: linear-gradient(135deg, #fff5f5 0%, #fff0f6 50%, #f8f0ff 100%);
-  border: 1px solid #fecdd3;
+  background: var(--donate-bg, linear-gradient(135deg, #fff5f5 0%, #fff0f6 50%, #f8f0ff 100%));
+  border: 1px solid var(--donate-border, #fecdd3);
   border-radius: 16px;
   padding: 28px 32px;
   display: flex;
@@ -832,12 +898,12 @@ class HAToolsPanel extends HTMLElement {
 .donate-section h3 {
   font-size: 17px;
   font-weight: 600;
-  color: #4c0519;
+  color: var(--donate-heading, #4c0519);
   margin: 0 0 6px 0;
 }
 .donate-section p {
   font-size: 13.5px;
-  color: #6b1028;
+  color: var(--donate-text, #6b1028);
   margin: 0;
   line-height: 1.5;
 }
@@ -859,9 +925,9 @@ class HAToolsPanel extends HTMLElement {
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .donate-btn.coffee {
-  background: #FFDD00;
-  color: #000;
-  border: 1px solid #e6c700;
+  background: var(--donate-coffee-bg, #FFDD00);
+  color: var(--donate-coffee-text, #000);
+  border: 1px solid var(--donate-coffee-border, #e6c700);
 }
 .donate-btn.coffee:hover {
   background: #ffe534;
@@ -869,9 +935,9 @@ class HAToolsPanel extends HTMLElement {
   box-shadow: 0 4px 12px rgba(255,221,0,0.4);
 }
 .donate-btn.paypal {
-  background: #0070ba;
-  color: #fff;
-  border: 1px solid #005ea6;
+  background: var(--donate-paypal-bg, #0070ba);
+  color: var(--donate-paypal-text, #fff);
+  border: 1px solid var(--donate-paypal-border, #005ea6);
 }
 .donate-btn.paypal:hover {
   background: #0086e0;
@@ -894,22 +960,14 @@ class HAToolsPanel extends HTMLElement {
       const now = Date.now();
       if (!this._lastHassPropagation || (now - this._lastHassPropagation) > 5000) {
         this._lastHassPropagation = now;
-        if (this._cardInstance.tagName.toLowerCase() === 'ha-cry-analyzer') {
-          this._cardInstance.hassObj = hass;
-        } else {
-          this._cardInstance.hass = hass;
-        }
+        this._cardInstance.hass = hass;
       } else if (!this._hassPropScheduled) {
         this._hassPropScheduled = true;
         setTimeout(() => {
           this._hassPropScheduled = false;
           this._lastHassPropagation = Date.now();
           if (this._cardInstance) {
-            if (this._cardInstance.tagName.toLowerCase() === 'ha-cry-analyzer') {
-              this._cardInstance.hassObj = this._hass;
-            } else {
-              this._cardInstance.hass = this._hass;
-            }
+            this._cardInstance.hass = this._hass;
           }
         }, 5000);
       }
@@ -982,7 +1040,7 @@ class HAToolsPanel extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
@@ -1053,7 +1111,7 @@ button, .btn, .action-btn {
   transition: var(--bento-transition);
   cursor: pointer;
 }
-button.active, .btn.active, .btn-primary, .action-btn.active {
+button.active:not(.tab):not(.tab-btn):not(.tab-button), .btn.active:not(.tab):not(.tab-btn):not(.tab-button), .btn-primary, .action-btn.active {
   background: var(--bento-primary) !important;
   color: white !important;
   border-color: var(--bento-primary) !important;
@@ -1162,13 +1220,7 @@ canvas {
 
 /* ===== END BENTO LIGHT MODE ===== */
 
-/* Compact mode styles */
-.panel.compact .nav-item { padding: 6px 12px; font-size: 12px; }
-.panel.compact .sidebar-header { padding: 14px; font-size: 16px; }
-.panel.compact .toolbar { padding: 10px 16px; }
-.panel.compact .content { padding: 12px; }
-.panel.compact .tool-card { padding: 10px; }
-.panel.compact .home-section-title { font-size: 14px; margin-bottom: 8px; }
+
 
 ${HAToolsPanel.CSS}
         /* === MOBILE FIX === */
@@ -1190,8 +1242,54 @@ ${HAToolsPanel.CSS}
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
-      <div class="panel ${this._getSetting('compactMode', false) ? 'compact' : ''}">
+      
+/* ===== BENTO TAB OVERRIDE (unified) ===== */
+.tabs, .tab-bar, .tab-nav, .tab-header {
+  display: flex !important;
+  gap: 4px !important;
+  border-bottom: 2px solid var(--bento-border, var(--divider-color, #334155)) !important;
+  padding: 0 4px !important;
+  margin-bottom: 20px !important;
+  overflow-x: auto !important;
+  flex-wrap: nowrap !important;
+}
+.tab, .tab-btn, .tab-button, .dtab {
+  padding: 10px 18px !important;
+  border: none !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  font-family: 'Inter', sans-serif !important;
+  color: var(--bento-text-secondary, var(--secondary-text-color, #94A3B8)) !important;
+  border-bottom: 2px solid transparent !important;
+  margin-bottom: -2px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  white-space: nowrap !important;
+  border-radius: 0 !important;
+  flex: none !important;
+}
+.tab:hover, .tab-btn:hover, .tab-button:hover, .dtab:hover {
+  color: var(--bento-primary, #3B82F6) !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+.tab.active, .tab-btn.active, .tab-button.active, .dtab.active {
+  color: var(--bento-primary, #3B82F6) !important;
+  border-bottom-color: var(--bento-primary, #3B82F6) !important;
+  background: rgba(59, 130, 246, 0.04) !important;
+  font-weight: 600 !important;
+}
+/* Stat cards unified */
+.stat-card, .stat-item, .metric-card, .kpi-card {
+  background: var(--bento-card, var(--card-background-color, #1E293B)) !important;
+  border: 1px solid var(--bento-border, var(--divider-color, #334155)) !important;
+  border-radius: var(--bento-radius-sm, 10px) !important;
+  padding: 16px !important;
+  text-align: center !important;
+}
+/* ===== END BENTO TAB OVERRIDE ===== */
+</style>
+      <div class="panel ">
         <div class="sidebar">
           <div class="sidebar-header">
             <span>\u{1F6E0}\uFE0F</span> HA Tools
@@ -1201,10 +1299,10 @@ ${HAToolsPanel.CSS}
             <div class="nav-item active" data-view="home">
               <span class="nav-icon">\u{1F3E0}</span>
               <span>Home</span>
-              <span class="nav-badge">${available.length}/${HAToolsPanel.TOOLS.length}</span>
+              <span class="nav-badge">${available.filter(t=>t.tag).length}/${HAToolsPanel.TOOLS.filter(t=>t.tag).length}</span>
             </div>
 
-            <div class="nav-section nav-section-tools">Narzędzia (${available.length})</div>
+            <div class="nav-section nav-section-tools">Narzędzia (${available.filter(t => t.tag).length})</div>
             <div class="nav-tools-list">
               ${(() => {
                 const parents = available.filter(t => !t.group);
@@ -1233,8 +1331,8 @@ ${HAToolsPanel.CSS}
               })()}
             </div>
 
-            <div class="nav-section nav-section-unavailable" ${unavailable.length === 0 ? 'style="display:none"' : ''}>Niedostępne (${unavailable.length})</div>
-            <div class="nav-unavail-list" ${unavailable.length === 0 ? 'style="display:none"' : ''}>
+            <div class="nav-section nav-section-unavailable" ${unavailable.filter(t=>t.tag).length === 0 ? 'style="display:none"' : ''}>Niedostępne (${unavailable.filter(t => t.tag).length})</div>
+            <div class="nav-unavail-list" ${unavailable.filter(t=>t.tag).length === 0 ? 'style="display:none"' : ''}>
               ${unavailable.map(t => `
                 <div class="nav-item unavailable" title="Nie zainstalowane">
                   <span class="nav-icon">${t.icon}</span>
@@ -1369,7 +1467,8 @@ ${HAToolsPanel.CSS}
     activeItem.classList.add('active');
   }
 
-  _showHome() {
+  _showHome(skipHash) {
+    if (!skipHash) history.replaceState(null, '', location.pathname);
     this._activeView = 'home';
     this._activeToolId = null;
     this._cardInstance = null;
@@ -1389,11 +1488,11 @@ ${HAToolsPanel.CSS}
     const autoCount = this._hass?.states ? Object.keys(this._hass.states).filter(k => k.startsWith('automation.')).length : 0;
     const sensorCount = this._hass?.states ? Object.keys(this._hass.states).filter(k => k.startsWith('sensor.')).length : 0;
 
-    // Group info
+    // Group info — filter by dashboardCard visibility setting
+    const children = tools.filter(t => t.group && this._getSetting(t.id + '.dashboardCard', true));
     const parents = tools.filter(t => !t.group && t.tag);
     const groupParents = tools.filter(t => !t.group && !t.tag);
-    const children = tools.filter(t => t.group);
-    const groupCount = groupParents.length + parents.filter(t => children.some(c => c.group === t.id)).length;
+    const groupCount = [...groupParents, ...parents].filter(g => children.some(c => c.group === g.id)).length;
 
     // Build category stats
     const catStats = {};
@@ -1408,29 +1507,16 @@ ${HAToolsPanel.CSS}
         <div class="home-hero">
           <div class="hero-greeting">
             <div class="hero-title">\u{1F3E0} ${haLocation}</div>
-            <div class="hero-subtitle">Home Assistant ${haVersion} \u2022 ${entityCount} encji \u2022 ${autoCount} automatyzacji</div>
+            <div class="hero-subtitle">Home Assistant ${haVersion} \u2022 ${entityCount} encji \u2022 ${autoCount} automatyzacji \u2022 ${sensorCount} sensorów</div>
           </div>
-          <div class="hero-stats">
-            <div class="hero-stat">
-              <span class="hero-stat-num">${available.length}</span>
-              <span class="hero-stat-label">Narz\u0119dzi</span>
-            </div>
-            <div class="hero-stat">
-              <span class="hero-stat-num">${groupCount}</span>
-              <span class="hero-stat-label">Grup</span>
-            </div>
-            <div class="hero-stat">
-              <span class="hero-stat-num">${sensorCount}</span>
-              <span class="hero-stat-label">Sensor\u00F3w</span>
-            </div>
-          </div>
+          
         </div>
 
         <!-- Quick Access Groups -->
         <div class="home-section">
           <div class="home-section-title">\u{1F4CB} Grupy narz\u0119dzi</div>
           <div class="groups-grid">
-            ${[...groupParents, ...parents.filter(t => children.some(c => c.group === t.id))].map(g => {
+            ${[...groupParents, ...parents.filter(t => children.some(c => c.group === t.id))].filter(g => children.some(c => c.group === g.id)).map(g => {
               const myChildren = children.filter(c => c.group === g.id);
               return `<div class="group-card-wrapper" data-group="${g.id}">
                 <div class="group-card" data-tool="${g.id}">
@@ -1439,7 +1525,7 @@ ${HAToolsPanel.CSS}
                     <div class="group-card-name">${g.name}</div>
                     <div class="group-card-count">${myChildren.length} narz\u0119dzi</div>
                   </div>
-                  <div class="group-card-tools">${myChildren.map(c => c.icon).join(' ')}</div>
+                  
                   <span class="group-card-expand">\u25BC</span>
                 </div>
                 <div class="group-card-children">
@@ -1480,26 +1566,66 @@ ${HAToolsPanel.CSS}
               <div class="tip-icon">\u{1F6E1}\uFE0F</div>
               <div class="tip-text"><strong>Bezpiecze\u0144stwo</strong><br>Security Check audytuje konfiguracj\u0119 HA i wykrywa potencjalne zagro\u017Cenia.</div>
             </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u270F\uFE0F</div>
+              <div class="tip-text"><strong>Entity Renamer</strong><br>Zmiana nazw encji z automatyczn\u0105 propagacj\u0105 do dashboard\u00F3w, automatyzacji i skrypt\u00F3w.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F4E4}</div>
+              <div class="tip-text"><strong>Data Exporter</strong><br>Eksportuj dane encji do JSON/CSV. W\u0142\u0105cz snapshoty aby \u015Bledzi\u0107 zmiany w czasie.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u26A1</div>
+              <div class="tip-text"><strong>Energy Optimizer</strong><br>Analizuj zu\u017Cycie energii, ustaw taryfy i por\u00F3wnuj koszty dzie\u0144/noc.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F5FA}\uFE0F</div>
+              <div class="tip-text"><strong>Network Map</strong><br>Wizualizuj topologi\u0119 sieci urz\u0105dze\u0144 i ich po\u0142\u0105czenia.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F4AC}</div>
+              <div class="tip-text"><strong>Sentence Manager</strong><br>Zarz\u0105dzaj zdaniami g\u0142osowymi Assist \u2014 edytuj, testuj i organizuj komendy.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F50E}</div>
+              <div class="tip-text"><strong>Trace Viewer</strong><br>Przegl\u0105daj \u015Blady automatyzacji z filtrami, eksportem i zapisem lokalnym.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F4E7}</div>
+              <div class="tip-text"><strong>Log Email</strong><br>Wysy\u0142aj logi HA mailem \u2014 ustaw filtry i harmonogram w ustawieniach.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F9F9}</div>
+              <div class="tip-text"><strong>Vacuum Monitor</strong><br>Monitoruj stan odkurzacza \u2014 filtr, szczotki, zu\u017Cycie wody.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F4BE}</div>
+              <div class="tip-text"><strong>Storage Monitor</strong><br>Wizualizacja u\u017Cycia dysku w stylu macOS \u2014 \u015Bled\u017A rozmiary katalog\u00F3w.</div>
+            </div>
+            <div class="tip-card">
+              <div class="tip-icon">\u{1F476}</div>
+              <div class="tip-text"><strong>Baby Tracker</strong><br>\u015Aledź karmienie, sen i pieluchy \u2014 statystyki i wykresy aktywno\u015Bci dziecka.</div>
+            </div>
           </div>
         </div>
 
         <!-- Changelog -->
         <div class="home-section">
-          <div class="home-section-title">\u{1F4DD} Ostatnie zmiany <span class="count">v3.4.0</span></div>
+          <div class="home-section-title">\u{1F4DD} Ostatnie zmiany <span class="count">v3.5.0</span></div>
           <div class="changelog-card">
-            <div class="cl-item"><span class="cl-tag new">NEW</span> Purge Cache \u2014 narz\u0119dzie do czyszczenia cache przegl\u0105darki</div>
-            <div class="cl-item"><span class="cl-tag new">NEW</span> Grupowanie narz\u0119dzi z animacj\u0105 collapse/expand</div>
-            <div class="cl-item"><span class="cl-tag new">NEW</span> 4 grupy: Advanced Tools, Device Health, Smart Reports & Energy, Home & Family</div>
-            <div class="cl-item"><span class="cl-tag fix">FIX</span> Wszystkie narz\u0119dzia w jednym katalogu ha-tools-panel/</div>
-            <div class="cl-item"><span class="cl-tag fix">FIX</span> Naprawiony mojibake w YAML Checker (polskie znaki i emoji)</div>
-            <div class="cl-item"><span class="cl-tag new">NEW</span> Przebudowany Home z informacjami systemowymi i wskaz\u00F3wkami</div>
+            <div class="cl-item"><span class="cl-tag fix">FIX</span> Naprawiono migotanie kart \u2014 HTML diffing we wszystkich narz\u0119dziach</div>
+            <div class="cl-item"><span class="cl-tag fix">FIX</span> Naprawiono puste karty w Security Check i Storage Monitor</div>
+            <div class="cl-item"><span class="cl-tag new">NEW</span> Entity Renamer \u2014 zmiana nazw encji z propagacj\u0105 do dashboard\u00F3w i automatyzacji</div>
+            <div class="cl-item"><span class="cl-tag new">NEW</span> Cry Analyzer wydzielony jako samodzielna karta (nie wymaga HA Tools)</div>
+            <div class="cl-item"><span class="cl-tag fix">FIX</span> Uproszczona propagacja hass do komponent\u00F3w</div>
+            
           </div>
         </div>
 
-        ${unavailable.length > 0 ? `
+        ${unavailable.filter(t=>t.tag).length > 0 ? `
           <div class="home-section">
             <div class="home-section-title">
-              ${this._loading ? '\u23F3' : '\u{1F4E6}'} ${this._loading ? '\u0141adowanie...' : 'Dost\u0119pne do instalacji'} <span class="count">(${unavailable.length})</span>
+              ${this._loading ? '\u23F3' : '\u{1F4E6}'} ${this._loading ? '\u0141adowanie...' : 'Dost\u0119pne do instalacji'} <span class="count">(${unavailable.filter(t=>t.tag).length})</span>
             </div>
             <div class="uninstalled-list">
               ${unavailable.map(t => `
@@ -1583,7 +1709,8 @@ ${HAToolsPanel.CSS}
     });
   }
 
-  _showSettings() {
+  _showSettings(skipHash) {
+    if (!skipHash) history.replaceState(null, '', location.pathname + '#settings');
     this._activeView = 'settings';
     this._activeToolId = null;
     this._cardInstance = null;
@@ -1594,8 +1721,6 @@ ${HAToolsPanel.CSS}
     const { available } = this._getToolStatus();
     const content = this.shadowRoot.getElementById('content');
     const lang = this._getSetting('language', 'pl');
-    const animations = this._getSetting('animations', true);
-    const compactMode = this._getSetting('compactMode', false);
     const defaultTool = this._getSetting('defaultTool', 'home');
 
     content.innerHTML = `
@@ -1632,53 +1757,164 @@ ${HAToolsPanel.CSS}
                 </select>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Energy Settings -->
+        <div class="settings-group">
+          <div class="settings-group-header" data-group="energy">
+            ⚡ Energia
+            <span class="chevron">▼</span>
+          </div>
+          <div class="settings-group-body" data-body="energy">
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Animacje</div>
-                <div class="setting-desc">Włącz animacje przejść</div>
+                <div class="setting-label">Tryb taryfy</div>
+                <div class="setting-desc">Sposób naliczania opłat za energię</div>
               </div>
               <div class="setting-control">
-                <label class="setting-toggle">
-                  <input type="checkbox" data-setting="animations" ${animations ? 'checked' : ''}>
-                  <span class="slider"></span>
-                </label>
+                <select class="setting-select" data-setting="energy_tariff_mode" id="energy-tariff-mode-select">
+                  <option value="flat" ${this._getSetting('energy_tariff_mode', 'flat') === 'flat' ? 'selected' : ''}>Jedna stawka</option>
+                  <option value="day_night" ${this._getSetting('energy_tariff_mode', 'flat') === 'day_night' ? 'selected' : ''}>Dzień / Noc</option>
+                  <option value="weekday_weekend" ${this._getSetting('energy_tariff_mode', 'flat') === 'weekday_weekend' ? 'selected' : ''}>Dzień roboczy / Weekend</option>
+                  <option value="mixed" ${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? 'selected' : ''}>Mix (dzień/noc + roboczy/weekend)</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-flat" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'flat' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Stawka za energię</div>
+                <div class="setting-desc">Jedna cena za 1 kWh</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price" value="${this._getSetting('energy_price', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-day_night" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'day_night' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Stawka dzienna</div>
+                <div class="setting-desc">Cena za 1 kWh w godzinach dziennych</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_day" value="${this._getSetting('energy_price_day', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-day_night" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'day_night' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Stawka nocna</div>
+                <div class="setting-desc">Cena za 1 kWh w godzinach nocnych</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_night" value="${this._getSetting('energy_price_night', 0.45)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-weekday_weekend" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'weekday_weekend' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Stawka dzień roboczy</div>
+                <div class="setting-desc">Cena za 1 kWh w dni robocze (Pn-Pt)</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_weekday" value="${this._getSetting('energy_price_weekday', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-weekday_weekend" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'weekday_weekend' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Stawka weekend</div>
+                <div class="setting-desc">Cena za 1 kWh w weekendy (So-Nd)</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_weekend" value="${this._getSetting('energy_price_weekend', 0.50)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Dzień roboczy — dzień</div>
+                <div class="setting-desc">Pn-Pt, godziny dzienne</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_wd_day" value="${this._getSetting('energy_price_wd_day', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Dzień roboczy — noc</div>
+                <div class="setting-desc">Pn-Pt, godziny nocne</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_wd_night" value="${this._getSetting('energy_price_wd_night', 0.45)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Weekend — dzień</div>
+                <div class="setting-desc">So-Nd, godziny dzienne</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_we_day" value="${this._getSetting('energy_price_we_day', 0.55)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Weekend — noc</div>
+                <div class="setting-desc">So-Nd, godziny nocne</div>
+              </div>
+              <div class="setting-control">
+                <input type="number" class="setting-input" data-setting="energy_price_we_night" value="${this._getSetting('energy_price_we_night', 0.40)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);margin-left:4px">PLN/kWh</span>
+              </div>
+            </div>
+            <div class="setting-row tariff-row tariff-day_night tariff-mixed" style="display:${['day_night','mixed'].includes(this._getSetting('energy_tariff_mode', 'flat')) ? '' : 'none'}">
+              <div class="setting-info">
+                <div class="setting-label">Godziny dzienne</div>
+                <div class="setting-desc">Przedział godzin taryfy dziennej (np. 6:00–22:00)</div>
+              </div>
+              <div class="setting-control" style="display:flex;align-items:center;gap:6px;">
+                <input type="number" class="setting-input" data-setting="energy_day_hour_start" value="${this._getSetting('energy_day_hour_start', 6)}" step="1" min="0" max="23" style="width:55px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);">:00 —</span>
+                <input type="number" class="setting-input" data-setting="energy_night_hour_start" value="${this._getSetting('energy_night_hour_start', 22)}" step="1" min="0" max="23" style="width:55px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+                <span style="font-size:12px;color:var(--bento-text-secondary);">:00</span>
               </div>
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Tryb kompaktowy</div>
-                <div class="setting-desc">Mniejsze odstępy, mniej miejsca na ekranie</div>
+                <div class="setting-label">Waluta</div>
+                <div class="setting-desc">Symbol waluty wyświetlany w raportach energii</div>
               </div>
               <div class="setting-control">
-                <label class="setting-toggle">
-                  <input type="checkbox" data-setting="compactMode" ${compactMode ? 'checked' : ''}>
-                  <span class="slider"></span>
-                </label>
+                <select class="setting-select" data-setting="energy_currency">
+                  <option value="PLN" ${this._getSetting('energy_currency', 'PLN') === 'PLN' ? 'selected' : ''}>PLN</option>
+                  <option value="EUR" ${this._getSetting('energy_currency', 'PLN') === 'EUR' ? 'selected' : ''}>EUR</option>
+                  <option value="USD" ${this._getSetting('energy_currency', 'PLN') === 'USD' ? 'selected' : ''}>USD</option>
+                  <option value="GBP" ${this._getSetting('energy_currency', 'PLN') === 'GBP' ? 'selected' : ''}>GBP</option>
+                </select>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Trace Viewer — Backend Settings -->
+        <!-- Trace Viewer Settings -->
         <div class="settings-group">
           <div class="settings-group-header" data-group="trace-backend">
-            \u{1F9EC} Trace Viewer — Przechowywanie
-            <span class="chevron">\u25BC</span>
+            &#x1F9EC; Trace Viewer
+            <span class="chevron">&#x25BC;</span>
           </div>
           <div class="settings-group-body" data-body="trace-backend">
-            <div class="trace-current-info">
-              \u{1F4CA} Obecne ustawienie HA: <span class="val">stored_traces = 5</span> (domyślne per automatyzacja)
-            </div>
-
-            <div class="setting-subsection">Ilość traces</div>
             <div class="setting-row">
               <div class="setting-info">
                 <div class="setting-label">Przechowuj N ostatnich traces</div>
-                <div class="setting-desc">Ile trace'ów HA ma przechowywać na automatyzację (domyślnie 5). Zmiana dotyczy WSZYSTKICH automatyzacji.</div>
+                <div class="setting-desc">Ile trace'&#243;w HA ma przechowywa&#263; na automatyzacj&#281; (domy&#347;lnie 5). Zmiana dotyczy WSZYSTKICH automatyzacji.</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" id="storedTracesCount">
-                  <option value="5" ${this._getSetting('trace.storedCount', 20) == 5 ? 'selected' : ''}>5 (domyślne)</option>
+                  <option value="5" ${this._getSetting('trace.storedCount', 20) == 5 ? 'selected' : ''}>5</option>
                   <option value="10" ${this._getSetting('trace.storedCount', 20) == 10 ? 'selected' : ''}>10</option>
                   <option value="20" ${this._getSetting('trace.storedCount', 20) == 20 ? 'selected' : ''}>20</option>
                   <option value="50" ${this._getSetting('trace.storedCount', 20) == 50 ? 'selected' : ''}>50</option>
@@ -1686,12 +1922,10 @@ ${HAToolsPanel.CSS}
                 </select>
               </div>
             </div>
-
-            <div class="setting-subsection">Filtr czasowy (frontend)</div>
             <div class="setting-row">
               <div class="setting-info">
                 <div class="setting-label">Maksymalny wiek traces</div>
-                <div class="setting-desc">Ukryj traces starsze niż wybrany okres (filtrowanie po stronie frontendu, nie usuwa danych z HA)</div>
+                <div class="setting-desc">Ukryj traces starsze ni&#380; wybrany okres (filtrowanie frontendu, nie usuwa danych)</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="trace.maxAge" id="traceMaxAge">
@@ -1705,143 +1939,95 @@ ${HAToolsPanel.CSS}
                 </select>
               </div>
             </div>
-
-            <div class="setting-action-row">
-              <button class="btn-apply" id="applyTracesBtn">\u{1F4BE} Zastosuj stored_traces do wszystkich automatyzacji</button>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label">Wpis&#243;w na stron&#281;</div>
+                <div class="setting-desc">Ile trace'&#243;w wy&#347;wietla&#263; na jednej stronie listy</div>
+              </div>
+              <div class="setting-control">
+                <select class="setting-select" data-setting="trace-viewer.pageSize" style="min-width:70px;">
+                  <option value="10" ${this._getSetting('trace-viewer.pageSize', 15) == 10 ? 'selected' : ''}>10</option>
+                  <option value="15" ${this._getSetting('trace-viewer.pageSize', 15) == 15 ? 'selected' : ''}>15</option>
+                  <option value="25" ${this._getSetting('trace-viewer.pageSize', 15) == 25 ? 'selected' : ''}>25</option>
+                  <option value="50" ${this._getSetting('trace-viewer.pageSize', 15) == 50 ? 'selected' : ''}>50</option>
+                  <option value="100" ${this._getSetting('trace-viewer.pageSize', 15) == 100 ? 'selected' : ''}>100</option>
+                </select>
+              </div>
             </div>
-            <div style="padding: 0 var(--spacing-lg) var(--spacing-md);">
-              <div class="status-msg" id="traceStatus"></div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label">Zastosuj stored_traces</div>
+                <div class="setting-desc">Zapisz wybran&#261; ilo&#347;&#263; traces do konfiguracji wszystkich automatyzacji w HA</div>
+              </div>
+              <div class="setting-control">
+                <button class="btn-apply" id="applyTracesBtn">&#x1F4BE; Zastosuj</button>
+              </div>
+            </div>
+            <div class="status-msg" id="traceStatus" style="margin:0 20px 8px;"></div>
+          </div>
+        </div>
+
+        <!-- Data Exporter Settings -->
+        <div class="settings-group">
+          <div class="settings-group-header" data-group="data-exporter">
+            &#x1F4E4; Data Exporter — Snapshoty
+            <span class="chevron">&#x25BC;</span>
+          </div>
+          <div class="settings-group-body" data-body="data-exporter">
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label">Włącz snapshoty</div>
+                <div class="setting-desc">Automatyczne zapisywanie stanu encji w regularnych odstępach</div>
+              </div>
+              <div class="setting-control">
+                <label class="setting-toggle"><input type="checkbox" data-setting="data-exporter.snapshots.enabled" ${this._getSetting('data-exporter.snapshots.enabled', false) ? 'checked' : ''}><span class="slider"></span></label>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label">Interwał</div>
+                <div class="setting-desc">Co ile czasu zapisywać snapshot</div>
+              </div>
+              <div class="setting-control">
+                <select class="setting-select" data-setting="data-exporter.snapshots.interval" style="min-width:70px;">
+                  <option value="30" ${this._getSetting('data-exporter.snapshots.interval', 60) == 30 ? 'selected' : ''}>30s</option>
+                  <option value="60" ${this._getSetting('data-exporter.snapshots.interval', 60) == 60 ? 'selected' : ''}>1m</option>
+                  <option value="300" ${this._getSetting('data-exporter.snapshots.interval', 60) == 300 ? 'selected' : ''}>5m</option>
+                  <option value="900" ${this._getSetting('data-exporter.snapshots.interval', 60) == 900 ? 'selected' : ''}>15m</option>
+                  <option value="3600" ${this._getSetting('data-exporter.snapshots.interval', 60) == 3600 ? 'selected' : ''}>1h</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-label">Max snapshotów</div>
+                <div class="setting-desc">Maksymalna ilość przechowywanych snapshotów</div>
+              </div>
+              <div class="setting-control">
+                <select class="setting-select" data-setting="data-exporter.snapshots.max" style="min-width:70px;">
+                  <option value="20" ${this._getSetting('data-exporter.snapshots.max', 50) == 20 ? 'selected' : ''}>20</option>
+                  <option value="50" ${this._getSetting('data-exporter.snapshots.max', 50) == 50 ? 'selected' : ''}>50</option>
+                  <option value="100" ${this._getSetting('data-exporter.snapshots.max', 50) == 100 ? 'selected' : ''}>100</option>
+                  <option value="200" ${this._getSetting('data-exporter.snapshots.max', 50) == 200 ? 'selected' : ''}>200</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Per-addon settings -->
-        ${available.map(t => {
-          const prefix = t.id;
-          const refreshInterval = this._getSetting(`${prefix}.refreshInterval`, 30);
-          const showNotifications = this._getSetting(`${prefix}.showNotifications`, true);
-          const dashboardCard = this._getSetting(`${prefix}.dashboardCard`, true);
-          const pageSize = this._getSetting(`${prefix}.pageSize`, 15);
-          const isTraceViewer = prefix === 'trace-viewer';
-          const isDataExporter = prefix === 'data-exporter';
-          const snapEnabled = isDataExporter ? this._getSetting('data-exporter.snapshots.enabled', false) : false;
-          const snapInterval = isDataExporter ? this._getSetting('data-exporter.snapshots.interval', 60) : 60;
-          const snapMax = isDataExporter ? this._getSetting('data-exporter.snapshots.max', 50) : 50;
-          return `
-            <div class="settings-group">
-              <div class="settings-group-header" data-group="${prefix}">
-                ${t.icon} ${t.name}
-                <span class="chevron">\u25BC</span>
-              </div>
-              <div class="settings-group-body" data-body="${prefix}">
-                <div class="setting-subsection">Wy\u015Bwietlanie</div>
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <div class="setting-label">Pokazuj w dashboardzie</div>
-                    <div class="setting-desc">Widoczność karty na stronie głównej</div>
-                  </div>
-                  <div class="setting-control">
-                    <label class="setting-toggle">
-                      <input type="checkbox" data-setting="${prefix}.dashboardCard" ${dashboardCard ? 'checked' : ''}>
-                      <span class="slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="setting-subsection">Dzia\u0142anie</div>
-                ${isTraceViewer ? `
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <div class="setting-label">Wpisów na stronę</div>
-                    <div class="setting-desc">Ile traces/automatyzacji wyświetlać na jednej stronie</div>
-                  </div>
-                  <div class="setting-control">
-                    <select class="setting-select" data-setting="${prefix}.pageSize">
-                      <option value="10" ${pageSize == 10 ? 'selected' : ''}>10</option>
-                      <option value="15" ${pageSize == 15 ? 'selected' : ''}>15</option>
-                      <option value="25" ${pageSize == 25 ? 'selected' : ''}>25</option>
-                      <option value="30" ${pageSize == 30 ? 'selected' : ''}>30</option>
-                      <option value="50" ${pageSize == 50 ? 'selected' : ''}>50</option>
-                      <option value="100" ${pageSize == 100 ? 'selected' : ''}>100</option>
-                    </select>
-                  </div>
-                </div>
-                ` : ''}
-                ${isDataExporter ? `
-                <div class="setting-subsection">Snapshoty</div>
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <div class="setting-label">Zbieranie snapshot\u00F3w</div>
-                    <div class="setting-desc">Automatycznie zapisuj stany encji w localStorage</div>
-                  </div>
-                  <div class="setting-control">
-                    <label class="setting-toggle">
-                      <input type="checkbox" data-setting="data-exporter.snapshots.enabled" ${snapEnabled ? 'checked' : ''}>
-                      <span class="slider"></span>
-                    </label>
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <div class="setting-label">Interwa\u0142 zbierania</div>
-                    <div class="setting-desc">Co ile sekund zapisywa\u0107 snapshot</div>
-                  </div>
-                  <div class="setting-control">
-                    <select class="setting-select" data-setting="data-exporter.snapshots.interval">
-                      <option value="30" ${snapInterval == 30 ? 'selected' : ''}>30s</option>
-                      <option value="60" ${snapInterval == 60 ? 'selected' : ''}>1 min</option>
-                      <option value="300" ${snapInterval == 300 ? 'selected' : ''}>5 min</option>
-                      <option value="900" ${snapInterval == 900 ? 'selected' : ''}>15 min</option>
-                      <option value="3600" ${snapInterval == 3600 ? 'selected' : ''}>1h</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <div class="setting-label">Maksymalna ilo\u015B\u0107</div>
-                    <div class="setting-desc">Ile snapshot\u00F3w przechowywa\u0107 w localStorage</div>
-                  </div>
-                  <div class="setting-control">
-                    <select class="setting-select" data-setting="data-exporter.snapshots.max">
-                      <option value="20" ${snapMax == 20 ? 'selected' : ''}>20</option>
-                      <option value="50" ${snapMax == 50 ? 'selected' : ''}>50</option>
-                      <option value="100" ${snapMax == 100 ? 'selected' : ''}>100</option>
-                      <option value="200" ${snapMax == 200 ? 'selected' : ''}>200</option>
-                    </select>
-                  </div>
-                </div>
-                ` : ''}
-                <div class="setting-subsection">Dzia\u0142anie</div>
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <div class="setting-label">Interwa\u0142 od\u015Bwie\u017Cania (sek)</div>
-                    <div class="setting-desc">Jak cz\u0119sto od\u015Bwie\u017Ca\u0107 dane</div>
-                  </div>
-                  <div class="setting-control">
-                    <select class="setting-select" data-setting="${prefix}.refreshInterval">
-                      <option value="10" ${refreshInterval == 10 ? 'selected' : ''}>10s</option>
-                      <option value="30" ${refreshInterval == 30 ? 'selected' : ''}>30s</option>
-                      <option value="60" ${refreshInterval == 60 ? 'selected' : ''}>60s</option>
-                      <option value="300" ${refreshInterval == 300 ? 'selected' : ''}>5min</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div class="setting-info">
-                    <div class="setting-label">Powiadomienia</div>
-                    <div class="setting-desc">Pokaż powiadomienia z tego narzędzia</div>
-                  </div>
-                  <div class="setting-control">
-                    <label class="setting-toggle">
-                      <input type="checkbox" data-setting="${prefix}.showNotifications" ${showNotifications ? 'checked' : ''}>
-                      <span class="slider"></span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('')}
+        <!-- Visibility: Show/Hide in sidebar & home -->
+        <div class="settings-group">
+          <div class="settings-group-header" data-group="visibility">
+            &#x1F441;&#xFE0F; Show / hide in sidebar &amp; home
+            <span class="chevron">&#x25BC;</span>
+          </div>
+          <div class="settings-group-body" data-body="visibility">
+            ${available.filter(t => t.tag).map(t => {
+              const dc = this._getSetting(t.id + '.dashboardCard', true);
+              return '<div class="setting-row"><div class="setting-info"><div class="setting-label">' + t.icon + ' ' + t.name + '</div></div><div class="setting-control"><label class="setting-toggle"><input type="checkbox" data-setting="' + t.id + '.dashboardCard"' + (dc ? ' checked' : '') + '><span class="slider"></span></label></div></div>';
+            }).join('')}
+          </div>
+        </div>
 
       </div>
     `;
@@ -1850,12 +2036,31 @@ ${HAToolsPanel.CSS}
     content.querySelectorAll('.setting-select').forEach(select => {
       select.addEventListener('change', () => {
         this._setSetting(select.dataset.setting, select.value);
+        if (select.dataset.setting === 'energy_tariff_mode') {
+          const mode = select.value;
+          content.querySelectorAll('.tariff-row').forEach(row => row.style.display = 'none');
+          content.querySelectorAll('.tariff-' + mode).forEach(row => row.style.display = '');
+          if (mode === 'day_night' || mode === 'mixed') {
+            content.querySelectorAll('.tariff-row.tariff-day_night.tariff-mixed').forEach(row => row.style.display = '');
+          }
+        }
+      });
+    });
+
+    content.querySelectorAll('.setting-input').forEach(input => {
+      input.addEventListener('change', () => {
+        const val = input.type === 'number' ? parseFloat(input.value) : input.value;
+        this._setSetting(input.dataset.setting, val);
       });
     });
 
     content.querySelectorAll('.setting-toggle input').forEach(toggle => {
       toggle.addEventListener('change', () => {
         this._setSetting(toggle.dataset.setting, toggle.checked);
+        // If dashboardCard toggle changed, update sidebar immediately
+        if (toggle.dataset.setting.endsWith('.dashboardCard')) {
+          this._updateSidebar();
+        }
       });
     });
 
@@ -2014,7 +2219,8 @@ ${HAToolsPanel.CSS}
     }, 200);
   }
 
-  _loadTool(toolId, tag) {
+  _loadTool(toolId, tag, skipHash) {
+    if (!skipHash) history.replaceState(null, '', location.pathname + '#' + toolId);
     // Look up tag from TOOLS if not provided
     const tool = HAToolsPanel.TOOLS.find(t => t.id === toolId);
     if (!tag && tool) tag = tool.tag;
@@ -2033,7 +2239,7 @@ ${HAToolsPanel.CSS}
     if (arCb) arCb.checked = this._getSetting('autoRefresh', false);
 
     const content = this.shadowRoot.getElementById('content');
-    content.innerHTML = `<div class="empty"><div class="big">\u23F3</div><div>Ładowanie...</div></div>`;
+    content.innerHTML = `<div class="empty"><div class="big">\u23F3</div><div>Ładowanie...</div></div>`;
 
     setTimeout(() => {
       try {
@@ -2041,14 +2247,26 @@ ${HAToolsPanel.CSS}
         const card = document.createElement(tag);
 
         if (typeof card.setConfig === 'function') {
-          card.setConfig({ title: displayName, panel_mode: true });
+          const cfg = { title: displayName, panel_mode: true };
+          if (tag.includes('energy')) {
+            cfg.energy_tariff_mode = this._getSetting('energy_tariff_mode', 'flat');
+            cfg.energy_price = parseFloat(this._getSetting('energy_price', 0.65)) || 0.65;
+            cfg.energy_price_day = parseFloat(this._getSetting('energy_price_day', 0.65)) || 0.65;
+            cfg.energy_price_night = parseFloat(this._getSetting('energy_price_night', 0.45)) || 0.45;
+            cfg.energy_price_weekday = parseFloat(this._getSetting('energy_price_weekday', 0.65)) || 0.65;
+            cfg.energy_price_weekend = parseFloat(this._getSetting('energy_price_weekend', 0.50)) || 0.50;
+            cfg.energy_price_wd_day = parseFloat(this._getSetting('energy_price_wd_day', 0.65)) || 0.65;
+            cfg.energy_price_wd_night = parseFloat(this._getSetting('energy_price_wd_night', 0.45)) || 0.45;
+            cfg.energy_price_we_day = parseFloat(this._getSetting('energy_price_we_day', 0.55)) || 0.55;
+            cfg.energy_price_we_night = parseFloat(this._getSetting('energy_price_we_night', 0.40)) || 0.40;
+            cfg.energy_day_hour_start = parseInt(this._getSetting('energy_day_hour_start', 6)) || 6;
+            cfg.energy_night_hour_start = parseInt(this._getSetting('energy_night_hour_start', 22)) || 22;
+            cfg.currency = this._getSetting('energy_currency', 'PLN');
+          }
+          card.setConfig(cfg);
         }
 
-        if (tag === 'ha-cry-analyzer') {
-          card.hassObj = this._hass;
-        } else {
-          card.hass = this._hass;
-        }
+        card.hass = this._hass;
 
         card.style.cssText = 'display:block; min-height:calc(100vh - 56px);';
         content.appendChild(card);

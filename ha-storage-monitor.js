@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HA Storage Monitor - WinDirStat-like storage visualization for Home Assistant
  * Shows disk usage with treemap visualization, directory breakdown, and cleanup suggestions
  */
@@ -22,8 +22,13 @@ class HAStorageMonitor extends HTMLElement {
     this._sortBy = 'size';
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this._sortAsc = false;
+    this._lastHtml = '';
   }
 
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
   set hass(hass) {
     this._hass = hass;
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
@@ -95,7 +100,7 @@ class HAStorageMonitor extends HTMLElement {
         addons = addons.map(a => {
           const detail = detailMap[a.slug];
           if (detail) {
-            return { ...a, disk_usage: detail.disk_usage || 0, apparmor: detail.apparmor, auto_update: detail.auto_update };
+            return { ...a, disk_usage: detail.disk_usage !== undefined ? detail.disk_usage : null, apparmor: detail.apparmor, auto_update: detail.auto_update };
           }
           return a;
         });
@@ -129,7 +134,7 @@ class HAStorageMonitor extends HTMLElement {
       const addonSizes = addons.filter(a => a.state && a.state !== 'unknown').map(a => ({
         name: a.name || a.slug,
         slug: a.slug,
-        size: a.disk_usage ? a.disk_usage / (1024 * 1024) : 0, // disk_usage in bytes from addon info
+        size: a.disk_usage ? a.disk_usage / (1024 * 1024) : 0.5, // disk_usage in bytes; show 0.5MB (<1MB) for unknown
         icon: a.icon ? `/api/hassio/addons/${a.slug}/icon` : null,
         state: a.state,
         version: a.version
@@ -148,6 +153,16 @@ class HAStorageMonitor extends HTMLElement {
       const totalBackupsMB = backupSizes.reduce((s, b) => s + b.size, 0);
       const dbSizeMB = dbSize / (1024 * 1024); // from bytes to MB (if available)
       const usedMB = diskUsed * 1024; // diskUsed is in GB from host/info
+      
+      // Fetch integrations for storage estimation
+      let integrations = [];
+      try {
+        const cfgEntries = await this._hass.callWS({ type: 'config_entries/list' });
+        integrations = cfgEntries?.config_entries || cfgEntries?.data?.config_entries || [];
+      } catch(e) { console.warn('[Storage] Could not fetch integrations:', e); }
+      const intCount = integrations.length;
+      const integrationEstimate = intCount * 0.1; // ~100KB per integration config storage estimate
+      
       // Estimate HA Core + addons as used minus backups and DB
       const systemMB = Math.max(0, usedMB - totalBackupsMB - dbSizeMB);
 
@@ -157,12 +172,16 @@ class HAStorageMonitor extends HTMLElement {
         categories: [
           { name: 'Backups', size: totalBackupsMB, color: '#9c27b0', icon: '\u{1F4BE}', items: backupSizes },
           { name: 'Database (Recorder)', size: dbSizeMB || Math.min(systemMB * 0.2, 2048), color: '#ff9800', icon: '\u{1F5C4}\uFE0F' },
-          { name: 'System & Addons', size: Math.max(systemMB - (dbSizeMB || systemMB * 0.2), 100), color: '#4caf50', icon: '\u{1F9E9}', items: addonSizes },
+          { name: 'Add-ons', size: addonSizes.reduce((s, a) => s + a.size, 0), color: '#4caf50', icon: '\u{1F9E9}', items: addonSizes },
+          { name: 'Integrations', size: integrationEstimate, color: '#2196f3', icon: '\u{1F50C}', intCount: intCount },
+          { name: 'System & Other', size: Math.max(systemMB - integrationEstimate, 100), color: '#607d8b', icon: '\u{1F5A5}' },
         ],
         addons: addonSizes,
         backups: backupSizes,
+        integrations: integrations,
         dbSizeMB,
         addonCount: addonSizes.length,
+        intCount: intCount,
         osVersion: osInfo?.version || osInfo?.data?.version || 'N/A',
         hostname: hostname
       };
@@ -200,8 +219,9 @@ class HAStorageMonitor extends HTMLElement {
   }
 
   _render() {
-    this.shadowRoot.innerHTML = `
-      <style>
+    const html = `
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -410,8 +430,6 @@ canvas {
 ::-webkit-scrollbar-thumb:hover { background: var(--bento-text-muted); }
 
 /* ===== END BENTO LIGHT MODE ===== */
-
-
 
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
@@ -738,39 +756,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .suggestion-desc { font-size: 13px; color: var(--bento-text-secondary); }
 .suggestion-savings { font-size: 12px; color: var(--bento-primary); font-weight: 500; margin-top: 6px; }
 
-
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
@@ -791,7 +777,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+
+</style>
       <ha-card>
         <div class="storage-card">
           <div class="card-header">
@@ -808,6 +795,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
       </ha-card>
     `;
+    if (this._lastHtml === html) return;
+    this._lastHtml = html;
+    this.shadowRoot.innerHTML = html;
 
     // Tab handlers
     this.shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
@@ -930,7 +920,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             ${d.addons.map(a => `
               <tr>
                 <td title="${a.slug}">${a.name}</td>
-                <td>${this._fmtSize(a.size)}</td>
+                <td>${a.size < 1 ? '< 1 MB' : this._fmtSize(a.size)}</td>
                 <td><span style="color:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}">${a.state || 'stopped'}</span></td>
                 <td>${a.version || '-'}</td>
                 <td><span class="size-bar" style="width:${Math.max(4, (a.size / maxSize) * 100)}px;background:#4caf50"></span></td>
@@ -971,6 +961,34 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     `;
   }
 
+  _renderIntegrations(d) {
+    if (!d.integrations || !d.integrations.length) return '<div class="loading">No integrations found</div>';
+    const intCount = d.integrations.length;
+    return `
+      <div class="table-container">
+        <div style="padding:12px;background:rgba(33,150,243,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">
+          📊 ${intCount} integrations detected. Estimated storage: ~${this._fmtSize(intCount * 0.1)}
+        </div>
+        <table class="entity-table">
+          <thead><tr>
+            <th>Integration</th>
+            <th>Domain</th>
+            <th>Source</th>
+          </tr></thead>
+          <tbody>
+            ${d.integrations.slice(0, 50).map(i => `
+              <tr>
+                <td>${i.title || i.domain}</td>
+                <td><code style="font-size:11px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">${i.domain}</code></td>
+                <td>${i.source || 'user'}</td>
+              </tr>
+            `).join('')}
+            ${d.integrations.length > 50 ? `<tr><td colspan="3" style="text-align:center;color:var(--bento-text-secondary,#64748b);font-size:12px;">... and ${d.integrations.length - 50} more</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
   _renderCleanup(d) {
     const suggestions = [];
     if (d.usedPercent > 80) {

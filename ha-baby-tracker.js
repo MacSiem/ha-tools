@@ -1,12 +1,17 @@
-﻿class HaBabyTracker extends HTMLElement {
+class HaBabyTracker extends HTMLElement {
   setConfig(config) {
     this.config = config;
-    this.babies = config.babies || [{ name: 'Baby 1' }];
+    this.babies = this._loadChildren();
+    if (this.babies.length === 0) this.babies = config.babies || [{ name: 'Baby 1' }];
     this.selectedBaby = 0;
     this.selectedTab = 'feeding';
     this.renderCard();
   }
 
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
   set hass(hass) {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
@@ -45,6 +50,7 @@
     this._lastRenderTime = 0;
     this._renderScheduled = false;
     this._firstHassRender = false;
+    this._lastHtml = '';
     // --- Pagination ---
     this._currentPage = {};
     this._pageSize = 15;
@@ -54,13 +60,13 @@
     this.growthData = new Map();
     this.sleepTimer = null;
     this.sleepStartTime = null;
-    this.babies = [];
+    this.babies = this._loadChildren();
     this.selectedBaby = 0;
     this.initializeDataStructures();
   }
 
   // --- localStorage persistence ---
-  _storageKey() { return 'ha-baby-tracker-data'; }
+  _storageKey() { return 'ha-baby-tracker-' + this.selectedBaby; }
 
   _saveData() {
     try {
@@ -90,6 +96,45 @@
     } catch (e) { console.warn('Baby Tracker: load failed', e); }
   }
 
+  _childrenKey() { return 'ha-baby-tracker-children'; }
+
+  _loadChildren() {
+    try {
+      const stored = localStorage.getItem(this._childrenKey());
+      return stored ? JSON.parse(stored) : [{name: 'Baby 1'}];
+    } catch { return [{name: 'Baby 1'}]; }
+  }
+
+  _saveChildren() {
+    localStorage.setItem(this._childrenKey(), JSON.stringify(this.babies));
+  }
+
+  _addChild() {
+    this.babies.push({name: 'Baby ' + (this.babies.length + 1)});
+    this._saveChildren();
+    this.renderCard();
+  }
+
+  _removeChild(idx) {
+    if (this.babies.length <= 1) return;
+    this.babies.splice(idx, 1);
+    localStorage.removeItem('ha-baby-tracker-' + idx);
+    if (this.selectedBaby >= this.babies.length) this.selectedBaby = this.babies.length - 1;
+    this._saveChildren();
+    this._loadData();
+    this.renderCard();
+  }
+
+  _saveChildNames() {
+    const inputs = this.shadowRoot.querySelectorAll('.child-name-input');
+    inputs.forEach(input => {
+      const idx = parseInt(input.dataset.childIdx);
+      if (this.babies[idx]) this.babies[idx].name = input.value.trim() || ('Baby ' + (idx + 1));
+    });
+    this._saveChildren();
+    this.renderCard();
+  }
+
   initializeDataStructures() {
     if (!this.babies || !this.babies.length) return;
     this.babies.forEach(baby => {
@@ -114,8 +159,9 @@
     const title = this.config.title || 'Baby Tracker';
     const currentBaby = this.babies[this.selectedBaby].name;
 
-    this.shadowRoot.innerHTML = `
-      <style>
+    const html = `
+      <style>${window.HAToolsBentoCSS || ""}
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
@@ -657,7 +703,6 @@ canvas {
       
 /* === Modern Bento Light Mode === */
 
-
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
   --bento-card: var(--card-background-color, #FFFFFF);
@@ -926,6 +971,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .report-section { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 20px; border: 1px solid var(--bento-border); margin-bottom: 16px; }
 .insight-card { padding: 14px; border-left: 3px solid var(--bento-primary); background: rgba(59, 130, 246, 0.04); border-radius: 0 var(--bento-radius-xs) var(--bento-radius-xs) 0; margin-bottom: 10px; }
 
+.config-section { padding: 16px; background: var(--bento-bg, #f8fafc); border: 1px solid var(--bento-border, #e2e8f0); border-radius: 10px; }
+.config-section h3 { color: var(--bento-text, #1e293b); }
+.config-section code { background: rgba(59, 130, 246, 0.08); color: var(--bento-primary, #3B82F6); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+
 @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -943,7 +992,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .board { flex-direction: column; }
   .column { min-width: unset; }
 }
-
 
 /* Tips banner */
 .tip-banner {
@@ -967,39 +1015,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .tip-banner .tip-dismiss:hover { opacity: 1; }
 .tip-banner.hidden { display: none; }
 
-
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
@@ -1020,7 +1036,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+
+</style>
 
       <div class="card">
         <div class="card-header">
@@ -1046,6 +1063,15 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
 
         <div class="tabs">
+          ${this.babies.length > 1 ? `
+          <div style="display:flex;gap:4px;margin-bottom:12px;padding:0 4px">
+            ${this.babies.map((b, i) => `
+              <button class="tab-btn" data-baby="${i}" 
+                style="padding:6px 14px;border:1.5px solid ${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-border,#e2e8f0)'};border-radius:20px;background:${this.selectedBaby === i ? 'rgba(59,130,246,0.1)' : 'transparent'};color:${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-text-secondary,#64748B)'};font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">
+                👶 ${b.name}
+              </button>
+            `).join('')}
+          </div>` : ``}
           <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding">
             🍼 Feeding
           </button>
@@ -1058,11 +1084,30 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <button class="tab-button ${this.selectedTab === 'growth' ? 'active' : ''}" data-tab="growth">
             📏 Growth
           </button>
+          <button class="tab-button ${this.selectedTab === 'config' ? 'active' : ''}" data-tab="config">
+            ⚙️ Config
+          </button>
         </div>
 
         <!-- Feeding Tab -->
         ${this.selectedTab === 'feeding' ? `
-        <div class="tab-content active">
+        <div class="section-block" style="margin-bottom:16px">
+        <h3 style="margin:0 0 12px;font-size:15px">👶 Dzieci</h3>
+        <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          ${this.babies.map((b, i) => `
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="text" value="${b.name}" data-child-idx="${i}" class="child-name-input" 
+                style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card,#fff);color:var(--bento-text,#333)">
+              ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="Usuń">🗑</button>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ Dodaj dziecko</button>
+          <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 Zapisz nazwy</button>
+        </div>
+      </div>
+      <div class="tab-content active">
           <div class="form-group">
             <label class="form-label">Type</label>
             <select id="feedingType">
@@ -1218,31 +1263,101 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
         ` : ''}
 
-        
-        <div style="margin-top:20px;padding:16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:10px">
-          <h3 style="margin:0 0 10px;font-size:14px">Integracja z HA</h3>
-          <details>
-            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary,#3B82F6)">Karta Lovelace / Entity / Sterowanie glosowe</summary>
-            <div style="margin-top:10px;font-size:12px;line-height:1.8;color:var(--bento-text-secondary,#64748B)">
-              <div><strong>Karta Lovelace:</strong> Baby Tracker jest ladowany automatycznie przez ha-tools-panel. Mozesz tez dodac go jako osobna karte:</div>
-              <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
-              <div><strong>Entity:</strong> Dane zapisywane sa w input_* helpers. Stworz je w Settings > Helpers:</div>
-              <div style="margin-left:8px"><code>input_datetime.baby_last_feed</code>, <code>input_number.baby_feed_amount</code>, <code>input_select.baby_feed_type</code></div>
-              <div><strong>Glos:</strong> Dodaj custom sentences w <code>custom_sentences/pl/baby.yaml</code>:</div>
-              <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">language: pl
-intents:
-  BabyFeedLog:
-    data:
-      - sentences:
-          - "zapisz karmienie {amount} ml"</pre>
+        <!-- Config Tab -->
+        ${this.selectedTab === 'config' ? `
+        <div class="tab-content active">
+          <div class="config-section">
+            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">Custom Sentences</h3>
+            <p style="font-size:13px;color:var(--bento-text-secondary,#64748B);margin:0 0 16px">
+              ${this._lang === 'pl'
+                ? 'Wygeneruj plik YAML z komendami g\u0142osowymi do sterowania Baby Trackerem przez Assist. Skopiuj wygenerowany YAML i wklej do <code>custom_sentences/</code> w folderze konfiguracji HA.'
+                : 'Generate a YAML file with voice commands to control Baby Tracker via Assist. Copy the generated YAML and paste into <code>custom_sentences/</code> in your HA config folder.'}
+            </p>
+
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+              <label style="font-size:13px;font-weight:600;color:var(--bento-text,#1e293b)">
+                ${this._lang === 'pl' ? 'J\u0119zyk sentences:' : 'Sentences language:'}
+              </label>
+              <select id="sentenceLangSelect" style="padding:6px 12px;border-radius:8px;border:1px solid var(--bento-border,#e2e8f0);font-size:13px;background:var(--bento-card,#fff);color:var(--bento-text,#1e293b)">
+                ${this._renderLangOptions()}
+              </select>
+              <button class="btn-primary" id="generateSentencesBtn" style="font-size:13px;padding:6px 16px">
+                ${this._lang === 'pl' ? 'Generuj YAML' : 'Generate YAML'}
+              </button>
             </div>
-          </details>
+
+            <div id="sentencesCheckboxes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px">
+              ${this._renderSentenceCheckboxes()}
+            </div>
+
+            <div id="sentencesOutput" style="position:relative;margin-bottom:16px;display:${this._generatedYaml ? 'block' : 'none'}">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748B)">
+                  ${this._lang === 'pl' ? 'Wygenerowany YAML' : 'Generated YAML'}
+                  ${this._generatedYaml ? ' \u2014 <code>custom_sentences/' + (this._sentenceLang || this._lang || 'en') + '/baby.yaml</code>' : ''}
+                </span>
+                <button class="btn-secondary" id="copySentencesBtn" style="font-size:11px;padding:4px 10px">
+                  ${this._lang === 'pl' ? 'Kopiuj' : 'Copy'}
+                </button>
+              </div>
+              <pre id="sentencesYaml" style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;line-height:1.6;overflow-x:auto;max-height:400px;overflow-y:auto;margin:0;white-space:pre">${this._generatedYaml || ''}</pre>
+            </div>
+
+            <div style="margin-top:20px;padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px">
+              <div style="font-size:12px;font-weight:600;color:var(--bento-text,#1e293b);margin-bottom:8px">
+                ${this._lang === 'pl' ? 'Jak u\u017Cy\u0107:' : 'How to use:'}
+              </div>
+              <ol style="margin:0;padding-left:20px;font-size:12px;color:var(--bento-text-secondary,#64748B);line-height:1.8">
+                <li>${this._lang === 'pl'
+                    ? 'Wybierz j\u0119zyk i kategorie komend powy\u017Cej'
+                    : 'Select language and command categories above'}</li>
+                <li>${this._lang === 'pl'
+                    ? 'Kliknij <strong>Generuj YAML</strong>'
+                    : 'Click <strong>Generate YAML</strong>'}</li>
+                <li>${this._lang === 'pl'
+                    ? 'Skopiuj YAML i utw\u00F3rz plik <code>/config/custom_sentences/{lang}/baby.yaml</code>'
+                    : 'Copy YAML and create file <code>/config/custom_sentences/{lang}/baby.yaml</code>'}</li>
+                <li>${this._lang === 'pl'
+                    ? 'Zrestartuj HA lub prze\u0142aduj custom sentences'
+                    : 'Restart HA or reload custom sentences'}</li>
+                <li>${this._lang === 'pl'
+                    ? 'Testuj w <strong>Developer Tools > Assist</strong>'
+                    : 'Test in <strong>Developer Tools > Assist</strong>'}</li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="config-section" style="margin-top:20px">
+            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">
+              ${this._lang === 'pl' ? 'Integracja z HA' : 'HA Integration'}
+            </h3>
+            <div style="font-size:12px;line-height:1.8;color:var(--bento-text-secondary,#64748B)">
+              <div><strong>${this._lang === 'pl' ? 'Karta Lovelace:' : 'Lovelace Card:'}</strong>
+                ${this._lang === 'pl'
+                  ? 'Baby Tracker jest \u0142adowany automatycznie przez ha-tools-panel. Mo\u017Cesz te\u017C doda\u0107 go jako osobn\u0105 kart\u0119:'
+                  : 'Baby Tracker is loaded automatically by ha-tools-panel. You can also add it as a standalone card:'}
+              </div>
+              <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
+              <div><strong>Entity:</strong>
+                ${this._lang === 'pl'
+                  ? 'Dane zapisywane s\u0105 w input_* helpers. Stw\u00F3rz je w Settings > Helpers:'
+                  : 'Data is stored in input_* helpers. Create them in Settings > Helpers:'}
+              </div>
+              <div style="margin-left:8px"><code>input_datetime.baby_last_feed</code>, <code>input_number.baby_feed_amount</code>, <code>input_select.baby_feed_type</code></div>
+            </div>
+          </div>
         </div>
+        ` : ''}
+
         <div class="export-section">
           <button class="btn-secondary" id="exportBtn">📥 Export Data (JSON)</button>
         </div>
       </div>
     `;
+
+    if (this._lastHtml === html) return;
+    this._lastHtml = html;
+    this.shadowRoot.innerHTML = html;
 
     this.attachEventListeners();
     this.setDefaultTimes();
@@ -1292,6 +1407,53 @@ intents:
     shadowRoot.getElementById('addGrowthBtn')?.addEventListener('click', () => this.addGrowth());
     shadowRoot.getElementById('clearGrowthBtn')?.addEventListener('click', () => this.clearGrowthForm());
     shadowRoot.getElementById('exportBtn')?.addEventListener('click', () => this.exportData());
+
+    // Config tab listeners
+    shadowRoot.getElementById('generateSentencesBtn')?.addEventListener('click', () => {
+      const langSel = shadowRoot.getElementById('sentenceLangSelect');
+      const sentenceLang = langSel ? langSel.value : (this._lang || 'en');
+      this._sentenceLang = sentenceLang;
+      const checkboxes = shadowRoot.querySelectorAll('.sentence-group-cb:checked');
+      const groups = Array.from(checkboxes).map(cb => cb.value);
+      this._selectedSentenceGroups = groups;
+      if (groups.length === 0) {
+        alert(this._lang === 'pl' ? 'Wybierz przynajmniej jedn\u0105 kategori\u0119' : 'Select at least one category');
+        return;
+      }
+      this._generatedYaml = this._generateSentencesYaml(sentenceLang, groups);
+      this.renderCard();
+    });
+    shadowRoot.getElementById('copySentencesBtn')?.addEventListener('click', () => {
+      const yamlEl = shadowRoot.getElementById('sentencesYaml');
+      if (yamlEl && this._generatedYaml) {
+        navigator.clipboard.writeText(this._generatedYaml).then(() => {
+          const btn = shadowRoot.getElementById('copySentencesBtn');
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = this._lang === 'pl' ? 'Skopiowano!' : 'Copied!';
+            btn.style.background = '#22c55e';
+            btn.style.color = '#fff';
+            setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; }, 1500);
+          }
+        }).catch(() => {
+          // Fallback: select text
+          const range = document.createRange();
+          range.selectNodeContents(yamlEl);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        });
+      }
+    });
+    shadowRoot.getElementById('sentenceLangSelect')?.addEventListener('change', (e) => {
+      this._sentenceLang = e.target.value;
+    });
+    shadowRoot.querySelectorAll('.sentence-group-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const checked = Array.from(shadowRoot.querySelectorAll('.sentence-group-cb:checked')).map(c => c.value);
+        this._selectedSentenceGroups = checked;
+      });
+    });
   }
 
   setDefaultTimes() {
@@ -1623,6 +1785,195 @@ intents:
     });
   }
 
+  // --- Custom Sentences Config ---
+  _getAvailableSentenceGroups() {
+    return [
+      { id: 'feeding', icon: '\uD83C\uDF7C', labelPl: 'Karmienie', labelEn: 'Feeding' },
+      { id: 'diapers', icon: '\uD83E\uDE77', labelPl: 'Pieluchy', labelEn: 'Diapers' },
+      { id: 'sleep', icon: '\uD83D\uDE34', labelPl: 'Sen', labelEn: 'Sleep' },
+      { id: 'growth', icon: '\uD83D\uDCCF', labelPl: 'Wzrost/Waga', labelEn: 'Growth' }
+    ];
+  }
+
+  _renderLangOptions() {
+    const sysLang = this._lang || 'en';
+    const first = sysLang === 'pl' ? 'pl' : 'en';
+    const second = first === 'pl' ? 'en' : 'pl';
+    const sel = this._sentenceLang || first;
+    const label = (l) => l === 'pl' ? 'Polski (PL)' : 'English (EN)';
+    return '<option value="' + first + '"' + (sel === first ? ' selected' : '') + '>' + label(first) + '</option>' +
+           '<option value="' + second + '"' + (sel === second ? ' selected' : '') + '>' + label(second) + '</option>';
+  }
+
+  _renderSentenceCheckboxes() {
+    const groups = this._getAvailableSentenceGroups();
+    const selected = this._selectedSentenceGroups || ['feeding','diapers','sleep','growth'];
+    return groups.map(g => {
+      const checked = selected.includes(g.id) ? ' checked' : '';
+      const label = this._lang === 'pl' ? g.labelPl : g.labelEn;
+      return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--bento-text,#1e293b);cursor:pointer;padding:6px 8px;border-radius:6px;border:1px solid var(--bento-border,#e2e8f0);background:var(--bento-card,#fff)">' +
+        '<input type="checkbox" class="sentence-group-cb" value="' + g.id + '"' + checked + ' style="accent-color:var(--bento-primary,#3B82F6)">' +
+        '<span>' + g.icon + ' ' + label + '</span></label>';
+    }).join('');
+  }
+
+  _generateSentencesYaml(lang, groups) {
+    const sentences = {
+      pl: {
+        feeding: {
+          intent: 'BabyFeedLog',
+          sentences: [
+            'zapisz karmienie {amount} ml',
+            'karmienie butelk\u0105 {amount} ml',
+            'karmienie piersi\u0105 {duration} minut',
+            'nakarmiono {amount} mililitr\u00F3w',
+            'baby jad\u0142o {amount} ml',
+            'karmienie {type} {amount}',
+            'dodaj karmienie'
+          ],
+          slots: { amount: { from: 10, to: 500, step: 10 }, duration: { from: 1, to: 60 }, type: ['butelka', 'pier\u015B', 'pokarm sta\u0142y'] }
+        },
+        diapers: {
+          intent: 'BabyDiaperLog',
+          sentences: [
+            'zmiana pieluchy {type}',
+            'pielucha {type}',
+            'zapisz pieluch\u0119 {type}',
+            'brudna pielucha',
+            'mokra pielucha',
+            'zmiana pieluchy'
+          ],
+          slots: { type: ['mokra', 'brudna', 'mieszana'] }
+        },
+        sleep: {
+          intent: 'BabySleepLog',
+          sentences: [
+            'baby \u015Bpi',
+            'zacznij sen',
+            'baby zasn\u0119\u0142o',
+            'koniec snu',
+            'baby si\u0119 obudzi\u0142o',
+            'sen {duration} minut',
+            'drzemka {duration} minut',
+            'zapisz sen {duration} minut'
+          ],
+          slots: { duration: { from: 5, to: 360 } }
+        },
+        growth: {
+          intent: 'BabyGrowthLog',
+          sentences: [
+            'waga baby {weight} kg',
+            'wzrost baby {height} cm',
+            'zapisz wag\u0119 {weight} kilogram\u00F3w',
+            'zapisz wzrost {height} centymetr\u00F3w',
+            'baby wa\u017Cy {weight} kg',
+            'baby mierzy {height} cm'
+          ],
+          slots: { weight: { from: 1, to: 30, step: 0.1 }, height: { from: 30, to: 150, step: 0.5 } }
+        }
+      },
+      en: {
+        feeding: {
+          intent: 'BabyFeedLog',
+          sentences: [
+            'log feeding {amount} ml',
+            'bottle feeding {amount} ml',
+            'breast feeding {duration} minutes',
+            'fed {amount} milliliters',
+            'baby ate {amount} ml',
+            'feeding {type} {amount}',
+            'add feeding'
+          ],
+          slots: { amount: { from: 10, to: 500, step: 10 }, duration: { from: 1, to: 60 }, type: ['bottle', 'breast', 'solid'] }
+        },
+        diapers: {
+          intent: 'BabyDiaperLog',
+          sentences: [
+            'diaper change {type}',
+            '{type} diaper',
+            'log diaper {type}',
+            'dirty diaper',
+            'wet diaper',
+            'diaper change'
+          ],
+          slots: { type: ['wet', 'dirty', 'mixed'] }
+        },
+        sleep: {
+          intent: 'BabySleepLog',
+          sentences: [
+            'baby is sleeping',
+            'start sleep',
+            'baby fell asleep',
+            'stop sleep',
+            'baby woke up',
+            'sleep {duration} minutes',
+            'nap {duration} minutes',
+            'log sleep {duration} minutes'
+          ],
+          slots: { duration: { from: 5, to: 360 } }
+        },
+        growth: {
+          intent: 'BabyGrowthLog',
+          sentences: [
+            'baby weighs {weight} kg',
+            'baby height {height} cm',
+            'log weight {weight} kilograms',
+            'log height {height} centimeters',
+            'weight {weight} kg',
+            'height {height} cm'
+          ],
+          slots: { weight: { from: 1, to: 30, step: 0.1 }, height: { from: 30, to: 150, step: 0.5 } }
+        }
+      }
+    };
+
+    const langData = sentences[lang] || sentences.en;
+    let yaml = `language: "${lang}"\nintents:\n`;
+
+    for (const groupId of groups) {
+      const group = langData[groupId];
+      if (!group) continue;
+      yaml += `  ${group.intent}:\n    data:\n      - sentences:\n`;
+      for (const s of group.sentences) {
+        yaml += `          - "${s}"\n`;
+      }
+      // Slots
+      if (group.slots && Object.keys(group.slots).length > 0) {
+        yaml += `        slots:\n`;
+        for (const [slotName, slotDef] of Object.entries(group.slots)) {
+          if (Array.isArray(slotDef)) {
+            yaml += `          ${slotName}:\n            values:\n`;
+            for (const v of slotDef) {
+              yaml += `              - "${v}"\n`;
+            }
+          } else {
+            yaml += `          ${slotName}:\n            range:\n              from: ${slotDef.from}\n              to: ${slotDef.to}${slotDef.step ? `\n              step: ${slotDef.step}` : ''}\n`;
+          }
+        }
+      }
+    }
+
+    // Add response templates
+    yaml += `\n# Response templates (${lang === 'pl' ? 'odpowiedzi Assist' : 'Assist responses'})\n`;
+    if (lang === 'pl') {
+      yaml += `# Dodaj do intents.yaml lub intent_script:\n`;
+      for (const groupId of groups) {
+        const group = langData[groupId];
+        if (!group) continue;
+        yaml += `# ${group.intent}: "OK, zapisano."\n`;
+      }
+    } else {
+      yaml += `# Add to intents.yaml or intent_script:\n`;
+      for (const groupId of groups) {
+        const group = langData[groupId];
+        if (!group) continue;
+        yaml += `# ${group.intent}: "OK, logged."\n`;
+      }
+    }
+
+    return yaml;
+  }
+
   exportData() {
     const allData = {
       exportDate: new Date().toISOString(),
@@ -1698,6 +2049,14 @@ intents:
         this._render ? this._render() : (this.render ? this.render() : this.renderCard());
       });
     });
+
+      this.shadowRoot.querySelectorAll('[data-baby]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          this.selectedBaby = parseInt(btn.dataset.baby);
+          this._loadData();
+          this.renderCard();
+        });
+      });
   }
   // --- Canvas size fix for Bento CSS ---
   _fixCanvasSize(canvas) {
@@ -1707,7 +2066,6 @@ intents:
       canvas.height = rect.height;
     }
   }
-
 
 }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HA Log Email Card v1.0
  * Send periodic email summaries of HA errors and warnings.
  * Part of HA Tools Panel — Smart Reports
@@ -37,6 +37,10 @@ class HALogEmail extends HTMLElement {
     } catch(e) {}
   }
 
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
   set hass(hass) {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
@@ -612,7 +616,8 @@ max: 3</pre>
     }
 
     this.shadowRoot.innerHTML = `
-      <style>
+      <style>${window.HAToolsBentoCSS || ""}
+
         :host {
           --bg: var(--primary-background-color, #F8FAFC); --card: var(--card-background-color, #FFFFFF); --border: var(--divider-color, #E2E8F0);
           --text: var(--primary-text-color, #1E293B); --text2: var(--secondary-text-color, #64748B); --text3: var(--disabled-text-color, #94A3B8);
@@ -628,7 +633,7 @@ max: 3</pre>
           }
         }
         * { box-sizing: border-box; }
-        .card { background: var(--card); border-radius: var(--radius); overflow: hidden; }
+        .card { background: var(--card); border-radius: var(--radius); overflow: hidden; max-width: 100%; box-sizing: border-box; }
         .header { padding: 16px 20px 0; display: flex; align-items: center; gap: 10px; }
         .header-icon { font-size: 22px; }
         .header-title { font-size: 16px; font-weight: 700; color: var(--text); }
@@ -652,14 +657,14 @@ max: 3</pre>
         .loading-bar { height: 3px; background: linear-gradient(90deg, var(--primary), transparent); border-radius: 2px; animation: load 1s infinite; margin-bottom: 8px; }
         @keyframes load { 0%{background-position:0} 100%{background-position:200px} }
 
-        .log-entry { display: flex; align-items: flex-start; gap: 6px; padding: 8px; border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 12px; }
+        .log-entry { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 6px; padding: 8px; border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 12px; min-width: 0; overflow: hidden; }
         .error-entry { background: #ef444408; border: 1px solid #ef444420; }
         .warn-entry { background: #f59e0b08; border: 1px solid #f59e0b20; }
-        .log-time { color: var(--text3); min-width: 50px; flex-shrink: 0; }
-        .log-domain { font-weight: 600; min-width: 70px; flex-shrink: 0; }
+        .log-time { color: var(--text3); flex-shrink: 0; }
+        .log-domain { font-weight: 600; flex-shrink: 1; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; word-break: break-all; }
         .error-domain { color: #ef4444; }
         .warn-domain { color: #f59e0b; }
-        .log-msg { color: var(--text2); flex: 1; word-break: break-word; }
+        .log-msg { color: var(--text2); flex-basis: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap; min-width: 0; }
         .empty-state { text-align: center; color: var(--text2); padding: 16px; font-size: 13px; background: var(--bg); border-radius: var(--radius-sm); }
         .last-updated { font-size: 11px; color: var(--text3); text-align: right; margin-top: 8px; }
         .info-note { font-size: 12px; color: var(--text2); background: var(--bg); border-radius: var(--radius-sm); padding: 8px 10px; border-left: 3px solid var(--primary); margin-top: 8px; }
@@ -716,8 +721,17 @@ max: 3</pre>
       
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
+          .card { overflow: hidden; }
+          .content { overflow: hidden; padding: 12px; }
+          .log-entry { flex-wrap: wrap; gap: 2px 6px; }
+          .log-domain { max-width: 60%; font-size: 11px; }
+          .log-msg { flex-basis: 100%; max-width: 100%; overflow-wrap: anywhere; font-size: 11px; }
+          .overview-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .send-grid { grid-template-columns: 1fr; }
+          .schedule-grid { grid-template-columns: 1fr; }
+          pre { white-space: pre-wrap; word-break: break-all; max-width: calc(100vw - 80px); overflow-x: auto; }
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -729,11 +743,13 @@ max: 3</pre>
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+      
+
+</style>
 
       <ha-card class="card">
         <div class="header">

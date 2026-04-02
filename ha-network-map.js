@@ -1,4 +1,4 @@
-﻿class HaNetworkMap extends HTMLElement {
+class HaNetworkMap extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -17,6 +17,23 @@
     this.sortDesc = false;
     this._deviceRegistry = [];
     this._registryLoaded = false;
+    // --- HTML diffing ---
+    this._lastHtml = '';
+  }
+  _persistKey() { return 'ha-network-map-devices'; }
+  _loadPersistedDevices() {
+    try {
+      const stored = localStorage.getItem(this._persistKey());
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  }
+  _persistDevices(devices) {
+    const map = {};
+    devices.forEach(d => {
+      const key = d.ip || d.mac || d.name;
+      map[key] = {...d, last_seen: d.last_seen || new Date().toISOString()};
+    });
+    try { localStorage.setItem(this._persistKey(), JSON.stringify(map)); } catch {}
   }
   static get _translations() {
     return {
@@ -156,6 +173,38 @@
       });
       deviceMap[nk] = this.devices[this.devices.length - 1];
     });
+    // === HYBRID PERSISTENCE: Merge with persisted offline this.devices ===
+    const persisted = this._loadPersistedDevices();
+    const currentKeys = new Set(this.devices.map(d => d.ip || d.mac || d.name));
+    
+    // Add previously seen this.devices that are now offline
+    Object.values(persisted).forEach(pd => {
+      const key = pd.ip || pd.mac || pd.name;
+      if (!currentKeys.has(key)) {
+        this.devices.push({
+          ...pd,
+          status: 'offline',
+          rawState: 'offline',
+          last_seen: pd.last_seen || pd.lastSeen
+        });
+      }
+    });
+    
+    // Update last_seen for online this.devices and preserve for offline
+    this.devices.forEach(d => {
+      if (d.status === 'home' || d.status === 'zone' || d.rawState === 'home') {
+        d.last_seen = new Date().toISOString();
+      } else if (!d.last_seen) {
+        const key = d.ip || d.mac || d.name;
+        if (persisted[key]) {
+          d.last_seen = persisted[key].last_seen || persisted[key].lastSeen;
+        }
+      }
+    });
+    
+    // Persist updated device list
+    this._persistDevices(this.devices);
+    this.devices = this.devices;
     this._filterSort();
   }
   _cat(name, attr) {
@@ -209,19 +258,22 @@
   _doRender() {
     const css = this._css();
     const content = this.activeTab === 'list' ? this._listTab() : this._mapTab();
-    this.shadowRoot.innerHTML = css + '<div class="card-container"><div class="card-header">\u{1F4E1} ' + this.title + '</div><div class="tabs">' +
+    const html = css + '<div class="card"><div class="card-header">\u{1F4E1} ' + this.title + '</div><div class="tabs">' +
       '<button class="tab-btn ' + (this.activeTab === 'list' ? 'active' : '') + '" data-tab="list">' + this._t('listTab') + '</button>' +
       '<button class="tab-btn ' + (this.activeTab === 'map' ? 'active' : '') + '" data-tab="map">' + this._t('mapTab') + '</button>' +
       '</div>' + content + '</div>';
+    if (this._lastHtml === html) return;
+    this._lastHtml = html;
+    this.shadowRoot.innerHTML = html;
     this._bindEvents();
   }
-  _css() { return '<style>' +
+  _css() { return '<style>' + (window.HAToolsBentoCSS || "") + '\n' +
     ':host{--bp:#3B82F6;--bpl:rgba(59,130,246,0.08);--bs:#10B981;--bsl:rgba(16,185,129,0.08);--be:#EF4444;--bel:rgba(239,68,68,0.08);--bw:#F59E0B;--bwl:rgba(245,158,11,0.08);' +
     '--bbg:var(--primary-background-color,#F8FAFC);--bcard:var(--card-background-color,#FFF);--bbrd:var(--divider-color,#E2E8F0);' +
     '--btxt:var(--primary-text-color,#1E293B);--btxt2:var(--secondary-text-color,#64748B);--btxtm:var(--disabled-text-color,#94A3B8);' +
     '--brxs:6px;--brsm:10px;--brmd:16px;--bshsm:0 1px 3px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.06);--bshmd:0 4px 12px rgba(0,0,0,.05),0 2px 4px rgba(0,0,0,.04);' +
     '--btr:all .2s cubic-bezier(.4,0,.2,1);font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif}' +
-    '.card-container{background:var(--bcard);border:1px solid var(--bbrd);border-radius:var(--brmd);box-shadow:var(--bshsm);padding:20px;color:var(--btxt);font-family:Inter,-apple-system,sans-serif}' +
+    '.card{background:var(--bcard);border:1px solid var(--bbrd);border-radius:var(--brmd);box-shadow:var(--bshsm);padding:20px;color:var(--btxt);font-family:Inter,-apple-system,sans-serif}' +
     '.card-header{font-size:20px;font-weight:600;color:var(--btxt);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--bbrd)}' +
     '.tabs{display:flex;gap:4px;border-bottom:2px solid var(--bbrd);margin-bottom:20px;overflow-x:auto}' +
     '.tab-btn{padding:10px 18px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;font-family:Inter,sans-serif;' +
@@ -264,9 +316,11 @@
     '.li{display:flex;align-items:center;gap:4px}.ld{width:10px;height:10px;border-radius:50%;display:inline-block}' +
     '.es{text-align:center;padding:40px 16px;color:var(--btxt2);font-size:14px}' +
     '::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bbrd);border-radius:3px}' +
-    '@media(max-width:600px){.card-container{padding:12px}.stats-bar{grid-template-columns:repeat(2,1fr);gap:6px}.stat-mini{padding:8px}' +
+    '@media(max-width:600px){.card{padding:12px}.stats-bar{grid-template-columns:repeat(2,1fr);gap:6px}.stat-mini{padding:8px}' +
     '.stat-mini .sv{font-size:20px}.toolbar{flex-direction:column}.si{width:100%}table{min-width:500px}td,th{padding:8px 6px;font-size:12px}}' +
-    '/* === DARK MODE === */ @media (prefers-color-scheme: dark) { :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-border: var(--divider-color, #2a2a4a); --bento-text: var(--primary-text-color, #e0e0e0); --bento-text-secondary: var(--secondary-text-color, #a0a0b0); --bento-text-muted: var(--disabled-text-color, #6a6a7a); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4); --bento-primary-light: rgba(59,130,246,0.15); --bento-success-light: rgba(16,185,129,0.15); --bento-error-light: rgba(239,68,68,0.15); --bento-warning-light: rgba(245,158,11,0.15); color-scheme: dark !important; } .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card { background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important; } input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); } .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); } .tab-content, .section { color: var(--bento-text); } table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); } table td { color: var(--bento-text); border-color: var(--bento-border); } tr:hover td { background: rgba(59,130,246,0.08); } .empty-state, .no-data { color: var(--bento-text-secondary); } .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); } .addon-list, .content-item { background: rgba(255,255,255,0.05); } .chart-container { background: var(--bento-bg); border-color: var(--bento-border); } pre, code { background: #1e293b !important; color: #e2e8f0 !important; } } /* === MOBILE FIX */ @media(max-width:768px){.tabs{flex-wrap:wrap;overflow-x:visible;gap:2px}.tab,.tab-button,.tab-btn{padding:6px 10px;font-size:12px;white-space:nowrap}.card,.card-container{padding:14px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:repeat(2,1fr);gap:8px}.stat-val,.kpi-val,.metric-val{font-size:18px}.stat-lbl,.kpi-lbl,.metric-lbl{font-size:10px}.panels,.board{flex-direction:column}.column{min-width:unset}h2{font-size:18px}h3{font-size:15px}}@media(max-width:480px){.tabs{gap:1px}.tab,.tab-button,.tab-btn{padding:5px 8px;font-size:11px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:1fr 1fr}.stat-val,.kpi-val,.metric-val{font-size:16px}}</style>'; }
+    '/* === DARK MODE === */ @media (prefers-color-scheme: dark) { :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-border: var(--divider-color, #2a2a4a); --bento-text: var(--primary-text-color, #e0e0e0); --bento-text-secondary: var(--secondary-text-color, #a0a0b0); --bento-text-muted: var(--disabled-text-color, #6a6a7a); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4); --bento-primary-light: rgba(59,130,246,0.15); --bento-success-light: rgba(16,185,129,0.15); --bento-error-light: rgba(239,68,68,0.15); --bento-warning-light: rgba(245,158,11,0.15); color-scheme: dark !important; } .card, .card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card { background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important; } input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); } .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); } .tab-content, .section { color: var(--bento-text); } table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); } table td { color: var(--bento-text); border-color: var(--bento-border); } tr:hover td { background: rgba(59,130,246,0.08); } .empty-state, .no-data { color: var(--bento-text-secondary); } .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); } .addon-list, .content-item { background: rgba(255,255,255,0.05); } .chart-container { background: var(--bento-bg); border-color: var(--bento-border); } pre, code { background: #1e293b !important; color: #e2e8f0 !important; } } /* === MOBILE FIX */ @media(max-width:768px){.tabs{flex-wrap:wrap;overflow-x:visible;gap:2px}.tab,.tab-button,.tab-btn{padding:6px 10px;font-size:12px;white-space:nowrap}.card,.card{padding:14px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:repeat(2,1fr);gap:8px}.stat-val,.kpi-val,.metric-val{font-size:18px}.stat-lbl,.kpi-lbl,.metric-lbl{font-size:10px}.panels,.board{flex-direction:column}.column{min-width:unset}h2{font-size:18px}h3{font-size:15px}}@media(max-width:480px){.tabs{gap:1px}.tab,.tab-button,.tab-btn{padding:5px 8px;font-size:11px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:1fr 1fr}.stat-val,.kpi-val,.metric-val{font-size:16px}}' +
+    '/* BENTO TAB OVERRIDE */.tabs,.tab-bar,.tab-nav,.tab-header{display:flex!important;gap:4px!important;border-bottom:2px solid var(--bento-border,var(--divider-color,#334155))!important;padding:0 4px!important;margin-bottom:20px!important;overflow-x:auto!important;flex-wrap:nowrap!important}.tab,.tab-btn,.tab-button,.dtab{padding:10px 18px!important;border:none!important;background:transparent!important;cursor:pointer!important;font-size:13px!important;font-weight:500!important;font-family:Inter,sans-serif!important;color:var(--bento-text-secondary,var(--secondary-text-color,#94A3B8))!important;border-bottom:2px solid transparent!important;margin-bottom:-2px!important;transition:all .2s cubic-bezier(.4,0,.2,1)!important;white-space:nowrap!important;border-radius:0!important;flex:none!important}.tab:hover,.tab-btn:hover,.tab-button:hover,.dtab:hover{color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.08)!important}.tab.active,.tab-btn.active,.tab-button.active,.dtab.active{color:var(--bento-primary,#3B82F6)!important;border-bottom-color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.04)!important;font-weight:600!important}.stat-card,.stat-item,.metric-card,.kpi-card{background:var(--bento-card,var(--card-background-color,#1E293B))!important;border:1px solid var(--bento-border,var(--divider-color,#334155))!important;border-radius:var(--bento-radius-sm,10px)!important;padding:16px!important;text-align:center!important}' +
+    '.chart-container { max-height: 300px; overflow: hidden; position: relative; } .chart-container canvas { max-height: 250px; width: 100%; } canvas { max-height: 300px; } ' + '</style>'; }
   _listTab() {
     const total = this.devices.length;
     const on = this.devices.filter(d => d.status === 'home' || d.status === 'zone').length;
@@ -293,10 +347,17 @@
       const sL = d.status === 'zone' ? d.rawState : this._t(d.status);
       const sc = d.status === 'home' ? 'sh' : d.status === 'away' ? 'sa2' : d.status === 'offline' ? 'so2' : d.status === 'zone' ? 'sz' : 'su';
       const mfg = d.manufacturer ? '<span class="ds">' + d.manufacturer + (d.model ? ' ' + d.model : '') + '</span>' : '';
-      const ls = d.lastSeen ? new Date(d.lastSeen).toLocaleString() : '\u2014';
+      const lastSeenTime = d.last_seen || d.lastSeen || null;
+      const lastSeenText = lastSeenTime ? new Date(lastSeenTime).toLocaleString() : '\u2014';
+      // Enhanced status badge for offline devices showing last_seen
+      let statusBadge = '<span class="sb ' + sc + '">' + sL + '</span>';
+      if (d.status === 'offline' && lastSeenTime) {
+        const lastSeenDate = new Date(lastSeenTime);
+        statusBadge = '<span style="color:#94A3B8;font-weight:600">● Offline</span> <span style="font-size:10px;color:var(--btxt2)">(' + lastSeenDate.toLocaleString() + ')</span>';
+      }
       rows += '<tr data-i="' + i + '"><td><span class="di">' + d.icon + '</span><span class="dn">' + d.name + '</span>' + mfg + '</td>' +
-        '<td>' + d.category + '</td><td><span class="sb ' + sc + '">' + sL + '</span></td>' +
-        '<td class="mn">' + ipD + '</td><td class="mn">' + macD + '</td><td>' + ls + '</td></tr>';
+        '<td>' + d.category + '</td><td>' + statusBadge + '</td>' +
+        '<td class="mn">' + ipD + '</td><td class="mn">' + macD + '</td><td>' + lastSeenText + '</td></tr>';
     });
     h += '<div class="tw"><table><thead><tr>' +
       '<th data-s="name">' + this._t('deviceName') + sa('name') + '</th>' +
@@ -321,7 +382,8 @@
     if (d.ssid) rows.push(['\u{1F4F6} WiFi', d.ssid]);
     if (d.rssi) rows.push(['\u{1F4E1} Signal', d.rssi + ' dBm']);
     if (d.connType) rows.push([this._t('connection'), d.connType]);
-    if (d.lastSeen) rows.push([this._t('lastSeenDetail'), new Date(d.lastSeen).toLocaleString()]);
+    const lastSeenTime = d.last_seen || d.lastSeen;
+    if (lastSeenTime) rows.push([this._t('lastSeenDetail'), new Date(lastSeenTime).toLocaleString()]);
     const rh = rows.map(r => '<div class="dr"><span class="dl">' + r[0] + '</span><span class="dv">' + r[1] + '</span></div>').join('');
     return '<div class="dd" id="dD"><button class="dc" id="cD">\u2715 Zamknij</button><div style="clear:both"></div>' + rh + '</div>';
   }

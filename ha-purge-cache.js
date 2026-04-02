@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HA Purge Cache v1.0.0
  * Tool for clearing browser cache, localStorage, service workers,
  * and force-reloading HA Tools scripts.
@@ -101,6 +101,13 @@ class HAPurgeCache extends HTMLElement {
 
     this._stats = stats;
     this._updateDisplay();
+  }
+
+
+
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
   }
 
   _updateDisplay() {
@@ -277,8 +284,9 @@ class HAPurgeCache extends HTMLElement {
   _render() {
     this._rendered = true;
     this.shadowRoot.innerHTML = `
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+      <style>${window.HAToolsBentoCSS || ""}
+
+        /* Inter font loaded by ha-tools-loader.js - no @import needed */
 
         :host {
           display: block;
@@ -297,7 +305,7 @@ class HAPurgeCache extends HTMLElement {
           --pc-radius: 12px;
         }
 
-        .container { max-width: 900px; margin: 0 auto; padding: 16px; }
+        .card { max-width: 900px; margin: 0 auto; padding: 16px; }
         h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
         .subtitle { color: var(--pc-text-sec); font-size: 13px; margin-bottom: 20px; }
         .ha-ver { font-size: 12px; color: var(--pc-text-sec); font-weight: 400; }
@@ -474,7 +482,7 @@ class HAPurgeCache extends HTMLElement {
         .tip-banner.hidden { display: none; }
         /* Mobile responsive */
         @media (max-width: 768px) {
-          .container { padding: 12px; }
+          .card { padding: 12px; }
           .header h2 { font-size: 18px; }
           .actions { flex-wrap: wrap; gap: 8px; }
           .actions button { min-width: 120px; flex: 1; font-size: 13px; }
@@ -486,7 +494,7 @@ class HAPurgeCache extends HTMLElement {
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -498,13 +506,15 @@ class HAPurgeCache extends HTMLElement {
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      </style>
+      
 
-      <div class="container">
+</style>
+
+      <div class="card">
         <h2>\u{1F9F9} Purge Cache <span class="ha-ver">HA <span id="ha-version">...</span></span></h2>
         <div class="subtitle">Wyczy\u015B\u0107 cache przegl\u0105darki, Service Workers, localStorage i skrypty narz\u0119dzi.</div>
         <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:12px 14px;margin:8px 0;font-size:12px;line-height:1.6;color:var(--bento-text,#1e293b)">
@@ -615,7 +625,7 @@ class HAPurgeCache extends HTMLElement {
           <div id="ls-keys"></div>
         </div>
       </div>
-    `;
+    `
 
     // Tip banner dismiss
     const tipBanner = this.shadowRoot.querySelector('#tip-banner');

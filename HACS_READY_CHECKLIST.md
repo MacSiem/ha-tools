@@ -42,10 +42,13 @@ After the repo is up and has a release:
 
 | File | Status | Notes |
 |------|--------|-------|
-| ha-tools-panel.js | ✅ Ready | v3.1.0, debug logs removed |
-| hacs.json | ✅ Ready | All required fields present |
-| README.md | ✅ Ready | HACS + manual install docs |
-| CHANGELOG.md | ✅ Created | Full version history |
-| LICENSE | ✅ Created | MIT |
+| ha-tools-panel.js | ✅ Ready | v3.7.0, 22 tools, no BOM |
+| ha-frigate-privacy.js | ✅ Ready | Frigate privacy timer + scheduler |
+| ha-encoding-fixer.js | ✅ Ready | Mojibake/BOM scanner & fixer |
+| ha-tools-loader.js | ✅ Ready | Bootstrap loader for HACS |
+| hacs.json | ✅ Ready | filename: ha-tools-loader.js, HA 2024.1+ |
+| README.md | ✅ Updated | 22 tools, v3.7.0 badges |
+| CHANGELOG.md | ✅ Updated | Full history through v3.7.0 |
+| LICENSE | ✅ Present | MIT |
 | icon.png | ✅ Present | Used by HACS |
-| screenshot.png | ✅ Present | Used in README |
+| screenshot.png | ⚠️ Outdated | May not reflect current 20-tool UI |
