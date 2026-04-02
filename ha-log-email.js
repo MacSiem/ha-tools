@@ -444,7 +444,7 @@ class HALogEmail extends HTMLElement {
 
         <div class="section-header">
           <span>Recent Errors</span>
-          <button class="refresh-btn" id="btn-refresh">\uD83D\uDD04 Refresh</button>
+
         </div>
         ${this._loading ? '<div class="loading-bar"></div>' : ''}
         ${errors.length === 0 && !this._loading ?
@@ -503,20 +503,16 @@ class HALogEmail extends HTMLElement {
           </div>
         </div>
 
-        <div class="section-header">Recipient</div>
+        <div class="section-header">SMTP Service</div>
+        <div class="info-card" style="padding:12px">
+          ${(() => { const smtp = this._detectSmtp(); if (!smtp.found) return '<span style="color:var(--bento-text-muted)">\u26A0\uFE0F Brak wykrytego serwisu SMTP</span>'; return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>\uD83D\uDCE7 Serwis: <code>notify.' + smtp.defaultService + '</code></span>' + (smtp.services.length > 1 ? '<select id="smtpServiceSelect" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px">' + smtp.services.map(s => '<option value="' + s + '" ' + (s === smtp.defaultService ? "selected" : "") + '>notify.' + s + '</option>').join("") + '</select>' : "") + '</div>'; })()}
+        </div>
+        <div class="section-header" style="margin-top:10px">Recipient</div>
         <div class="info-card">
-          <span>\uD83D\uDCE7 ${this._config.email_recipient}</span>
+          <span>\uD83D\uDCE7 ${this._config.email_recipient || '<span style="color:var(--bento-text-muted)">Nie ustawiony \u2014 dodaj email_recipient w konfiguracji karty</span>'}</span>
         </div>
 
-        <div class="section-header">Setup Instructions</div>
-        <div class="info-card setup-steps">
-          <p>\uD83D\uDCCC Add to your HA <code>configuration.yaml</code>:</p>
-          <pre>homeassistant:
-  packages: !include_dir_named packages</pre>
-          <p>\uD83D\uDCCC Copy <code>log_email.yaml</code> to your <code>packages/</code> folder</p>
-          <p>\uD83D\uDCCC Restart Home Assistant</p>
-          <p>\uD83D\uDCCC Go to <b>Send Now</b> tab to test</p>
-        </div>
+        
       `;
     } else if (this._activeTab === 'preview') {
       tabContent = `
@@ -780,8 +776,7 @@ max: 3</pre>
       });
     });
 
-    const btnRefresh = this.shadowRoot.getElementById('btn-refresh');
-    if (btnRefresh) btnRefresh.addEventListener('click', () => this._fetchLogData());
+    // btn-refresh removed
 
     const btnRefreshPreview = this.shadowRoot.getElementById('btn-refresh-preview');
     if (btnRefreshPreview) btnRefreshPreview.addEventListener('click', () => this._fetchLogData());

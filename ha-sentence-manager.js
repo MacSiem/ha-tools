@@ -678,7 +678,7 @@ class HASentenceManager extends HTMLElement {
         <div class="ha-sentences-info">
           <div class="info-card">
             <h3>\u{1F4C1} Custom Sentences w Home Assistant</h3>
-            <p>HA automatycznie wczytuje pliki YAML z katalogu <code>config/custom_sentences/${lang}/</code>.</p>
+            <p>HA automatycznie wczytuje pliki YAML z katalogu <code>config/custom_sentences/</code> dla każdego języka (np. <code>pl/</code>, <code>en/</code>). Narzędzie szuka w katalogu skonfigurowanego języka (<code>${lang}</code>).</p>
             <p style="font-size:12px;color:var(--bento-text-secondary);margin-top:4px;">
               \u2139\uFE0F Nie trzeba nic dodawa\u0107 do <code>configuration.yaml</code> \u2014 HA automatycznie wykrywa pliki w tym katalogu po restarcie.
             </p>

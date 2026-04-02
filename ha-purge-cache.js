@@ -186,14 +186,22 @@ class HAPurgeCache extends HTMLElement {
   async _purgeLocalStorage() {
     const count = localStorage.length;
     localStorage.clear();
-    this._addLog(`\u2705 localStorage wyczyszczony (${count} kluczy)`, 'success');
+    if (localStorage.length > 0) {
+      this._addLog(`\u26A0\uFE0F localStorage nie zosta\u0142 w pe\u0142ni wyczyszczony (${localStorage.length} kluczy pozosta\u0142o)`, 'error');
+    } else {
+      this._addLog(`\u2705 localStorage wyczyszczony (${count} kluczy usuni\u0119tych)`, 'success');
+    }
     await this._collectStats();
   }
 
   async _purgeSessionStorage() {
     const count = sessionStorage.length;
     sessionStorage.clear();
-    this._addLog(`\u2705 sessionStorage wyczyszczony (${count} kluczy)`, 'success');
+    if (sessionStorage.length > 0) {
+      this._addLog(`\u26A0\uFE0F sessionStorage nie zosta\u0142 w pe\u0142ni wyczyszczony`, 'error');
+    } else {
+      this._addLog(`\u2705 sessionStorage wyczyszczony (${count} kluczy usuni\u0119tych)`, 'success');
+    }
     await this._collectStats();
   }
 
@@ -563,28 +571,28 @@ class HAPurgeCache extends HTMLElement {
             <span class="action-icon">\u{1F5D1}\uFE0F</span>
             <div>
               <div class="action-label">Wyczy\u015B\u0107 localStorage</div>
-              <div class="action-desc">Ustawienia panelu, HACS, frontend</div>
+              <div class="action-desc">Wylogowanie + reset ustawie\u0144 panelu</div>
             </div>
           </button>
           <button class="action-btn" id="btn-purge-ss">
             <span class="action-icon">\u{1F4CB}</span>
             <div>
               <div class="action-label">Wyczy\u015B\u0107 sessionStorage</div>
-              <div class="action-desc">Dane sesji przegl\u0105darki</div>
+              <div class="action-desc">Dane sesji \u2014 bezpieczne, bez wylogowania</div>
             </div>
           </button>
           <button class="action-btn" id="btn-purge-sw">
             <span class="action-icon">\u2699\uFE0F</span>
             <div>
               <div class="action-label">Wyrejestruj Service Workers</div>
-              <div class="action-desc">SW cache'uj\u0105ce zasoby</div>
+              <div class="action-desc">Offline cache \u2014 bez wylogowania</div>
             </div>
           </button>
           <button class="action-btn" id="btn-purge-cs">
             <span class="action-icon">\u{1F4E6}</span>
             <div>
               <div class="action-label">Usu\u0144 Cache Storage</div>
-              <div class="action-desc">Wszystkie CacheStorage API</div>
+              <div class="action-desc">Zwolni miejsce \u2014 bez wylogowania</div>
             </div>
           </button>
           <button class="action-btn" id="btn-reload-tools">
@@ -598,7 +606,7 @@ class HAPurgeCache extends HTMLElement {
             <span class="action-icon">\u{1F9F9}</span>
             <div>
               <div class="action-label">Wyczy\u015B\u0107 WSZYSTKO</div>
-              <div class="action-desc">Pe\u0142ny purge + reload skrypt\u00F3w</div>
+              <div class="action-desc">\u26A0\uFE0F Wymaga ponownego logowania!</div>
             </div>
           </button>
           <button class="action-btn primary" id="btn-hard-reload">
@@ -641,16 +649,16 @@ class HAPurgeCache extends HTMLElement {
 
     // Bind events (with confirmation for destructive actions)
     this.shadowRoot.querySelector('#btn-purge-ls').addEventListener('click', () => {
-      if (confirm('Wyczy\u015Bci\u0107 localStorage? Ustawienia panelu i logowanie zostan\u0105 zresetowane.')) this._purgeLocalStorage();
+      if (confirm('Wyczy\u015Bci\u0107 localStorage?\n\n\u26A0\uFE0F Utracone dane:\n\u2022 Token logowania \u2014 wymagane ponowne zalogowanie\n\u2022 Ustawienia panelu HA Tools\n\u2022 Preferencje HACS i frontendu\n\u2022 Zapami\u0119tane filtry i widoki\n\nCzy kontynuowa\u0107?')) this._purgeLocalStorage();
     });
-    this.shadowRoot.querySelector('#btn-purge-ss').addEventListener('click', () => this._purgeSessionStorage());
-    this.shadowRoot.querySelector('#btn-purge-sw').addEventListener('click', () => this._purgeServiceWorkers());
-    this.shadowRoot.querySelector('#btn-purge-cs').addEventListener('click', () => this._purgeCacheStorage());
+    this.shadowRoot.querySelector('#btn-purge-ss').addEventListener('click', () => { if (confirm('Wyczy\u015Bci\u0107 sessionStorage?\n\n\u{1F4CB} Utracone dane:\n\u2022 Dane bie\u017C\u0105cej sesji (formularze, stany tymczasowe)\n\u2022 Nie wymaga ponownego logowania\n\nCzy kontynuowa\u0107?')) this._purgeSessionStorage(); });
+    this.shadowRoot.querySelector('#btn-purge-sw').addEventListener('click', () => { if (confirm('Wyrejestrowa\u0107 Service Workers?\n\n\u2699\uFE0F Efekt:\n\u2022 Usuni\u0119cie offline cache \u2014 zasoby b\u0119d\u0105 \u0142adowane z serwera\n\u2022 Nie wymaga ponownego logowania\n\u2022 Mo\u017Ce spowolni\u0107 pierwsze \u0142adowanie\n\nCzy kontynuowa\u0107?')) this._purgeServiceWorkers(); });
+    this.shadowRoot.querySelector('#btn-purge-cs').addEventListener('click', () => { if (confirm('Usun\u0105\u0107 Cache Storage?\n\n\u{1F4E6} Efekt:\n\u2022 Usuni\u0119cie cache API przegl\u0105darki\n\u2022 Nie wymaga ponownego logowania\n\u2022 Zwolni miejsce\n\nCzy kontynuowa\u0107?')) this._purgeCacheStorage(); });
     this.shadowRoot.querySelector('#btn-reload-tools').addEventListener('click', () => this._forceReloadTools());
     this.shadowRoot.querySelector('#btn-purge-all').addEventListener('click', () => {
-      if (confirm('Wyczy\u015Bci\u0107 WSZYSTKO? Obejmuje localStorage, sessionStorage, Service Workers, Cache Storage i prze\u0142adowanie skrypt\u00F3w.')) this._purgeAll();
+      if (confirm('\u{1F9F9} Wyczy\u015Bci\u0107 WSZYSTKO?\n\n\u26A0\uFE0F UWAGA \u2014 zostan\u0105 usuni\u0119te:\n\u2022 localStorage (wymagane ponowne logowanie!)\n\u2022 sessionStorage\n\u2022 Service Workers\n\u2022 Cache Storage\n\u2022 Prze\u0142adowanie skrypt\u00F3w narz\u0119dzi\n\nPo czyszczeniu nast\u0105pi automatyczny hard reload.\n\nCzy kontynuowa\u0107?')) this._purgeAll();
     });
-    this.shadowRoot.querySelector('#btn-hard-reload').addEventListener('click', () => this._hardReload());
+    this.shadowRoot.querySelector('#btn-hard-reload').addEventListener('click', () => { if (confirm('Wykona\u0107 Hard Reload?\n\nStrona zostanie ca\u0142kowicie prze\u0142adowana.\nNiezapisane dane mog\u0105 zosta\u0107 utracone.\n\nCzy kontynuowa\u0107?')) this._hardReload(); });
 
     // Toggle LS keys
     const toggle = this.shadowRoot.querySelector('#keys-toggle');

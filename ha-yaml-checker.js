@@ -1,10 +1,10 @@
 /**
- * HA YAML Checker v2.0
+ * HA YAML Checker v3.0
  * Advanced YAML validator for Home Assistant configuration files.
  * Part of HA Tools Panel - Debug category
  * Author: Jeff (AI) for MacSiem
  *
- * v2.0 Features:
+ * v3.0 Features:
  *  - Tab 1: HA Config Check — trigger HA built-in validation
  *  - Tab 2: Entity Validator — scan automations for broken entity refs
  *  - Tab 3: File Scanner — status of key YAML files + HA system info
@@ -71,7 +71,66 @@ class HAYamlChecker extends HTMLElement {
       { pattern: /^\s*trigger:\s*$/, msg: 'Deprecated: trigger: \u2192 triggers: in automations (HA 2024.4+)', severity: 'warning' },
       { pattern: /^\s*condition:\s*$/, msg: 'Deprecated: condition: \u2192 conditions: in automations (HA 2024.4+)', severity: 'warning' },
       { pattern: /^\s*action:\s*$/, msg: 'Deprecated: action: \u2192 actions: in automations (HA 2024.4+)', severity: 'warning' },
+      { pattern: /^\s*platform:\s+time\s*$/, msg: 'Deprecated: platform: time \u2192 time_pattern trigger (HA 2024.x+)', severity: 'warning' },
+      { pattern: /^\s*(below|above):\s+['"]/, msg: 'Numeric trigger: below/above jako string \u2014 u\u017Cyj warto\u015Bci numerycznej', severity: 'warning' },
+      { pattern: /^\s*entity:\s+\w/, msg: 'Deprecated: entity: \u2192 entity_id: w triggers (HA 2024.x+)', severity: 'warning' },
+      { pattern: /^\s*platform:\s+template\s*$/, msg: 'Old format: platform: template \u2192 template: (HA 2021.12+)', severity: 'info' },
+      { pattern: /count\(\)/, msg: 'Deprecated: count() \u2192 u\u017Cyj | count filter w Jinja2', severity: 'info' },
     ];
+  }
+  static get SERVICE_MAPPINGS() {
+    return {
+      'persistent_notification.create': { replacement: 'notify.persistent_notification', version: '2024.x', severity: 'warning' },
+      'persistent_notification.dismiss': { replacement: 'notify.persistent_notification (dismiss)', version: '2024.x', severity: 'warning' },
+      'homeassistant.turn_on': { note: 'Generic \u2014 rozwa\u017C domain-specific: light.turn_on, switch.turn_on itp.', severity: 'info' },
+      'homeassistant.turn_off': { note: 'Generic \u2014 rozwa\u017C domain-specific: light.turn_off, switch.turn_off itp.', severity: 'info' },
+      'homeassistant.toggle': { note: 'Generic \u2014 rozwa\u017C domain-specific: light.toggle, switch.toggle itp.', severity: 'info' },
+      'climate.set_temperature': { note: 'Upewnij si\u0119 \u017Ce entity_id to climate.*, nie sensor.*', severity: 'info' },
+      'notify.notify': { note: 'Generic notify \u2014 lepiej u\u017Cy\u0107 konkretnego serwisu: notify.mobile_app_*', severity: 'info' },
+    };
+  }
+  static get JINJA2_FUNCTIONS() {
+    return {
+      functions: [
+        'states','state_attr','is_state','is_state_attr','has_value','expand','device_attr',
+        'area_name','area_id','area_entities','integration_entities','device_entities','device_id',
+        'config_entry_id','utcnow','now','as_timestamp','as_datetime','as_timedelta','as_local',
+        'strptime','relative_time','timedelta','today_at','max','min','log','sin','cos','tan',
+        'sqrt','e','pi','float','int','iif','bool','set','list','dict','namespace','zip',
+        'distance','closest','type_debug','slugify','urlencode',
+      ],
+      filters: [
+        'float','int','round','abs','string','bool','list','set','timestamp_custom',
+        'timestamp_local','timestamp_utc','as_timestamp','as_datetime','regex_match',
+        'regex_replace','regex_findall','regex_findall_index','regex_search','slugify',
+        'urlencode','lower','upper','title','capitalize','trim','replace','default',
+        'first','last','length','count','sort','unique','join','map','select','reject',
+        'selectattr','rejectattr','groupby','min','max','sum','average','median','log',
+        'from_json','to_json','is_defined','is_number','has_value','contains',
+        'base64_encode','base64_decode','ordinal','bitwise_and','bitwise_or','pack','unpack',
+      ],
+    };
+  }
+  static get DEVICE_CLASSES() {
+    return {
+      sensor: [
+        'apparent_power','aqi','atmospheric_pressure','battery','carbon_dioxide','carbon_monoxide',
+        'current','data_rate','data_size','date','distance','duration','energy','energy_storage',
+        'enum','frequency','gas','humidity','illuminance','irradiance','moisture','monetary',
+        'nitrogen_dioxide','nitrogen_monoxide','nitrous_oxide','ozone','ph','pm1','pm10','pm25',
+        'power','power_factor','precipitation','precipitation_intensity','pressure','reactive_power',
+        'signal_strength','sound_pressure','speed','sulphur_dioxide','temperature',
+        'volatile_organic_compounds','volatile_organic_compounds_parts','voltage','volume',
+        'volume_flow_rate','volume_storage','water','weight','wind_speed',
+      ],
+      binary_sensor: [
+        'battery','battery_charging','carbon_monoxide','cold','connectivity','door','garage_door',
+        'gas','heat','light','lock','moisture','motion','moving','occupancy','opening','plug',
+        'power','presence','problem','running','safety','smoke','sound','tamper','update',
+        'vibration','window',
+      ],
+      state_class: ['measurement','total','total_increasing'],
+    };
   }
   static get COMMON_ISSUES() {
     return [
@@ -589,6 +648,123 @@ class HAYamlChecker extends HTMLElement {
          if (/secret|password|api_key|token/i.test(t) && !/!secret/.test(t) && !t.trim().startsWith('#')) warnings.push({ line: i + 1, msg: 'Security: potencjalny sekret bez !secret — uzyj secrets.yaml', severity: 'warning' });
     });
 
+    // ── Check for deprecated/renamed services ──────────────────────────────
+    const servicePattern = /service:\s*["']?([a-z_]+\.[a-z_]+)["']?/i;
+    lines.forEach((line, i) => {
+      if (line.trim().startsWith('#')) return;
+      const match = line.match(servicePattern);
+      if (match) {
+        const service = match[1].toLowerCase();
+        const mapping = HAYamlChecker.SERVICE_MAPPINGS?.[service];
+        if (mapping) {
+          if (mapping.replacement) {
+            warnings.push({ line: i + 1, msg: 'Service renamed: ' + service + ' \u2192 ' + mapping.replacement + ' (HA ' + mapping.version + ')', severity: mapping.severity || 'warning' });
+          } else if (mapping.note) {
+            warnings.push({ line: i + 1, msg: mapping.note, severity: mapping.severity || 'info' });
+          }
+        }
+      }
+      if (/brightness:\s*(\d+)/.test(line)) {
+        const bm = line.match(/brightness:\s*(\d+)/);
+        if (bm && parseInt(bm[1]) > 100) {
+          warnings.push({ line: i + 1, msg: 'brightness: ' + bm[1] + ' (0-255) \u2014 rozwa\u017C brightness_pct: 0-100', severity: 'info' });
+        }
+      }
+    });
+
+    // ── Check Jinja2 functions and filters ────────────────────────────────
+    const j2f = HAYamlChecker.JINJA2_FUNCTIONS;
+    if (j2f) {
+      const allFuncs = new Set(j2f.functions);
+      const allFilters = new Set(j2f.filters);
+      const builtinJinja = new Set(['range','loop','caller','cycler','joiner','undefined','true','false','none','lipsum']);
+      lines.forEach((line, i) => {
+        if (line.trim().startsWith('#')) return;
+        const tplBlocks = line.match(/\{\{[^}]*\}\}/g) || [];
+        for (const block of tplBlocks) {
+          if (/states\.[a-z_]+\.[a-z0-9_]+/.test(block)) {
+            warnings.push({ line: i + 1, msg: 'Stary zapis: states.domain.entity \u2192 u\u017Cyj states("domain.entity")', severity: 'warning' });
+          }
+          const unquotedArgs = block.match(/(?:states|is_state|state_attr|has_value)\(\s*([a-z_]+\.[a-z0-9_]+)\s*[,)]/g);
+          if (unquotedArgs) {
+            for (const ua of unquotedArgs) {
+              if (!/['"]/.test(ua)) {
+                warnings.push({ line: i + 1, msg: 'Brak cudzys\u0142ow\u00F3w w argumencie: ' + ua.trim(), severity: 'warning' });
+              }
+            }
+          }
+          const funcCalls = block.match(/([a-z_]\w*)\s*\(/g) || [];
+          for (const fc of funcCalls) {
+            const name = fc.replace(/\s*\($/, '');
+            if (!allFuncs.has(name) && !builtinJinja.has(name) && !allFilters.has(name)) {
+              if (/^[a-z_]{2,}$/.test(name) && !['not','and','or','in','is','if','else','elif','for','set','end','macro','block','extends','include','import','from','as','with','without'].includes(name)) {
+                warnings.push({ line: i + 1, msg: 'Nieznana funkcja szablonu: "' + name + '"', severity: 'warning' });
+              }
+            }
+          }
+        }
+        const filterMatches = line.match(/\|\s*([a-z_]\w*)/g) || [];
+        for (const fm of filterMatches) {
+          const filterName = fm.replace(/^\|\s*/, '');
+          if (filterName && !allFilters.has(filterName) && !allFuncs.has(filterName) && !builtinJinja.has(filterName)) {
+            if (/^[a-z_]{2,}$/.test(filterName) && !['not','and','or','in','is','if','else','elif','for','set','end'].includes(filterName)) {
+              warnings.push({ line: i + 1, msg: 'Nieznany filtr: "' + filterName + '"', severity: 'warning' });
+            }
+          }
+        }
+      });
+    }
+
+    // ── Sensor/template configuration validation ──────────────────────────
+    lines.forEach((line, i) => {
+      if (line.trim().startsWith('#')) return;
+      const stateClassMatch = line.match(/state_class:\s*["']?(\w+)["']?/);
+      if (stateClassMatch) {
+        const dc = HAYamlChecker.DEVICE_CLASSES;
+        if (dc && dc.state_class && !dc.state_class.includes(stateClassMatch[1].toLowerCase())) {
+          warnings.push({ line: i + 1, msg: 'Nieprawid\u0142owy state_class: "' + stateClassMatch[1] + '" \u2014 dozwolone: ' + dc.state_class.join(', '), severity: 'warning' });
+        }
+      }
+      const devClassMatch = line.match(/device_class:\s*["']?(\w+)["']?/);
+      if (devClassMatch) {
+        const dc = HAYamlChecker.DEVICE_CLASSES;
+        if (dc) {
+          const allClasses = [...(dc.sensor || []), ...(dc.binary_sensor || [])];
+          if (allClasses.length && !allClasses.includes(devClassMatch[1].toLowerCase())) {
+            warnings.push({ line: i + 1, msg: 'Nieznany device_class: "' + devClassMatch[1] + '"', severity: 'warning' });
+          }
+        }
+      }
+      if (/^\s*value_template:/.test(line) && !/^\s*#/.test(line)) {
+        const nearby = lines.slice(Math.max(0, i - 5), Math.min(lines.length, i + 15)).join(' ');
+        if (!/availability_template:|availability:/.test(nearby)) {
+          warnings.push({ line: i + 1, msg: 'Best practice: dodaj availability_template przy value_template', severity: 'info' });
+        }
+      }
+    });
+
+    // ── Jinja2 control flow validation ────────────────────────────────────
+    const ifStack = [];
+    const forStack = [];
+    lines.forEach((line, i) => {
+      const t = line.trim();
+      if (/{%-?\s*if\s+/.test(t) && !/{%-?\s*elif\s+/.test(t)) ifStack.push({ line: i + 1, txt: t.substring(0, 40) });
+      if (/{%-?\s*endif\s*-?%}/.test(t)) {
+        if (ifStack.length === 0) errors.push({ line: i + 1, msg: '{% endif %} bez otwieraj\u0105cego {% if %}', severity: 'error' });
+        else ifStack.pop();
+      }
+      if (/{%-?\s*for\s+/.test(t)) forStack.push({ line: i + 1, txt: t.substring(0, 40) });
+      if (/{%-?\s*endfor\s*-?%}/.test(t)) {
+        if (forStack.length === 0) errors.push({ line: i + 1, msg: '{% endfor %} bez otwieraj\u0105cego {% for %}', severity: 'error' });
+        else forStack.pop();
+      }
+      if (/{%-?\s*set\s+/.test(t) && !/{%-?\s*set\s+\w+\s*=/.test(t) && !/{%-?\s*set\s+\w+\s*%}/.test(t)) {
+        warnings.push({ line: i + 1, msg: 'Sprawd\u017A sk\u0142adni\u0119 {% set %}', severity: 'warning' });
+      }
+    });
+    ifStack.forEach(b => errors.push({ line: b.line, msg: 'Niezamkni\u0119ty {% if %}: ' + b.txt + '...', severity: 'error' }));
+    forStack.forEach(b => errors.push({ line: b.line, msg: 'Niezamkni\u0119ty {% for %}: ' + b.txt + '...', severity: 'error' }));
+
     return { errors, warnings, lineCount: lines.length };
   }
 
@@ -628,7 +804,7 @@ ${this._css()}
         <div class="card-header">
           <span class="card-title-icon">🔍</span>
           <h2>YAML Checker</h2>
-          <span class="version-badge">v2.0</span>
+          <span class="version-badge">v3.0</span>
         </div>
         <div class="tabs" id="tabs">
           ${['config-check','entity-validator','paste-validate','template-tester','common-issues'].map(t => `

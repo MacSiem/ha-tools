@@ -837,15 +837,15 @@ class HAAutomationAnalyzer extends HTMLElement {
         border-radius: var(--aa-radius);
         text-align: center; border: 1px solid;
       }
-      .opt-stat.warn { background: #fef3c7; border-color: #fcd34d; }
-      .opt-stat.error { background: #fee2e2; border-color: #fca5a5; }
-      .opt-stat.info { background: #dbeafe; border-color: #93c5fd; }
-      .opt-stat.stale { background: #f3e8ff; border-color: #c4b5fd; }
+      .opt-stat.warn { background: var(--aa-warn-bg, #fef3c7); border-color: var(--aa-warn-border, #fcd34d); }
+      .opt-stat.error { background: var(--aa-error-bg, #fee2e2); border-color: var(--aa-error-border, #fca5a5); }
+      .opt-stat.info { background: var(--aa-info-bg, #dbeafe); border-color: var(--aa-info-border, #93c5fd); }
+      .opt-stat.stale { background: var(--aa-stale-bg, #f3e8ff); border-color: var(--aa-stale-border, #c4b5fd); }
       .opt-stat-value { font-size: 22px; font-weight: 700; }
-      .opt-stat.warn .opt-stat-value { color: #92400e; }
-      .opt-stat.error .opt-stat-value { color: #991b1b; }
-      .opt-stat.info .opt-stat-value { color: #1e40af; }
-      .opt-stat.stale .opt-stat-value { color: #6b21a8; }
+      .opt-stat.warn .opt-stat-value { color: var(--aa-warn-text, #92400e); }
+      .opt-stat.error .opt-stat-value { color: var(--aa-error-text, #991b1b); }
+      .opt-stat.info .opt-stat-value { color: var(--aa-info-text, #1e40af); }
+      .opt-stat.stale .opt-stat-value { color: var(--aa-stale-text, #6b21a8); }
       .opt-stat-label { font-size: 11px; color: var(--aa-text2); margin-top: 2px; }
       .opt-section { margin-bottom: var(--aa-space-6); }
       .opt-section .card-title { margin-bottom: var(--aa-space-3); }
@@ -1238,6 +1238,15 @@ class HAAutomationAnalyzer extends HTMLElement {
       <style>${window.HAToolsBentoCSS || ""}
 ${styles}
 /* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --aa-warn-bg: rgba(245,158,11,0.15); --aa-warn-border: rgba(245,158,11,0.3); --aa-warn-text: #fbbf24;
+    --aa-error-bg: rgba(239,68,68,0.15); --aa-error-border: rgba(239,68,68,0.3); --aa-error-text: #f87171;
+    --aa-info-bg: rgba(59,130,246,0.15); --aa-info-border: rgba(59,130,246,0.3); --aa-info-text: #60a5fa;
+    --aa-stale-bg: rgba(139,92,246,0.15); --aa-stale-border: rgba(139,92,246,0.3); --aa-stale-text: #a78bfa;
+  }
+  .badge-stale { background: rgba(139,92,246,0.15); color: #a78bfa; }
+}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
@@ -1455,7 +1464,7 @@ ${styles}
 
     // Show trace count if no today data
     const hasToday = data.some(a => a.todayCount > 0);
-    const labels = data.map(a => a.name.length > 20 ? a.name.substring(0, 20) + "\u2026" : a.name);
+    const labels = data.map(a => a.name.length > 35 ? a.name.substring(0, 33) + "\u2026" : a.name);
     const values = hasToday ? data.map(a => a.todayCount) : data.map(a => a.traceCount);
     const chartLabel = hasToday ? "Dzi\u015B" : "Ostatnie uruchomienia";
 

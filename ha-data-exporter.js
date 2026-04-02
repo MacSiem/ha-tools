@@ -841,15 +841,9 @@ canvas {
         <div class="exporter-card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
-            <span class="stats" id="stats"></span>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">⚙️ Ustawienia</button></div>
           </div>
-          <div class="settings-info-bar" id="deSettingsBar" style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:var(--bento-radius-xs);margin:0 0 8px;font-size:11px;color:var(--bento-text-secondary);">
-            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
-              <span>\u{1F4C1} Format: </span>
-              <span>\u{1F50D} Atrybuty: </span>
-            </div>
-            <button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border);border-radius:var(--bento-radius-xs);padding:3px 10px;font-size:11px;color:var(--bento-text-secondary);cursor:pointer;">\u2699\uFE0F Ustawienia</button>
-          </div>
+          
           <div class="toolbar">
             <select id="domainFilter">
               <option value="all">All domains</option>
@@ -864,7 +858,7 @@ canvas {
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
             <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button>
-            <label class="export-option export-option-sm"><input type="checkbox" id="includeAttrs" checked /> Include attrs</label>
+            <label class="export-option export-option-sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="includeAttrs" checked style="margin:0" /> Atrybuty</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">

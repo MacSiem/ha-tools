@@ -466,10 +466,41 @@ class HaEncodingFixer extends HTMLElement {
     this._updateUI();
   }
 
+  // --- Backup ---
+  _createBackup(type, items) {
+    const backup = { ts: Date.now(), type, items: items.map(i => ({ ...i })) };
+    try {
+      const key = 'ha-encoding-fixer-backup';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.push(backup);
+      if (existing.length > 20) existing.splice(0, existing.length - 20);
+      localStorage.setItem(key, JSON.stringify(existing));
+      console.log('[Encoding Fixer] Backup created:', type, items.length, 'items');
+      return true;
+    } catch(e) {
+      console.warn('[Encoding Fixer] Backup failed:', e);
+      return false;
+    }
+  }
+
+  _getBackups() {
+    try { return JSON.parse(localStorage.getItem('ha-encoding-fixer-backup') || '[]'); }
+    catch(e) { return []; }
+  }
+
+  _showRestartHint() {
+    const msg = this._lang === 'pl'
+      ? '\u2705 Naprawy zastosowane. Zalecany restart HA (Ustawienia \u2192 System \u2192 Restart).'
+      : '\u2705 Fixes applied. HA restart recommended (Settings \u2192 System \u2192 Restart).';
+    this._showToast(msg, 'success');
+  }
+
   // --- Fix actions ---
   async _fixEntityName(entityId, fixedName) {
     if (!this._hass) return;
     const t = this._t;
+    const orig = this._scanResults.find(r => r.entity_id === entityId && r.attribute === 'friendly_name');
+    if (orig) this._createBackup('entity', [{ entity_id: entityId, attribute: 'friendly_name', original: orig.original, fixed: fixedName }]);
     try {
       // Use entity registry to update friendly_name
       await this._hass.callWS({
@@ -493,25 +524,35 @@ class HaEncodingFixer extends HTMLElement {
     const entitiesToFix = this._scanResults.filter(r =>
       this._selectedIssues.has(r.entity_id) && r.attribute === 'friendly_name' && r.fixed
     );
+    if (!entitiesToFix.length) return;
+    if (!confirm(this._lang === 'pl' ? 'Naprawic ' + entitiesToFix.length + ' zaznaczonych encji?\nKopia zapasowa zostanie utworzona automatycznie.' : 'Fix ' + entitiesToFix.length + ' selected entities?\nA backup will be created automatically.')) return;
+    this._createBackup('entity-batch', entitiesToFix.map(r => ({ entity_id: r.entity_id, original: r.original, fixed: r.fixed })));
     for (const item of entitiesToFix) {
       await this._fixEntityName(item.entity_id, item.fixed);
       await new Promise(r => setTimeout(r, 300)); // Rate limit
     }
+    this._showRestartHint();
   }
 
   async _fixAllEntities() {
     const entitiesToFix = this._scanResults.filter(r =>
       r.attribute === 'friendly_name' && r.fixed && r.fixed !== r.original
     );
+    if (!entitiesToFix.length) return;
+    if (!confirm(this._lang === 'pl' ? '\u26A0\uFE0F Naprawic WSZYSTKIE ' + entitiesToFix.length + ' encji?\nKopia zapasowa zostanie utworzona automatycznie.\nPo naprawie zalecany restart HA.' : '\u26A0\uFE0F Fix ALL ' + entitiesToFix.length + ' entities?\nA backup will be created.\nHA restart recommended after fix.')) return;
+    this._createBackup('entity-all', entitiesToFix.map(r => ({ entity_id: r.entity_id, original: r.original, fixed: r.fixed })));
     for (const item of entitiesToFix) {
       await this._fixEntityName(item.entity_id, item.fixed);
       await new Promise(r => setTimeout(r, 300));
     }
+    this._showRestartHint();
   }
 
   async _fixLovelaceResource(issue) {
     if (!this._hass || !issue.fixedUrl) return;
     const t = this._t;
+    if (!confirm(this._lang === 'pl' ? 'Naprawic lovelace resource?\nURL: ' + issue.url + '\nNowy: ' + issue.fixedUrl + '\nKopia zapasowa zostanie utworzona.\nWymagany restart HA.' : 'Fix lovelace resource?\nURL: ' + issue.url + '\nNew: ' + issue.fixedUrl + '\nBackup will be created.\nHA restart required.')) return;
+    this._createBackup('lovelace', [{ id: issue.id, url: issue.url, fixedUrl: issue.fixedUrl }]);
     try {
       await this._hass.callWS({
         type: 'lovelace/resources/update',
@@ -520,6 +561,7 @@ class HaEncodingFixer extends HTMLElement {
       });
       this._addFixLog('lovelace', issue.url, 'success', issue.fixedUrl);
       this._lovelaceIssues = this._lovelaceIssues.filter(i => i.id !== issue.id);
+      this._showRestartHint();
       this._updateUI();
     } catch(e) {
       console.warn('[Encoding Fixer]', e);
