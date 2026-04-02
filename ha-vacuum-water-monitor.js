@@ -491,6 +491,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     };
 
     this._activeTab = this._config.default_tab || 'water';
+    try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
     this._loadMaintenanceItems();
     this._loadUserDevices();
     this._loadRefillConfig();
@@ -2245,6 +2246,14 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
   }
   setConfig(config) {
     this._config = { ...config };
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-vacuum-water-monitor-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
     this._render();
   }
   _dispatch() {

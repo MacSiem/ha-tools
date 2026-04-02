@@ -194,6 +194,7 @@ class HaFrigatePrivacy extends HTMLElement {
     this._loadSchedules();
     this._loadHistory();
     this._loadNotifySettings();
+    this._loadPrivacyState();
     this._updateUI();
   }
 
@@ -206,6 +207,27 @@ class HaFrigatePrivacy extends HTMLElement {
       this._firstHassRender = true;
       this._detectCameras();
       this._updateFrigateStatus();
+      // Check if privacy timer expired while page was away
+      if (this._pendingAddonRestart) {
+        this._pendingAddonRestart = false;
+        const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
+        hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
+          const t = this._t;
+          this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+          this._showToast(t.frigateResumed + ' (auto - timer expired)', 'success');
+        }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
+      }
+      // Also check persisted state in case _loadPrivacyState found active+expired
+      if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime) {
+        this._privacyActive = false;
+        this._privacyEndTime = null;
+        this._savePrivacyState();
+        const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
+        hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
+          const t = this._t;
+          this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+        }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
+      }
       this._updateUI();
       this._lastRenderTime = now;
       return;
@@ -216,6 +238,17 @@ class HaFrigatePrivacy extends HTMLElement {
         setTimeout(() => {
           this._renderScheduled = false;
           this._updateFrigateStatus();
+          // Check if privacy timer expired (handles case where user navigated away and back)
+          if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime && !this._privacyTimerInterval) {
+            this._privacyActive = false;
+            this._privacyEndTime = null;
+            this._savePrivacyState();
+            const addonId = this._config?.frigate_addon_id || 'ccab4aaf_frigate';
+            this._hass?.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
+              const t = this._t;
+              this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+            }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
+          }
           this._updateUI();
           this._lastRenderTime = Date.now();
         }, 5000 - (now - (this._lastRenderTime || 0)));
@@ -380,6 +413,55 @@ class HaFrigatePrivacy extends HTMLElement {
     } catch(e) { /* ignore */ }
   }
 
+  _savePrivacyState() {
+    try {
+      if (this._privacyActive && this._privacyEndTime) {
+        localStorage.setItem(this._storageKey('active'), JSON.stringify({
+          active: true,
+          endTime: this._privacyEndTime,
+          cameras: this._privacyCameras || 'all',
+          startedMin: this._privacyStartedMin || 0,
+          addonId: this._config?.frigate_addon_id || 'ccab4aaf_frigate'
+        }));
+      } else {
+        localStorage.removeItem(this._storageKey('active'));
+      }
+    } catch(e) { /* ignore */ }
+  }
+
+  _loadPrivacyState() {
+    try {
+      const raw = localStorage.getItem(this._storageKey('active'));
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (!s.active || !s.endTime) return;
+
+      if (Date.now() >= s.endTime) {
+        // Timer already expired while we were away — restart addon immediately
+        console.info('[Frigate Privacy] Timer expired while away, restarting addon...');
+        localStorage.removeItem(this._storageKey('active'));
+        this._privacyActive = false;
+        this._privacyEndTime = null;
+        this._privacyCameras = s.cameras || 'all';
+        // Defer addon restart until hass is available
+        this._pendingAddonRestart = true;
+        this._addHistoryEntry('auto-resumed', 0, s.cameras);
+      } else {
+        // Timer still active — resume countdown
+        console.info('[Frigate Privacy] Resuming active privacy timer, ' +
+          Math.ceil((s.endTime - Date.now()) / 60000) + ' min remaining');
+        this._privacyActive = true;
+        this._privacyEndTime = s.endTime;
+        this._privacyCameras = s.cameras || 'all';
+        this._privacyStartedMin = s.startedMin || 0;
+        this._warningSent = false;
+        this._startCountdown();
+      }
+    } catch(e) { console.warn('[Frigate Privacy] Load state error:', e); }
+  }
+
+
+
   async _sendNotification(title, message) {
     if (!this._notifyEnabled || !this._hass) return;
     try {
@@ -416,6 +498,7 @@ class HaFrigatePrivacy extends HTMLElement {
     this._privacyEndTime += extraMinutes * 60 * 1000;
     this._privacyStartedMin += extraMinutes;
     this._warningSent = false; // Reset so we get another warning
+    this._savePrivacyState();
     this._addHistoryEntry('extended', extraMinutes, this._privacyCameras);
     this._showToast(t.privacyExtended + ' ' + extraMinutes + ' ' + t.min, 'success');
     // JS timer handles extension - addon is already stopped
@@ -454,6 +537,7 @@ class HaFrigatePrivacy extends HTMLElement {
       this._privacyStartedMin = parseInt(minutes);
       this._warningSent = false;
       this._addHistoryEntry('manual', minutes, this._privacyCameras);
+      this._savePrivacyState();
       this._startCountdown();
       this._showToast(t.privacyModeStarted + ' ' + minutes + ' ' + t.min, 'success');
       this._sendNotification(
@@ -480,6 +564,7 @@ class HaFrigatePrivacy extends HTMLElement {
         clearInterval(this._privacyTimerInterval);
         this._privacyTimerInterval = null;
       }
+      this._savePrivacyState();
       this._addHistoryEntry('cancelled', 0);
       this._warningSent = false;
       this._showToast(t.frigateResumed, 'success');
@@ -498,6 +583,7 @@ class HaFrigatePrivacy extends HTMLElement {
         // Timer expired - auto-restart Frigate addon
         this._privacyActive = false;
         this._privacyEndTime = null;
+        this._savePrivacyState(); // Clear persisted state
         clearInterval(this._privacyTimerInterval);
         this._privacyTimerInterval = null;
         this._warningSent = false;

@@ -58,6 +58,14 @@ class HAStorageMonitor extends HTMLElement {
 
   setConfig(config) {
     this._config = { title: config.title || 'Storage Monitor', ...config };
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-storage-monitor-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
   }
 
   async _loadStorageData() {

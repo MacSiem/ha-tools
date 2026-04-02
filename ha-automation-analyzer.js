@@ -1681,6 +1681,14 @@ class HaAutomationAnalyzerEditor extends HTMLElement {
   }
   setConfig(config) {
     this._config = { ...config };
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-automation-analyzer-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
     this._render();
   }
   _dispatch() {

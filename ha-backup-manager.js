@@ -53,6 +53,14 @@ class HaBackupManager extends HTMLElement {
 
   setConfig(config) {
     this._config = config;
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-backup-manager-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
     this._updateUI();
   }
 
@@ -1414,6 +1422,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 
   _switchTab(tab) {
     this._activeTab = tab;
+    try { localStorage.setItem('ha-backup-manager-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
     this._updateUI();
   }
 

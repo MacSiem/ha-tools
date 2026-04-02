@@ -196,7 +196,15 @@ class HAYamlChecker extends HTMLElement {
   }
 
   setConfig(config) {
-    this._config = config || {};
+    this._config = config
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-yaml-checker-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
   }
 
   getCardSize() { return 8; }
@@ -1117,6 +1125,7 @@ ${this._css()}
     const content = this.shadowRoot.getElementById('tab-content');
     if (!content) { this._render(); return; }
     this._activeTab = tab;
+    try { localStorage.setItem('ha-yaml-checker-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
     // Update tab buttons
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === tab);

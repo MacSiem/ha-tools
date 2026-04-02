@@ -119,6 +119,14 @@ class HADeviceHealth extends HTMLElement {
       offline_alert_minutes: 60,
       ...config,
     };
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-device-health-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
   }
 
   set hass(hass) {
@@ -1215,6 +1223,7 @@ ${style}
     tabs.forEach((tab) => {
       tab.addEventListener("click", (e) => {
         this._activeTab = e.target.dataset.tab;
+        try { localStorage.setItem('ha-device-health-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
         this._render();
       });
     });

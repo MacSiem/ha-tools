@@ -63,6 +63,14 @@ class HASmartReports extends HTMLElement {
       energy_price: config.energy_price || 0.65,
       ...config
     };
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-smart-reports-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
   }
 
   getCardSize() { return 5; }
@@ -481,6 +489,7 @@ canvas {
     this.shadowRoot.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
         this._activeTab = tab.dataset.tab;
+        try { localStorage.setItem('ha-smart-reports-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
         this.shadowRoot.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this._updateData();
