@@ -6,6 +6,7 @@
  */
 
 class HALogEmail extends HTMLElement {
+  static getConfigElement() { return document.createElement('ha-log-email-editor'); }
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -861,7 +862,57 @@ max: 3</pre>
 }
 
 customElements.define('ha-log-email', HALogEmail);
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-log-email', name: 'Log Email Summary', description: 'Email digest of HA errors and warnings', preview: false });
 window.customElements.whenDefined('ha-log-email').then(() => {
   console.log('[ha-log-email] v1.0 registered');
 });
 
+class HaLogEmailEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
+      <h3>Log Email Summary</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${this._config?.title || 'Log Email Summary'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Email recipient</label>
+              <input type="text" id="cf_email_recipient" value="${this._config?.email_recipient || 'your@email.com'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+        const f_email_recipient = this.shadowRoot.querySelector('#cf_email_recipient');
+        if (f_email_recipient) f_email_recipient.addEventListener('input', (e) => {
+          this._config = { ...this._config, email_recipient: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-log-email-editor')) { customElements.define('ha-log-email-editor', HaLogEmailEditor); }

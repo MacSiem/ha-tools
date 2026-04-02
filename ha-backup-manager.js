@@ -1538,4 +1538,65 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 
 }
 
-if (!customElements.get('ha-backup-manager')) { customElements.define('ha-backup-manager', HaBackupManager); };
+if (!customElements.get('ha-backup-manager')) { customElements.define('ha-backup-manager', HaBackupManager); }
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-backup-manager', name: 'Backup Manager', description: 'Manage Home Assistant backups with monitoring', preview: false });
+;
+
+class HaBackupManagerEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
+      <h3>Backup Manager</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${this._config?.title || 'Backup Manager'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Warning after (days)</label>
+              <input type="text" id="cf_warn_after_days" value="${this._config?.warn_after_days || '3'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Max backups</label>
+              <input type="text" id="cf_max_backups" value="${this._config?.max_backups || '10'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+        const f_warn_after_days = this.shadowRoot.querySelector('#cf_warn_after_days');
+        if (f_warn_after_days) f_warn_after_days.addEventListener('input', (e) => {
+          this._config = { ...this._config, warn_after_days: e.target.value };
+          this._dispatch();
+        });
+        const f_max_backups = this.shadowRoot.querySelector('#cf_max_backups');
+        if (f_max_backups) f_max_backups.addEventListener('input', (e) => {
+          this._config = { ...this._config, max_backups: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-backup-manager-editor')) { customElements.define('ha-backup-manager-editor', HaBackupManagerEditor); }

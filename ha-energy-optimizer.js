@@ -1572,3 +1572,53 @@ async _drawComparisonChart() {
 }
 
 if (!customElements.get('ha-energy-optimizer')) { customElements.define('ha-energy-optimizer', HaEnergyOptimizer); }
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-energy-optimizer', name: 'Energy Optimizer', description: 'Optimize energy consumption with peak/off-peak analysis', preview: false });
+
+class HaEnergyOptimizerEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
+      <h3>Energy Optimizer</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${this._config?.title || 'Energy Optimizer'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>
+              <input type="text" id="cf_currency" value="${this._config?.currency || 'PLN'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+        const f_currency = this.shadowRoot.querySelector('#cf_currency');
+        if (f_currency) f_currency.addEventListener('input', (e) => {
+          this._config = { ...this._config, currency: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-energy-optimizer-editor')) { customElements.define('ha-energy-optimizer-editor', HaEnergyOptimizerEditor); }

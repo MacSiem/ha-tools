@@ -14,6 +14,8 @@
  */
 
 class HAYamlChecker extends HTMLElement {
+  static getConfigElement() { return document.createElement('ha-yaml-checker-editor'); }
+  static getStubConfig() { return { type: 'custom:ha-yaml-checker', title: 'YAML Checker' }; }
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -1283,3 +1285,44 @@ ${this._css()}
 
 customElements.define('ha-yaml-checker', HAYamlChecker);
 
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-yaml-checker', name: 'YAML Checker', description: 'YAML validator: config check, entities, templates', preview: false });
+
+class HaYamlCheckerEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
+      <h3>YAML Checker</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${this._config?.title || 'YAML Checker'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-yaml-checker-editor')) { customElements.define('ha-yaml-checker-editor', HaYamlCheckerEditor); }

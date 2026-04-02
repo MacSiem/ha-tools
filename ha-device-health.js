@@ -1434,6 +1434,9 @@ ${style}
 
 customElements.define("ha-device-health", HADeviceHealth);
 
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-device-health', name: 'Device Health', description: 'Monitor device health, battery levels and connectivity', preview: false });
 // Auto-load HA Tools Panel (if not already registered)
 if (!customElements.get('ha-tools-panel')) {
   const _currentScript = document.currentScript?.src || '';
@@ -1444,3 +1447,61 @@ if (!customElements.get('ha-tools-panel')) {
     document.head.appendChild(_s);
   }
 }
+
+class HaDeviceHealthEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
+      <h3>Device Health</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${this._config?.title || 'Device Health'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Battery warning %</label>
+              <input type="text" id="cf_battery_warning" value="${this._config?.battery_warning || '30'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Battery critical %</label>
+              <input type="text" id="cf_battery_critical" value="${this._config?.battery_critical || '10'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+        const f_battery_warning = this.shadowRoot.querySelector('#cf_battery_warning');
+        if (f_battery_warning) f_battery_warning.addEventListener('input', (e) => {
+          this._config = { ...this._config, battery_warning: e.target.value };
+          this._dispatch();
+        });
+        const f_battery_critical = this.shadowRoot.querySelector('#cf_battery_critical');
+        if (f_battery_critical) f_battery_critical.addEventListener('input', (e) => {
+          this._config = { ...this._config, battery_critical: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-device-health-editor')) { customElements.define('ha-device-health-editor', HaDeviceHealthEditor); }

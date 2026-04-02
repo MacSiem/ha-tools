@@ -2279,7 +2279,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 }
 
-if (!customElements.get('ha-sentence-manager')) { customElements.define('ha-sentence-manager', HASentenceManager); };
+if (!customElements.get('ha-sentence-manager')) { customElements.define('ha-sentence-manager', HASentenceManager); }
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-sentence-manager', name: 'Sentence Manager', description: 'Manage voice assistant sentences and intents', preview: false });
+;
 
 class HASentenceManagerEditor extends HTMLElement {
   setConfig(config) {
