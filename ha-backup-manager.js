@@ -262,14 +262,37 @@ class HaBackupManager extends HTMLElement {
 
   _renderBackupsTab() {
     const L = this._lang === 'pl';
+    const totalSize = this._backups.reduce((s, b) => s + (b.size_bytes || (b.size ? b.size * 1024 * 1024 : 0)), 0);
+    const lastBackup = this._backups.length > 0 ? this._backups[0] : null;
+    const lastDate = lastBackup?.date ? new Date(lastBackup.date) : null;
+    const daysSince = lastDate ? Math.floor((Date.now() - lastDate.getTime()) / 86400000) : null;
+    const fullCount = this._backups.filter(b => b.type === 'full').length;
+    const partialCount = this._backups.filter(b => b.type === 'partial').length;
+
     return `
       <div class="tab-content active">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:var(--bento-text,#1e293b);">${this._backups.length}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Kopii' : 'Backups'}</div>
+            <div style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:2px;">${fullCount} full, ${partialCount} partial</div>
+          </div>
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:var(--bento-primary,#3b82f6);">${totalSize > 0 ? this._formatBytes(totalSize) : '?'}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Rozmiar' : 'Total Size'}</div>
+          </div>
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid ${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-border,#e2e8f0)'};border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-text,#1e293b)'};">${daysSince !== null ? daysSince + 'd' : '-'}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Od ostatniego' : 'Since Last'}</div>
+          </div>
+        </div>
+
         <div class="backup-controls">
           <button class="create-btn full-backup" data-backup-type="full">
-            <span class="icon">⊕</span> ${L ? "Pe\u0142ny backup" : "Create Full Backup"}
+            <span class="icon">\u2295</span> ${L ? "Pe\u0142ny backup" : "Create Full Backup"}
           </button>
           <button class="create-btn partial-backup" data-backup-type="partial">
-            <span class="icon">⊕</span> ${L ? "Cz\u0119\u015Bciowy backup" : "Create Partial Backup"}
+            <span class="icon">\u2295</span> ${L ? "Cz\u0119\u015Bciowy backup" : "Create Partial Backup"}
           </button>
         </div>
 
@@ -364,29 +387,62 @@ class HaBackupManager extends HTMLElement {
   }
 
   _renderSettingsTab() {
+    const L = this._lang === 'pl';
     return `
       <div class="tab-content active">
         <div class="settings-section">
-          <h3>Backup Configuration</h3>
+          <h3>${L ? 'Konfiguracja backup\u00F3w' : 'Backup Configuration'}</h3>
           <div class="setting-item">
-            <label>Warning After (days)</label>
-            <p>Alert when backup is older than: ${this._config.warn_after_days || 3} days</p>
+            <label>${L ? 'Ostrze\u017Cenie po (dniach)' : 'Warning After (days)'}</label>
+            <p>${L ? 'Alert gdy backup starszy ni\u017C' : 'Alert when backup is older than'}: ${this._config.warn_after_days || 3} ${L ? 'dni' : 'days'}</p>
           </div>
           <div class="setting-item">
-            <label>Maximum Backups</label>
-            <p>Keep up to: ${this._config.max_backups || 10} backups</p>
+            <label>${L ? 'Maksymalna ilo\u015B\u0107' : 'Maximum Backups'}</label>
+            <p>${L ? 'Przechowuj do' : 'Keep up to'}: ${this._config.max_backups || 10} ${L ? 'kopii' : 'backups'}</p>
           </div>
         </div>
 
         <div class="settings-section">
-          <h3>Storage Management</h3>
-          <p>Use Home Assistant Settings > System > Backups to manage backup retention and automatic cleanup.</p>
+          <h3>\u{1F4BE} ${L ? 'Przechowywanie backup\u00F3w' : 'Backup Storage'}</h3>
+          <p>${L ? 'Kopie przechowywane w' : 'Backups stored in'}: <code style="font-size:12px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">${this._hass?.config?.config_dir || '/config'}/backups</code></p>
+          <p style="margin-top:8px;color:var(--bento-text-secondary,#64748b);font-size:13px;">${L ? 'Zalecane: konfiguruj automatyczne kopiowanie na zewn\u0119trzny no\u015Bnik (NAS, chmura).' : 'Recommended: configure automatic offsite backup (NAS, cloud).'}</p>
         </div>
 
         <div class="settings-section">
-          <h3>Security</h3>
-          <p>Backups are stored in: ${this._hass?.config?.config_dir || '/config/backups'}</p>
-          <p>Ensure this location is properly backed up to external storage.</p>
+          <h3>\u{1F50C} ${L ? 'Integracje do backup\u00F3w' : 'Backup Integrations'}</h3>
+          <p style="color:var(--bento-text-secondary,#64748b);font-size:13px;margin-bottom:12px;">${L ? 'Popularne integracje do automatycznego offsite backup:' : 'Popular integrations for automated offsite backup:'}</p>
+
+          <div style="display:grid;gap:10px;">
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Google Drive Backup</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>hassio-google-drive-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie na Google Drive z rotacj\u0105 i powiadomieniami.' : 'Automatic backups to Google Drive with rotation and notifications.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4C2} Samba / SMB Backup</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>samba-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopiowanie na NAS/Samba share z harmonogramem cron.' : 'Copy to NAS/Samba share with cron schedule.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4F1} Synology NAS</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Integration: <code>synology_dsm</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopie przez Active Backup for Business lub Hyper Backup.' : 'Backups via Active Backup for Business or Hyper Backup.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4E6} Dropbox / OneDrive / S3</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>remote-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Obs\u0142uguje wiele provider\u00F3w chmurowych (rclone-based).' : 'Supports multiple cloud providers (rclone-based).'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Nabu Casa Cloud</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Built-in (${L ? 'wymaga subskrypcji' : 'requires subscription'})</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie w chmurze Nabu Casa z \u0142atwym przywracaniem.' : 'Automatic cloud backups via Nabu Casa with easy restoration.'}</div>
+            </div>
+          </div>
         </div>
       </div>
     `;

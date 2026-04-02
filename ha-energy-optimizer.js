@@ -56,7 +56,18 @@ class HaEnergyOptimizer extends HTMLElement {
   }
 
   setConfig(config) {
-    this._config = config;
+    this._config = { ...config };
+    // Load saved rate settings from localStorage
+    try {
+      const saved = JSON.parse(localStorage.getItem('ha-energy-optimizer-settings') || '{}');
+      if (saved.energy_tariff_mode) this._config.energy_tariff_mode = saved.energy_tariff_mode;
+      if (saved.energy_price) this._config.energy_price = saved.energy_price;
+      if (saved.energy_price_day) this._config.energy_price_day = saved.energy_price_day;
+      if (saved.energy_price_night) this._config.energy_price_night = saved.energy_price_night;
+      if (saved.energy_day_hour_start) this._config.energy_day_hour_start = saved.energy_day_hour_start;
+      if (saved.energy_night_hour_start) this._config.energy_night_hour_start = saved.energy_night_hour_start;
+      if (saved.currency) this._config.currency = saved.currency;
+    } catch(e) {}
     this._domBuilt = false;
     this._generateFallbackData();
     this._generateRecommendations();
@@ -122,18 +133,21 @@ class HaEnergyOptimizer extends HTMLElement {
       this._lastRenderTime = now;
       return;
     }
-    if (now - (this._lastRenderTime || 0) < 10000) {
+    if (now - (this._lastRenderTime || 0) < 15000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
         setTimeout(() => {
           this._renderScheduled = false;
-          const newHash = Object.keys(hass.states).length + '_' + (hass.states['sun.sun'] ? hass.states['sun.sun'].state : '');
+          // Check if energy-relevant state actually changed
+          const powerSensors = Object.entries(hass.states)
+            .filter(([id, s]) => (s.attributes.device_class === 'power' || s.attributes.unit_of_measurement === 'W') && !isNaN(parseFloat(s.state)));
+          const newHash = powerSensors.map(([id, s]) => id + '=' + s.state).join(',');
           if (newHash === this._lastStateHash) return;
           this._lastStateHash = newHash;
-      this._updateEnergyData();
+          this._updateEnergyData();
           this._render();
           this._lastRenderTime = Date.now();
-        }, 5000 - (now - (this._lastRenderTime || 0)));
+        }, 10000);
       }
       return;
     }
@@ -253,6 +267,7 @@ class HaEnergyOptimizer extends HTMLElement {
       // Update DOM in place (no full rebuild)
       if (this._domBuilt) {
         this._updateDomValues();
+        // Redraw chart only after fresh data fetch
         this._showTab(this._currentTab);
       }
 
@@ -556,8 +571,7 @@ class HaEnergyOptimizer extends HTMLElement {
     } else {
       // Subsequent renders: update values in place without rebuilding DOM
       this._updateDomValues();
-      // Re-draw chart for current tab only
-      this._showTab(this._currentTab);
+      // Do NOT redraw charts on every hass update - only on tab change or data refresh
     }
   }
 
@@ -689,6 +703,19 @@ class HaEnergyOptimizer extends HTMLElement {
         .chart-container { max-height: 300px; overflow: hidden; position: relative; }
         .chart-container canvas { max-height: 250px; width: 100%; }
         canvas { max-height: 300px; }
+        .settings-btn { position: absolute; top: 16px; right: 16px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 6px 12px; cursor: pointer; font-size: 12px; color: var(--bento-text-secondary); transition: all .2s; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 6px; z-index: 5; }
+        .settings-btn:hover { color: var(--bento-primary); border-color: var(--bento-primary); background: var(--bento-primary-light); }
+        .settings-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 100; justify-content: center; align-items: center; }
+        .settings-overlay.active { display: flex; }
+        .settings-panel { background: var(--bento-card, #1e293b); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 24px; max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+        .settings-panel h3 { margin: 0 0 16px; font-size: 16px; color: var(--bento-text); }
+        .settings-panel .form-row { margin-bottom: 14px; }
+        .settings-panel label { display: block; font-size: 12px; font-weight: 500; color: var(--bento-text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .4px; }
+        .settings-panel input, .settings-panel select { width: 100%; padding: 8px 12px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); background: var(--bento-bg); color: var(--bento-text); font-size: 13px; font-family: 'Inter', sans-serif; box-sizing: border-box; }
+        .settings-panel .btn-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+        .settings-panel .btn-save { padding: 8px 20px; background: var(--bento-primary); color: #fff; border: none; border-radius: var(--bento-radius-sm); cursor: pointer; font-weight: 600; font-size: 13px; }
+        .settings-panel .btn-cancel { padding: 8px 20px; background: transparent; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); cursor: pointer; color: var(--bento-text-secondary); font-size: 13px; }
+        .rate-annotation { font-size: 11px; color: var(--bento-text-muted, #64748b); margin-top: 2px; }
         </style>
     `;
   }
@@ -696,17 +723,25 @@ class HaEnergyOptimizer extends HTMLElement {
   _getTemplate() {
     return `
       <div class="card">
-        <h2 class="card-title">${this._config.title || 'Energy Optimizer'}</h2>
+        <h2 class="card-title" style="position:relative;">${this._config.title || 'Energy Optimizer'}
+          <button class="settings-btn" data-action="open-settings">
+            \u2699\uFE0F ${this._lang === 'pl' ? 'Stawki' : 'Rates'}
+          </button>
+        </h2>
+
+        <div class="rate-annotation">
+          ${this._lang === 'pl' ? 'Taryfikator' : 'Tariff'}: ${this._getTariffLabel()}
+        </div>
 
         <div class="data-source-badge">
           ${this._hasRealData ? '\u{1F4CA} Dane z ' + (this._energySensorIds || []).length + ' sensor\u00F3w energii' : (this._statsLoading ? '\u23F3 Wczytywanie danych z recorder...' : '\u26A0\uFE0F Demo data \u2014 brak sensor\u00F3w kWh')}
         </div>
 
         <div class="tabs">
-          <button class="tab-button active" data-tab="dashboard">Dashboard</button>
-          <button class="tab-button" data-tab="patterns">Patterns</button>
-          <button class="tab-button" data-tab="recommendations">Recommendations</button>
-          <button class="tab-button" data-tab="compare">Compare</button>
+          <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button class="tab-btn" data-tab="patterns">Patterns</button>
+          <button class="tab-btn" data-tab="recommendations">Recommendations</button>
+          <button class="tab-btn" data-tab="compare">Compare</button>
         </div>
 
         <div id="dashboard" class="tab-content active">
@@ -825,6 +860,50 @@ class HaEnergyOptimizer extends HTMLElement {
           </div>
           <div id="compare-body">${this._renderCompareBody()}</div>
         </div>
+
+        <div class="settings-overlay" id="settings-overlay">
+          <div class="settings-panel">
+            <h3>\u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia stawek energii' : 'Energy Rate Settings'}</h3>
+            <div class="form-row">
+              <label>${this._lang === 'pl' ? 'Tryb taryfikacji' : 'Tariff Mode'}</label>
+              <select class="input-tariff-mode">
+                <option value="flat" ${(this._config.energy_tariff_mode || 'flat') === 'flat' ? 'selected' : ''}>Flat rate</option>
+                <option value="day_night" ${this._config.energy_tariff_mode === 'day_night' ? 'selected' : ''}>Day / Night</option>
+                <option value="weekday_weekend" ${this._config.energy_tariff_mode === 'weekday_weekend' ? 'selected' : ''}>Weekday / Weekend</option>
+                <option value="mixed" ${this._config.energy_tariff_mode === 'mixed' ? 'selected' : ''}>Mixed (day/night + weekend)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>${this._lang === 'pl' ? 'Stawka (PLN/kWh)' : 'Rate (per kWh)'}</label>
+              <input type="number" step="0.01" class="input-energy-price" value="${this._config.energy_price || 0.65}" />
+              <div class="rate-annotation">${this._lang === 'pl' ? 'Dla trybu flat — jedna stawka calodobowa' : 'For flat mode — single 24h rate'}</div>
+            </div>
+            <div class="form-row">
+              <label>${this._lang === 'pl' ? 'Stawka dzienna' : 'Day Rate'}</label>
+              <input type="number" step="0.01" class="input-price-day" value="${this._config.energy_price_day || 0.65}" />
+            </div>
+            <div class="form-row">
+              <label>${this._lang === 'pl' ? 'Stawka nocna' : 'Night Rate'}</label>
+              <input type="number" step="0.01" class="input-price-night" value="${this._config.energy_price_night || 0.45}" />
+            </div>
+            <div class="form-row">
+              <label>${this._lang === 'pl' ? 'Godzina start dnia' : 'Day Start Hour'}</label>
+              <input type="number" min="0" max="23" class="input-day-start" value="${this._config.energy_day_hour_start || 6}" />
+            </div>
+            <div class="form-row">
+              <label>${this._lang === 'pl' ? 'Godzina start nocy' : 'Night Start Hour'}</label>
+              <input type="number" min="0" max="23" class="input-night-start" value="${this._config.energy_night_hour_start || 22}" />
+            </div>
+            <div class="form-row">
+              <label>${this._lang === 'pl' ? 'Waluta' : 'Currency'}</label>
+              <input type="text" class="input-currency" value="${this._config.currency || 'PLN'}" />
+            </div>
+            <div class="btn-row">
+              <button class="btn-cancel" data-action="close-settings">${this._lang === 'pl' ? 'Anuluj' : 'Cancel'}</button>
+              <button class="btn-save" data-action="save-settings">${this._lang === 'pl' ? 'Zapisz' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -851,6 +930,60 @@ class HaEnergyOptimizer extends HTMLElement {
       this._drawComparisonChart().catch(() => {});
       this._drawTrendBarChart().catch(() => {});
     });
+
+    // Settings button
+    const settingsBtn = sr.querySelector('[data-action="open-settings"]');
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', () => {
+        const overlay = sr.querySelector('#settings-overlay');
+        if (overlay) overlay.classList.add('active');
+      });
+    }
+    const closeSettings = sr.querySelector('[data-action="close-settings"]');
+    if (closeSettings) {
+      closeSettings.addEventListener('click', () => {
+        const overlay = sr.querySelector('#settings-overlay');
+        if (overlay) overlay.classList.remove('active');
+      });
+    }
+    const saveSettings = sr.querySelector('[data-action="save-settings"]');
+    if (saveSettings) {
+      saveSettings.addEventListener('click', () => {
+        const mode = sr.querySelector('.input-tariff-mode')?.value || 'flat';
+        const price = parseFloat(sr.querySelector('.input-energy-price')?.value) || 0.65;
+        const priceDay = parseFloat(sr.querySelector('.input-price-day')?.value) || 0.65;
+        const priceNight = parseFloat(sr.querySelector('.input-price-night')?.value) || 0.45;
+        const dayStart = parseInt(sr.querySelector('.input-day-start')?.value) || 6;
+        const nightStart = parseInt(sr.querySelector('.input-night-start')?.value) || 22;
+        const currency = sr.querySelector('.input-currency')?.value || 'PLN';
+        this._config = { ...this._config,
+          energy_tariff_mode: mode, energy_price: price,
+          energy_price_day: priceDay, energy_price_night: priceNight,
+          energy_day_hour_start: dayStart, energy_night_hour_start: nightStart,
+          currency: currency
+        };
+        try {
+          localStorage.setItem('ha-energy-optimizer-settings', JSON.stringify({
+            energy_tariff_mode: mode, energy_price: price,
+            energy_price_day: priceDay, energy_price_night: priceNight,
+            energy_day_hour_start: dayStart, energy_night_hour_start: nightStart,
+            currency: currency
+          }));
+        } catch(e) {}
+        const overlay = sr.querySelector('#settings-overlay');
+        if (overlay) overlay.classList.remove('active');
+        this._domBuilt = false;
+        this._generateRecommendations();
+        this._generateComparisonData();
+        this._render();
+      });
+    }
+    const settingsOverlay = sr.querySelector('#settings-overlay');
+    if (settingsOverlay) {
+      settingsOverlay.addEventListener('click', (e) => {
+        if (e.target === settingsOverlay) settingsOverlay.classList.remove('active');
+      });
+    }
   }
   async _loadChartJS() {
     if (this._chartJsLoaded) {

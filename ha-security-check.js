@@ -21,6 +21,7 @@ class HASecurityCheck extends HTMLElement {
     this._auditData = null;
     this._lastScan = null;
     this._lastHtml = '';
+    this._lastAuditTime = 0;
   }
 
   // -- Persistence --
@@ -53,23 +54,15 @@ class HASecurityCheck extends HTMLElement {
       this._lastRenderTime = now;
       return;
     }
-    if (now - (this._lastRenderTime || 0) < 10000) {
-      if (!this._renderScheduled) {
-        this._renderScheduled = true;
-        setTimeout(() => {
-          this._renderScheduled = false;
-          const newHash = Object.keys(hass.states).length + '_' + (hass.states['sun.sun'] ? hass.states['sun.sun'].state : '');
-          if (newHash === this._lastStateHash) return;
-          this._lastStateHash = newHash;
+    // Security audit is expensive — only re-run every 5 minutes
+    if (now - (this._lastAuditTime || 0) > 300000) {
+      this._lastAuditTime = now;
       this._runAudit();
-          this._render();
-          this._lastRenderTime = Date.now();
-        }, 5000 - (now - (this._lastRenderTime || 0)));
-      }
+    }
+    // Throttle render to 60s — audit results are static
+    if (now - (this._lastRenderTime || 0) < 60000) {
       return;
     }
-      this._runAudit();
-    this._render();
     this._lastRenderTime = now;
   }
 
@@ -249,6 +242,37 @@ class HASecurityCheck extends HTMLElement {
       });
       if (riskyAddons.length > 0) {
         findings.warning.push({ id: 'risky_services', title: 'Potentially risky network services', desc: riskyAddons.map(a => `${this._sanitize(a.name)} (${a.state || 'stopped'})`).join(', '), fix: 'Ensure file sharing services are properly secured and only accessible on local network' });
+      }
+
+      // Port exposure verification
+      const portExposingAddons = installedAddons.filter(a => a.ports && Object.keys(a.ports).some(p => {
+        const config = a.ports[p];
+        return config && config.host_port !== null && config.host_port !== undefined;
+      }));
+      if (portExposingAddons.length > 0) {
+        findings.info.push({ id: 'port_exposure', title: `${portExposingAddons.length} addon(s) expose host ports`, desc: portExposingAddons.map(a => this._sanitize(a.name) + ': ' + Object.entries(a.ports || {}).filter(([, c]) => c?.host_port).map(([p, c]) => p + '\u2192' + c.host_port).join(', ')).join('; '), fix: 'Verify each exposed port is necessary. Use Ingress when available to avoid port exposure.' });
+      }
+
+      // Long-lived access tokens check
+      try {
+        const llat = await this._hass.callWS({ type: 'auth/long_lived_access_token/list' }).catch(() => []);
+        if (llat && llat.length > 5) {
+          findings.warning.push({ id: 'many_tokens', title: `${llat.length} long-lived access tokens`, desc: 'Many active access tokens increase attack surface', fix: 'Review and revoke unused tokens at Profile \u2192 Long-lived access tokens' });
+        } else if (llat && llat.length > 0) {
+          findings.info.push({ id: 'access_tokens', title: `${llat.length} long-lived access token(s)`, desc: 'Review periodically for unused tokens' });
+        }
+      } catch(e) {}
+
+      // Camera exposure check
+      const cameraEntities = allEntities.filter(e => e.startsWith('camera.'));
+      if (cameraEntities.length > 0 && externalUrl) {
+        findings.info.push({ id: 'camera_exposure', title: `${cameraEntities.length} camera(s) detected with external access`, desc: 'Camera streams may be accessible via external URL', fix: 'Ensure camera streams are not publicly accessible. Use Frigate Privacy or VPN for remote access.' });
+      }
+
+      // Webhook check
+      const webhookEntities = allEntities.filter(e => e.includes('webhook'));
+      if (webhookEntities.length > 0) {
+        findings.info.push({ id: 'webhooks', title: `${webhookEntities.length} webhook-related entit(ies)`, desc: 'Webhooks provide URL-based access to HA actions', fix: 'Ensure webhook URLs are kept secret and rotated periodically' });
       }
 
       // NEW CHECK: HACS custom repositories
@@ -1137,11 +1161,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>
           <div class="tabs">
             <button class="tab-button ${this._activeTab === 'overview' ? 'active' : ''}" data-tab="overview">Overview</button>
-            <button class="tab-button ${this._activeTab === 'critical' ? 'active' : ''}" data-tab="critical">Critical & Warnings</button>
-            <button class="tab-button ${this._activeTab === 'addons' ? 'active' : ''}" data-tab="addons">Addons</button>
+            <button class="tab-button ${this._activeTab === 'critical' ? 'active' : ''}" data-tab="critical">Findings</button>
+            <button class="tab-button ${this._activeTab === 'addons' ? 'active' : ''}" data-tab="addons">Addons & Integrations</button>
             <button class="tab-button ${this._activeTab === 'network' ? 'active' : ''}" data-tab="network">Network</button>
             <button class="tab-button ${this._activeTab === 'users' ? 'active' : ''}" data-tab="users">Users</button>
-            <button class="tab-button ${this._activeTab === 'integrations' ? 'active' : ''}" data-tab="integrations">Integrations</button>
             <button class="tab-button ${this._activeTab === 'tips' ? 'active' : ''}" data-tab="tips">Tips</button>
           </div>
           <div id="content"></div>
@@ -1174,10 +1197,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     switch (this._activeTab) {
       case 'overview': content.innerHTML = this._renderOverview(d); break;
       case 'critical': content.innerHTML = this._renderFindings(d); break;
-      case 'addons': content.innerHTML = this._renderAddons(d); break;
+      case 'addons': content.innerHTML = this._renderAddonsAndIntegrations(d); break;
       case 'network': content.innerHTML = this._renderNetwork(d); break;
       case 'users': content.innerHTML = this._renderUsers(d); break;
-      case 'integrations': content.innerHTML = this._renderIntegrations(d); break;
       case 'tips': content.innerHTML = this._renderTips(d); break;
     }
   }
@@ -1192,6 +1214,21 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px"><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.addons.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Addons installed</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.users.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">User accounts</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.entities}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Entities</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.totalChecks}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Checks run</div></div></div>`;
     if (d.critCount > 0) { html += '<div class="section-title">\u{1F6A8} Critical Issues</div>'; d.findings.critical.forEach(f => { html += this._renderFinding(f, 'critical'); }); }
     if (d.warnCount > 0) { html += '<div class="section-title">\u26A0\uFE0F Warnings</div>'; d.findings.warning.forEach(f => { html += this._renderFinding(f, 'warning'); }); }
+    // Scoring methodology explanation
+    const scoringL = this._lang === 'pl';
+    html += `<div style="margin-top:16px;padding:14px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm);">
+      <div style="font-size:13px;font-weight:600;color:var(--bento-text);margin-bottom:8px;">${scoringL ? '\u{1F4CA} Jak obliczany jest wynik?' : '\u{1F4CA} How is the score calculated?'}</div>
+      <div style="font-size:12px;color:var(--bento-text-secondary);line-height:1.6;">
+        ${scoringL ? 'Wynik startowy: <b>100 punkt\u00F3w</b>' : 'Starting score: <b>100 points</b>'}<br>
+        \u{1F6A8} ${scoringL ? 'Krytyczne' : 'Critical'}: <b>-15 ${scoringL ? 'pkt za ka\u017Cdy' : 'pts each'}</b> (${scoringL ? 'np. brak SSL, wy\u0142\u0105czona ochrona addon' : 'e.g. no SSL, disabled addon protection'})<br>
+        \u26A0\uFE0F ${scoringL ? 'Ostrze\u017Cenia' : 'Warnings'}: <b>-5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. nieaktualne addony, wiele kont Owner' : 'e.g. outdated addons, multiple owner accounts'})<br>
+        \u2139\uFE0F Info: <b>-0.5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. shell commands, MQTT' : 'e.g. shell commands, MQTT broker'})<br>
+        \u2705 ${scoringL ? 'Spe\u0142nione' : 'Passed'}: ${scoringL ? 'bez kary' : 'no penalty'}
+      </div>
+      <div style="font-size:12px;color:var(--bento-text-secondary);margin-top:8px;">
+        ${scoringL ? '<b>Sprawdzane:</b> aktualizacje Core/OS/Supervisor, SSL/HTTPS, ochrona addon\u00F3w, auto-update, host networking, u\u017Cytkownicy i uprawnienia, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS' : '<b>Checks:</b> Core/OS/Supervisor updates, SSL/HTTPS, addon protection, auto-update, host networking, users & permissions, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS'}
+      </div>
+    </div>`;
     if (this._lastScan) { html += `<div class="scan-info">Last scan: ${this._lastScan.toLocaleString()}</div>`; }
     return html;
   }
@@ -1212,7 +1249,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return `<div class="finding ${severity}"><div class="finding-header"><span class="finding-icon">${icons[severity]}</span><span class="finding-title">${f.title}</span><span class="finding-badge badge-${severity}">${labels[severity]}</span></div><div class="finding-desc">${f.desc}</div>${f.fix ? `<div class="finding-fix">\u{1F4A1} ${f.fix}</div>` : ''}</div>`;
   }
 
-  _renderAddons(d) {
+  _renderAddonsAndIntegrations(d) {
+    let html = '';
+    // Addons section
+    html += this._renderAddonsSection(d);
+    // Integrations section
+    html += this._renderIntegrationsSection(d);
+    return html;
+  }
+
+  _renderAddonsSection(d) {
     if (!d.addons.length) return '<div class="empty-msg">No addons installed</div>';
     return `<div class="table-container"><table class="entity-table"><thead><tr><th>Addon</th><th>Version</th><th>State</th><th>Protection</th><th>Auto-update</th><th>Host Network</th></tr></thead><tbody>${d.addons.map(a => { const prot = a.protected !== false; const autoUp = a.auto_update !== false; const hostNet = a.host_network === true; const updateAvail = a.update_available; return `<tr><td>${this._sanitize(a.name || a.slug)}${updateAvail ? ' \u2B06\uFE0F' : ''}</td><td>${a.version || '-'}${updateAvail ? ` \u2192 ${a.version_latest}` : ''}</td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td><td style="color:${prot ? '#4caf50' : '#f44336'}">${prot ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${autoUp ? '#4caf50' : '#ff9800'}">${autoUp ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${hostNet ? '#ff9800' : 'var(--bento-text-secondary)'}">${hostNet ? '\u26A0 Yes' : 'No'}</td></tr>`; }).join('')}</tbody></table></div>`;
   }
@@ -1342,13 +1388,29 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return html;
   }
 
-  _renderIntegrations(d) {
+  _renderIntegrations(d) { return this._renderIntegrationsSection(d); }
+
+  _renderIntegrationsSection(d) {
     if (!d.integrations || !d.integrations.length) return '<div class="empty-msg">No integrations configured</div>';
-    return `<div class="table-container"><table class="entity-table"><thead><tr><th>Integration</th><th>Domain</th><th>Status</th></tr></thead><tbody>${d.integrations.map(e => {
+    const hacsInts = d.integrations.filter(e => e.source === 'hacs' || e.source === 'custom');
+    const coreInts = d.integrations.filter(e => e.source !== 'hacs' && e.source !== 'custom');
+    const errorInts = d.integrations.filter(e => e.state === 'setup_error');
+    let html = `<div style="margin-top:20px"><h3 style="margin:0 0 12px;font-size:15px;color:var(--bento-text);">\u{1F50C} Integrations (${d.integrations.length})</h3>`;
+    html += `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">`;
+    html += `<div style="padding:4px 10px;background:rgba(33,150,243,0.08);border-radius:6px;font-size:11px;color:var(--bento-text-secondary);">\u{1F4E6} Core: ${coreInts.length}</div>`;
+    html += `<div style="padding:4px 10px;background:rgba(255,152,0,0.08);border-radius:6px;font-size:11px;color:var(--bento-text-secondary);">\u{1F3EA} HACS: ${hacsInts.length}</div>`;
+    if (errorInts.length > 0) html += `<div style="padding:4px 10px;background:rgba(244,67,54,0.08);border-radius:6px;font-size:11px;color:#f44336;">\u26A0 Errors: ${errorInts.length}</div>`;
+    html += `</div>`;
+    html += `<div class="table-container"><table class="entity-table"><thead><tr><th>Integration</th><th>Domain</th><th>Source</th><th>Status</th></tr></thead><tbody>`;
+    d.integrations.forEach(e => {
       const statusColor = e.state === 'loaded' ? '#4caf50' : e.state === 'setup_error' ? '#f44336' : e.state === 'not_loaded' ? '#ff9800' : '#9e9e9e';
-      const statusLabel = e.state === 'loaded' ? 'OK Loaded' : e.state === 'setup_error' ? 'X Error' : e.state === 'not_loaded' ? 'U Unloaded' : e.state;
-      return `<tr><td>${this._sanitize(e.title || e.domain)}</td><td style="font-family:monospace;font-size:12px">${e.domain}</td><td style="color:${statusColor};font-weight:600">${statusLabel}</td></tr>`;
-    }).join('')}</tbody></table></div>`;
+      const isHacs = e.source === 'hacs' || e.source === 'custom';
+      html += `<tr><td>${this._sanitize(e.title || e.domain)}</td><td style="font-family:monospace;font-size:12px">${e.domain}</td>`;
+      html += `<td><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${isHacs ? 'rgba(255,152,0,0.1);color:#f57c00' : 'rgba(33,150,243,0.1);color:#1976d2'}">${isHacs ? '\u{1F3EA} HACS' : '\u{1F4E6} Core'}</span></td>`;
+      html += `<td style="color:${statusColor};font-weight:600">\u25CF ${e.state || 'unknown'}</td></tr>`;
+    });
+    html += '</tbody></table></div></div>';
+    return html;
   }
 
     _renderTips(d) {

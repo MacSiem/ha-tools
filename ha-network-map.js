@@ -19,6 +19,7 @@ class HaNetworkMap extends HTMLElement {
     this._registryLoaded = false;
     // --- HTML diffing ---
     this._lastHtml = '';
+    this._lastScanTime = null;
   }
   _persistKey() { return 'ha-network-map-devices'; }
   _loadPersistedDevices() {
@@ -85,7 +86,7 @@ class HaNetworkMap extends HTMLElement {
     const now = Date.now();
     if (!this._firstHassRender) {
       this._firstHassRender = true;
-      this._loadDeviceRegistry().then(() => { this.updateDevices(); this._doRender(); });
+      this._loadDeviceRegistry().then(() => { this.updateDevices(); this._lastScanTime = Date.now(); this._doRender(); });
       this._lastRenderTime = now;
       return;
     }
@@ -258,7 +259,8 @@ class HaNetworkMap extends HTMLElement {
   _doRender() {
     const css = this._css();
     const content = this.activeTab === 'list' ? this._listTab() : this._mapTab();
-    const html = css + '<div class="card"><div class="card-header">\u{1F4E1} ' + this.title + '</div><div class="tabs">' +
+    const scanInfo = this._lastScanTime ? '<span style="font-size:11px;color:var(--btxt2);margin-left:auto;">Last scan: ' + new Date(this._lastScanTime).toLocaleTimeString() + '</span>' : '';
+    const html = css + '<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:12px;">\u{1F4E1} ' + this.title + scanInfo + '<button class="rb" id="rescanBtn">\u{1F504} ' + (this._lang === 'pl' ? 'Skanuj' : 'Rescan') + '</button></div><div class="tabs">' +
       '<button class="tab-btn ' + (this.activeTab === 'list' ? 'active' : '') + '" data-tab="list">' + this._t('listTab') + '</button>' +
       '<button class="tab-btn ' + (this.activeTab === 'map' ? 'active' : '') + '" data-tab="map">' + this._t('mapTab') + '</button>' +
       '</div>' + content + '</div>';
@@ -320,7 +322,11 @@ class HaNetworkMap extends HTMLElement {
     '.stat-mini .sv{font-size:20px}.toolbar{flex-direction:column}.si{width:100%}table{min-width:500px}td,th{padding:8px 6px;font-size:12px}}' +
     '/* === DARK MODE === */ @media (prefers-color-scheme: dark) { :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-border: var(--divider-color, #2a2a4a); --bento-text: var(--primary-text-color, #e0e0e0); --bento-text-secondary: var(--secondary-text-color, #a0a0b0); --bento-text-muted: var(--disabled-text-color, #6a6a7a); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4); --bento-primary-light: rgba(59,130,246,0.15); --bento-success-light: rgba(16,185,129,0.15); --bento-error-light: rgba(239,68,68,0.15); --bento-warning-light: rgba(245,158,11,0.15); color-scheme: dark !important; } .card, .card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card { background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important; } input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); } .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); } .tab-content, .section { color: var(--bento-text); } table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); } table td { color: var(--bento-text); border-color: var(--bento-border); } tr:hover td { background: rgba(59,130,246,0.08); } .empty-state, .no-data { color: var(--bento-text-secondary); } .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); } .addon-list, .content-item { background: rgba(255,255,255,0.05); } .chart-container { background: var(--bento-bg); border-color: var(--bento-border); } pre, code { background: #1e293b !important; color: #e2e8f0 !important; } } /* === MOBILE FIX */ @media(max-width:768px){.tabs{flex-wrap:wrap;overflow-x:visible;gap:2px}.tab,.tab-button,.tab-btn{padding:6px 10px;font-size:12px;white-space:nowrap}.card,.card{padding:14px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:repeat(2,1fr);gap:8px}.stat-val,.kpi-val,.metric-val{font-size:18px}.stat-lbl,.kpi-lbl,.metric-lbl{font-size:10px}.panels,.board{flex-direction:column}.column{min-width:unset}h2{font-size:18px}h3{font-size:15px}}@media(max-width:480px){.tabs{gap:1px}.tab,.tab-button,.tab-btn{padding:5px 8px;font-size:11px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:1fr 1fr}.stat-val,.kpi-val,.metric-val{font-size:16px}}' +
     '/* BENTO TAB OVERRIDE */.tabs,.tab-bar,.tab-nav,.tab-header{display:flex!important;gap:4px!important;border-bottom:2px solid var(--bento-border,var(--divider-color,#334155))!important;padding:0 4px!important;margin-bottom:20px!important;overflow-x:auto!important;flex-wrap:nowrap!important}.tab,.tab-btn,.tab-button,.dtab{padding:10px 18px!important;border:none!important;background:transparent!important;cursor:pointer!important;font-size:13px!important;font-weight:500!important;font-family:Inter,sans-serif!important;color:var(--bento-text-secondary,var(--secondary-text-color,#94A3B8))!important;border-bottom:2px solid transparent!important;margin-bottom:-2px!important;transition:all .2s cubic-bezier(.4,0,.2,1)!important;white-space:nowrap!important;border-radius:0!important;flex:none!important}.tab:hover,.tab-btn:hover,.tab-button:hover,.dtab:hover{color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.08)!important}.tab.active,.tab-btn.active,.tab-button.active,.dtab.active{color:var(--bento-primary,#3B82F6)!important;border-bottom-color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.04)!important;font-weight:600!important}.stat-card,.stat-item,.metric-card,.kpi-card{background:var(--bento-card,var(--card-background-color,#1E293B))!important;border:1px solid var(--bento-border,var(--divider-color,#334155))!important;border-radius:var(--bento-radius-sm,10px)!important;padding:16px!important;text-align:center!important}' +
-    '.chart-container { max-height: 300px; overflow: hidden; position: relative; } .chart-container canvas { max-height: 250px; width: 100%; } canvas { max-height: 300px; } ' + '</style>'; }
+    '.chart-container { max-height: 300px; overflow: hidden; position: relative; } .chart-container canvas { max-height: 250px; width: 100%; } canvas { max-height: 300px; } ' +
+    '.rb{padding:6px 14px;border:1.5px solid var(--bbrd);border-radius:var(--brxs);background:var(--bcard);color:var(--btxt2);font-size:12px;font-weight:500;font-family:Inter,sans-serif;cursor:pointer;transition:var(--btr);white-space:nowrap}' +
+    '.rb:hover{background:var(--bp);color:#fff;border-color:var(--bp)}' +
+    '.rb.scanning{opacity:.6;pointer-events:none}' +
+    '</style>'; }
   _listTab() {
     const total = this.devices.length;
     const on = this.devices.filter(d => d.status === 'home' || d.status === 'zone').length;
@@ -334,6 +340,7 @@ class HaNetworkMap extends HTMLElement {
       '<div class="stat-mini sf"><div class="sv">' + off + '</div><div class="sl">' + this._t('offlineLabel') + '</div></div></div>';
     if (!this.devices.length) return h + '<div class="es">' + this._t('noDevicesFound') + '</div>';
     const catOpts = cats.map(c => '<option value="' + c + '"' + (this._catFilter === c ? ' selected' : '') + '>' + c + '</option>').join('');
+    if (this.selectedDevice) h += this._detailHtml(this.selectedDevice);
     h += '<div class="toolbar"><input type="text" class="si" id="sI" placeholder="' + this._t('searchPlaceholder') + '" value="' + (this.searchQuery || '') + '">' +
       '<select class="fs" id="cF"><option value="all">' + this._t('allCategories') + '</option>' + catOpts + '</select></div>';
     if (!this._currentPage['l']) this._currentPage['l'] = 1;
@@ -370,7 +377,6 @@ class HaNetworkMap extends HTMLElement {
     if (tp > 1) h += '<div class="pg"><button class="pb" data-p="' + (pg-1) + '"' + (pg<=1?' disabled':'') + '>\u2039 Prev</button>' +
       '<span class="pi2">' + pg + ' / ' + tp + ' (' + this.filteredDevices.length + ')</span>' +
       '<button class="pb" data-p="' + (pg+1) + '"' + (pg>=tp?' disabled':'') + '>Next \u203A</button></div>';
-    if (this.selectedDevice) h += this._detailHtml(this.selectedDevice);
     return h;
   }
   _detailHtml(d) {
@@ -389,7 +395,7 @@ class HaNetworkMap extends HTMLElement {
   }
   _mapTab() {
     if (!this.devices.length) return '<div class="es">' + this._t('noDevicesFound') + '</div>';
-    return '<div class="mc"><canvas id="nC" width="700" height="700"></canvas>' +
+    return '<div class="mc"><canvas id="nC" width="800" height="800"></canvas>' +
       '<div class="ml">' +
       '<span class="li"><span class="ld" style="background:#10B981"></span> ' + this._t('home') + '</span>' +
       '<span class="li"><span class="ld" style="background:#3B82F6"></span> ' + this._t('zone') + '</span>' +
@@ -424,32 +430,72 @@ class HaNetworkMap extends HTMLElement {
     ctx.fillStyle = '#3B82F6'; ctx.beginPath(); ctx.arc(cx, rtY, 22, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Inter,sans-serif'; ctx.fillText('Router', cx, rtY);
     ctx.fillStyle = tc; ctx.font = '11px Inter,sans-serif'; ctx.fillText(this.routerIp, cx, rtY + 32);
-    // Device area
+    // Device area — grouped by status
     const dStartY = rtY + 55; const dEndY = sz - 20;
     const uH = dEndY - dStartY; const uW = sz - 60;
-    const sp = { home:0, zone:1, away:2, unknown:3, offline:4 };
-    const sorted = [...this.devices].sort((a, b) => (sp[a.status] ?? 5) - (sp[b.status] ?? 5) || a.name.localeCompare(b.name));
-    const maxN = Math.min(sorted.length, 40); const disp = sorted.slice(0, maxN);
-    const cols = Math.min(Math.ceil(Math.sqrt(maxN * 1.5)), 8);
-    const rowC = Math.ceil(maxN / cols);
-    const cellW = uW / cols; const cellH = Math.min(uH / rowC, 70);
+    const statusOrder = ['home', 'zone', 'away', 'unknown', 'offline'];
+    const statusLabels = { home: '\u{1F7E2} Online', zone: '\u{1F535} Zone', away: '\u{1F7E1} Away', unknown: '\u26AA Unknown', offline: '\u{1F534} Offline' };
+    const groups = {};
+    statusOrder.forEach(s => { groups[s] = this.devices.filter(d => d.status === s); });
+
+    // Calculate layout: each group gets a horizontal band
+    const activeGroups = statusOrder.filter(s => groups[s].length > 0);
+    const bandH = Math.min(uH / Math.max(activeGroups.length, 1), 120);
+    let bandY = dStartY;
+    const maxPerRow = Math.min(Math.floor(uW / 80), 10);
     this._cDevs = [];
-    disp.forEach((d, i) => {
-      const col = i % cols; const row = Math.floor(i / cols);
-      const x = 30 + col * cellW + cellW / 2; const y = dStartY + row * cellH + cellH / 2;
-      const clr = cm[d.status] || '#94A3B8';
-      ctx.strokeStyle = clr + '30'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, rtY + 22); ctx.lineTo(x, y); ctx.stroke();
-      ctx.fillStyle = clr; ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = bg; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = tc; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      const lb = d.name.length > 16 ? d.name.substring(0, 14) + '\u2026' : d.name;
-      ctx.fillText(lb, x, y + 10);
-      if (d.ip) { ctx.fillStyle = tc2; ctx.font = '8px monospace'; ctx.fillText(d.ip, x, y + 21); }
-      this._cDevs.push({ d, x, y, r: 10 });
+
+    activeGroups.forEach((status, gi) => {
+      const devs = groups[status].slice(0, 20); // max 20 per group
+      const clr = cm[status] || '#94A3B8';
+
+      // Group label
+      ctx.fillStyle = clr + '20';
+      ctx.fillRect(15, bandY - 2, sz - 30, bandH - 4);
+      ctx.fillStyle = clr;
+      ctx.font = 'bold 10px Inter,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText(statusLabels[status] + ' (' + groups[status].length + ')', 22, bandY + 2);
+
+      // Devices in this group
+      const cols = Math.min(devs.length, maxPerRow);
+      const rows = Math.ceil(devs.length / cols);
+      const cellW = (uW - 10) / cols;
+      const cellH = Math.min((bandH - 20) / rows, 50);
+
+      devs.forEach((d, i) => {
+        const col = i % cols; const row = Math.floor(i / cols);
+        const x = 35 + col * cellW + cellW / 2;
+        const y = bandY + 16 + row * cellH + cellH / 2;
+
+        // Connection line to router
+        ctx.strokeStyle = clr + '18'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(cx, rtY + 22); ctx.lineTo(x, y); ctx.stroke();
+
+        // Device dot
+        ctx.fillStyle = clr;
+        ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = bg; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.stroke();
+
+        // Category icon
+        ctx.fillStyle = '#fff'; ctx.font = '8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(d.icon, x, y);
+
+        // Name + IP
+        ctx.fillStyle = tc; ctx.font = '9px Inter,sans-serif'; ctx.textBaseline = 'top';
+        const lb = d.name.length > 14 ? d.name.substring(0, 12) + '\u2026' : d.name;
+        ctx.fillText(lb, x, y + 11);
+        if (d.ip) { ctx.fillStyle = tc2; ctx.font = '8px monospace'; ctx.fillText(d.ip, x, y + 22); }
+
+        this._cDevs.push({ d, x, y, r: 12 });
+      });
+
+      bandY += bandH;
     });
-    if (sorted.length > maxN) {
+
+    if (this.devices.length > 100) {
       ctx.fillStyle = tc2; ctx.font = '11px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText('+' + (sorted.length - maxN) + ' wi\u0119cej...', cx, sz - 5);
+      ctx.fillText('+' + (this.devices.length - 100) + (this._lang === 'pl' ? ' wi\u0119cej...' : ' more...'), cx, sz - 5);
     }
   }
   _mapClick(e) {
@@ -476,6 +522,17 @@ class HaNetworkMap extends HTMLElement {
   }
   _bindEvents() {
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { this.activeTab = b.dataset.tab; this._doRender(); }));
+    const rescanBtn = this.shadowRoot.querySelector('#rescanBtn');
+    if (rescanBtn) rescanBtn.addEventListener('click', () => {
+      rescanBtn.classList.add('scanning');
+      rescanBtn.textContent = '\u23F3 ' + (this._lang === 'pl' ? 'Skanowanie...' : 'Scanning...');
+      this._registryLoaded = false;
+      this._loadDeviceRegistry().then(() => {
+        this.updateDevices();
+        this._lastScanTime = Date.now();
+        this._doRender();
+      });
+    });
     const si = this.shadowRoot.querySelector('#sI');
     if (si) si.addEventListener('input', e => {
       this.searchQuery = e.target.value; this._currentPage['l'] = 1; this._filterSort(); this._doRender();

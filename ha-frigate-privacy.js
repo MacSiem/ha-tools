@@ -236,13 +236,61 @@ class HaFrigatePrivacy extends HTMLElement {
 
   _updateFrigateStatus() {
     if (!this._hass) return;
+    // 1. Check configured entity first
     const entity = this._config.frigate_running_entity || 'binary_sensor.frigate_running';
     const state = this._hass.states[entity];
     if (state) {
       this._frigateRunning = state.state === 'on';
-    } else {
-      this._frigateRunning = null;
+      return;
     }
+    // 2. Fallback: check common Frigate entity patterns
+    const fallbacks = [
+      'binary_sensor.frigate_running',
+      'binary_sensor.frigate',
+      'sensor.frigate_status'
+    ];
+    for (const fb of fallbacks) {
+      const fbState = this._hass.states[fb];
+      if (fbState) {
+        this._frigateRunning = fbState.state === 'on' || fbState.state === 'running';
+        return;
+      }
+    }
+    // 3. Fallback: check if any camera.frigate_* entities exist
+    const hasFrigateCameras = Object.keys(this._hass.states).some(id =>
+      id.startsWith('camera.') && (
+        id.includes('frigate') ||
+        (this._hass.states[id].attributes.entity_picture || '').includes('frigate')
+      )
+    );
+    if (hasFrigateCameras) {
+      this._frigateRunning = true;
+      return;
+    }
+    // 4. Fallback: check addon state via supervisor API
+    this._frigateRunning = null;
+    this._checkAddonState();
+  }
+
+  async _checkAddonState() {
+    try {
+      const resp = await this._hass.callApi('GET', 'hassio/addons');
+      if (resp && resp.data && resp.data.addons) {
+        const frigateAddon = resp.data.addons.find(a =>
+          (a.name || '').toLowerCase().includes('frigate') ||
+          (a.slug || '').toLowerCase().includes('frigate')
+        );
+        if (frigateAddon) {
+          this._frigateRunning = frigateAddon.state === 'started';
+          this._updateUI();
+          return;
+        }
+      }
+    } catch (e) {
+      // Supervisor API not available (e.g. non-supervised install)
+    }
+    this._frigateRunning = null;
+    this._updateUI();
   }
 
   _detectCameras() {
@@ -860,6 +908,62 @@ class HaFrigatePrivacy extends HTMLElement {
             ? 'Powiadomienia beda wysylane: przy starcie prywatnosci, ' + this._notifyBeforeEndMin + ' min przed koncem (z informacja o kamerach), przy anulowaniu i przy wydluzeniu czasu.'
             : 'Notifications will be sent: on privacy start, ' + this._notifyBeforeEndMin + ' min before end (with camera info), on cancel, and on time extension.'
           }</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>\uD83D\uDCCB ${this._lang === 'pl' ? 'Integracja z Dashboard' : 'Dashboard Integration'}</h3>
+        <p style="margin-bottom:12px;color:var(--text-secondary,#aaa);font-size:0.92em;">
+          ${this._lang === 'pl'
+            ? 'Mozesz dodac Frigate Privacy jako karte w swoim dashboard lub jako przycisk w Bubble Card.'
+            : 'You can add Frigate Privacy as a card in your dashboard or as a Bubble Card button.'}
+        </p>
+
+        <div class="code-block">
+          <div class="code-label">${this._lang === 'pl' ? 'Karta Lovelace (manual YAML)' : 'Lovelace Card (manual YAML)'}</div>
+          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">type: custom:ha-frigate-privacy
+# ${this._lang === 'pl' ? 'Opcjonalna konfiguracja:' : 'Optional config:'}
+frigate_running_entity: binary_sensor.frigate_running
+cameras:
+  - camera.frigate_salon
+  - camera.frigate_front
+default_duration: 30</pre>
+        </div>
+
+        <div class="code-block" style="margin-top:12px;">
+          <div class="code-label">Bubble Card - ${this._lang === 'pl' ? 'Przycisk nawigacji' : 'Navigation button'}</div>
+          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">type: custom:bubble-card
+card_type: button
+name: Frigate Privacy
+icon: mdi:camera-off
+tap_action:
+  action: navigate
+  navigation_path: /ha-tools-panel
+# ${this._lang === 'pl' ? 'Lub uzyj input_boolean do sterowania:' : 'Or use input_boolean for control:'}
+# entity: input_boolean.frigate_privacy_mode</pre>
+        </div>
+
+        <div class="code-block" style="margin-top:12px;">
+          <div class="code-label">${this._lang === 'pl' ? 'Automatyzacja z input_boolean' : 'Automation with input_boolean'}</div>
+          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">automation:
+  - alias: "Frigate Privacy Toggle"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.frigate_privacy_mode
+        to: "on"
+    action:
+      - service: mqtt.publish
+        data:
+          topic: frigate/clips/set
+          payload: "OFF"
+      - service: mqtt.publish
+        data:
+          topic: frigate/detect/set
+          payload: "OFF"
+      - delay: "01:00:00"
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.frigate_privacy_mode</pre>
         </div>
       </div>
     `;
