@@ -1,6 +1,0 @@
-v3.4.0: Donate dark mode + YAML Checker cleanup
-
-- Add dark mode color overrides for donate section (prefers-color-scheme: dark)
-- Remove dead file-scanner switch case from YAML Checker
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>

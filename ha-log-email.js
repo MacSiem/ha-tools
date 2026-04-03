@@ -680,14 +680,21 @@ max: 3</pre>
       <style>${window.HAToolsBentoCSS || ""}
 
         :host {
+          --bg: var(--primary-background-color, #F8FAFC); --card: var(--card-background-color, #FFFFFF); --border: var(--divider-color, #E2E8F0);
+          --text: var(--primary-text-color, #1E293B); --text2: var(--secondary-text-color, #64748B); --text3: var(--disabled-text-color, #94A3B8);
+          --primary: #3B82F6; --success: #10B981; --error: #EF4444;
+          --warning: #F59E0B; --radius: 12px; --radius-sm: 8px;
           display: block; font-family: Inter, sans-serif;
           color-scheme: light dark;
         }
-        @media (prefers-color-scheme: dark) { :host {
+        @media (prefers-color-scheme: dark) {
+          :host {
+            --bg: #0f172a; --card: #1e293b; --border: #334155;
+            --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
           }
         }
         * { box-sizing: border-box; }
-        .card { background: var(--bento-card); border-radius: var(--bento-radius); overflow: hidden; max-width: 100%; box-sizing: border-box; }
+        .card { background: var(--bento-card); border-radius: var(--bento-radius-md); overflow: hidden; max-width: 100%; box-sizing: border-box; }
         .header { padding: 16px 20px 0; display: flex; align-items: center; gap: 10px; }
         .header-icon { font-size: 22px; }
         .header-title { font-size: 16px; font-weight: 700; color: var(--bento-text); }

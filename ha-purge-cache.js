@@ -302,7 +302,18 @@ class HAPurgeCache extends HTMLElement {
           display: block;
           font-family: 'Inter', sans-serif;
           color: var(--primary-text-color, #1a1a2e);
-          }
+          --pc-primary: #3B82F6;
+          --pc-primary-hover: #2563EB;
+          --pc-danger: #EF4444;
+          --pc-danger-hover: #DC2626;
+          --pc-success: #10B981;
+          --pc-warning: #F59E0B;
+          --pc-bg: var(--card-background-color, #ffffff);
+          --pc-border: var(--divider-color, #e2e8f0);
+          --pc-text: var(--primary-text-color, #1a1a2e);
+          --pc-text-sec: var(--secondary-text-color, #64748b);
+          --pc-radius: 12px;
+        }
 
         .card { max-width: 900px; margin: 0 auto; padding: 16px; }
         h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
@@ -319,7 +330,7 @@ class HAPurgeCache extends HTMLElement {
         .stat-card {
           background: var(--bento-bg);
           border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius);
+          border-radius: var(--bento-radius-sm);
           padding: 14px;
         }
         .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--bento-text-secondary); letter-spacing: 0.5px; margin-bottom: 6px; }
@@ -340,7 +351,7 @@ class HAPurgeCache extends HTMLElement {
           gap: 10px;
           padding: 14px 16px;
           border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius);
+          border-radius: var(--bento-radius-sm);
           background: var(--bento-bg);
           cursor: pointer;
           font-family: 'Inter', sans-serif;
@@ -355,7 +366,7 @@ class HAPurgeCache extends HTMLElement {
         .action-btn .action-desc { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; }
 
         .action-btn.danger { border-color: rgba(239, 68, 68, 0.3); }
-        .action-btn.danger:hover { border-color: var(--bento-danger); background: rgba(239, 68, 68, 0.04); }
+        .action-btn.danger:hover { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 
         .action-btn.primary { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.06); }
         .action-btn.primary:hover { background: var(--bento-primary); color: white; }
@@ -363,7 +374,7 @@ class HAPurgeCache extends HTMLElement {
         /* Log */
         .log-section {
           border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius);
+          border-radius: var(--bento-radius-sm);
           overflow: hidden;
           margin-bottom: 20px;
         }
@@ -396,7 +407,7 @@ class HAPurgeCache extends HTMLElement {
         /* LS Keys */
         .keys-section {
           border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius);
+          border-radius: var(--bento-radius-sm);
           overflow: hidden;
         }
         .keys-header {
@@ -441,13 +452,17 @@ class HAPurgeCache extends HTMLElement {
           font-size: 10px;
           line-height: 1;
         }
-        .btn-sm.btn-danger { color: var(--bento-danger); border-color: rgba(239, 68, 68, 0.3); }
-        .btn-sm.btn-danger:hover { background: var(--bento-danger); color: white; }
+        .btn-sm.btn-danger { color: var(--bento-error); border-color: rgba(239, 68, 68, 0.3); }
+        .btn-sm.btn-danger:hover { background: var(--bento-error); color: white; }
 
         /* Dark mode */
         @media (prefers-color-scheme: dark) {
           :host {
-            }
+            --pc-bg: #1e1e2e;
+            --pc-border: #313244;
+            --pc-text: #cdd6f4;
+            --pc-text-sec: #6c7086;
+          }
           .log-success { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }
           .log-error { background: rgba(239, 68, 68, 0.12); color: #fca5a5; }
           .log-info { background: rgba(59, 130, 246, 0.1); color: #93c5fd; }
@@ -458,7 +473,7 @@ class HAPurgeCache extends HTMLElement {
         .tip-banner {
           background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03));
           border: 1.5px solid rgba(59,130,246,0.2);
-          border-radius: var(--bento-radius);
+          border-radius: var(--bento-radius-sm);
           padding: 14px 16px;
           margin-bottom: 16px;
           font-size: 13px;

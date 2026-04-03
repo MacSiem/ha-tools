@@ -1,5 +1,5 @@
-﻿
-// â”€â”€ HA Tools Server Persistence Helper â”€â”€
+
+// ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
 window._haToolsPersistence = window._haToolsPersistence || {
@@ -32,7 +32,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
         this._cache[fullKey] = JSON.parse(raw);
       }
     } catch(e) {}
-    // 3. HA server (authoritative, cross-device) â€” async update
+    // 3. HA server (authoritative, cross-device) — async update
     if (this._hass) {
       try {
         const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
@@ -113,9 +113,9 @@ class HAStorageMonitor extends HTMLElement {
       this._lastDataFetch = now;
       this._loadStorageData();
     }
-    // Throttle render to 30s â€” storage info is static
+    // Throttle render to 30s — storage info is static
     if (now - (this._lastRenderTime || 0) < 30000) {
-      return; // Skip render entirely â€” no need to re-render static storage info
+      return; // Skip render entirely — no need to re-render static storage info
     }
     this._lastRenderTime = now;
   }
@@ -149,7 +149,7 @@ class HAStorageMonitor extends HTMLElement {
         return;
       }
 
-      // Get addon info â€” try individual endpoints for size data
+      // Get addon info — try individual endpoints for size data
       let addons = [];
       try {
         const addonList = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/addons', method: 'get' });
@@ -183,13 +183,13 @@ class HAStorageMonitor extends HTMLElement {
         backups = backupList?.backups || backupList?.data?.backups || [];
       } catch(e) { console.warn('[Storage] Could not fetch backups:', e); }
 
-      // Recorder info â€” current HA recorder/info API does NOT expose db size
+      // Recorder info — current HA recorder/info API does NOT expose db size
       // Available fields: backlog, db_in_default_location, max_backlog, migration_in_progress, migration_is_live, recording, thread_running
       let dbSize = 0;
       let recorderMeta = {};
       try {
         recorderMeta = await this._hass.callWS({ type: 'recorder/info' }) || {};
-        // DB size unavailable from this endpoint â€” UI will show "N/A" when dbSize === 0
+        // DB size unavailable from this endpoint — UI will show "N/A" when dbSize === 0
       } catch(e) { console.warn('[Storage] No recorder info:', e); }
 
       // API returns numbers directly (in GB), no .data wrapper
@@ -302,21 +302,21 @@ class HAStorageMonitor extends HTMLElement {
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
-  --bento-primary: var(--bento-primary, #3B82F6);
+  --bento-primary: #3B82F6;
   --bento-primary-hover: #2563EB;
   --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: var(--bento-success, #10B981);
+  --bento-success: #10B981;
   --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: var(--bento-error, #EF4444);
+  --bento-error: #EF4444;
   --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: var(--bento-warning, #F59E0B);
+  --bento-warning: #F59E0B;
   --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, var(--bento-bg, #F8FAFC));
-  --bento-card: var(--card-background-color, var(--bento-card-light, #FFFFFF));
-  --bento-border: var(--divider-color, var(--bento-text, #E2E8F0));
-  --bento-text: var(--primary-text-color, var(--bento-card, #1E293B));
-  --bento-text-secondary: var(--secondary-text-color, var(--bento-text-muted, #64748B));
-  --bento-text-muted: var(--disabled-text-color, var(--bento-text-secondary, #94A3B8));
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;
@@ -508,6 +508,26 @@ canvas {
 
 /* ===== END BENTO LIGHT MODE ===== */
 
+:host {
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-success: #10B981;
+  --bento-warning: #F59E0B;
+  --bento-error: #EF4444;
+  --bento-radius: 16px;
+  --bento-radius-sm: 10px;
+  --bento-radius-xs: 6px;
+  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block;
+  color-scheme: light !important;
+}
 * { box-sizing: border-box; }
 
 .card, .card-container, .reports-card, .export-card {
@@ -887,9 +907,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     if (this._storageData?.noSupervisor) {
       const L = this._lang === 'pl';
-      content.innerHTML = `<div style="text-align:center;padding:48px 24px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B))">
+      content.innerHTML = `<div style="text-align:center;padding:48px 24px;color:var(--bento-text-secondary,#64748B)">
         <div style="font-size:48px;margin-bottom:16px">\u{1F4E6}</div>
-        <div style="font-size:18px;font-weight:600;color:var(--bento-text,var(--bento-card, #1E293B));margin-bottom:8px">${L ? 'Wymaga Home Assistant OS / Supervised' : 'Requires Home Assistant OS / Supervised'}</div>
+        <div style="font-size:18px;font-weight:600;color:var(--bento-text,#1E293B);margin-bottom:8px">${L ? 'Wymaga Home Assistant OS / Supervised' : 'Requires Home Assistant OS / Supervised'}</div>
         <div style="max-width:400px;margin:0 auto;line-height:1.5">${L ? 'Storage Monitor wymaga Supervisor API do odczytu informacji o dysku, dodatkach i kopiach zapasowych. Zainstaluj HA OS lub HA Supervised.' : 'Storage Monitor requires the Supervisor API to read disk, addon, and backup information. Install HA OS or HA Supervised.'}</div>
       </div>`;
       return;
@@ -964,7 +984,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   _renderAddonsAndIntegrations(d) {
     const L = this._lang === 'pl';
     const hasAnySizes = d.addons.some(a => a.size > 0);
-    const sizeNote = hasAnySizes ? '' : `<div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">\u{1F4A1} ${L ? 'Rozmiary addon\u00F3w mog\u0105 nie by\u0107 dost\u0119pne na wszystkich instalacjach HA.' : 'Addon disk sizes may not be available on all HA installations.'}</div>`;
+    const sizeNote = hasAnySizes ? '' : `<div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4A1} ${L ? 'Rozmiary addon\u00F3w mog\u0105 nie by\u0107 dost\u0119pne na wszystkich instalacjach HA.' : 'Addon disk sizes may not be available on all HA installations.'}</div>`;
     const maxAddonSize = Math.max(...d.addons.map(a => a.size), 1);
 
     // Determine HACS integrations
@@ -980,7 +1000,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     return `
       ${sizeNote}
-      <h3 style="margin:0 0 12px;font-size:15px;color:var(--bento-text,var(--bento-card, #1E293B));">\u{1F9E9} ${L ? 'Dodatki' : 'Add-ons'} (${d.addons.length})</h3>
+      <h3 style="margin:0 0 12px;font-size:15px;color:var(--bento-text,#1e293b);">\u{1F9E9} ${L ? 'Dodatki' : 'Add-ons'} (${d.addons.length})</h3>
       <div class="table-container">
         <table class="entity-table">
           <thead><tr>
@@ -1004,11 +1024,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </table>
       </div>
 
-      <h3 style="margin:24px 0 12px;font-size:15px;color:var(--bento-text,var(--bento-card, #1E293B));">\u{1F50C} ${L ? 'Integracje' : 'Integrations'} (${(d.integrations || []).length})</h3>
+      <h3 style="margin:24px 0 12px;font-size:15px;color:var(--bento-text,#1e293b);">\u{1F50C} ${L ? 'Integracje' : 'Integrations'} (${(d.integrations || []).length})</h3>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <div style="padding:6px 12px;background:rgba(33,150,243,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">\u{1F4E6} Core: ${coreIntegrations.length}</div>
-        <div style="padding:6px 12px;background:rgba(255,152,0,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">\u{1F3EA} HACS: ${hacsIntegrations.length}</div>
-        <div style="padding:6px 12px;background:rgba(76,175,80,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">\u{1F4CA} ${L ? 'Szacowany rozmiar' : 'Est. storage'}: ~${this._fmtSize((d.integrations || []).length * 0.1)}</div>
+        <div style="padding:6px 12px;background:rgba(33,150,243,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4E6} Core: ${coreIntegrations.length}</div>
+        <div style="padding:6px 12px;background:rgba(255,152,0,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F3EA} HACS: ${hacsIntegrations.length}</div>
+        <div style="padding:6px 12px;background:rgba(76,175,80,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4CA} ${L ? 'Szacowany rozmiar' : 'Est. storage'}: ~${this._fmtSize((d.integrations || []).length * 0.1)}</div>
       </div>
       <div class="table-container">
         <table class="entity-table">
@@ -1029,7 +1049,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
                 <td><span style="color:${i.state === 'loaded' ? '#4caf50' : i.state === 'setup_error' ? '#f44336' : '#9e9e9e'}">\u25CF ${i.state || 'unknown'}</span></td>
               </tr>`;
             }).join('')}
-            ${(d.integrations || []).length > 60 ? `<tr><td colspan="4" style="text-align:center;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));font-size:12px;">... ${L ? 'i' : 'and'} ${(d.integrations || []).length - 60} ${L ? 'wi\u0119cej' : 'more'}</td></tr>` : ''}
+            ${(d.integrations || []).length > 60 ? `<tr><td colspan="4" style="text-align:center;color:var(--bento-text-secondary,#64748b);font-size:12px;">... ${L ? 'i' : 'and'} ${(d.integrations || []).length - 60} ${L ? 'wi\u0119cej' : 'more'}</td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -1070,8 +1090,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const intCount = d.integrations.length;
     return `
       <div class="table-container">
-        <div style="padding:12px;background:rgba(33,150,243,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">
-          đź“Š ${intCount} integrations detected. Estimated storage: ~${this._fmtSize(intCount * 0.1)}
+        <div style="padding:12px;background:rgba(33,150,243,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">
+          📊 ${intCount} integrations detected. Estimated storage: ~${this._fmtSize(intCount * 0.1)}
         </div>
         <table class="entity-table">
           <thead><tr>
@@ -1087,7 +1107,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
                 <td>${i.source || 'user'}</td>
               </tr>
             `).join('')}
-            ${d.integrations.length > 50 ? `<tr><td colspan="3" style="text-align:center;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));font-size:12px;">... and ${d.integrations.length - 50} more</td></tr>` : ''}
+            ${d.integrations.length > 50 ? `<tr><td colspan="3" style="text-align:center;color:var(--bento-text-secondary,#64748b);font-size:12px;">... and ${d.integrations.length - 50} more</td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -1131,11 +1151,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     return `
       <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
-        <span style="font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">${L ? 'Sortuj:' : 'Sort:'}</span>
-        <button class="sort-btn" data-sort="size" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,var(--bento-text, #E2E8F0));border-radius:6px;background:${sortKey === 'size' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));cursor:pointer;">${L ? 'Rozmiar' : 'Size'} ${sortKey === 'size' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
-        <button class="sort-btn" data-sort="name" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,var(--bento-text, #E2E8F0));border-radius:6px;background:${sortKey === 'name' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));cursor:pointer;">${L ? 'Nazwa' : 'Name'} ${sortKey === 'name' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
+        <span style="font-size:12px;color:var(--bento-text-secondary,#64748b);">${L ? 'Sortuj:' : 'Sort:'}</span>
+        <button class="sort-btn" data-sort="size" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;background:${sortKey === 'size' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,#64748b);cursor:pointer;">${L ? 'Rozmiar' : 'Size'} ${sortKey === 'size' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
+        <button class="sort-btn" data-sort="name" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;background:${sortKey === 'name' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,#64748b);cursor:pointer;">${L ? 'Nazwa' : 'Name'} ${sortKey === 'name' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
       </div>
-      <div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">
+      <div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">
         \u{1F4CA} ${L ? 'Szacowany rozk\u0142ad plik\u00F3w i folder\u00F3w. Rzeczywiste rozmiary mog\u0105 si\u0119 r\u00F3\u017Cni\u0107.' : 'Estimated file/folder breakdown. Actual sizes may vary.'}
         ${L ? 'Dysk:' : 'Disk:'} ${d.diskUsed.toFixed(1)} / ${d.diskTotal.toFixed(1)} GB (${d.usedPercent}%)
       </div>
@@ -1152,8 +1172,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <tr>
                 <td>${e.icon} <code style="font-size:12px;">${e.path}</code></td>
                 <td style="white-space:nowrap;">${e.size < 1 ? '< 1 MB' : this._fmtSize(e.size)}</td>
-                <td style="font-size:12px;color:var(--bento-text-secondary,var(--bento-text-muted, #64748B));">${e.desc}</td>
-                <td><span class="size-bar" style="width:${Math.max(4, (e.size / maxSize) * 100)}px;background:${e.type === 'file' ? '#ff9800' : 'var(--bento-primary, #3B82F6)'}"></span></td>
+                <td style="font-size:12px;color:var(--bento-text-secondary,#64748b);">${e.desc}</td>
+                <td><span class="size-bar" style="width:${Math.max(4, (e.size / maxSize) * 100)}px;background:${e.type === 'file' ? '#ff9800' : '#3b82f6'}"></span></td>
               </tr>
             `).join('')}
           </tbody>
@@ -1292,15 +1312,15 @@ class HaStorageMonitorEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,var(--bento-card, #1E293B)); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,var(--bento-primary, #3B82F6)); }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
       </style>
       <h3>Storage Monitor</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Storage Monitor'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,var(--bento-text, #E2E8F0));border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,var(--bento-card, #1E293B));font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

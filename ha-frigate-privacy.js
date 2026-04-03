@@ -1325,7 +1325,7 @@ tap_action:
   }
 
   _getCSS() {
-    return `${window.HAToolsBentoCSS || ''}
+    return `
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
   --bento-card: var(--card-background-color, #FFFFFF);

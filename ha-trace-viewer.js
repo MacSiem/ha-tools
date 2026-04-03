@@ -1133,7 +1133,7 @@ class HATraceViewer extends HTMLElement {
         <div class="topbar">
           <span class="title">${this.config.title || this._t('traceViewer')}</span>
           <div class="topbar-r">
-            <span class="trace-saved-badge" id="traceStorageInfo" title="${this._lang === 'pl' ? 'Zapisane trace\u2019y' : 'Saved traces'}" style="font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--bento-radius-xs);border:1px solid var(--bento-border);display:inline-flex;align-items:center;gap:4px">\u{1F4BE} ${this._getStoredTraceCount()} saved</span><span class="trace-settings-btn" id="goToSettingsBtn" title="${this._lang === 'pl' ? 'Ustawienia Trace Viewer' : 'Trace Viewer Settings'}" style="font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--bento-radius-xs);border:1px solid var(--bento-border);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:6px">\u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</span>
+            <span class="trace-saved-badge" id="traceStorageInfo" title="${this._lang === 'pl' ? 'Zapisane trace\u2019y' : 'Saved traces'}" style="font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--radius-xs);border:1px solid var(--bento-border);display:inline-flex;align-items:center;gap:4px">\u{1F4BE} ${this._getStoredTraceCount()} saved</span><span class="trace-settings-btn" id="goToSettingsBtn" title="${this._lang === 'pl' ? 'Ustawienia Trace Viewer' : 'Trace Viewer Settings'}" style="font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--radius-xs);border:1px solid var(--bento-border);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:6px">\u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</span>
             <div class="dd" id="expDD">
               <button class="btn-s" id="expBtn" ${selN === 0 && this.selectedAutoIds.size === 0 ? 'disabled style="opacity:0.4;pointer-events:none;cursor:default"' : ''}>${this._t('export')} \u25BE</button>
               <div class="dd-menu">
@@ -1369,7 +1369,23 @@ class HATraceViewer extends HTMLElement {
     return `<style>${window.HAToolsBentoCSS || ""}
 
 :host {
-  ${window.HAToolsBentoCSS || ''}
+  --pc: #3B82F6;
+  --ec: #EF4444;
+  --wc: #F59E0B;
+  --sc: #10B981;
+  --bg: var(--primary-background-color, #F8FAFC);
+  --cbg: var(--card-background-color, #FFFFFF);
+  --tc: var(--primary-text-color, #1E293B);
+  --ts: var(--secondary-text-color, #64748B);
+  --dc: var(--divider-color, #E2E8F0);
+  --hov: rgba(59, 130, 246, 0.04);
+  --sel: rgba(59, 130, 246, 0.08);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --tr: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
   color-scheme: light !important;
 }
@@ -1377,9 +1393,9 @@ class HATraceViewer extends HTMLElement {
 
 .card {
   display: flex; height: 100%; background: var(--bento-card); color: var(--bento-text);
-  border-radius: var(--bento-radius-md); overflow: hidden;
+  border-radius: var(--radius); overflow: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  border: 1px solid var(--bento-border); box-shadow: var(--bento-shadow-sm);
+  border: 1px solid var(--bento-border); box-shadow: var(--shadow);
 }
 .col-main { display: flex; flex-direction: column; flex: 1; overflow: hidden; color: var(--bento-text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
@@ -1391,9 +1407,9 @@ class HATraceViewer extends HTMLElement {
 .title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .topbar-r { display: flex; gap: 8px; align-items: center; }
 .btn-s {
-  padding: 9px 16px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-sm);
+  padding: 9px 16px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-sm);
   background: var(--bento-card); color: var(--bento-text); cursor: pointer; font-size: 13px;
-  font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--bento-transition); white-space: nowrap;
+  font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--tr); white-space: nowrap;
 }
 .btn-s:hover { background: var(--bento-bg); border-color: var(--bento-primary); color: var(--bento-primary); }
 .btn-act {
@@ -1405,13 +1421,13 @@ class HATraceViewer extends HTMLElement {
 .dd { position: relative; display: inline-block; }
 .dd-menu {
   display: none; position: absolute; right: 0; top: 100%; margin-top: 4px;
-  background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm);
-  min-width: 180px; z-index: 100; box-shadow: var(--bento-shadow-md); overflow: hidden;
+  background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--radius-sm);
+  min-width: 180px; z-index: 100; box-shadow: var(--shadow-md); overflow: hidden;
 }
 .dd.open .dd-menu { display: block; }
 .dd-i {
   padding: 10px 16px; cursor: pointer; font-size: 13px; color: var(--bento-text);
-  transition: var(--bento-transition); font-family: 'Inter', sans-serif;
+  transition: var(--tr); font-family: 'Inter', sans-serif;
 }
 .dd-i:hover { background: rgba(59, 130, 246, 0.06); color: var(--bento-primary); }
 .dd-div { border-top: 1px solid var(--bento-border); margin: 4px 0; }
@@ -1427,9 +1443,9 @@ class HATraceViewer extends HTMLElement {
   text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap;
 }
 .cg select, .cg input {
-  padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs);
+  padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-xs);
   background: var(--bento-card); color: var(--bento-text); font-size: 13px;
-  font-family: 'Inter', sans-serif; transition: var(--bento-transition); outline: none;
+  font-family: 'Inter', sans-serif; transition: var(--tr); outline: none;
 }
 .cg select:focus, .cg input:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
 .cg-r { margin-left: auto; }
@@ -1441,10 +1457,10 @@ class HATraceViewer extends HTMLElement {
 }
 .stat {
   display: flex; flex-direction: column; align-items: center; padding: 12px;
-  background: var(--bento-card); border-radius: var(--bento-radius-sm); border: 1px solid var(--bento-border);
-  transition: var(--bento-transition); text-align: center;
+  background: var(--bento-card); border-radius: var(--radius-sm); border: 1px solid var(--bento-border);
+  transition: var(--tr); text-align: center;
 }
-.stat:hover { border-color: var(--bento-primary); box-shadow: var(--bento-shadow-md); transform: translateY(-1px); }
+.stat:hover { border-color: var(--bento-primary); box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .sv { font-size: 24px; font-weight: 700; color: var(--bento-primary); line-height: 1.2; }
 .sl { font-size: 12px; color: var(--bento-text-secondary); font-weight: 500; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
 .stat.ok .sv { color: var(--bento-success); }
@@ -1475,17 +1491,17 @@ class HATraceViewer extends HTMLElement {
 }
 .sinput-sm {
   flex: 1; max-width: 180px; padding: 6px 10px; border: 1.5px solid var(--bento-border);
-  border-radius: var(--bento-radius-xs); background: var(--bento-card); color: var(--bento-text);
-  font-size: 13px; font-family: 'Inter', sans-serif; transition: var(--bento-transition); outline: none;
+  border-radius: var(--radius-xs); background: var(--bento-card); color: var(--bento-text);
+  font-size: 13px; font-family: 'Inter', sans-serif; transition: var(--tr); outline: none;
 }
 .sinput-sm:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
 
 /* Search & controls in left panel */
 .search-box { padding: 10px 12px; border-bottom: 1px solid var(--bento-border); }
 .sinput {
-  width: 100%; padding: 9px 14px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-sm);
+  width: 100%; padding: 9px 14px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-sm);
   background: var(--bento-card); color: var(--bento-text); font-size: 13px;
-  font-family: 'Inter', sans-serif; transition: var(--bento-transition); outline: none;
+  font-family: 'Inter', sans-serif; transition: var(--tr); outline: none;
 }
 .sinput:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
 .sinput::placeholder, .sinput-sm::placeholder { color: var(--bento-text-secondary); opacity: 0.7; }
@@ -1493,14 +1509,14 @@ class HATraceViewer extends HTMLElement {
 .crow { display: flex; gap: 8px; align-items: center; font-size: 12px; }
 .clbl { font-weight: 600; min-width: 55px; color: var(--bento-text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
 .csel {
-  flex: 1; padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs);
+  flex: 1; padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-xs);
   background: var(--bento-card); color: var(--bento-text); font-size: 13px;
-  font-family: 'Inter', sans-serif; transition: var(--bento-transition); outline: none;
+  font-family: 'Inter', sans-serif; transition: var(--tr); outline: none;
 }
 .csel:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
 
 /* List */
-.list { flex: 1; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin: 0; }
+.list { flex: 1; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--bento-border); border-radius: var(--radius-sm); margin: 0; }
 .empty {
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   height: 100%; color: var(--bento-text-secondary); gap: 12px; font-size: 14px; padding: 48px 24px;
@@ -1512,15 +1528,15 @@ class HATraceViewer extends HTMLElement {
   padding: 12px 16px; font-size: 13px; color: var(--bento-text-secondary); border-bottom: 1px solid var(--bento-border);
 }
 .pag-btn {
-  padding: 8px 14px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs);
+  padding: 8px 14px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-xs);
   background: var(--bento-card); color: var(--bento-text); cursor: pointer; font-size: 13px;
-  font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--bento-transition);
+  font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--tr);
 }
 .pag-btn:hover:not(:disabled) { background: var(--bento-primary); color: white; border-color: var(--bento-primary); }
 .pag-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pag-info { font-size: 13px; color: var(--bento-text-secondary); font-weight: 500; padding: 0 8px; }
 .pag-size {
-  padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs);
+  padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-xs);
   background: var(--bento-card); color: var(--bento-text); font-size: 13px; cursor: pointer;
   font-family: 'Inter', sans-serif;
 }
@@ -1528,7 +1544,7 @@ class HATraceViewer extends HTMLElement {
 /* Auto items */
 .auto-item {
   padding: 12px 16px; border-bottom: 1px solid var(--bento-border); cursor: pointer;
-  transition: var(--bento-transition); display: flex; align-items: center; gap: 10px;
+  transition: var(--tr); display: flex; align-items: center; gap: 10px;
   font-family: 'Inter', sans-serif;
 }
 .auto-item:hover { background: rgba(59, 130, 246, 0.04); }
@@ -1546,11 +1562,11 @@ class HATraceViewer extends HTMLElement {
 }
 
 /* Trace groups */
-.tgroup { border: 1px solid var(--bento-border); border-radius: var(--bento-radius-xs); margin-bottom: 8px; overflow: hidden; }
+.tgroup { border: 1px solid var(--bento-border); border-radius: var(--radius-xs); margin-bottom: 8px; overflow: hidden; }
 .tgroup-h {
   display: flex; align-items: center; gap: 8px; padding: 10px 14px;
   background: var(--bento-bg); cursor: pointer; font-size: 13px; font-weight: 600;
-  user-select: none; transition: var(--bento-transition); font-family: 'Inter', sans-serif; color: var(--bento-text);
+  user-select: none; transition: var(--tr); font-family: 'Inter', sans-serif; color: var(--bento-text);
 }
 .tgroup-h:hover { background: rgba(59, 130, 246, 0.06); }
 .tg-tog { font-size: 12px; transition: transform 0.2s; color: var(--bento-text-secondary); }
@@ -1565,7 +1581,7 @@ class HATraceViewer extends HTMLElement {
 /* Trace items */
 .tr-item {
   padding: 10px 16px; border-bottom: 1px solid var(--bento-border); cursor: pointer;
-  transition: var(--bento-transition); display: flex; align-items: center; gap: 10px;
+  transition: var(--tr); display: flex; align-items: center; gap: 10px;
   font-family: 'Inter', sans-serif;
 }
 .tr-item:hover { background: rgba(59, 130, 246, 0.04); }
@@ -1617,7 +1633,7 @@ class HATraceViewer extends HTMLElement {
 .dtab {
   padding: 10px 20px; background: transparent; border: none; border-bottom: 2px solid transparent;
   color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500;
-  transition: var(--bento-transition); margin-bottom: -2px; white-space: nowrap;
+  transition: var(--tr); margin-bottom: -2px; white-space: nowrap;
   border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif;
 }
 .dtab.act { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -1631,10 +1647,10 @@ class HATraceViewer extends HTMLElement {
 /* Timeline steps */
 .tl-step {
   margin-bottom: 10px; border-left: 3px solid var(--bento-border); padding: 12px 14px;
-  background: var(--bento-card); border-radius: 0 var(--bento-radius-xs) var(--bento-radius-xs) 0;
-  transition: var(--bento-transition);
+  background: var(--bento-card); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  transition: var(--tr);
 }
-.tl-step:hover { box-shadow: var(--bento-shadow-sm); }
+.tl-step:hover { box-shadow: var(--shadow); }
 .tl-step.s-success { border-left-color: var(--bento-success); }
 .tl-step.s-error { border-left-color: var(--bento-error); }
 .tl-step.s-skipped { border-left-color: var(--bento-text-secondary); opacity: 0.6; }
@@ -1650,7 +1666,7 @@ class HATraceViewer extends HTMLElement {
 .tl-dur { font-size: 11px; color: var(--bento-text-secondary); white-space: nowrap; font-weight: 600; }
 .tl-err {
   margin-top: 8px; padding: 8px 12px; background: rgba(239, 68, 68, 0.08);
-  border-radius: var(--bento-radius-xs); font-size: 12px; color: #DC2626;
+  border-radius: var(--radius-xs); font-size: 12px; color: #DC2626;
 }
 .tl-dets { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .tl-det { font-size: 11px; color: var(--bento-text-secondary); word-break: break-word; }
@@ -1660,18 +1676,18 @@ class HATraceViewer extends HTMLElement {
 /* Related activity */
 .rel-list { display: flex; flex-direction: column; gap: 8px; }
 .rel-item {
-  padding: 12px 14px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-xs);
-  display: flex; flex-direction: column; gap: 4px; transition: var(--bento-transition);
+  padding: 12px 14px; border: 1px solid var(--bento-border); border-radius: var(--radius-xs);
+  display: flex; flex-direction: column; gap: 4px; transition: var(--tr);
   background: var(--bento-card);
 }
-.rel-item:hover { border-color: var(--bento-primary); box-shadow: var(--bento-shadow-sm); }
+.rel-item:hover { border-color: var(--bento-primary); box-shadow: var(--shadow); }
 .rel-entity { font-size: 13px; font-weight: 600; color: var(--bento-primary); }
 .rel-action { font-size: 13px; color: var(--bento-text); }
 .rel-time { font-size: 11px; color: var(--bento-text-secondary); }
 
 /* Changed vars */
 .cv-item {
-  margin-bottom: 10px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-xs);
+  margin-bottom: 10px; border: 1px solid var(--bento-border); border-radius: var(--radius-xs);
   overflow: hidden; background: var(--bento-card);
 }
 .cv-head {
@@ -1693,7 +1709,7 @@ class HATraceViewer extends HTMLElement {
 }
 .yaml-content {
   margin: 0; padding: 16px; background: var(--bento-bg); border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius-sm); font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+  border-radius: var(--radius-sm); font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 12px; overflow-x: auto; color: var(--bento-text); line-height: 1.6;
   max-height: 600px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
 }
@@ -1702,7 +1718,7 @@ class HATraceViewer extends HTMLElement {
 .json-bar { margin-bottom: 8px; display: flex; gap: 8px; }
 .json-content {
   margin: 0; padding: 16px; background: var(--bento-bg); border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius-sm); font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+  border-radius: var(--radius-sm); font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 12px; overflow-x: auto; color: var(--bento-text); line-height: 1.5;
   max-height: 600px; overflow-y: auto;
 }

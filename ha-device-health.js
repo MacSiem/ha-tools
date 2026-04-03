@@ -1,5 +1,5 @@
-﻿
-// â”€â”€ HA Tools Server Persistence Helper â”€â”€
+
+// ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
 window._haToolsPersistence = window._haToolsPersistence || {
@@ -32,7 +32,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
         this._cache[fullKey] = JSON.parse(raw);
       }
     } catch(e) {}
-    // 3. HA server (authoritative, cross-device) â€” async update
+    // 3. HA server (authoritative, cross-device) — async update
     if (this._hass) {
       try {
         const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
@@ -132,19 +132,19 @@ class HADeviceHealth extends HTMLElement {
         next: "Next",
       },
       pl: {
-        deviceHealth: "Zdrowie UrzÄ…dzeĹ„",
-        devices: "UrzÄ…dzenia",
+        deviceHealth: "Zdrowie Urządzeń",
+        devices: "Urządzenia",
         batteries: "Baterie",
-        network: "SieÄ‡",
+        network: "Sieć",
         alerts: "Alerty",
-        searchDevices: "Szukaj urzÄ…dzeĹ„...",
+        searchDevices: "Szukaj urządzeń...",
         all: "Wszystkie",
         online: "Online",
         offline: "Offline",
-        unavailable: "NiedostÄ™pne",
-        toggleGrouping: "PrzeĹ‚Ä…cz Grupowanie",
-        totalDevices: "Razem UrzÄ…dzeĹ„",
-        availability: "DostÄ™pnoĹ›Ä‡",
+        unavailable: "Niedostępne",
+        toggleGrouping: "Przełącz Grupowanie",
+        totalDevices: "Razem Urządzeń",
+        availability: "Dostępność",
         name: "Nazwa",
         type: "Typ",
         status: "Status",
@@ -152,19 +152,19 @@ class HADeviceHealth extends HTMLElement {
         uptime: "Czas Pracy",
         levelWorstFirst: "Poziom (Najgorsze Pierwsze)",
         batteryHealthSummary: "Podsumowanie Zdrowia Baterii",
-        deviceNeedAttention: "urzÄ…dzenie(Ĺ„) wymaga uwagi",
+        deviceNeedAttention: "urządzenie(ń) wymaga uwagi",
         lastChanged: "Ostatnio zmienione",
-        networkDevices: "UrzÄ…dzenia",
-        signalStrengthDist: "RozkĹ‚ad SiĹ‚y SygnaĹ‚u (dBm)",
+        networkDevices: "Urządzenia",
+        signalStrengthDist: "Rozkład Siły Sygnału (dBm)",
         activeAlerts: "Aktywne Alerty",
-        noActiveAlerts: "Brak aktywnych alertĂłw",
-        alertHistory: "Historia AlertĂłw (Ostatnie 20)",
-        dismiss: "OdrzuÄ‡",
+        noActiveAlerts: "Brak aktywnych alertów",
+        alertHistory: "Historia Alertów (Ostatnie 20)",
+        dismiss: "Odrzuć",
         page: "Strona",
         of: "z",
-        itemsPerPage: "ElementĂłw na stronie",
+        itemsPerPage: "Elementów na stronie",
         previous: "Poprzednia",
-        next: "NastÄ™pna",
+        next: "Następna",
       },
     };
   }
@@ -508,36 +508,36 @@ class HADeviceHealth extends HTMLElement {
   }
 
   _getStatusColor(status) {
-    const colors = { online: "var(--bento-success, #10B981)", offline: "var(--bento-error, #EF4444)", unavailable: "var(--bento-text-secondary, #94A3B8)" };
-    return colors[status] || "var(--bento-text-secondary, #94A3B8)";
+    const colors = { online: "#10B981", offline: "#EF4444", unavailable: "#94A3B8" };
+    return colors[status] || "#94A3B8";
   }
 
   _getBatteryColor(level) {
-    if (level < 10) return "var(--bento-error, #EF4444)";
-    if (level < 30) return "var(--bento-warning, #F59E0B)";
-    return "var(--bento-success, #10B981)";
+    if (level < 10) return "#EF4444";
+    if (level < 30) return "#F59E0B";
+    return "#10B981";
   }
 
   _getSignalColor(rssi) {
-    if (rssi > -50) return "var(--bento-success, #10B981)";
-    if (rssi > -70) return "var(--bento-primary, #3B82F6)";
-    if (rssi > -80) return "var(--bento-warning, #F59E0B)";
-    return "var(--bento-error, #EF4444)";
+    if (rssi > -50) return "#10B981";
+    if (rssi > -70) return "#3B82F6";
+    if (rssi > -80) return "#F59E0B";
+    return "#EF4444";
   }
 
   _render() {
     this._lastRenderTime = Date.now();
     const style = `
       :host {
-        --pc: var(--bento-primary, #3B82F6);
-        --ec: var(--bento-error, #EF4444);
-        --wc: var(--bento-warning, #F59E0B);
-        --sc: var(--bento-success, #10B981);
-        --bg: var(--primary-background-color, var(--bento-bg, #F8FAFC));
-        --cbg: var(--card-background-color, var(--bento-card-light, #FFFFFF));
-        --tc: var(--primary-text-color, var(--bento-card, #1E293B));
-        --ts: var(--secondary-text-color, var(--bento-text-muted, #64748B));
-        --dc: var(--divider-color, var(--bento-text, #E2E8F0));
+        --pc: #3B82F6;
+        --ec: #EF4444;
+        --wc: #F59E0B;
+        --sc: #10B981;
+        --bg: var(--primary-background-color, #F8FAFC);
+        --cbg: var(--card-background-color, #FFFFFF);
+        --tc: var(--primary-text-color, #1E293B);
+        --ts: var(--secondary-text-color, #64748B);
+        --dc: var(--divider-color, #E2E8F0);
         --hov: rgba(59, 130, 246, 0.04);
         --sel: rgba(59, 130, 246, 0.08);
         --radius: 16px;
@@ -683,7 +683,7 @@ class HADeviceHealth extends HTMLElement {
 
       .status-online { background: var(--sc); }
       .status-offline { background: var(--ec); }
-      .status-unavailable { background: var(--bento-text-secondary, #94A3B8); }
+      .status-unavailable { background: #94A3B8; }
 
       .table-wrapper {
         overflow-x: auto;
@@ -1127,7 +1127,7 @@ class HADeviceHealth extends HTMLElement {
                   const color = this._getBatteryColor(battery.level);
                   return `
                     <div class="battery-card">
-                      <div style="font-size: 20px; margin-bottom: 6px;">đź”‹</div>
+                      <div style="font-size: 20px; margin-bottom: 6px;">🔋</div>
                       <div style="font-size: 13px; font-weight: 600; color: var(--tc);">${battery.name}</div>
                       <div class="battery-bar">
                         <div class="battery-fill" style="width: ${battery.level}%; background: ${color};"></div>
@@ -1201,7 +1201,7 @@ class HADeviceHealth extends HTMLElement {
           html += `<div class="section-title">${device.protocol} Network</div>`;
         }
         const hasRssi = device.rssi !== null && device.rssi !== undefined && !isNaN(device.rssi);
-        const color = hasRssi ? this._getSignalColor(device.rssi) : 'var(--bento-text-secondary, #94A3B8)';
+        const color = hasRssi ? this._getSignalColor(device.rssi) : '#94a3b8';
         const strength = hasRssi ? Math.max(0, Math.min(100, ((device.rssi + 100) / 50) * 100)) : 0;
 
         // Build detail line with MAC/IP/SSID
@@ -1274,7 +1274,7 @@ class HADeviceHealth extends HTMLElement {
           .map(
             (alert) =>
               `<div style="padding: 8px 12px; border-left: 3px solid; border-color: ${alert.severity === "critical" ? "var(--ec)" : alert.severity === "warning" ? "var(--wc)" : "var(--pc)"}; margin-bottom: 4px; border-radius: var(--radius-xs); background: var(--bg);">
-                <div style="font-size: 12px; font-weight: 500; color: var(--tc);">${alert.type.replace(/_/g, ' ')} â€” ${alert.name}</div>
+                <div style="font-size: 12px; font-weight: 500; color: var(--tc);">${alert.type.replace(/_/g, ' ')} — ${alert.name}</div>
                 <div style="font-size: 11px; color: var(--ts); margin-top: 2px;">${new Date(alert.timestamp).toLocaleString()}</div>
               </div>`
           )
@@ -1473,7 +1473,7 @@ ${style}
     const chartHeight = height - padding * 2;
 
     // Draw axes
-    ctx.strokeStyle = "var(--bento-text, #E2E8F0)";
+    ctx.strokeStyle = "#E2E8F0";
     ctx.beginPath();
     ctx.moveTo(padding, padding);
     ctx.lineTo(padding, height - padding);
@@ -1498,7 +1498,7 @@ ${style}
     const barWidth = chartWidth / bins;
 
     // Draw bars
-    ctx.fillStyle = "var(--bento-primary, #3B82F6)";
+    ctx.fillStyle = "#3B82F6";
     histogram.forEach((count, i) => {
       const barHeight = (count / maxCount) * chartHeight;
       const x = padding + i * barWidth;
@@ -1507,7 +1507,7 @@ ${style}
     });
 
     // Draw labels
-    ctx.fillStyle = "var(--bento-text-muted, #64748B)";
+    ctx.fillStyle = "#64748B";
     ctx.font = "12px Inter, sans-serif";
     ctx.textAlign = "center";
     for (let i = 0; i <= bins; i++) {
@@ -1569,25 +1569,25 @@ class HaDeviceHealthEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,var(--bento-card, #1E293B)); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,var(--bento-primary, #3B82F6)); }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
       </style>
       <h3>Device Health</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Device Health'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,var(--bento-text, #E2E8F0));border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,var(--bento-card, #1E293B));font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Battery warning %</label>
               <input type="text" id="cf_battery_warning" value="${this._config?.battery_warning || '30'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,var(--bento-text, #E2E8F0));border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,var(--bento-card, #1E293B));font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Battery critical %</label>
               <input type="text" id="cf_battery_critical" value="${this._config?.battery_critical || '10'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,var(--bento-text, #E2E8F0));border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,var(--bento-card, #1E293B));font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

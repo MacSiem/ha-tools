@@ -1,5 +1,5 @@
-﻿
-// â”€â”€ HA Tools Server Persistence Helper â”€â”€
+
+// ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
 window._haToolsPersistence = window._haToolsPersistence || {
@@ -32,7 +32,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
         this._cache[fullKey] = JSON.parse(raw);
       }
     } catch(e) {}
-    // 3. HA server (authoritative, cross-device) â€” async update
+    // 3. HA server (authoritative, cross-device) — async update
     if (this._hass) {
       try {
         const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
@@ -743,57 +743,57 @@ class HAAutomationAnalyzer extends HTMLElement {
       }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       .card {
-        padding: var(--bento-space-6);
-        font-family: var(--bento-font-family-body);
+        padding: var(--aa-space-6);
+        font-family: var(--aa-font);
         background: var(--bento-bg);
         color: var(--bento-text);
         min-height: 200px;
       }
       .header {
-        margin-bottom: var(--bento-space-6);
+        margin-bottom: var(--aa-space-6);
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        gap: var(--bento-space-3);
+        gap: var(--aa-space-3);
       }
       .header-left { flex: 1; min-width: 200px; }
       h1 {
         font-size: 20px;
         font-weight: 600;
-        margin-bottom: var(--bento-space-1);
+        margin-bottom: var(--aa-space-1);
         color: var(--bento-text);
       }
       .subtitle {
         font-size: 12px;
         color: var(--bento-text-secondary);
         display: flex;
-        gap: var(--bento-space-2);
+        gap: var(--aa-space-2);
         align-items: center;
       }
       .loading-spinner {
         display: inline-block; width: 12px; height: 12px;
         border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;
         border-top-color: white; animation: spin 0.8s linear infinite;
-        margin-right: var(--bento-space-1);
+        margin-right: var(--aa-space-1);
       }
       @keyframes spin { to { transform: rotate(360deg); } }
       .tabs {
         display: flex;
-        gap: var(--bento-space-2);
+        gap: var(--aa-space-2);
         border-bottom: 2px solid var(--bento-border);
-        margin-bottom: var(--bento-space-6);
+        margin-bottom: var(--aa-space-6);
         overflow-x: auto;
         flex-wrap: wrap;
       }
       .tab-btn {
-        padding: var(--bento-space-3) var(--bento-space-4);
+        padding: var(--aa-space-3) var(--aa-space-4);
         border: none; background: none; cursor: pointer;
         font-size: 14px; font-weight: 500;
-        font-family: var(--bento-font-family-body);
+        font-family: var(--aa-font);
         color: var(--bento-text-secondary);
         border-bottom: 2px solid transparent;
-        transition: all var(--bento-transition-duration-normal);
+        transition: all var(--aa-anim);
         border-radius: 4px 4px 0 0;
         white-space: nowrap;
       }
@@ -807,41 +807,41 @@ class HAAutomationAnalyzer extends HTMLElement {
         background: color-mix(in srgb, var(--bento-text) 4%, transparent);
       }
       .tab-content { display: none; }
-      .tab-content.active { display: block; animation: fadeIn var(--bento-transition-duration-normal); }
+      .tab-content.active { display: block; animation: fadeIn var(--aa-anim); }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .card {
-        background: var(--bento-surface);
-        border-radius: var(--bento-radius-md);
-        padding: var(--bento-space-4);
+        background: var(--bento-card);
+        border-radius: var(--bento-radius-sm);
+        padding: var(--aa-space-4);
         border: 1px solid var(--bento-border);
-        margin-bottom: var(--bento-space-4);
+        margin-bottom: var(--aa-space-4);
         box-shadow: 0 1px 3px rgba(0,0,0,0.06);
       }
       .card-title {
         font-size: 14px; font-weight: 600;
-        margin-bottom: var(--bento-space-3);
+        margin-bottom: var(--aa-space-3);
         color: var(--bento-text);
       }
-      .canvas-wrap { position: relative; height: 250px; margin-bottom: var(--bento-space-4); }
+      .canvas-wrap { position: relative; height: 250px; margin-bottom: var(--aa-space-4); }
       canvas { width: 100% !important; }
       .stats {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-        gap: var(--bento-space-3);
-        margin-top: var(--bento-space-4);
+        gap: var(--aa-space-3);
+        margin-top: var(--aa-space-4);
       }
       .stat {
-        background: var(--bento-surface);
-        padding: var(--bento-space-3);
-        border-radius: var(--bento-radius-md);
+        background: var(--bento-card);
+        padding: var(--aa-space-3);
+        border-radius: var(--bento-radius-sm);
         text-align: center;
         border: 1px solid var(--bento-border);
       }
       .stat-value { font-size: 22px; font-weight: 700; color: var(--bento-primary); }
       .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
       .health-row {
-        display: flex; align-items: center; gap: var(--bento-space-3);
-        margin-bottom: var(--bento-space-4);
+        display: flex; align-items: center; gap: var(--aa-space-3);
+        margin-bottom: var(--aa-space-4);
       }
       .health-circle {
         width: 56px; height: 56px; border-radius: 50%;
@@ -850,21 +850,21 @@ class HAAutomationAnalyzer extends HTMLElement {
       }
       .health-circle.excellent { background: var(--bento-success); }
       .health-circle.good { background: var(--bento-warning); }
-      .health-circle.poor { background: var(--bento-error); }
+      .health-circle.poor { background: var(--aa-danger); }
       .health-label { font-size: 12px; color: var(--bento-text-secondary); }
       .auto-list { display: flex; flex-direction: column; gap: 6px; }
       .auto-item {
-        display: flex; align-items: center; gap: var(--bento-space-2);
-        padding: 10px var(--bento-space-4);
-        background: var(--bento-surface);
+        display: flex; align-items: center; gap: var(--aa-space-2);
+        padding: 10px var(--aa-space-4);
+        background: var(--bento-card);
         border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-md);
+        border-radius: var(--bento-radius-sm);
         cursor: pointer;
-        transition: all var(--bento-transition-duration-normal);
+        transition: all var(--aa-anim);
       }
       .auto-item:hover {
         border-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-surface));
+        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-card));
       }
       .auto-name {
         font-size: 13px; font-weight: 500; color: var(--bento-text);
@@ -885,42 +885,42 @@ class HAAutomationAnalyzer extends HTMLElement {
       .auto-arrow { color: var(--bento-text-secondary); font-size: 14px; }
       .toggle-btn {
         padding: 3px 10px; border-radius: 4px; border: 1px solid var(--bento-border);
-        background: var(--bento-surface); color: var(--bento-primary);
+        background: var(--bento-card); color: var(--bento-primary);
         font-size: 11px; font-weight: 500; cursor: pointer;
-        transition: all var(--bento-transition-duration-normal); flex-shrink: 0;
+        transition: all var(--aa-anim); flex-shrink: 0;
       }
       .toggle-btn:hover { background: var(--bento-primary); color: white; }
       .opt-summary {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-        gap: var(--bento-space-3);
-        margin-bottom: var(--bento-space-6);
+        gap: var(--aa-space-3);
+        margin-bottom: var(--aa-space-6);
       }
       .opt-stat {
-        padding: var(--bento-space-3);
-        border-radius: var(--bento-radius-md);
+        padding: var(--aa-space-3);
+        border-radius: var(--bento-radius-sm);
         text-align: center; border: 1px solid;
       }
-      .opt-stat.warn { background: var(--bento-warning-light); border-color: var(--bento-warning-lighter); }
-      .opt-stat.error { background: var(--bento-error-light); border-color: var(--bento-error-lighter); }
-      .opt-stat.info { background: var(--bento-info-light); border-color: var(--bento-info-lighter); }
-      .opt-stat.stale { background: var(--bento-neutral-light); border-color: var(--bento-neutral-lighter); }
+      .opt-stat.warn { background: var(--aa-warn-bg, #fef3c7); border-color: var(--aa-warn-border, #fcd34d); }
+      .opt-stat.error { background: var(--aa-error-bg, #fee2e2); border-color: var(--aa-error-border, #fca5a5); }
+      .opt-stat.info { background: var(--aa-info-bg, #dbeafe); border-color: var(--aa-info-border, #93c5fd); }
+      .opt-stat.stale { background: var(--aa-stale-bg, #f3e8ff); border-color: var(--aa-stale-border, #c4b5fd); }
       .opt-stat-value { font-size: 22px; font-weight: 700; }
-      .opt-stat.warn .opt-stat-value { color: var(--bento-warning-dark); }
-      .opt-stat.error .opt-stat-value { color: var(--bento-error-dark); }
-      .opt-stat.info .opt-stat-value { color: var(--bento-info-dark); }
-      .opt-stat.stale .opt-stat-value { color: var(--bento-neutral-dark); }
+      .opt-stat.warn .opt-stat-value { color: var(--aa-warn-text, #92400e); }
+      .opt-stat.error .opt-stat-value { color: var(--aa-error-text, #991b1b); }
+      .opt-stat.info .opt-stat-value { color: var(--aa-info-text, #1e40af); }
+      .opt-stat.stale .opt-stat-value { color: var(--aa-stale-text, #6b21a8); }
       .opt-stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
-      .opt-section { margin-bottom: var(--bento-space-6); }
-      .opt-section .card-title { margin-bottom: var(--bento-space-3); }
+      .opt-section { margin-bottom: var(--aa-space-6); }
+      .opt-section .card-title { margin-bottom: var(--aa-space-3); }
       .empty-state {
-        text-align: center; padding: var(--bento-space-6) var(--bento-space-4);
+        text-align: center; padding: var(--aa-space-6) var(--aa-space-4);
         color: var(--bento-text-secondary); font-size: 13px;
-        background: var(--bento-surface); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-md);
+        background: var(--bento-card); border: 1px solid var(--bento-border);
+        border-radius: var(--bento-radius-sm);
       }
       .loading-state {
-        text-align: center; padding: var(--bento-space-6);
+        text-align: center; padding: var(--aa-space-6);
         color: var(--bento-text-secondary);
       }
       .loading-state .loading-spinner {
@@ -931,27 +931,27 @@ class HAAutomationAnalyzer extends HTMLElement {
       .chart-empty {
         display: flex; align-items: center; justify-content: center;
         height: 200px; color: var(--bento-text-secondary); font-size: 13px;
-        border: 1px dashed var(--bento-border); border-radius: var(--bento-radius-md);
+        border: 1px dashed var(--bento-border); border-radius: var(--bento-radius-sm);
       }
       .loading-toast {
-        display: flex; align-items: center; gap: var(--bento-space-2);
-        padding: var(--bento-space-2) var(--bento-space-4);
-        background: color-mix(in srgb, var(--bento-primary) 10%, var(--bento-surface));
+        display: flex; align-items: center; gap: var(--aa-space-2);
+        padding: var(--aa-space-2) var(--aa-space-4);
+        background: color-mix(in srgb, var(--bento-primary) 10%, var(--bento-card));
         border: 1px solid color-mix(in srgb, var(--bento-primary) 30%, var(--bento-border));
-        border-radius: var(--bento-radius-md); margin-bottom: var(--bento-space-3);
+        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-3);
         font-size: 12px; color: var(--bento-text-secondary); line-height: 1.4;
-        animation: fadeIn var(--bento-transition-duration-normal);
+        animation: fadeIn var(--aa-anim);
       }
       .loading-toast .loading-spinner {
         border-color: color-mix(in srgb, var(--bento-primary) 20%, transparent);
         border-top-color: var(--bento-primary);
       }
       .trace-notice {
-        display: flex; align-items: flex-start; gap: var(--bento-space-3);
-        padding: var(--bento-space-3) var(--bento-space-4);
-        background: color-mix(in srgb, var(--bento-info) 8%, var(--bento-surface));
-        border: 1px solid color-mix(in srgb, var(--bento-info) 25%, var(--bento-border));
-        border-radius: var(--bento-radius-md); margin-bottom: var(--bento-space-4);
+        display: flex; align-items: flex-start; gap: var(--aa-space-3);
+        padding: var(--aa-space-3) var(--aa-space-4);
+        background: color-mix(in srgb, var(--bento-primary) 8%, var(--bento-card));
+        border: 1px solid color-mix(in srgb, var(--bento-primary) 25%, var(--bento-border));
+        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-4);
         font-size: 13px; color: var(--bento-text); line-height: 1.5;
       }
       .trace-notice-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
@@ -967,11 +967,11 @@ class HAAutomationAnalyzer extends HTMLElement {
       }
       .trace-notice-dismiss:hover { color: var(--bento-text); }
       .trace-notice-global {
-        display: flex; align-items: flex-start; gap: var(--bento-space-3);
-        padding: var(--bento-space-3) var(--bento-space-4);
-        background: color-mix(in srgb, var(--bento-info) 8%, var(--bento-surface));
-        border: 1px solid color-mix(in srgb, var(--bento-info) 25%, var(--bento-border));
-        border-radius: var(--bento-radius-md); margin-bottom: var(--bento-space-4);
+        display: flex; align-items: flex-start; gap: var(--aa-space-3);
+        padding: var(--aa-space-3) var(--aa-space-4);
+        background: color-mix(in srgb, var(--bento-primary) 8%, var(--bento-card));
+        border: 1px solid color-mix(in srgb, var(--bento-primary) 25%, var(--bento-border));
+        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-4);
         font-size: 12px; color: var(--bento-text); line-height: 1.5;
       }
       .trace-notice-global .trace-notice-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
@@ -979,53 +979,53 @@ class HAAutomationAnalyzer extends HTMLElement {
       .trace-notice-global a:hover { opacity: 0.8; }
       .trace-notice-global .detail { color: var(--bento-text-secondary); font-size: 11px; margin-top: 2px; }
       .filter-bar {
-        display: flex; flex-wrap: wrap; gap: var(--bento-space-2);
-        margin-bottom: var(--bento-space-4); align-items: center;
+        display: flex; flex-wrap: wrap; gap: var(--aa-space-2);
+        margin-bottom: var(--aa-space-4); align-items: center;
       }
       .filter-bar input[type="text"] {
         flex: 1; min-width: 160px; padding: 7px 12px;
-        border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md);
-        background: var(--bento-surface); color: var(--bento-text);
-        font-size: 13px; font-family: var(--bento-font-family-body);
-        outline: none; transition: border-color var(--bento-transition-duration-normal);
+        border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm);
+        background: var(--bento-card); color: var(--bento-text);
+        font-size: 13px; font-family: var(--aa-font);
+        outline: none; transition: border-color var(--aa-anim);
       }
       .filter-bar input[type="text"]:focus { border-color: var(--bento-primary); }
       .filter-bar input[type="text"]::placeholder { color: var(--bento-text-secondary); }
       .filter-bar select {
         padding: 7px 28px 7px 10px; border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-md); background: var(--bento-surface); color: var(--bento-text);
-        font-size: 12px; font-family: var(--bento-font-family-body); cursor: pointer;
+        border-radius: var(--bento-radius-sm); background: var(--bento-card); color: var(--bento-text);
+        font-size: 12px; font-family: var(--aa-font); cursor: pointer;
         appearance: none; -webkit-appearance: none;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
         background-repeat: no-repeat; background-position: right 8px center;
       }
       .filter-bar select:focus { border-color: var(--bento-primary); outline: none; }
       .filter-bar .sort-dir-btn {
-        padding: 6px 8px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md);
-        background: var(--bento-surface); color: var(--bento-text-secondary); cursor: pointer;
-        font-size: 14px; line-height: 1; transition: all var(--bento-transition-duration-normal);
+        padding: 6px 8px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm);
+        background: var(--bento-card); color: var(--bento-text-secondary); cursor: pointer;
+        font-size: 14px; line-height: 1; transition: all var(--aa-anim);
       }
       .filter-bar .sort-dir-btn:hover { border-color: var(--bento-primary); color: var(--bento-primary); }
       .auto-list-full { display: flex; flex-direction: column; gap: 4px; max-height: 460px; overflow-y: auto; }
       .auto-list-full::-webkit-scrollbar { width: 4px; }
       .auto-list-full::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 4px; }
       .auto-item-full {
-        display: flex; align-items: center; gap: var(--bento-space-2);
-        padding: 8px var(--bento-space-3);
-        background: var(--bento-surface); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-md); cursor: pointer;
-        transition: all var(--bento-transition-duration-normal); font-size: 13px;
+        display: flex; align-items: center; gap: var(--aa-space-2);
+        padding: 8px var(--aa-space-3);
+        background: var(--bento-card); border: 1px solid var(--bento-border);
+        border-radius: var(--bento-radius-sm); cursor: pointer;
+        transition: all var(--aa-anim); font-size: 13px;
       }
       .auto-item-full:hover {
         border-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-surface));
+        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-card));
       }
       .auto-item-full .auto-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--bento-text); }
       .auto-item-full .auto-detail { font-size: 11px; color: var(--bento-text-secondary); white-space: nowrap; min-width: 50px; text-align: right; }
       .auto-item-full .auto-state-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
       .auto-item-full .auto-state-dot.on { background: var(--bento-success); }
       .auto-item-full .auto-state-dot.off { background: var(--bento-text-secondary); opacity: 0.4; }
-      .auto-item-full .auto-state-dot.error { background: var(--bento-error); }
+      .auto-item-full .auto-state-dot.error { background: var(--aa-danger); }
       .filter-results-count { font-size: 11px; color: var(--bento-text-secondary); padding: 2px 0; }
     `;
 
@@ -1128,7 +1128,7 @@ class HAAutomationAnalyzer extends HTMLElement {
             <div class="stat-label">B\u0142\u0119d\u00f3w</div>
           </div>
         </div>
-        <div class="card" style="margin-top:var(--bento-space-4)">
+        <div class="card" style="margin-top:var(--aa-space-4)">
           <h2 class="card-title">Automatyzacje</h2>
           <div class="filter-bar">
             <input type="text" id="aa-filter-input" placeholder="Szukaj automatyzacji\u2026" value="${this._filterText.replace(/"/g, "&quot;")}">

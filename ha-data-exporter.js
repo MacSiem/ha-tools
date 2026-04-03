@@ -306,6 +306,28 @@ class HADataExporter extends HTMLElement {
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
+  --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
+  --bento-error: #EF4444;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
+  --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+  --bento-radius-xs: 6px;
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -385,7 +407,7 @@ button.active, .btn.active, .btn-primary, .action-btn.active {
   background: var(--bento-primary) !important;
   color: white !important;
   border-color: var(--bento-primary) !important;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25); /* Primary color shadow */
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
 }
 
 /* Status badges */
@@ -885,7 +907,7 @@ canvas {
         <div class="exporter-card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
-            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary);cursor:pointer;display:inline-flex;align-items:center;gap:4px">⚙️ Ustawienia</button></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">⚙️ Ustawienia</button></div>
           </div>
           
           <div class="toolbar">
@@ -901,29 +923,29 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:400;background:var(--bento-border);color:var(--bento-text);padding:5px 10px;border-radius:6px"><input type="checkbox" id="includeAttrs" checked style="margin:0;accent-color:var(--primary-color)" /> Atrybuty</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:400;background:var(--bento-border,#e2e8f0);color:var(--bento-text,#1e293b);padding:5px 10px;border-radius:6px"><input type="checkbox" id="includeAttrs" checked style="margin:0;accent-color:var(--primary-color)" /> Atrybuty</label>
           </div>
-          <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
+          <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
               <input type="checkbox" id="snapshotEnabled" ${this._snapshotSettings.enabled ? 'checked' : ''} />
               Snapshots
             </label>
-            <select id="snapshotInterval" style="padding:4px 8px;border:1px solid var(--bento-border);border-radius:4px;font-size:12px;">
+            <select id="snapshotInterval" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
               <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>co 30s</option>
               <option value="60" ${this._snapshotSettings.interval === 60 ? 'selected' : ''}>co 1 min</option>
               <option value="300" ${this._snapshotSettings.interval === 300 ? 'selected' : ''}>co 5 min</option>
               <option value="900" ${this._snapshotSettings.interval === 900 ? 'selected' : ''}>co 15 min</option>
               <option value="3600" ${this._snapshotSettings.interval === 3600 ? 'selected' : ''}>co 1h</option>
             </select>
-            <select id="snapshotMax" style="padding:4px 8px;border:1px solid var(--bento-border);border-radius:4px;font-size:12px;">
+            <select id="snapshotMax" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
               <option value="20" ${this._snapshotSettings.maxSnapshots === 20 ? 'selected' : ''}>20 snap.</option>
               <option value="50" ${this._snapshotSettings.maxSnapshots === 50 ? 'selected' : ''}>50 snap.</option>
               <option value="100" ${this._snapshotSettings.maxSnapshots === 100 ? 'selected' : ''}>100 snap.</option>
               <option value="200" ${this._snapshotSettings.maxSnapshots === 200 ? 'selected' : ''}>200 snap.</option>
             </select>
-            <span id="snapshotStatus" style="color:var(--bento-text-secondary);">${this._snapshots.length} zapisanych</span>
-            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-card);cursor:pointer;font-size:11px;" title="Zr\u00F3b snapshot teraz">\u{1F4F8}</button>
-            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-card);cursor:pointer;font-size:11px;color:var(--bento-error);" title="Wyczy\u015B\u0107 snapshoty">\u{1F5D1}</button>
+            <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} zapisanych</span>
+            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="Zr\u00F3b snapshot teraz">\u{1F4F8}</button>
+            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="Wyczy\u015B\u0107 snapshoty">\u{1F5D1}</button>
           </div>
           <div class="table-container">
             <table class="entity-table">
@@ -1161,7 +1183,7 @@ canvas {
           attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} Snapshoty (' + snapHistory.length + ' zapis\u00F3w)</div><div class="history-list">';
           last10.forEach(h => {
             const t = new Date(h.ts).toLocaleString();
-            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + h.state + '</span><span style="font-size:11px;color:var(--bento-text-secondary);">' + h.attrs + ' attrs</span></div>';
+            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + h.state + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + h.attrs + ' attrs</span></div>';
           });
           attrHtml += '</div></div>';
         }
@@ -1481,15 +1503,15 @@ class HaDataExporterEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--bento-text); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--bento-primary); }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
       </style>
       <h3>Data Exporter</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Data Exporter'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');
