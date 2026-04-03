@@ -1,67 +1,3 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
 class HaBabyTracker extends HTMLElement {
   setConfig(config) {
     this.config = config;
@@ -445,12 +381,12 @@ canvas {
         }
 
         .card {
-          background: var(--bento-card);
+          background: var(--card-bg);
           border-radius: 12px;
           padding: 16px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          color: var(--bento-text);
+          color: var(--primary-text);
         }
 
         .card-header {
@@ -458,7 +394,7 @@ canvas {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 20px;
-          border-bottom: 1px solid var(--bento-border);
+          border-bottom: 1px solid var(--divider);
           padding-bottom: 12px;
         }
 
@@ -476,9 +412,9 @@ canvas {
 
         .baby-button {
           padding: 8px 12px;
-          border: 2px solid var(--bento-border);
+          border: 2px solid var(--divider);
           background: transparent;
-          color: var(--bento-text);
+          color: var(--primary-text);
           border-radius: 8px;
           cursor: pointer;
           font-size: 13px;
@@ -487,21 +423,21 @@ canvas {
         }
 
         .baby-button:hover {
-          border-color: var(--bento-primary);
+          border-color: var(--primary);
           background: rgba(25, 118, 210, 0.05);
         }
 
         .baby-button.active {
-          background: var(--bento-primary);
+          background: var(--primary);
           color: white;
-          border-color: var(--bento-primary);
+          border-color: var(--primary);
         }
 
         .tabs {
           display: flex;
           gap: 8px;
           margin-bottom: 20px;
-          border-bottom: 2px solid var(--bento-border);
+          border-bottom: 2px solid var(--divider);
           overflow-x: auto;
         }
 
@@ -509,7 +445,7 @@ canvas {
           padding: 12px 16px;
           background: transparent;
           border: none;
-          color: var(--bento-text-secondary);
+          color: var(--secondary-text);
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
@@ -520,12 +456,12 @@ canvas {
         }
 
         .tab-button:hover {
-          color: var(--bento-text);
+          color: var(--primary-text);
         }
 
         .tab-button.active {
-          color: var(--bento-primary);
-          border-bottom-color: var(--bento-primary);
+          color: var(--primary);
+          border-bottom-color: var(--primary);
         }
 
         .tab-content {
@@ -545,7 +481,7 @@ canvas {
           font-size: 13px;
           font-weight: 600;
           margin-bottom: 6px;
-          color: var(--bento-text);
+          color: var(--primary-text);
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
@@ -563,10 +499,10 @@ canvas {
         input, select, textarea {
           width: 100%;
           padding: 10px 12px;
-          border: 1px solid var(--bento-border);
+          border: 1px solid var(--divider);
           border-radius: 6px;
-          background: var(--bento-card);
-          color: var(--bento-text);
+          background: var(--surface);
+          color: var(--primary-text);
           font-size: 14px;
           font-family: inherit;
           box-sizing: border-box;
@@ -575,7 +511,7 @@ canvas {
 
         input:focus, select:focus, textarea:focus {
           outline: none;
-          border-color: var(--bento-primary);
+          border-color: var(--primary);
           box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
         }
 
@@ -606,7 +542,7 @@ canvas {
         }
 
         .btn-primary {
-          background: var(--bento-primary);
+          background: var(--primary);
           color: white;
         }
 
@@ -617,8 +553,8 @@ canvas {
 
         .btn-secondary {
           background: transparent;
-          color: var(--bento-primary);
-          border: 1px solid var(--bento-primary);
+          color: var(--primary);
+          border: 1px solid var(--primary);
         }
 
         .btn-secondary:hover {
@@ -644,7 +580,7 @@ canvas {
           justify-content: space-between;
           align-items: center;
           padding: 12px;
-          border: 1px solid var(--bento-border);
+          border: 1px solid var(--divider);
           border-radius: 6px;
           margin-bottom: 8px;
           background: rgba(0, 0, 0, 0.02);
@@ -656,26 +592,26 @@ canvas {
 
         .list-item-time {
           font-size: 12px;
-          color: var(--bento-text-secondary);
+          color: var(--secondary-text);
           margin-bottom: 4px;
         }
 
         .list-item-title {
           font-size: 14px;
           font-weight: 500;
-          color: var(--bento-text);
+          color: var(--primary-text);
         }
 
         .list-item-subtitle {
           font-size: 12px;
-          color: var(--bento-text-secondary);
+          color: var(--secondary-text);
           margin-top: 4px;
         }
 
         .badge {
           display: inline-block;
           padding: 4px 8px;
-          background: var(--bento-primary);
+          background: var(--primary);
           color: white;
           border-radius: 4px;
           font-size: 11px;
@@ -688,19 +624,19 @@ canvas {
           background: rgba(25, 118, 210, 0.08);
           border-radius: 8px;
           margin-bottom: 16px;
-          border: 2px dashed var(--bento-primary);
+          border: 2px dashed var(--primary);
         }
 
         .timer-value {
           font-size: 48px;
           font-weight: 700;
-          color: var(--bento-primary);
+          color: var(--primary);
           font-variant-numeric: tabular-nums;
         }
 
         .timer-label {
           font-size: 12px;
-          color: var(--bento-text-secondary);
+          color: var(--secondary-text);
           margin-top: 8px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -715,7 +651,7 @@ canvas {
 
         .stat-card {
           background: rgba(25, 118, 210, 0.08);
-          border: 1px solid var(--bento-border);
+          border: 1px solid var(--divider);
           border-radius: 8px;
           padding: 16px;
           text-align: center;
@@ -724,12 +660,12 @@ canvas {
         .stat-value {
           font-size: 28px;
           font-weight: 700;
-          color: var(--bento-primary);
+          color: var(--primary);
         }
 
         .stat-label {
           font-size: 12px;
-          color: var(--bento-text-secondary);
+          color: var(--secondary-text);
           margin-top: 6px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -739,7 +675,7 @@ canvas {
           width: 100%;
           max-width: 100%;
           margin: 20px 0;
-          border: 1px solid var(--bento-border);
+          border: 1px solid var(--divider);
           border-radius: 8px;
           background: rgba(0, 0, 0, 0.02);
         }
@@ -747,7 +683,7 @@ canvas {
         .empty-state {
           text-align: center;
           padding: 40px 20px;
-          color: var(--bento-text-secondary);
+          color: var(--secondary-text);
         }
 
         .empty-state-icon {
@@ -762,7 +698,7 @@ canvas {
         .export-section {
           margin-top: 20px;
           padding-top: 20px;
-          border-top: 1px solid var(--bento-border);
+          border-top: 1px solid var(--divider);
         }
       
 /* === Modern Bento Light Mode === */
@@ -778,10 +714,10 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
+  --bento-radius: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -790,7 +726,7 @@ canvas {
 * { box-sizing: border-box; }
 
 .card, .card-container, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
+  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -860,7 +796,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
+.alert-item:hover { box-shadow: var(--bento-shadow); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }

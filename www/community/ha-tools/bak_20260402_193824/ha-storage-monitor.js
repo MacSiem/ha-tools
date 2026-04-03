@@ -1,86 +1,12 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
-class HaChoreTracker extends HTMLElement {
-  static getConfigElement() {
-    return document.createElement('ha-chore-tracker-editor');
-  }
-
-  static getStubConfig() {
-    return {
-      type: 'custom:ha-chore-tracker',
-      title: 'Chore Tracker',
-      members: [
-        { name: 'Person 1', color: '#4CAF50' },
-        { name: 'Person 2', color: '#2196F3' }
-      ]
-    };
-  }
-
+/**
+ * HA Storage Monitor - WinDirStat-like storage visualization for Home Assistant
+ * Shows disk usage with treemap visualization, directory breakdown, and cleanup suggestions
+ */
+class HAStorageMonitor extends HTMLElement {
+  static getConfigElement() { return document.createElement('ha-storage-monitor-editor'); }
+  static getStubConfig() { return { type: 'custom:ha-storage-monitor', title: 'Storage Monitor' }; }
   constructor() {
     super();
-    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -89,65 +15,17 @@ class HaChoreTracker extends HTMLElement {
     // --- Pagination ---
     this._currentPage = {};
     this._pageSize = 15;
-    this.chores = [];
-    this.activeTab = 'board';
-    this.config = {};
-    this.hass = null;
-    this._dataLoaded = false;
+    this._hass = null;
+    this._config = {};
+    this._activeTab = 'overview';
+    this._storageData = null;
+    this._loading = true;
+    this._expandedPaths = new Set();
+    this._sortBy = 'size';
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
+    this._sortAsc = false;
     this._lastHtml = '';
-  }
-
-  _storageKey() {
-    return 'ha-chore-tracker-' + (this.config.storage_key || 'default');
-  }
-
-  _membersKey() {
-    return 'ha-chore-tracker-members-' + (this.config.storage_key || 'default');
-  }
-
-  _loadMembers() {
-    try {
-      const stored = localStorage.getItem(this._membersKey());
-      return stored ? JSON.parse(stored) : null;
-    } catch (e) { return null; }
-  }
-
-  _saveMembers() {
-    try {
-      localStorage.setItem(this._membersKey(), JSON.stringify(this.members));
-    } catch (e) { }
-  }
-
-  _saveData() {
-    try {
-      localStorage.setItem(this._storageKey(), JSON.stringify(this.chores));
-    } catch(e) { /* storage full or unavailable */ }
-  }
-
-  _loadData() {
-    if (this._dataLoaded) return;
-    try {
-      const saved = localStorage.getItem(this._storageKey());
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.chores = parsed.map(c => ({
-            ...c,
-            lastCompleted: c.lastCompleted ? new Date(c.lastCompleted) : null
-          }));
-        }
-      }
-    } catch(e) { /* parse error */ }
-    this._dataLoaded = true;
-  }
-
-  setConfig(config) {
-    if (!config) return;
-    this.config = config;
-    const storedMembers = this._loadMembers();
-    this.members = storedMembers || config.members || [{ name: 'Person 1', color: '#4CAF50' }];
-    this._loadData();
-    this.render();
+    this._lastDataFetch = 0;
   }
 
   _sanitize(str) {
@@ -155,107 +33,205 @@ class HaChoreTracker extends HTMLElement {
     try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
   }
   set hass(hass) {
-
-    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
+    this._hass = hass;
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
       this._firstHassRender = true;
-      this.render();
+      this._loadStorageData();
+      this._render();
       this._lastRenderTime = now;
       return;
     }
-    if (now - (this._lastRenderTime || 0) < 5000) {
-      if (!this._renderScheduled) {
-        this._renderScheduled = true;
-        setTimeout(() => {
-          this._renderScheduled = false;
-          this.render();
-          this._lastRenderTime = Date.now();
-        }, 5000 - (now - (this._lastRenderTime || 0)));
-      }
-      return;
+    // Storage data doesn't change often - only re-fetch every 2 minutes
+    if (now - (this._lastDataFetch || 0) > 120000) {
+      this._lastDataFetch = now;
+      this._loadStorageData();
     }
-    this.render();
+    // Throttle render to 30s — storage info is static
+    if (now - (this._lastRenderTime || 0) < 30000) {
+      return; // Skip render entirely — no need to re-render static storage info
+    }
     this._lastRenderTime = now;
   }
 
-  get hass() {
-    return this._hass;
-  }
-  _addMember() {
-    const colors = ['#4CAF50','#2196F3','#FF9800','#E91E63','#9C27B0','#00BCD4','#FF5722','#795548'];
-    const color = colors[this.members.length % colors.length];
-    this.members.push({name: 'Osoba ' + (this.members.length + 1), color: color});
-    this._saveMembers();
-    this.render();
-  }
-
-  _removeMember(idx) {
-    if (this.members.length <= 1) return;
-    const removedName = this.members[idx].name;
-    this.members.splice(idx, 1);
-    this.chores.forEach(c => { if (c.assignee === removedName) c.assignee = this.members[0].name; });
-    this._saveData();
-    this._saveMembers();
-    this.render();
+  setConfig(config) {
+    this._config = { title: config.title || 'Storage Monitor', ...config };
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-storage-monitor-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
   }
 
-  _saveMemberNames() {
-    const inputs = this.shadowRoot.querySelectorAll('.member-name-input');
-    inputs.forEach(input => {
-      const idx = parseInt(input.dataset.memberIdx);
-      if (this.members[idx]) {
-        const oldName = this.members[idx].name;
-        const newName = input.value.trim() || ('Osoba ' + (idx + 1));
-        if (oldName !== newName) {
-          this.chores.forEach(c => { if (c.assignee === oldName) c.assignee = newName; });
-          this.members[idx].name = newName;
+  async _loadStorageData() {
+    if (!this._hass) return;
+    this._loading = true;
+    this._updateContent();
+
+    try {
+      // Get host info for disk usage (requires Supervisor - HA OS / Supervised)
+      let hostInfo = null, osInfo = null;
+      try { hostInfo = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/host/info', method: 'get' }); } catch(e) {}
+      try { osInfo = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/os/info', method: 'get' }); } catch(e) {}
+      if (!hostInfo) {
+        this._storageData = { noSupervisor: true };
+        this._loading = false;
+        this._updateContent();
+        return;
+      }
+
+      // Get addon info — try individual endpoints for size data
+      let addons = [];
+      try {
+        const addonList = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/addons', method: 'get' });
+        addons = addonList?.addons || addonList?.data?.addons || [];
+        // J3: Try to get detailed info for each addon (includes disk usage when available)
+        const addonDetails = await Promise.allSettled(
+          addons.filter(a => a.slug && a.state && a.state !== 'unknown').slice(0, 30).map(a =>
+            this._hass.callWS({ type: 'supervisor/api', endpoint: '/addons/' + a.slug + '/info', method: 'get' })
+              .then(info => ({ slug: a.slug, ...(info?.data || info || {}) }))
+          )
+        );
+        const detailMap = {};
+        addonDetails.forEach(r => {
+          if (r.status === 'fulfilled' && r.value?.slug) {
+            detailMap[r.value.slug] = r.value;
+          }
+        });
+        addons = addons.map(a => {
+          const detail = detailMap[a.slug];
+          if (detail) {
+            return { ...a, disk_usage: detail.disk_usage !== undefined ? detail.disk_usage : null, apparmor: detail.apparmor, auto_update: detail.auto_update };
+          }
+          return a;
+        });
+      } catch(e) { console.warn('[Storage] Could not fetch addons:', e); }
+
+      // Get backup info (supervisor endpoint has size/size_bytes)
+      let backups = [];
+      try {
+        const backupList = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/backups', method: 'get' });
+        backups = backupList?.backups || backupList?.data?.backups || [];
+      } catch(e) { console.warn('[Storage] Could not fetch backups:', e); }
+
+      // Recorder info — current HA recorder/info API does NOT expose db size
+      // Available fields: backlog, db_in_default_location, max_backlog, migration_in_progress, migration_is_live, recording, thread_running
+      let dbSize = 0;
+      let recorderMeta = {};
+      try {
+        recorderMeta = await this._hass.callWS({ type: 'recorder/info' }) || {};
+        // DB size unavailable from this endpoint — UI will show "N/A" when dbSize === 0
+      } catch(e) { console.warn('[Storage] No recorder info:', e); }
+
+      // API returns numbers directly (in GB), no .data wrapper
+      const diskTotal = hostInfo?.disk_total || hostInfo?.data?.disk_total || 32;
+      const diskUsed = hostInfo?.disk_used || hostInfo?.data?.disk_used || 10;
+      const diskFree = hostInfo?.disk_free || hostInfo?.data?.disk_free || diskTotal - diskUsed;
+      const hostname = hostInfo?.hostname || hostInfo?.data?.hostname || 'homeassistant';
+      const os = hostInfo?.operating_system || hostInfo?.data?.operating_system || 'N/A';
+
+      // Build storage breakdown
+      // Addons: filter by state (started/stopped = installed), list API has no size
+      const addonSizes = addons.filter(a => a.state && a.state !== 'unknown').map(a => {
+        // disk_usage from supervisor can be in bytes or MB depending on version
+        let sizeMB = 0.5; // default for unknown
+        if (a.disk_usage !== null && a.disk_usage !== undefined) {
+          sizeMB = a.disk_usage > 100000 ? a.disk_usage / (1024 * 1024) : a.disk_usage; // If > 100000, likely bytes; else likely MB
         }
-      }
-    });
-    this._saveMembers();
-    this._saveData();
-    this.render();
+        return {
+        name: a.name || a.slug,
+        slug: a.slug,
+        size: sizeMB, // in MB
+        icon: a.icon ? `/api/hassio/addons/${a.slug}/icon` : null,
+        state: a.state,
+        version: a.version
+      };
+      });
+
+      // Backups: supervisor /backups returns size in MB and size_bytes
+      const backupSizes = backups.map(b => ({
+        name: b.name || b.slug,
+        slug: b.slug,
+        size: b.size || (b.size_bytes ? b.size_bytes / (1024 * 1024) : 0), // size is in MB from supervisor
+        date: b.date,
+        type: b.type,
+        compressed: b.compressed
+      })).sort((a, b) => b.size - a.size);
+
+      const totalBackupsMB = backupSizes.reduce((s, b) => s + b.size, 0);
+      const dbSizeMB = dbSize / (1024 * 1024); // from bytes to MB (if available)
+      const usedMB = diskUsed * 1024; // diskUsed is in GB from host/info
+      
+      // Fetch integrations for storage estimation
+      let integrations = [];
+      try {
+        const cfgEntries = await this._hass.callWS({ type: 'config_entries/list' });
+        integrations = cfgEntries?.config_entries || cfgEntries?.data?.config_entries || [];
+      } catch(e) { console.warn('[Storage] Could not fetch integrations:', e); }
+      const intCount = integrations.length;
+      const integrationEstimate = intCount * 0.1; // ~100KB per integration config storage estimate
+      
+      // Estimate HA Core + addons as used minus backups and DB
+      const systemMB = Math.max(0, usedMB - totalBackupsMB - dbSizeMB);
+
+      this._storageData = {
+        diskTotal, diskUsed, diskFree,
+        usedPercent: Math.round((diskUsed / diskTotal) * 100),
+        categories: [
+          { name: 'Backups', size: totalBackupsMB, color: '#9c27b0', icon: '\u{1F4BE}', items: backupSizes },
+          { name: 'Database (Recorder)', size: dbSizeMB || Math.min(systemMB * 0.2, 2048), color: '#ff9800', icon: '\u{1F5C4}\uFE0F' },
+          { name: 'Add-ons', size: addonSizes.reduce((s, a) => s + a.size, 0), color: '#4caf50', icon: '\u{1F9E9}', items: addonSizes },
+          { name: 'Integrations', size: integrationEstimate, color: '#2196f3', icon: '\u{1F50C}', intCount: intCount },
+          { name: 'System & Other', size: Math.max(systemMB - integrationEstimate, 100), color: '#607d8b', icon: '\u{1F5A5}' },
+        ],
+        addons: addonSizes,
+        backups: backupSizes,
+        integrations: integrations,
+        dbSizeMB,
+        addonCount: addonSizes.length,
+        intCount: intCount,
+        osVersion: osInfo?.version || osInfo?.data?.version || 'N/A',
+        hostname: hostname
+      };
+    } catch (e) {
+      console.error('[Storage Monitor] Error:', e);
+      this._storageData = { error: e.message };
+    }
+
+    this._loading = false;
+    this._updateContent();
   }
 
-  _checkRecurringReset() {
-    const now = new Date();
-    let changed = false;
-    this.chores.forEach(chore => {
-      if (chore.status !== 'done' || !chore.lastCompleted) return;
-      const last = new Date(chore.lastCompleted);
-      let shouldReset = false;
-      
-      if (chore.frequency === 'daily') {
-        shouldReset = now.toDateString() !== last.toDateString();
-      } else if (chore.frequency === 'every_2_days') {
-        shouldReset = (now - last) / (1000*60*60*24) >= 2;
-      } else if (chore.frequency === 'every_3_days') {
-        shouldReset = (now - last) / (1000*60*60*24) >= 3;
-      } else if (chore.frequency === 'weekly') {
-        const diffDays = (now - last) / (1000*60*60*24);
-        shouldReset = diffDays >= 7;
-      } else if (chore.frequency === 'biweekly') {
-        const diffDays = (now - last) / (1000*60*60*24);
-        shouldReset = diffDays >= 14;
-      } else if (chore.frequency === 'monthly') {
-        shouldReset = (now.getMonth() !== last.getMonth()) || (now.getFullYear() !== last.getFullYear());
-      } else if (chore.frequency === 'once') {
-        shouldReset = false;
-      }
-      
-      if (shouldReset) {
-        chore.status = 'todo';
-        changed = true;
-      }
-    });
-    if (changed) this._saveData();
+  _parseSizeGB(str) {
+    if (!str) return 0;
+    if (typeof str === 'number') return str;
+    const n = parseFloat(str);
+    if (str.includes('TB')) return n * 1024;
+    if (str.includes('MB')) return n / 1024;
+    return n;
   }
 
-  render() {
-    this._checkRecurringReset();
-    const L = this._lang === 'pl';
+  _parseSizeMB(str) {
+    if (!str) return 0;
+    if (typeof str === 'number') return str;
+    const n = parseFloat(str);
+    if (str.includes('GB')) return n * 1024;
+    if (str.includes('KB')) return n / 1024;
+    return n;
+  }
+
+  _fmtSize(mb) {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
+    if (mb >= 1) return `${mb.toFixed(1)} MB`;
+    return `${(mb * 1024).toFixed(0)} KB`;
+  }
+
+  _render() {
     const html = `
       <style>${window.HAToolsBentoCSS || ""}
 
@@ -468,367 +444,6 @@ canvas {
 
 /* ===== END BENTO LIGHT MODE ===== */
 
-        * {
-          box-sizing: border-box;
-        }
-
-        :host {
-          --primary-color: var(--bento-card);
-          --text-color: var(--bento-text);
-          --secondary-text: var(--bento-text-secondary);
-          --border-color: var(--bento-border);
-          --ha-card-border-radius: 12px;
-        }
-
-        .card {
-          background: var(--primary-color);
-          color: var(--text-color);
-          border-radius: var(--ha-card-border-radius);
-          padding: 16px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 2px solid var(--border-color);
-        }
-
-        .title {
-          font-size: 20px;
-          font-weight: 600;
-          margin: 0;
-        }
-
-        .tabs {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 16px;
-          border-bottom: 1px solid var(--border-color);
-        }
-
-        .tab-btn {
-          padding: 8px 16px;
-          background: none;
-          border: none;
-          color: var(--secondary-text);
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          border-bottom: 3px solid transparent;
-          transition: all 0.3s ease;
-        }
-
-        .tab-btn.active {
-          color: var(--text-color);
-          border-bottom-color: var(--primary-color-rgb, #3498db);
-        }
-
-        .tab-btn:hover {
-          color: var(--text-color);
-        }
-
-        .tab-content {
-          display: none;
-        }
-
-        .tab-content.active {
-          display: block;
-        }
-
-        /* Board View */
-        .board {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 16px;
-        }
-
-        .column {
-          background: var(--ha-card-background, #f5f5f5);
-          border-radius: 8px;
-          padding: 12px;
-          min-height: 400px;
-        }
-
-        .column-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 12px;
-          font-weight: 600;
-          font-size: 14px;
-          color: var(--text-color);
-        }
-
-        .column-count {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 24px;
-          height: 24px;
-          background: var(--border-color);
-          border-radius: 50%;
-          font-size: 12px;
-          font-weight: bold;
-        }
-
-        .chore-card {
-          background: white;
-          border: 1px solid var(--border-color);
-          border-radius: 6px;
-          padding: 12px;
-          margin-bottom: 10px;
-          cursor: grab;
-          transition: all 0.2s ease;
-          border-left: 4px solid var(--border-color);
-        }
-
-        .chore-card:hover {
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .chore-card.priority-high {
-          border-left-color: #ff5252;
-        }
-
-        .chore-card.priority-medium {
-          border-left-color: #ffa726;
-        }
-
-        .chore-card.priority-low {
-          border-left-color: #66bb6a;
-        }
-
-        .chore-title {
-          font-weight: 600;
-          margin: 0 0 6px 0;
-          font-size: 14px;
-        }
-
-        .chore-meta {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 12px;
-          color: var(--secondary-text);
-          margin-top: 8px;
-        }
-
-        .chore-assignee {
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 12px;
-          color: white;
-          font-weight: 500;
-        }
-
-        .chore-actions {
-          display: flex;
-          gap: 4px;
-          margin-top: 8px;
-        }
-
-        .btn-small {
-          padding: 4px 8px;
-          font-size: 11px;
-          border: 1px solid var(--border-color);
-          background: none;
-          border-radius: 4px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .btn-small:hover {
-          background: var(--border-color);
-        }
-
-        /* Add Form */
-        .add-form {
-          background: var(--ha-card-background, #f9f9f9);
-          padding: 16px;
-          border-radius: 8px;
-          margin-bottom: 16px;
-        }
-
-        .form-group {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        .form-group.full {
-          grid-column: 1 / -1;
-        }
-
-        label {
-          display: block;
-          font-size: 12px;
-          font-weight: 600;
-          margin-bottom: 4px;
-          color: var(--text-color);
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select {
-          width: 100%;
-          padding: 8px;
-          border: 1px solid var(--border-color);
-          border-radius: 4px;
-          font-size: 13px;
-          background: white;
-          color: var(--text-color);
-        }
-
-        input[type="text"]:focus,
-        input[type="number"]:focus,
-        select:focus {
-          outline: none;
-          border-color: #3498db;
-          box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
-        }
-
-        .btn-primary {
-          grid-column: 1 / -1;
-          padding: 10px 16px;
-          background: #3498db;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .btn-primary:hover {
-          background: #2980b9;
-        }
-
-        /* Schedule View */
-        .schedule {
-          overflow-x: auto;
-        }
-
-        .week-grid {
-          display: grid;
-          grid-template-columns: 120px repeat(7, 1fr);
-          gap: 1px;
-          background: var(--border-color);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-
-        .week-cell {
-          background: white;
-          padding: 12px;
-          min-height: 100px;
-          font-size: 12px;
-        }
-
-        .week-header {
-          background: var(--ha-card-background, #f5f5f5);
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .chore-item {
-          background: #e3f2fd;
-          padding: 4px 6px;
-          border-radius: 3px;
-          margin-bottom: 4px;
-          font-size: 11px;
-          color: #1976d2;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        /* Stats View */
-        .stats-container {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        .stat-card {
-          background: var(--ha-card-background, #f5f5f5);
-          padding: 16px;
-          border-radius: 8px;
-          text-align: center;
-        }
-
-        .stat-value {
-          font-size: 28px;
-          font-weight: bold;
-          color: #3498db;
-          margin: 8px 0;
-        }
-
-        .stat-label {
-          font-size: 12px;
-          color: var(--secondary-text);
-          font-weight: 500;
-        }
-
-        .leaderboard {
-          background: white;
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-
-        .leaderboard-row {
-          display: grid;
-          grid-template-columns: 40px 1fr auto auto;
-          align-items: center;
-          padding: 12px 16px;
-          border-bottom: 1px solid var(--border-color);
-          font-size: 13px;
-        }
-
-        .leaderboard-row:last-child {
-          border-bottom: none;
-        }
-
-        .rank {
-          font-weight: bold;
-          font-size: 16px;
-        }
-
-        .name {
-          font-weight: 500;
-        }
-
-        .streak {
-          color: #ff9800;
-          font-weight: 600;
-        }
-
-        .completion {
-          color: #66bb6a;
-          font-weight: 600;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 40px 20px;
-          color: var(--secondary-text);
-        }
-
-        .emoji {
-          margin-right: 4px;
-        }
-      
-/* === Modern Bento Light Mode === */
-
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
   --bento-card: var(--card-background-color, #FFFFFF);
@@ -840,10 +455,10 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
+  --bento-radius: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -852,7 +467,7 @@ canvas {
 * { box-sizing: border-box; }
 
 .card, .card-container, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
+  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -922,7 +537,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
+.alert-item:hover { box-shadow: var(--bento-shadow); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -1115,6 +730,45 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .column { min-width: unset; }
 }
 
+/* ===== STORAGE MONITOR SPECIFIC ===== */
+.disk-gauge { display: flex; align-items: center; gap: 24px; margin-bottom: 20px; padding: 16px; background: var(--bento-bg); border-radius: var(--bento-radius-sm); border: 1px solid var(--bento-border); }
+.gauge-ring { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
+.gauge-ring svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+.gauge-bg { fill: none; stroke: var(--bento-border); stroke-width: 8; }
+.gauge-fill { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+.gauge-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+.gauge-pct { font-size: 24px; font-weight: 700; color: var(--bento-text); font-family: 'Inter', sans-serif; line-height: 1.2; }
+.gauge-label { font-size: 11px; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+.gauge-info { flex: 1; }
+.gi-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--bento-border); font-size: 13px; color: var(--bento-text-secondary); }
+.gi-row:last-child { border-bottom: none; }
+.gi-val { font-weight: 600; color: var(--bento-text); }
+
+.treemap { display: flex; height: 32px; border-radius: var(--bento-radius-xs); overflow: hidden; margin-bottom: 16px; gap: 2px; }
+.treemap-cell { display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3); min-width: 4px; border-radius: 3px; padding: 0 4px; white-space: nowrap; overflow: hidden; }
+
+.cat-list { margin-bottom: 16px; }
+.cat-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--bento-border); }
+.cat-item:last-child { border-bottom: none; }
+.cat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.cat-icon { font-size: 18px; flex-shrink: 0; }
+.cat-info { flex: 1; min-width: 0; }
+.cat-name { font-size: 13px; font-weight: 500; color: var(--bento-text); }
+.cat-size { font-size: 12px; color: var(--bento-text-secondary); }
+.cat-bar { width: 80px; height: 6px; background: var(--bento-border); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+.cat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+
+.size-bar { display: inline-block; height: 8px; border-radius: 4px; vertical-align: middle; }
+
+.table-container { overflow-x: auto; margin-bottom: 16px; }
+
+.suggestion { padding: 16px; background: var(--bento-bg); border-radius: var(--bento-radius-sm); border: 1px solid var(--bento-border); margin-bottom: 10px; }
+.suggestion.crit { border-left: 3px solid var(--bento-error); background: var(--bento-error-light); }
+.suggestion.warn { border-left: 3px solid var(--bento-warning); background: var(--bento-warning-light); }
+.suggestion-title { font-weight: 600; font-size: 14px; color: var(--bento-text); margin-bottom: 4px; }
+.suggestion-desc { font-size: 13px; color: var(--bento-text-secondary); }
+.suggestion-savings { font-size: 12px; color: var(--bento-primary); font-weight: 500; margin-top: 6px; }
+
 /* === DARK MODE === */
 
         /* === MOBILE FIX === */
@@ -1138,389 +792,383 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         }
 
 </style>
-
-      <div class="card">
-        <div class="card-header">
-          <h2 class="title">🏠 ${this.config.title || 'Chore Tracker'}</h2>
-        </div>
-
-        <div class="tabs">
-          <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">📋 Board</button>
-          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">📅 Schedule</button>
-          <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">🏆 Stats</button>
-          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">⚙️ Ustawienia</button>
-        </div>
-
-        <!-- Board Tab -->
-        ${this.activeTab === 'board' ? `
-        <div class="tab-content active" id="board-tab">
-          <div class="add-form">
-            <div class="form-group full">
-              <label>Chore Name</label>
-              <input type="text" id="chore-name" placeholder="Enter chore name">
-            </div>
-
-            <div class="form-group">
-              <div>
-                <label>Assignee</label>
-                <select id="chore-assignee">
-                  ${this.members.map(m => `<option value="${m.name}">${m.name}</option>`).join('')}
-                </select>
-              </div>
-              <div>
-                <label>Room/Area</label>
-                <select id="chore-room">
-                  <option value="Kitchen">🍳 Kitchen</option>
-                  <option value="Bathroom">🚿 Bathroom</option>
-                  <option value="Bedroom">🛏️ Bedroom</option>
-                  <option value="Living">🛋️ Living Room</option>
-                  <option value="Yard">🌳 Yard</option>
-                  <option value="General">📌 General</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <div>
-                <label>Frequency</label>
-                <select id="chore-frequency">
-                  <option value="daily">Codziennie</option>
-            <option value="every_2_days">Co 2 dni</option>
-            <option value="every_3_days">Co 3 dni</option>
-            <option value="weekly">Co tydzień</option>
-            <option value="biweekly">Co 2 tygodnie</option>
-            <option value="monthly">Co miesiąc</option>
-            <option value="once">Jednorazowe</option>
-                </select>
-              </div>
-              <div>
-                <label>Priority</label>
-                <select id="chore-priority">
-                  <option value="low">Low 🟢</option>
-                  <option value="medium">Medium 🟡</option>
-                  <option value="high">High 🔴</option>
-                </select>
-              </div>
-            </div>
-
-            <button class="btn-primary" id="add-btn">➕ Add Chore</button>
+      <ha-card>
+        <div class="storage-card">
+          <div class="card-header">
+            <h2>${this._config.title}</h2>
+            <button class="refresh-btn" id="refreshBtn">\u{1F504} Refresh</button>
           </div>
-
-          <div class="board" id="board">
-            <div class="column" data-status="todo">
-              <div class="column-header">
-                <span>📝 To Do</span>
-                <div class="column-count">0</div>
-              </div>
-            </div>
-            <div class="column" data-status="in-progress">
-              <div class="column-header">
-                <span>⏳ In Progress</span>
-                <div class="column-count">0</div>
-              </div>
-            </div>
-            <div class="column" data-status="done">
-              <div class="column-header">
-                <span>✅ Done</span>
-                <div class="column-count">0</div>
-              </div>
-            </div>
+          <div class="tabs">
+            <button class="tab-button active" data-tab="overview">Overview</button>
+            <button class="tab-button" data-tab="addons">Addons & Integrations</button>
+            <button class="tab-button" data-tab="backups">Backups</button>
+            <button class="tab-button" data-tab="files">Files & Folders</button>
+            <button class="tab-button" data-tab="cleanup">Cleanup</button>
           </div>
+          <div id="content"></div>
         </div>
-        ` : ''}
-
-        <!-- Schedule Tab -->
-        ${this.activeTab === 'schedule' ? `
-        <div class="tab-content active" id="schedule-tab">
-          <div class="schedule" id="schedule"></div>
-          <div id="empty-schedule" class="empty-state" style="display:none;">
-            <div class="empty-icon">📅</div>
-            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Schedule Yet</h3>
-            <p style="margin:0 0 16px;max-width:280px;">Add chores with assigned days to see your weekly schedule here.</p>
-          </div>
-        </div>
-        ` : ''}
-
-        <!-- Stats Tab -->
-        ${this.activeTab === 'stats' ? `
-        <div class="tab-content active" id="stats-tab">
-          <div class="stats-container" id="stats-container"></div>
-          <div class="leaderboard" id="leaderboard"></div>
-          <div id="empty-stats" class="empty-state" style="display:none;">
-            <div class="empty-icon">📊</div>
-            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Stats Yet</h3>
-            <p style="margin:0 0 16px;max-width:280px;">Complete some chores and check back — your productivity stats will appear here.</p>
-          </div>
-        </div>
-        ` : ''}
-      </div>
+      </ha-card>
     `;
-
     if (this._lastHtml === html) return;
     this._lastHtml = html;
     this.shadowRoot.innerHTML = html;
 
-    this.setupEventListeners();
-    this.updateBoard();
-  }
-
-  setupEventListeners() {
-    // Tab switching
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-    });
-
-    // Add chore
-    this.shadowRoot.getElementById('add-btn').addEventListener('click', () => this.addChore());
-
-    // Board column clicks
-    this.shadowRoot.querySelectorAll('.column').forEach(col => {
-      col.addEventListener('click', (e) => {
-        if (e.target.classList.contains('btn-small')) {
-          const action = e.target.dataset.action;
-          const choreId = e.target.closest('.chore-card').dataset.id;
-          if (action === 'next') this.moveChore(choreId, 'next');
-          if (action === 'prev') this.moveChore(choreId, 'prev');
-          if (action === 'delete') this.deleteChore(choreId);
-        }
+    // Tab handlers
+    this.shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.shadowRoot.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this._activeTab = btn.dataset.tab;
+        this._updateContent();
       });
     });
+
+    this.shadowRoot.getElementById('refreshBtn').addEventListener('click', () => this._loadStorageData());
   }
 
-  switchTab(tabName) {
-    this.activeTab = tabName;
-    this.shadowRoot.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-
-    this.shadowRoot.getElementById(`${tabName}-tab`).classList.add('active');
-    this.shadowRoot.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
-    if (tabName === 'schedule') this.updateSchedule();
-    if (tabName === 'stats') this.updateStats();
+  _updateContent() {
+    // J2 fix: debounce to prevent flickering
+    if (this._updateContentRAF) cancelAnimationFrame(this._updateContentRAF);
+    this._updateContentRAF = requestAnimationFrame(() => this._doUpdateContent());
   }
 
-  addChore() {
-    const name = this.shadowRoot.getElementById('chore-name').value.trim();
-    const assignee = this.shadowRoot.getElementById('chore-assignee').value;
-    const room = this.shadowRoot.getElementById('chore-room').value;
-    const frequency = this.shadowRoot.getElementById('chore-frequency').value;
-    const priority = this.shadowRoot.getElementById('chore-priority').value;
+  _doUpdateContent() {
+    const content = this.shadowRoot.getElementById('content');
+    if (!content) return;
 
-    if (!name) return;
-
-    const chore = {
-      id: Date.now(),
-      name,
-      assignee,
-      room,
-      frequency,
-      priority,
-      status: 'todo',
-      completedCount: 0,
-      lastCompleted: null,
-      streak: 0
-    };
-
-    this.chores.push(chore);
-    this._saveData();
-    this.shadowRoot.getElementById('chore-name').value = '';
-    this.updateBoard();
-  }
-
-  moveChore(choreId, direction) {
-    const chore = this.chores.find(c => c.id == choreId);
-    if (!chore) return;
-
-    const statuses = ['todo', 'in-progress', 'done'];
-    const currentIndex = statuses.indexOf(chore.status);
-
-    if (direction === 'next' && currentIndex < statuses.length - 1) {
-      chore.status = statuses[currentIndex + 1];
-      if (chore.status === 'done') {
-        chore.completedCount++;
-        chore.lastCompleted = new Date();
-        chore.streak++;
-      }
-    } else if (direction === 'prev' && currentIndex > 0) {
-      chore.status = statuses[currentIndex - 1];
+    if (this._loading) {
+      content.innerHTML = '<div class="loading"><div class="spinner"></div>Loading storage info...</div>';
+      return;
     }
 
-    this._saveData();
-    this.updateBoard();
+    if (this._storageData?.noSupervisor) {
+      const L = this._lang === 'pl';
+      content.innerHTML = `<div style="text-align:center;padding:48px 24px;color:var(--bento-text-secondary,#64748B)">
+        <div style="font-size:48px;margin-bottom:16px">\u{1F4E6}</div>
+        <div style="font-size:18px;font-weight:600;color:var(--bento-text,#1E293B);margin-bottom:8px">${L ? 'Wymaga Home Assistant OS / Supervised' : 'Requires Home Assistant OS / Supervised'}</div>
+        <div style="max-width:400px;margin:0 auto;line-height:1.5">${L ? 'Storage Monitor wymaga Supervisor API do odczytu informacji o dysku, dodatkach i kopiach zapasowych. Zainstaluj HA OS lub HA Supervised.' : 'Storage Monitor requires the Supervisor API to read disk, addon, and backup information. Install HA OS or HA Supervised.'}</div>
+      </div>`;
+      return;
+    }
+    if (!this._storageData || this._storageData.error) {
+      content.innerHTML = `<div class="error">\u26A0\uFE0F ${this._storageData?.error || 'No data'}</div>`;
+      return;
+    }
+
+    const d = this._storageData;
+    if (this._activeTab === 'overview') content.innerHTML = this._renderOverview(d);
+    else if (this._activeTab === 'addons') content.innerHTML = this._renderAddonsAndIntegrations(d);
+    else if (this._activeTab === 'backups') content.innerHTML = this._renderBackups(d);
+    else if (this._activeTab === 'files') content.innerHTML = this._renderFiles(d);
+    else if (this._activeTab === 'cleanup') content.innerHTML = this._renderCleanup(d);
+
+    this._attachContentEvents();
   }
 
-  deleteChore(choreId) {
-    this.chores = this.chores.filter(c => c.id != choreId);
-    this._saveData();
-    this.updateBoard();
-  }
+  _renderOverview(d) {
+    const circ = 2 * Math.PI * 40;
+    const usedPct = d.usedPercent;
+    const fillColor = usedPct > 90 ? '#f44336' : usedPct > 75 ? '#ff9800' : 'var(--bento-primary)';
+    const totalMB = d.categories.reduce((s, c) => s + c.size, 0);
 
-  updateBoard() {
-    const statuses = ['todo', 'in-progress', 'done'];
-
-    statuses.forEach(status => {
-      const column = this.shadowRoot.querySelector(`[data-status="${status}"]`);
-      const choreCards = this.chores.filter(c => c.status === status);
-
-      const cardsHtml = choreCards.map(chore => `
-        <div class="chore-card priority-${chore.priority}" data-id="${chore.id}">
-          <h3 class="chore-title">${chore.name}</h3>
-          <div class="chore-meta">
-            <span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${chore.assignee}</span>
-            <span>${this.getRoomEmoji(chore.room)}</span>
-          </div>
-          <div style="font-size: 11px; color: var(--secondary-text); margin-top: 6px;">
-            ${this.getFrequencyLabel(chore.frequency)} • ${chore.priority.charAt(0).toUpperCase() + chore.priority.slice(1)}
-          </div>
-          <div class="chore-actions">
-            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next →</button>` : ''}
-            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">← Back</button>` : ''}
-            <button class="btn-small" data-action="delete">🗑️</button>
+    return `
+      <div class="disk-gauge">
+        <div class="gauge-ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="gauge-bg" cx="50" cy="50" r="40" />
+            <circle class="gauge-fill" cx="50" cy="50" r="40" style="stroke:${fillColor};stroke-dasharray:${(usedPct/100)*circ} ${circ}" />
+          </svg>
+          <div class="gauge-text">
+            <div class="gauge-pct">${usedPct}%</div>
+            <div class="gauge-label">used</div>
           </div>
         </div>
-      `).join('');
-
-      const countEl = column.querySelector('.column-count');
-      countEl.textContent = choreCards.length;
-
-      const existingCards = column.querySelectorAll('.chore-card');
-      existingCards.forEach(card => card.remove());
-
-      column.insertAdjacentHTML('beforeend', cardsHtml);
-    });
-  }
-
-  updateSchedule() {
-    const scheduleEl = this.shadowRoot.getElementById('schedule');
-    const emptyEl = this.shadowRoot.getElementById('empty-schedule');
-
-    if (this.chores.length === 0) {
-      scheduleEl.style.display = 'none';
-      emptyEl.style.display = 'block';
-      return;
-    }
-
-    scheduleEl.style.display = 'block';
-    emptyEl.style.display = 'none';
-
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    let html = '<div class="week-grid">';
-
-    html += '<div class="week-cell week-header">Chore</div>';
-    days.forEach(day => {
-      html += `<div class="week-cell week-header">${day}</div>`;
-    });
-
-    this.chores.forEach(chore => {
-      html += `<div class="week-cell"><strong>${chore.name}</strong></div>`;
-      days.forEach((_, index) => {
-        const show = this.isChoreOnDay(chore, index);
-        html += `<div class="week-cell">${show ? `<div class="chore-item">${chore.room}</div>` : ''}</div>`;
-      });
-    });
-
-    html += '</div>';
-    scheduleEl.innerHTML = html;
-  }
-
-  isChoreOnDay(chore, dayIndex) {
-    if (chore.frequency === 'daily') return true;
-    if (chore.frequency === 'weekly') return dayIndex === 0;
-    if (chore.frequency === 'biweekly') return dayIndex === 0;
-    if (chore.frequency === 'monthly') return dayIndex === 0;
-    return false;
-  }
-
-  updateStats() {
-    const statsEl = this.shadowRoot.getElementById('stats-container');
-    const leaderboardEl = this.shadowRoot.getElementById('leaderboard');
-    const emptyEl = this.shadowRoot.getElementById('empty-stats');
-
-    const completedChores = this.chores.filter(c => c.completedCount > 0).length;
-    const totalChores = this.chores.length;
-    const overallCompletion = totalChores > 0 ? Math.round((completedChores / totalChores) * 100) : 0;
-
-    const memberStats = {};
-    this.members.forEach(m => {
-      const memberChores = this.chores.filter(c => c.assignee === m.name);
-      const completedByMember = memberChores.reduce((sum, c) => sum + c.completedCount, 0);
-      const totalByMember = memberChores.length;
-      const maxStreak = memberChores.length > 0 ? Math.max(...memberChores.map(c => c.streak)) : 0;
-
-      memberStats[m.name] = {
-        completed: completedByMember,
-        total: totalByMember,
-        streak: maxStreak
-      };
-    });
-
-    const sortedMembers = Object.entries(memberStats).sort((a, b) => b[1].completed - a[1].completed);
-
-    statsEl.innerHTML = `
-      <div class="stat-card">
-        <div class="stat-label">📋 Total Chores</div>
-        <div class="stat-value">${totalChores}</div>
+        <div class="gauge-info">
+          <div class="gi-row"><span>Total</span><span class="gi-val">${d.diskTotal.toFixed(1)} GB</span></div>
+          <div class="gi-row"><span>Used</span><span class="gi-val">${d.diskUsed.toFixed(1)} GB</span></div>
+          <div class="gi-row"><span>Free</span><span class="gi-val">${d.diskFree.toFixed(1)} GB</span></div>
+          <div class="gi-row"><span>Host</span><span class="gi-val">${d.hostname}</span></div>
+          <div class="gi-row"><span>OS</span><span class="gi-val">${d.osVersion}</span></div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">✅ Completed</div>
-        <div class="stat-value">${completedChores}</div>
+
+      <div class="treemap">
+        ${d.categories.filter(c => c.size > 0).map(c => {
+          const pct = Math.max(2, (c.size / totalMB) * 100);
+          return `<div class="treemap-cell" style="flex:${pct};background:${c.color}" title="${c.name}: ${this._fmtSize(c.size)}">${c.icon} ${pct > 10 ? c.name.split(' ')[0] : ''}</div>`;
+        }).join('')}
       </div>
-      <div class="stat-card">
-        <div class="stat-label">📊 Completion Rate</div>
-        <div class="stat-value">${overallCompletion}%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">👥 Active Members</div>
-        <div class="stat-value">${this.members.length}</div>
+
+      <div class="cat-list">
+        ${d.categories.map(c => `
+          <div class="cat-item">
+            <div class="cat-dot" style="background:${c.color}"></div>
+            <span class="cat-icon">${c.icon}</span>
+            <div class="cat-info">
+              <div class="cat-name">${c.name}${c.items ? ` (${c.items.length})` : ''}</div>
+              <div class="cat-size">${this._fmtSize(c.size)}</div>
+            </div>
+            <div class="cat-bar"><div class="cat-bar-fill" style="width:${Math.min(100, (c.size / totalMB) * 100)}%;background:${c.color}"></div></div>
+          </div>
+        `).join('')}
       </div>
     `;
+  }
 
-    if (sortedMembers.length === 0) {
-      leaderboardEl.style.display = 'none';
-      emptyEl.style.display = 'block';
-      return;
+  _renderAddons(d) { return this._renderAddonsAndIntegrations(d); }
+
+  _renderAddonsAndIntegrations(d) {
+    const L = this._lang === 'pl';
+    const hasAnySizes = d.addons.some(a => a.size > 0);
+    const sizeNote = hasAnySizes ? '' : `<div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4A1} ${L ? 'Rozmiary addon\u00F3w mog\u0105 nie by\u0107 dost\u0119pne na wszystkich instalacjach HA.' : 'Addon disk sizes may not be available on all HA installations.'}</div>`;
+    const maxAddonSize = Math.max(...d.addons.map(a => a.size), 1);
+
+    // Determine HACS integrations
+    const hacsIntegrations = (d.integrations || []).filter(i => i.source === 'hacs' || i.source === 'custom');
+    const coreIntegrations = (d.integrations || []).filter(i => i.source !== 'hacs' && i.source !== 'custom');
+
+    const sortedAddons = [...d.addons].sort((a, b) => this._sortAsc ? a.size - b.size : b.size - a.size);
+    const sortedInts = [...(d.integrations || [])].sort((a, b) => {
+      const sa = a.source === 'hacs' || a.source === 'custom' ? 'HACS' : 'Core';
+      const sb = b.source === 'hacs' || b.source === 'custom' ? 'HACS' : 'Core';
+      return sa.localeCompare(sb);
+    });
+
+    return `
+      ${sizeNote}
+      <h3 style="margin:0 0 12px;font-size:15px;color:var(--bento-text,#1e293b);">\u{1F9E9} ${L ? 'Dodatki' : 'Add-ons'} (${d.addons.length})</h3>
+      <div class="table-container">
+        <table class="entity-table">
+          <thead><tr>
+            <th>${L ? 'Dodatek' : 'Addon'}</th>
+            <th>${L ? 'Rozmiar' : 'Size'}</th>
+            <th>Status</th>
+            <th>${L ? 'Wersja' : 'Version'}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            ${sortedAddons.map(a => `
+              <tr>
+                <td title="${a.slug}">${a.name}</td>
+                <td>${a.size < 1 ? '< 1 MB' : this._fmtSize(a.size)}</td>
+                <td><span style="color:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}">\u25CF ${a.state || 'stopped'}</span></td>
+                <td>${a.version || '-'}</td>
+                <td><span class="size-bar" style="width:${Math.max(4, (a.size / maxAddonSize) * 100)}px;background:#4caf50"></span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin:24px 0 12px;font-size:15px;color:var(--bento-text,#1e293b);">\u{1F50C} ${L ? 'Integracje' : 'Integrations'} (${(d.integrations || []).length})</h3>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="padding:6px 12px;background:rgba(33,150,243,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4E6} Core: ${coreIntegrations.length}</div>
+        <div style="padding:6px 12px;background:rgba(255,152,0,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F3EA} HACS: ${hacsIntegrations.length}</div>
+        <div style="padding:6px 12px;background:rgba(76,175,80,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4CA} ${L ? 'Szacowany rozmiar' : 'Est. storage'}: ~${this._fmtSize((d.integrations || []).length * 0.1)}</div>
+      </div>
+      <div class="table-container">
+        <table class="entity-table">
+          <thead><tr>
+            <th>${L ? 'Integracja' : 'Integration'}</th>
+            <th>Domain</th>
+            <th>${L ? '\u0179r\u00F3d\u0142o' : 'Source'}</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>
+            ${sortedInts.slice(0, 60).map(i => {
+              const isHacs = i.source === 'hacs' || i.source === 'custom';
+              return `
+              <tr>
+                <td>${i.title || i.domain}</td>
+                <td><code style="font-size:11px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">${i.domain}</code></td>
+                <td><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${isHacs ? 'rgba(255,152,0,0.1);color:#f57c00' : 'rgba(33,150,243,0.1);color:#1976d2'}">${isHacs ? '\u{1F3EA} HACS' : '\u{1F4E6} Core'}</span></td>
+                <td><span style="color:${i.state === 'loaded' ? '#4caf50' : i.state === 'setup_error' ? '#f44336' : '#9e9e9e'}">\u25CF ${i.state || 'unknown'}</span></td>
+              </tr>`;
+            }).join('')}
+            ${(d.integrations || []).length > 60 ? `<tr><td colspan="4" style="text-align:center;color:var(--bento-text-secondary,#64748b);font-size:12px;">... ${L ? 'i' : 'and'} ${(d.integrations || []).length - 60} ${L ? 'wi\u0119cej' : 'more'}</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  _renderBackups(d) {
+    if (!d.backups.length) return '<div class="loading">No backups found</div>';
+    const maxSize = Math.max(...d.backups.map(b => b.size), 1);
+    return `
+      <div class="table-container">
+        <table class="entity-table">
+          <thead><tr>
+            <th>Backup</th>
+            <th>Size</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Visualization</th>
+          </tr></thead>
+          <tbody>
+            ${d.backups.map(b => `
+              <tr>
+                <td title="${b.slug}">${b.name}</td>
+                <td>${this._fmtSize(b.size)}</td>
+                <td>${b.date ? new Date(b.date).toLocaleDateString() : '-'}</td>
+                <td>${b.type || 'full'}</td>
+                <td><span class="size-bar" style="width:${Math.max(4, (b.size / maxSize) * 100)}px;background:#9c27b0"></span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  _renderIntegrations(d) {
+    if (!d.integrations || !d.integrations.length) return '<div class="loading">No integrations found</div>';
+    const intCount = d.integrations.length;
+    return `
+      <div class="table-container">
+        <div style="padding:12px;background:rgba(33,150,243,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">
+          📊 ${intCount} integrations detected. Estimated storage: ~${this._fmtSize(intCount * 0.1)}
+        </div>
+        <table class="entity-table">
+          <thead><tr>
+            <th>Integration</th>
+            <th>Domain</th>
+            <th>Source</th>
+          </tr></thead>
+          <tbody>
+            ${d.integrations.slice(0, 50).map(i => `
+              <tr>
+                <td>${i.title || i.domain}</td>
+                <td><code style="font-size:11px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">${i.domain}</code></td>
+                <td>${i.source || 'user'}</td>
+              </tr>
+            `).join('')}
+            ${d.integrations.length > 50 ? `<tr><td colspan="3" style="text-align:center;color:var(--bento-text-secondary,#64748b);font-size:12px;">... and ${d.integrations.length - 50} more</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+  _renderFiles(d) {
+    const L = this._lang === 'pl';
+    if (!this._hass) return `<div class="loading">${L ? 'Brak dost\u0119pu do danych' : 'No data available'}</div>`;
+
+    // Build a virtual directory tree from known data
+    const entries = [];
+    const totalMB = d.diskUsed * 1024; // GB to MB
+
+    // Known directories with estimates
+    const knownDirs = [
+      { path: '/config/', name: 'config', size: Math.max(totalMB * 0.05, 50), type: 'dir', icon: '\u{1F4C1}', desc: L ? 'Konfiguracja HA' : 'HA Configuration' },
+      { path: '/config/www/', name: 'www', size: Math.max(totalMB * 0.01, 10), type: 'dir', icon: '\u{1F310}', desc: L ? 'Pliki statyczne (karty, zasoby)' : 'Static files (cards, resources)' },
+      { path: '/config/custom_components/', name: 'custom_components', size: (d.integrations || []).filter(i => i.source === 'hacs' || i.source === 'custom').length * 2, type: 'dir', icon: '\u{1F9E9}', desc: L ? 'Komponenty HACS' : 'HACS Components' },
+      { path: '/config/.storage/', name: '.storage', size: Math.max(totalMB * 0.02, 20), type: 'dir', icon: '\u{1F5C4}\uFE0F', desc: L ? 'Wewn\u0119trzna baza HA' : 'HA Internal storage' },
+      { path: '/backup/', name: 'backup', size: d.backups.reduce((s, b) => s + b.size, 0), type: 'dir', icon: '\u{1F4BE}', desc: L ? 'Kopie zapasowe' : 'Backups' },
+      { path: '/addons/', name: 'addons', size: d.addons.reduce((s, a) => s + a.size, 0), type: 'dir', icon: '\u{1F4E6}', desc: L ? 'Dane addon\u00F3w' : 'Addon data' },
+      { path: '/ssl/', name: 'ssl', size: 0.1, type: 'dir', icon: '\u{1F512}', desc: L ? 'Certyfikaty SSL' : 'SSL certificates' },
+      { path: '/media/', name: 'media', size: Math.max(totalMB * 0.01, 5), type: 'dir', icon: '\u{1F3AC}', desc: L ? 'Pliki multimedialne' : 'Media files' },
+      { path: '/share/', name: 'share', size: Math.max(totalMB * 0.005, 2), type: 'dir', icon: '\u{1F4C2}', desc: L ? 'Wsp\u00F3\u0142dzielone' : 'Shared folder' },
+    ];
+
+    // Add recorder DB as a file entry
+    if (d.dbSizeMB > 0) {
+      knownDirs.push({ path: '/config/home-assistant_v2.db', name: 'home-assistant_v2.db', size: d.dbSizeMB, type: 'file', icon: '\u{1F5C3}\uFE0F', desc: L ? 'Baza danych Recorder' : 'Recorder database' });
     }
 
-    leaderboardEl.style.display = 'block';
-    emptyEl.style.display = 'none';
+    // Sort by sortBy
+    const sortKey = this._sortBy;
+    const sortAsc = this._sortAsc;
+    const sorted = [...knownDirs].sort((a, b) => {
+      if (sortKey === 'name') return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      return sortAsc ? a.size - b.size : b.size - a.size;
+    });
 
-    leaderboardEl.innerHTML = sortedMembers.map((entry, index) => `
-      <div class="leaderboard-row">
-        <div class="rank">#${index + 1}</div>
-        <div class="name">${entry[0]}</div>
-        <div class="completion">${entry[1].completed} done</div>
-        <div class="streak">🔥 ${entry[1].streak}</div>
+    const maxSize = Math.max(...sorted.map(e => e.size), 1);
+
+    return `
+      <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+        <span style="font-size:12px;color:var(--bento-text-secondary,#64748b);">${L ? 'Sortuj:' : 'Sort:'}</span>
+        <button class="sort-btn" data-sort="size" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;background:${sortKey === 'size' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,#64748b);cursor:pointer;">${L ? 'Rozmiar' : 'Size'} ${sortKey === 'size' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
+        <button class="sort-btn" data-sort="name" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;background:${sortKey === 'name' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,#64748b);cursor:pointer;">${L ? 'Nazwa' : 'Name'} ${sortKey === 'name' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
+      </div>
+      <div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">
+        \u{1F4CA} ${L ? 'Szacowany rozk\u0142ad plik\u00F3w i folder\u00F3w. Rzeczywiste rozmiary mog\u0105 si\u0119 r\u00F3\u017Cni\u0107.' : 'Estimated file/folder breakdown. Actual sizes may vary.'}
+        ${L ? 'Dysk:' : 'Disk:'} ${d.diskUsed.toFixed(1)} / ${d.diskTotal.toFixed(1)} GB (${d.usedPercent}%)
+      </div>
+      <div class="table-container">
+        <table class="entity-table">
+          <thead><tr>
+            <th>${L ? 'Nazwa' : 'Name'}</th>
+            <th>${L ? 'Rozmiar' : 'Size'}</th>
+            <th>${L ? 'Opis' : 'Description'}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            ${sorted.map(e => `
+              <tr>
+                <td>${e.icon} <code style="font-size:12px;">${e.path}</code></td>
+                <td style="white-space:nowrap;">${e.size < 1 ? '< 1 MB' : this._fmtSize(e.size)}</td>
+                <td style="font-size:12px;color:var(--bento-text-secondary,#64748b);">${e.desc}</td>
+                <td><span class="size-bar" style="width:${Math.max(4, (e.size / maxSize) * 100)}px;background:${e.type === 'file' ? '#ff9800' : '#3b82f6'}"></span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  _renderCleanup(d) {
+    const suggestions = [];
+    if (d.usedPercent > 80) {
+      suggestions.push({ title: '\u26A0\uFE0F Disk usage above 80%', desc: `Your disk is ${d.usedPercent}% full. Consider freeing up space.`, savings: '', cls: d.usedPercent > 90 ? 'crit' : 'warn' });
+    }
+    if (d.backups.length > 5) {
+      const oldBackups = d.backups.slice(3);
+      const savings = oldBackups.reduce((s, b) => s + b.size, 0);
+      suggestions.push({ title: '\u{1F4BE} Old backups can be removed', desc: `You have ${d.backups.length} backups. Keeping only the 3 most recent could free space.`, savings: `Potential savings: ${this._fmtSize(savings)}`, cls: '' });
+    }
+    if (d.dbSizeMB > 500) {
+      suggestions.push({ title: '\u{1F5C4}\uFE0F Large database', desc: `Your recorder database is ${this._fmtSize(d.dbSizeMB)}. Consider reducing recorder history days or purging old data.`, savings: 'Tip: Set purge_keep_days in recorder config', cls: d.dbSizeMB > 2048 ? 'warn' : '' });
+    }
+    const stoppedAddons = d.addons.filter(a => a.state !== 'started' && a.size > 10);
+    if (stoppedAddons.length > 0) {
+      const savings = stoppedAddons.reduce((s, a) => s + a.size, 0);
+      suggestions.push({ title: '\u{1F9E9} Stopped addons using storage', desc: `${stoppedAddons.length} stopped addon(s): ${stoppedAddons.map(a => a.name).join(', ')}`, savings: `Storage used: ${this._fmtSize(savings)}`, cls: '' });
+    }
+    if (suggestions.length === 0) {
+      suggestions.push({ title: '\u2705 Storage looks healthy', desc: `Disk usage is at ${d.usedPercent}% with ${d.diskFree.toFixed(1)} GB free.`, savings: '', cls: '' });
+    }
+
+    return suggestions.map(s => `
+      <div class="suggestion ${s.cls}">
+        <div class="suggestion-title">${s.title}</div>
+        <div class="suggestion-desc">${s.desc}</div>
+        ${s.savings ? `<div class="suggestion-savings">${s.savings}</div>` : ''}
       </div>
     `).join('');
   }
 
-  getMemberColor(memberName) {
-    const member = this.members.find(m => m.name === memberName);
-    return member ? member.color : '#999999';
+  _attachContentEvents() {
+    this.shadowRoot.querySelectorAll('.entity-table th').forEach(th => {
+      th.addEventListener('click', () => {});
+    });
+    // Sort buttons for files tab
+    this.shadowRoot.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const newSort = btn.dataset.sort;
+        if (this._sortBy === newSort) {
+          this._sortAsc = !this._sortAsc;
+        } else {
+          this._sortBy = newSort;
+          this._sortAsc = newSort === 'name';
+        }
+        this._updateContent();
+      });
+    });
   }
 
-  getRoomEmoji(room) {
-    const emojis = {
-      'Kitchen': '🍳',
-      'Bathroom': '🚿',
-      'Bedroom': '🛏️',
-      'Living': '🛋️',
-      'Yard': '🌳',
-      'General': '📌'
-    };
-    return emojis[room] || '📌';
-  }
-
-  getFrequencyLabel(freq) {
-    const labels = {
-      'daily': 'Daily',
-      'weekly': 'Weekly',
-      'biweekly': 'Bi-weekly',
-      'monthly': 'Monthly'
-    };
-    return labels[freq] || freq;
-  }
-  // --- Pagination helper ---
+// --- Pagination helper ---
   _renderPagination(tabName, totalItems) {
     if (!this._currentPage[tabName]) this._currentPage[tabName] = 1;
     const pageSize = this._pageSize;
@@ -1565,15 +1213,25 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
   }
-
 }
 
-customElements.define('ha-chore-tracker', HaChoreTracker);
+customElements.define('ha-storage-monitor', HAStorageMonitor);
 
 window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-chore-tracker', name: 'Chore Tracker', description: 'Track household chores and responsibilities', preview: false });
+window.customCards.push({
+  type: 'ha-storage-monitor',
+  name: 'Storage Monitor',
+  description: 'WinDirStat-like storage visualization for Home Assistant',
+  preview: true
+});
 
-class HaChoreTrackerEditor extends HTMLElement {
+console.info(
+  '%c  HA-STORAGE-MONITOR  %c v1.0.0 ',
+  'background: #4caf50; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
+  'background: #e8f5e9; color: #4caf50; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
+);
+
+class HaStorageMonitorEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -1594,10 +1252,10 @@ class HaChoreTrackerEditor extends HTMLElement {
         input { outline:none; transition:border-color .2s; }
         input:focus { border-color:var(--primary-color,#3b82f6); }
       </style>
-      <h3>Chore Tracker</h3>
+      <h3>Storage Monitor</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Chore Tracker'}"
+              <input type="text" id="cf_title" value="${this._config?.title || 'Storage Monitor'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
@@ -1609,4 +1267,4 @@ class HaChoreTrackerEditor extends HTMLElement {
   }
   connectedCallback() { this._render(); }
 }
-if (!customElements.get('ha-chore-tracker-editor')) { customElements.define('ha-chore-tracker-editor', HaChoreTrackerEditor); }
+if (!customElements.get('ha-storage-monitor-editor')) { customElements.define('ha-storage-monitor-editor', HaStorageMonitorEditor); }

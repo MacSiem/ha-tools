@@ -1,67 +1,3 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
 class HAAutomationAnalyzer extends HTMLElement {
   constructor() {
     super();
@@ -720,52 +656,24 @@ class HAAutomationAnalyzer extends HTMLElement {
 
   render() {
     const styles = `
-      
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
+      :host {
         display: block;
         --aa-font: var(--ha-font-family-body, var(--mdc-typography-body1-font-family, Roboto, Noto, sans-serif));
-        --aa-radius: var(--bento-radius-sm);
+        --aa-radius: var(--ha-card-border-radius, var(--ha-border-radius-sm, 8px));
         --aa-space-1: var(--ha-space-1, 4px);
         --aa-space-2: var(--ha-space-2, 8px);
         --aa-space-3: var(--ha-space-3, 12px);
         --aa-space-4: var(--ha-space-4, 16px);
         --aa-space-6: var(--ha-space-6, 24px);
-        --aa-border: var(--bento-border);
-        --aa-text: var(--bento-text);
-        --aa-text2: var(--bento-text-secondary);
-        --aa-bg: var(--bento-bg);
-        --aa-card: var(--bento-card);
-        --aa-primary: var(--bento-primary);
-        --aa-success: var(--bento-success);
-        --aa-warning: var(--bento-warning);
-        --aa-danger: var(--bento-error);
+        --aa-border: var(--ha-color-border, var(--divider-color, #e0e0e0));
+        --aa-text: var(--primary-text-color, #212121);
+        --aa-text2: var(--secondary-text-color, #64748b);
+        --aa-bg: var(--primary-background-color, #fafafa);
+        --aa-card: var(--card-background-color, #fff);
+        --aa-primary: var(--primary-color, #3B82F6);
+        --aa-success: var(--success-color, var(--label-badge-green, #10B981));
+        --aa-warning: var(--warning-color, var(--label-badge-yellow, #F59E0B));
+        --aa-danger: var(--error-color, var(--label-badge-red, #EF4444));
         --aa-info: var(--info-color, var(--accent-color, #3B82F6));
         --aa-anim: var(--ha-animation-duration-normal, 250ms);
       }
@@ -773,8 +681,8 @@ class HAAutomationAnalyzer extends HTMLElement {
       .card {
         padding: var(--aa-space-6);
         font-family: var(--aa-font);
-        background: var(--bento-bg);
-        color: var(--bento-text);
+        background: var(--aa-bg);
+        color: var(--aa-text);
         min-height: 200px;
       }
       .header {
@@ -790,11 +698,11 @@ class HAAutomationAnalyzer extends HTMLElement {
         font-size: 20px;
         font-weight: 600;
         margin-bottom: var(--aa-space-1);
-        color: var(--bento-text);
+        color: var(--aa-text);
       }
       .subtitle {
         font-size: 12px;
-        color: var(--bento-text-secondary);
+        color: var(--aa-text2);
         display: flex;
         gap: var(--aa-space-2);
         align-items: center;
@@ -809,7 +717,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       .tabs {
         display: flex;
         gap: var(--aa-space-2);
-        border-bottom: 2px solid var(--bento-border);
+        border-bottom: 2px solid var(--aa-border);
         margin-bottom: var(--aa-space-6);
         overflow-x: auto;
         flex-wrap: wrap;
@@ -819,36 +727,36 @@ class HAAutomationAnalyzer extends HTMLElement {
         border: none; background: none; cursor: pointer;
         font-size: 14px; font-weight: 500;
         font-family: var(--aa-font);
-        color: var(--bento-text-secondary);
+        color: var(--aa-text2);
         border-bottom: 2px solid transparent;
         transition: all var(--aa-anim);
         border-radius: 4px 4px 0 0;
         white-space: nowrap;
       }
       .tab-btn.active {
-        color: var(--bento-primary);
-        border-bottom-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 8%, transparent);
+        color: var(--aa-primary);
+        border-bottom-color: var(--aa-primary);
+        background: color-mix(in srgb, var(--aa-primary) 8%, transparent);
       }
       .tab-btn:hover {
-        color: var(--bento-text);
-        background: color-mix(in srgb, var(--bento-text) 4%, transparent);
+        color: var(--aa-text);
+        background: color-mix(in srgb, var(--aa-text) 4%, transparent);
       }
       .tab-content { display: none; }
       .tab-content.active { display: block; animation: fadeIn var(--aa-anim); }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .card {
-        background: var(--bento-card);
-        border-radius: var(--bento-radius-sm);
+        background: var(--aa-card);
+        border-radius: var(--aa-radius);
         padding: var(--aa-space-4);
-        border: 1px solid var(--bento-border);
+        border: 1px solid var(--aa-border);
         margin-bottom: var(--aa-space-4);
         box-shadow: 0 1px 3px rgba(0,0,0,0.06);
       }
       .card-title {
         font-size: 14px; font-weight: 600;
         margin-bottom: var(--aa-space-3);
-        color: var(--bento-text);
+        color: var(--aa-text);
       }
       .canvas-wrap { position: relative; height: 250px; margin-bottom: var(--aa-space-4); }
       canvas { width: 100% !important; }
@@ -859,14 +767,14 @@ class HAAutomationAnalyzer extends HTMLElement {
         margin-top: var(--aa-space-4);
       }
       .stat {
-        background: var(--bento-card);
+        background: var(--aa-card);
         padding: var(--aa-space-3);
-        border-radius: var(--bento-radius-sm);
+        border-radius: var(--aa-radius);
         text-align: center;
-        border: 1px solid var(--bento-border);
+        border: 1px solid var(--aa-border);
       }
-      .stat-value { font-size: 22px; font-weight: 700; color: var(--bento-primary); }
-      .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+      .stat-value { font-size: 22px; font-weight: 700; color: var(--aa-primary); }
+      .stat-label { font-size: 11px; color: var(--aa-text2); margin-top: 2px; }
       .health-row {
         display: flex; align-items: center; gap: var(--aa-space-3);
         margin-bottom: var(--aa-space-4);
@@ -876,30 +784,30 @@ class HAAutomationAnalyzer extends HTMLElement {
         display: flex; align-items: center; justify-content: center;
         font-weight: 700; font-size: 20px; color: white; flex-shrink: 0;
       }
-      .health-circle.excellent { background: var(--bento-success); }
-      .health-circle.good { background: var(--bento-warning); }
+      .health-circle.excellent { background: var(--aa-success); }
+      .health-circle.good { background: var(--aa-warning); }
       .health-circle.poor { background: var(--aa-danger); }
-      .health-label { font-size: 12px; color: var(--bento-text-secondary); }
+      .health-label { font-size: 12px; color: var(--aa-text2); }
       .auto-list { display: flex; flex-direction: column; gap: 6px; }
       .auto-item {
         display: flex; align-items: center; gap: var(--aa-space-2);
         padding: 10px var(--aa-space-4);
-        background: var(--bento-card);
-        border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm);
+        background: var(--aa-card);
+        border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius);
         cursor: pointer;
         transition: all var(--aa-anim);
       }
       .auto-item:hover {
-        border-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-card));
+        border-color: var(--aa-primary);
+        background: color-mix(in srgb, var(--aa-primary) 4%, var(--aa-card));
       }
       .auto-name {
-        font-size: 13px; font-weight: 500; color: var(--bento-text);
+        font-size: 13px; font-weight: 500; color: var(--aa-text);
         flex: 1; min-width: 0; overflow: hidden;
         text-overflow: ellipsis; white-space: nowrap;
       }
-      .auto-meta { font-size: 11px; color: var(--bento-text-secondary); white-space: nowrap; }
+      .auto-meta { font-size: 11px; color: var(--aa-text2); white-space: nowrap; }
       .badge {
         font-size: 11px; font-weight: 600;
         padding: 3px 8px; border-radius: 999px;
@@ -910,14 +818,14 @@ class HAAutomationAnalyzer extends HTMLElement {
       .badge-info { background: #dbeafe; color: #1e40af; }
       .badge-ok { background: #d1fae5; color: #065f46; }
       .badge-stale { background: #f3e8ff; color: #6b21a8; }
-      .auto-arrow { color: var(--bento-text-secondary); font-size: 14px; }
+      .auto-arrow { color: var(--aa-text2); font-size: 14px; }
       .toggle-btn {
-        padding: 3px 10px; border-radius: 4px; border: 1px solid var(--bento-border);
-        background: var(--bento-card); color: var(--bento-primary);
+        padding: 3px 10px; border-radius: 4px; border: 1px solid var(--aa-border);
+        background: var(--aa-card); color: var(--aa-primary);
         font-size: 11px; font-weight: 500; cursor: pointer;
         transition: all var(--aa-anim); flex-shrink: 0;
       }
-      .toggle-btn:hover { background: var(--bento-primary); color: white; }
+      .toggle-btn:hover { background: var(--aa-primary); color: white; }
       .opt-summary {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -926,7 +834,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       }
       .opt-stat {
         padding: var(--aa-space-3);
-        border-radius: var(--bento-radius-sm);
+        border-radius: var(--aa-radius);
         text-align: center; border: 1px solid;
       }
       .opt-stat.warn { background: var(--aa-warn-bg, #fef3c7); border-color: var(--aa-warn-border, #fcd34d); }
@@ -938,123 +846,123 @@ class HAAutomationAnalyzer extends HTMLElement {
       .opt-stat.error .opt-stat-value { color: var(--aa-error-text, #991b1b); }
       .opt-stat.info .opt-stat-value { color: var(--aa-info-text, #1e40af); }
       .opt-stat.stale .opt-stat-value { color: var(--aa-stale-text, #6b21a8); }
-      .opt-stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+      .opt-stat-label { font-size: 11px; color: var(--aa-text2); margin-top: 2px; }
       .opt-section { margin-bottom: var(--aa-space-6); }
       .opt-section .card-title { margin-bottom: var(--aa-space-3); }
       .empty-state {
         text-align: center; padding: var(--aa-space-6) var(--aa-space-4);
-        color: var(--bento-text-secondary); font-size: 13px;
-        background: var(--bento-card); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm);
+        color: var(--aa-text2); font-size: 13px;
+        background: var(--aa-card); border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius);
       }
       .loading-state {
         text-align: center; padding: var(--aa-space-6);
-        color: var(--bento-text-secondary);
+        color: var(--aa-text2);
       }
       .loading-state .loading-spinner {
         width: 24px; height: 24px;
         border-width: 3px; margin: 0 auto 12px;
-        border-color: rgba(0,0,0,0.1); border-top-color: var(--bento-primary);
+        border-color: rgba(0,0,0,0.1); border-top-color: var(--aa-primary);
       }
       .chart-empty {
         display: flex; align-items: center; justify-content: center;
-        height: 200px; color: var(--bento-text-secondary); font-size: 13px;
-        border: 1px dashed var(--bento-border); border-radius: var(--bento-radius-sm);
+        height: 200px; color: var(--aa-text2); font-size: 13px;
+        border: 1px dashed var(--aa-border); border-radius: var(--aa-radius);
       }
       .loading-toast {
         display: flex; align-items: center; gap: var(--aa-space-2);
         padding: var(--aa-space-2) var(--aa-space-4);
-        background: color-mix(in srgb, var(--bento-primary) 10%, var(--bento-card));
-        border: 1px solid color-mix(in srgb, var(--bento-primary) 30%, var(--bento-border));
-        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-3);
-        font-size: 12px; color: var(--bento-text-secondary); line-height: 1.4;
+        background: color-mix(in srgb, var(--aa-primary) 10%, var(--aa-card));
+        border: 1px solid color-mix(in srgb, var(--aa-primary) 30%, var(--aa-border));
+        border-radius: var(--aa-radius); margin-bottom: var(--aa-space-3);
+        font-size: 12px; color: var(--aa-text2); line-height: 1.4;
         animation: fadeIn var(--aa-anim);
       }
       .loading-toast .loading-spinner {
-        border-color: color-mix(in srgb, var(--bento-primary) 20%, transparent);
-        border-top-color: var(--bento-primary);
+        border-color: color-mix(in srgb, var(--aa-primary) 20%, transparent);
+        border-top-color: var(--aa-primary);
       }
       .trace-notice {
         display: flex; align-items: flex-start; gap: var(--aa-space-3);
         padding: var(--aa-space-3) var(--aa-space-4);
-        background: color-mix(in srgb, var(--bento-primary) 8%, var(--bento-card));
-        border: 1px solid color-mix(in srgb, var(--bento-primary) 25%, var(--bento-border));
-        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-4);
-        font-size: 13px; color: var(--bento-text); line-height: 1.5;
+        background: color-mix(in srgb, var(--aa-info) 8%, var(--aa-card));
+        border: 1px solid color-mix(in srgb, var(--aa-info) 25%, var(--aa-border));
+        border-radius: var(--aa-radius); margin-bottom: var(--aa-space-4);
+        font-size: 13px; color: var(--aa-text); line-height: 1.5;
       }
       .trace-notice-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
       .trace-notice a {
-        color: var(--bento-primary); text-decoration: underline;
+        color: var(--aa-primary); text-decoration: underline;
         cursor: pointer; font-weight: 500;
       }
       .trace-notice a:hover { opacity: 0.8; }
       .trace-notice-dismiss {
         margin-left: auto; background: none; border: none;
-        color: var(--bento-text-secondary); cursor: pointer; font-size: 16px;
+        color: var(--aa-text2); cursor: pointer; font-size: 16px;
         padding: 0 4px; line-height: 1; flex-shrink: 0;
       }
-      .trace-notice-dismiss:hover { color: var(--bento-text); }
+      .trace-notice-dismiss:hover { color: var(--aa-text); }
       .trace-notice-global {
         display: flex; align-items: flex-start; gap: var(--aa-space-3);
         padding: var(--aa-space-3) var(--aa-space-4);
-        background: color-mix(in srgb, var(--bento-primary) 8%, var(--bento-card));
-        border: 1px solid color-mix(in srgb, var(--bento-primary) 25%, var(--bento-border));
-        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-4);
-        font-size: 12px; color: var(--bento-text); line-height: 1.5;
+        background: color-mix(in srgb, var(--aa-info) 8%, var(--aa-card));
+        border: 1px solid color-mix(in srgb, var(--aa-info) 25%, var(--aa-border));
+        border-radius: var(--aa-radius); margin-bottom: var(--aa-space-4);
+        font-size: 12px; color: var(--aa-text); line-height: 1.5;
       }
       .trace-notice-global .trace-notice-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-      .trace-notice-global a { color: var(--bento-primary); text-decoration: underline; cursor: pointer; font-weight: 500; }
+      .trace-notice-global a { color: var(--aa-primary); text-decoration: underline; cursor: pointer; font-weight: 500; }
       .trace-notice-global a:hover { opacity: 0.8; }
-      .trace-notice-global .detail { color: var(--bento-text-secondary); font-size: 11px; margin-top: 2px; }
+      .trace-notice-global .detail { color: var(--aa-text2); font-size: 11px; margin-top: 2px; }
       .filter-bar {
         display: flex; flex-wrap: wrap; gap: var(--aa-space-2);
         margin-bottom: var(--aa-space-4); align-items: center;
       }
       .filter-bar input[type="text"] {
         flex: 1; min-width: 160px; padding: 7px 12px;
-        border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm);
-        background: var(--bento-card); color: var(--bento-text);
+        border: 1px solid var(--aa-border); border-radius: var(--aa-radius);
+        background: var(--aa-card); color: var(--aa-text);
         font-size: 13px; font-family: var(--aa-font);
         outline: none; transition: border-color var(--aa-anim);
       }
-      .filter-bar input[type="text"]:focus { border-color: var(--bento-primary); }
-      .filter-bar input[type="text"]::placeholder { color: var(--bento-text-secondary); }
+      .filter-bar input[type="text"]:focus { border-color: var(--aa-primary); }
+      .filter-bar input[type="text"]::placeholder { color: var(--aa-text2); }
       .filter-bar select {
-        padding: 7px 28px 7px 10px; border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm); background: var(--bento-card); color: var(--bento-text);
+        padding: 7px 28px 7px 10px; border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius); background: var(--aa-card); color: var(--aa-text);
         font-size: 12px; font-family: var(--aa-font); cursor: pointer;
         appearance: none; -webkit-appearance: none;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
         background-repeat: no-repeat; background-position: right 8px center;
       }
-      .filter-bar select:focus { border-color: var(--bento-primary); outline: none; }
+      .filter-bar select:focus { border-color: var(--aa-primary); outline: none; }
       .filter-bar .sort-dir-btn {
-        padding: 6px 8px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm);
-        background: var(--bento-card); color: var(--bento-text-secondary); cursor: pointer;
+        padding: 6px 8px; border: 1px solid var(--aa-border); border-radius: var(--aa-radius);
+        background: var(--aa-card); color: var(--aa-text2); cursor: pointer;
         font-size: 14px; line-height: 1; transition: all var(--aa-anim);
       }
-      .filter-bar .sort-dir-btn:hover { border-color: var(--bento-primary); color: var(--bento-primary); }
+      .filter-bar .sort-dir-btn:hover { border-color: var(--aa-primary); color: var(--aa-primary); }
       .auto-list-full { display: flex; flex-direction: column; gap: 4px; max-height: 460px; overflow-y: auto; }
       .auto-list-full::-webkit-scrollbar { width: 4px; }
-      .auto-list-full::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 4px; }
+      .auto-list-full::-webkit-scrollbar-thumb { background: var(--aa-border); border-radius: 4px; }
       .auto-item-full {
         display: flex; align-items: center; gap: var(--aa-space-2);
         padding: 8px var(--aa-space-3);
-        background: var(--bento-card); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm); cursor: pointer;
+        background: var(--aa-card); border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius); cursor: pointer;
         transition: all var(--aa-anim); font-size: 13px;
       }
       .auto-item-full:hover {
-        border-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-card));
+        border-color: var(--aa-primary);
+        background: color-mix(in srgb, var(--aa-primary) 4%, var(--aa-card));
       }
-      .auto-item-full .auto-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--bento-text); }
-      .auto-item-full .auto-detail { font-size: 11px; color: var(--bento-text-secondary); white-space: nowrap; min-width: 50px; text-align: right; }
+      .auto-item-full .auto-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--aa-text); }
+      .auto-item-full .auto-detail { font-size: 11px; color: var(--aa-text2); white-space: nowrap; min-width: 50px; text-align: right; }
       .auto-item-full .auto-state-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-      .auto-item-full .auto-state-dot.on { background: var(--bento-success); }
-      .auto-item-full .auto-state-dot.off { background: var(--bento-text-secondary); opacity: 0.4; }
+      .auto-item-full .auto-state-dot.on { background: var(--aa-success); }
+      .auto-item-full .auto-state-dot.off { background: var(--aa-text2); opacity: 0.4; }
       .auto-item-full .auto-state-dot.error { background: var(--aa-danger); }
-      .filter-results-count { font-size: 11px; color: var(--bento-text-secondary); padding: 2px 0; }
+      .filter-results-count { font-size: 11px; color: var(--aa-text2); padding: 2px 0; }
     `;
 
     const totalActive = Array.from(this.automationStats.values()).filter(a => a.state === "on").length;

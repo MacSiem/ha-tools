@@ -1,83 +1,4 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
-class HaChoreTracker extends HTMLElement {
-  static getConfigElement() {
-    return document.createElement('ha-chore-tracker-editor');
-  }
-
-  static getStubConfig() {
-    return {
-      type: 'custom:ha-chore-tracker',
-      title: 'Chore Tracker',
-      members: [
-        { name: 'Person 1', color: '#4CAF50' },
-        { name: 'Person 2', color: '#2196F3' }
-      ]
-    };
-  }
-
+class HaBackupManager extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
@@ -86,74 +7,63 @@ class HaChoreTracker extends HTMLElement {
     this._lastRenderTime = 0;
     this._renderScheduled = false;
     this._firstHassRender = false;
+    // --- HTML diffing ---
+    this._lastHtml = '';
     // --- Pagination ---
     this._currentPage = {};
     this._pageSize = 15;
-    this.chores = [];
-    this.activeTab = 'board';
-    this.config = {};
-    this.hass = null;
-    this._dataLoaded = false;
-    this._lastHtml = '';
+    this._hass = null;
+    this._config = {};
+    this._backups = [];
+    this._selectedBackup = null;
+    this._activeTab = 'backups';
+    this._healthData = {
+      lastBackupDate: null,
+      totalSize: 0,
+      backupCount: 0,
+      weeklyData: [0, 0, 0, 0],
+    };
+    this._loading = false;
+    this._error = null;
+    this._isDemoData = false;
+    this._charts = {};
   }
 
-  _storageKey() {
-    return 'ha-chore-tracker-' + (this.config.storage_key || 'default');
+  static getConfigElement() {
+    return document.createElement('ha-backup-manager-editor');
   }
 
-  _membersKey() {
-    return 'ha-chore-tracker-members-' + (this.config.storage_key || 'default');
+  static getStubConfig() {
+    return {
+      title: 'Backup Manager',
+      warn_after_days: 3,
+      max_backups: 10,
+    }
   }
-
-  _loadMembers() {
-    try {
-      const stored = localStorage.getItem(this._membersKey());
-      return stored ? JSON.parse(stored) : null;
-    } catch (e) { return null; }
-  }
-
-  _saveMembers() {
-    try {
-      localStorage.setItem(this._membersKey(), JSON.stringify(this.members));
-    } catch (e) { }
-  }
-
-  _saveData() {
-    try {
-      localStorage.setItem(this._storageKey(), JSON.stringify(this.chores));
-    } catch(e) { /* storage full or unavailable */ }
-  }
-
-  _loadData() {
-    if (this._dataLoaded) return;
-    try {
-      const saved = localStorage.getItem(this._storageKey());
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.chores = parsed.map(c => ({
-            ...c,
-            lastCompleted: c.lastCompleted ? new Date(c.lastCompleted) : null
-          }));
-        }
-      }
-    } catch(e) { /* parse error */ }
-    this._dataLoaded = true;
+  async _loadChartJS() {
+    if (window.Chart) return;
+    
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+      script.onload = () => resolve(window.Chart);
+      document.head.appendChild(script);
+    });
   }
 
   setConfig(config) {
-    if (!config) return;
-    this.config = config;
-    const storedMembers = this._loadMembers();
-    this.members = storedMembers || config.members || [{ name: 'Person 1', color: '#4CAF50' }];
-    this._loadData();
-    this.render();
+    this._config = config;
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-backup-manager-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
+    this._updateUI();
   }
 
-  _sanitize(str) {
-    if (!str) return str;
-    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
-  }
   set hass(hass) {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
@@ -161,7 +71,8 @@ class HaChoreTracker extends HTMLElement {
     const now = Date.now();
     if (!this._firstHassRender) {
       this._firstHassRender = true;
-      this.render();
+      this._fetchBackups();
+      this._updateUI();
       this._lastRenderTime = now;
       return;
     }
@@ -170,92 +81,389 @@ class HaChoreTracker extends HTMLElement {
         this._renderScheduled = true;
         setTimeout(() => {
           this._renderScheduled = false;
-          this.render();
+      this._fetchBackups();
+          this._updateUI();
           this._lastRenderTime = Date.now();
         }, 5000 - (now - (this._lastRenderTime || 0)));
       }
       return;
     }
-    this.render();
+      this._fetchBackups();
+    this._updateUI();
     this._lastRenderTime = now;
   }
 
-  get hass() {
-    return this._hass;
-  }
-  _addMember() {
-    const colors = ['#4CAF50','#2196F3','#FF9800','#E91E63','#9C27B0','#00BCD4','#FF5722','#795548'];
-    const color = colors[this.members.length % colors.length];
-    this.members.push({name: 'Osoba ' + (this.members.length + 1), color: color});
-    this._saveMembers();
-    this.render();
-  }
+  async _fetchBackups() {
+    if (!this._hass) return;
 
-  _removeMember(idx) {
-    if (this.members.length <= 1) return;
-    const removedName = this.members[idx].name;
-    this.members.splice(idx, 1);
-    this.chores.forEach(c => { if (c.assignee === removedName) c.assignee = this.members[0].name; });
-    this._saveData();
-    this._saveMembers();
-    this.render();
-  }
+    this._loading = true;
+    this._error = null;
 
-  _saveMemberNames() {
-    const inputs = this.shadowRoot.querySelectorAll('.member-name-input');
-    inputs.forEach(input => {
-      const idx = parseInt(input.dataset.memberIdx);
-      if (this.members[idx]) {
-        const oldName = this.members[idx].name;
-        const newName = input.value.trim() || ('Osoba ' + (idx + 1));
-        if (oldName !== newName) {
-          this.chores.forEach(c => { if (c.assignee === oldName) c.assignee = newName; });
-          this.members[idx].name = newName;
-        }
+    try {
+      // Use supervisor/api /backups which includes size and size_bytes
+      let backupList = [];
+      try {
+        const svResult = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/backups', method: 'get' });
+        backupList = svResult?.backups || svResult?.data?.backups || [];
+      } catch(svErr) {
+        // Fallback to backup/info (no size data)
+        const biResult = await this._hass.callWS({ type: 'backup/info' });
+        backupList = biResult?.backups || [];
       }
-    });
-    this._saveMembers();
-    this._saveData();
-    this.render();
+      if (backupList.length > 0) {
+        this._backups = backupList.sort((a, b) =>
+          new Date(b.date || 0) - new Date(a.date || 0)
+        );
+        this._isDemoData = false;
+        this._charts = {};
+        this._error = null;
+        this._calculateHealthData();
+      }
+    } catch (e) {
+      console.warn('Backup Manager: API call failed:', e.message);
+      this._error = 'Nie uda\u0142o si\u0119 pobra\u0107 backup\u00F3w: ' + (e.message || 'Unknown error');
+      // Only use demo data if we have nothing at all
+      if (this._backups.length === 0) {
+        this._backups = this._getDemoBackups();
+        this._isDemoData = true;
+      }
+      this._calculateHealthData();
+    }
+
+    this._loading = false;
+    this._updateUI();
   }
 
-  _checkRecurringReset() {
+  _getDemoBackups() {
     const now = new Date();
-    let changed = false;
-    this.chores.forEach(chore => {
-      if (chore.status !== 'done' || !chore.lastCompleted) return;
-      const last = new Date(chore.lastCompleted);
-      let shouldReset = false;
-      
-      if (chore.frequency === 'daily') {
-        shouldReset = now.toDateString() !== last.toDateString();
-      } else if (chore.frequency === 'every_2_days') {
-        shouldReset = (now - last) / (1000*60*60*24) >= 2;
-      } else if (chore.frequency === 'every_3_days') {
-        shouldReset = (now - last) / (1000*60*60*24) >= 3;
-      } else if (chore.frequency === 'weekly') {
-        const diffDays = (now - last) / (1000*60*60*24);
-        shouldReset = diffDays >= 7;
-      } else if (chore.frequency === 'biweekly') {
-        const diffDays = (now - last) / (1000*60*60*24);
-        shouldReset = diffDays >= 14;
-      } else if (chore.frequency === 'monthly') {
-        shouldReset = (now.getMonth() !== last.getMonth()) || (now.getFullYear() !== last.getFullYear());
-      } else if (chore.frequency === 'once') {
-        shouldReset = false;
-      }
-      
-      if (shouldReset) {
-        chore.status = 'todo';
-        changed = true;
-      }
-    });
-    if (changed) this._saveData();
+    return [
+      {
+        slug: 'demo_backup_001',
+        name: 'Daily Backup',
+        date: new Date(now.getTime() - 86400000).toISOString(),
+        type: 'full',
+        size: 1024 * 1024 * 250,
+        is_protected: true,
+        compressed: true,
+        includes: {
+          homeassistant: true,
+          database: true,
+          addons: ['mosquitto', 'zwave-js-ui'],
+          folders: ['automations', 'scripts', 'scenes'],
+        },
+      },
+      {
+        slug: 'demo_backup_002',
+        name: 'Weekly Backup',
+        date: new Date(now.getTime() - 7 * 86400000).toISOString(),
+        type: 'full',
+        size: 1024 * 1024 * 280,
+        is_protected: false,
+        compressed: true,
+        includes: {
+          homeassistant: true,
+          database: true,
+          addons: ['mosquitto', 'zwave-js-ui', 'esphome'],
+          folders: ['automations', 'scripts', 'scenes'],
+        },
+      },
+      {
+        slug: 'demo_backup_003',
+        name: 'Partial Backup',
+        date: new Date(now.getTime() - 14 * 86400000).toISOString(),
+        type: 'partial',
+        size: 1024 * 1024 * 120,
+        is_protected: false,
+        compressed: true,
+        includes: {
+          homeassistant: true,
+          database: false,
+          addons: [],
+          folders: ['automations', 'scripts'],
+        },
+      },
+    ];
   }
 
-  render() {
-    this._checkRecurringReset();
+  _calculateHealthData() {
+    if (this._backups.length === 0) {
+      this._healthData.lastBackupDate = null;
+      this._healthData.totalSize = 0;
+      this._healthData.backupCount = 0;
+      this._healthData.weeklyData = [0, 0, 0, 0];
+      return;
+    }
+
+    this._healthData.lastBackupDate = new Date(this._backups[0].date);
+    this._healthData.totalSize = this._backups.reduce((sum, b) => sum + (b.size || 0), 0);
+    this._healthData.backupCount = this._backups.length;
+
+    const now = new Date();
+    this._healthData.weeklyData = [0, 0, 0, 0];
+
+    this._backups.forEach(backup => {
+      const backupDate = new Date(backup.date);
+      const weekDiff = Math.floor((now - backupDate) / (7 * 86400000));
+      if (weekDiff < 4) {
+        this._healthData.weeklyData[3 - weekDiff]++;
+      }
+    });
+  }
+
+  _getTimeSinceBackup() {
+    if (!this._healthData.lastBackupDate) return null;
+    const hours = Math.floor((Date.now() - this._healthData.lastBackupDate) / 3600000);
+    const days = Math.floor(hours / 24);
+    return { days, hours };
+  }
+
+  _formatMB(mb) {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+    return `${mb.toFixed(1)} MB`;
+  }
+
+  _formatBytes(bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    return `${size.toFixed(2)} ${units[unitIndex]}`;
+  }
+
+  _formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  async _createBackup(isFullBackup) {
+    try {
+      const password = isFullBackup ? '' : '';
+      await this._hass.callService('backup', 'create', {
+        backup_type: isFullBackup ? 'full' : 'partial',
+      });
+      this._fetchBackups();
+    } catch (e) {
+      this._error = `Failed to create backup: ${e.message}`;
+      this._updateUI();
+    }
+  }
+
+
+  _sanitizeName(name) {
+    if (!name) return 'Backup';
+    try { return decodeURIComponent(escape(name)); } catch(e) { return name; }
+  }
+
+  _selectBackup(backup) {
+    this._selectedBackup = this._selectedBackup?.slug === backup.slug ? null : backup;
+    this._updateUI();
+  }
+
+  _renderBackupsTab() {
     const L = this._lang === 'pl';
+    const totalSize = this._backups.reduce((s, b) => s + (b.size_bytes || (b.size ? b.size * 1024 * 1024 : 0)), 0);
+    const lastBackup = this._backups.length > 0 ? this._backups[0] : null;
+    const lastDate = lastBackup?.date ? new Date(lastBackup.date) : null;
+    const daysSince = lastDate ? Math.floor((Date.now() - lastDate.getTime()) / 86400000) : null;
+    const fullCount = this._backups.filter(b => b.type === 'full').length;
+    const partialCount = this._backups.filter(b => b.type === 'partial').length;
+
+    return `
+      <div class="tab-content active">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:var(--bento-text,#1e293b);">${this._backups.length}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Kopii' : 'Backups'}</div>
+            <div style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:2px;">${fullCount} full, ${partialCount} partial</div>
+          </div>
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:var(--bento-primary,#3b82f6);">${totalSize > 0 ? this._formatBytes(totalSize) : '?'}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Rozmiar' : 'Total Size'}</div>
+          </div>
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid ${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-border,#e2e8f0)'};border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-text,#1e293b)'};">${daysSince !== null ? daysSince + 'd' : '-'}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Od ostatniego' : 'Since Last'}</div>
+          </div>
+        </div>
+
+        <div class="backup-controls">
+          <button class="create-btn full-backup" data-backup-type="full">
+            <span class="icon">\u2295</span> ${L ? "Pe\u0142ny backup" : "Create Full Backup"}
+          </button>
+          <button class="create-btn partial-backup" data-backup-type="partial">
+            <span class="icon">\u2295</span> ${L ? "Cz\u0119\u015Bciowy backup" : "Create Partial Backup"}
+          </button>
+        </div>
+
+        ${this._error ? `<div class="error-banner">${this._error}</div>` : ''}
+
+        <div class="backups-list">
+          ${this._backups.length === 0
+            ? '<div class="empty-state">No backups available</div>'
+            : this._backups.map((backup) => `
+              <div class="backup-item ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
+                   data-slug="${backup.slug}">
+                <div class="backup-header">
+                  <div class="backup-info">
+                    <h3>${this._sanitizeName(backup.name)}</h3>
+                    <span class="backup-type ${backup.type}">${backup.type}</span>
+                    ${backup.is_protected ? '<span class="badge protected">🔒 Protected</span>' : ''}
+                  
+                    ${backup.location ? `<span class="badge method">${backup.location === 'addon' ? 'Addon' : (backup.location === 'cloud' ? 'Cloud' : 'Local')}</span>` : ''}</div>
+                  <div class="backup-meta">
+                    <span class="date">${this._formatDate(backup.date)}</span>
+                    <span class="size">${backup.size_bytes ? this._formatBytes(backup.size_bytes) : (backup.size ? this._formatMB(backup.size) : '?')}</span>
+                  </div>
+                </div>
+                ${this._selectedBackup?.slug === backup.slug ? `
+                  <div class="backup-details">
+                    <h4>Backup Contents:</h4>
+                    <div class="contents-grid">
+                      ${(backup.includes?.homeassistant || backup.homeassistant_included || backup.content?.homeassistant) ? '<span class="content-item">\u{1F4CB} Home Assistant Config</span>' : ''}
+                      ${(backup.includes?.database || backup.database_included) ? '<span class="content-item">\u{1F4BE} Database</span>' : ''}
+                      ${(backup.includes?.addons?.length > 0 || backup.addons?.length > 0) ? `<span class="content-item">\u{1F9E9} ${(backup.includes?.addons || backup.addons || []).length} Add-ons</span>` : ''}
+                      ${(backup.includes?.folders?.length > 0 || backup.folders?.length > 0) ? `<span class="content-item">\u{1F4C1} ${(backup.includes?.folders || backup.folders || []).length} Folders</span>` : ''}
+                    </div>
+                    ${backup.includes?.addons?.length > 0 ? `
+                      <div class="addon-list">
+                        <strong>Add-ons:</strong>
+                        ${backup.includes.addons.map(a => `<span>${a}</span>`).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : ''}
+              </div>
+            `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  _renderHealthTab() {
+    const timeSince = this._getTimeSinceBackup();
+    const warnDays = this._config.warn_after_days || 3;
+    const daysStatus = !timeSince ? 'error' : timeSince.days > warnDays ? 'warning' : 'good';
+
+    return `
+      <div class="tab-content active">
+        <div class="health-grid">
+          <div class="health-card">
+            <h3>Last Backup</h3>
+            <div class="health-value ${daysStatus}">
+              ${!timeSince ? 'Never' : `${timeSince.days}d ${timeSince.hours % 24}h ago`}
+            </div>
+            <p class="health-label">Status: ${daysStatus === 'good' ? '✓ Healthy' : daysStatus === 'warning' ? '⚠ Warning' : '✗ No backups'}</p>
+          </div>
+
+          <div class="health-card">
+            <h3>Total Backups</h3>
+            <div class="health-value">${this._healthData.backupCount}</div>
+            <p class="health-label">Max allowed: ${this._config.max_backups || 10}</p>
+          </div>
+
+          <div class="health-card">
+            <h3>Storage Used</h3>
+            <div class="health-value">${this._formatBytes(this._healthData.totalSize)}</div>
+            <p class="health-label">Compressed backups</p>
+          </div>
+
+          <div class="health-card">
+            <h3>Backup Frequency</h3>
+            <canvas id="frequency-chart" width="300" height="150"></canvas>
+            <p class="health-label">Last 4 weeks</p>
+          </div>
+        </div>
+
+        <div class="schedule-section">
+          <h3>Automatic Backups</h3>
+          <p>Check Home Assistant Settings > System > Backups for automatic backup schedule.</p>
+          <div class="schedule-info">
+            <span>Current setting: Home Assistant Default Schedule</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderSettingsTab() {
+    const L = this._lang === 'pl';
+    return `
+      <div class="tab-content active">
+        <div class="settings-section">
+          <h3>${L ? 'Konfiguracja backup\u00F3w' : 'Backup Configuration'}</h3>
+          <div class="setting-item">
+            <label>${L ? 'Ostrze\u017Cenie po (dniach)' : 'Warning After (days)'}</label>
+            <p>${L ? 'Alert gdy backup starszy ni\u017C' : 'Alert when backup is older than'}: ${this._config.warn_after_days || 3} ${L ? 'dni' : 'days'}</p>
+          </div>
+          <div class="setting-item">
+            <label>${L ? 'Maksymalna ilo\u015B\u0107' : 'Maximum Backups'}</label>
+            <p>${L ? 'Przechowuj do' : 'Keep up to'}: ${this._config.max_backups || 10} ${L ? 'kopii' : 'backups'}</p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>\u{1F4BE} ${L ? 'Przechowywanie backup\u00F3w' : 'Backup Storage'}</h3>
+          <p>${L ? 'Kopie przechowywane w' : 'Backups stored in'}: <code style="font-size:12px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">${this._hass?.config?.config_dir || '/config'}/backups</code></p>
+          <p style="margin-top:8px;color:var(--bento-text-secondary,#64748b);font-size:13px;">${L ? 'Zalecane: konfiguruj automatyczne kopiowanie na zewn\u0119trzny no\u015Bnik (NAS, chmura).' : 'Recommended: configure automatic offsite backup (NAS, cloud).'}</p>
+        </div>
+
+        <div class="settings-section">
+          <h3>\u{1F50C} ${L ? 'Integracje do backup\u00F3w' : 'Backup Integrations'}</h3>
+          <p style="color:var(--bento-text-secondary,#64748b);font-size:13px;margin-bottom:12px;">${L ? 'Popularne integracje do automatycznego offsite backup:' : 'Popular integrations for automated offsite backup:'}</p>
+
+          <div style="display:grid;gap:10px;">
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Google Drive Backup</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>hassio-google-drive-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie na Google Drive z rotacj\u0105 i powiadomieniami.' : 'Automatic backups to Google Drive with rotation and notifications.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4C2} Samba / SMB Backup</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>samba-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopiowanie na NAS/Samba share z harmonogramem cron.' : 'Copy to NAS/Samba share with cron schedule.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4F1} Synology NAS</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Integration: <code>synology_dsm</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopie przez Active Backup for Business lub Hyper Backup.' : 'Backups via Active Backup for Business or Hyper Backup.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4E6} Dropbox / OneDrive / S3</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>remote-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Obs\u0142uguje wiele provider\u00F3w chmurowych (rclone-based).' : 'Supports multiple cloud providers (rclone-based).'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Nabu Casa Cloud</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Built-in (${L ? 'wymaga subskrypcji' : 'requires subscription'})</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie w chmurze Nabu Casa z \u0142atwym przywracaniem.' : 'Automatic cloud backups via Nabu Casa with easy restoration.'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _updateUI() {
+    const L = this._lang === 'pl';
+    const tabContent = {
+      backups: () => this._renderBackupsTab(),
+      health: () => this._renderHealthTab(),
+      settings: () => this._renderSettingsTab(),
+    };
+
     const html = `
       <style>${window.HAToolsBentoCSS || ""}
 
@@ -420,8 +628,6 @@ input:focus, select:focus, textarea:focus {
 /* Canvas override (prevent Bento CSS from distorting charts) */
 canvas {
   max-width: 100% !important;
-  height: auto !important;
-  width: auto !important;
   border: none !important;
 }
 
@@ -468,64 +674,55 @@ canvas {
 
 /* ===== END BENTO LIGHT MODE ===== */
 
-        * {
-          box-sizing: border-box;
-        }
-
         :host {
-          --primary-color: var(--bento-card);
-          --text-color: var(--bento-text);
-          --secondary-text: var(--bento-text-secondary);
-          --border-color: var(--bento-border);
-          --ha-card-border-radius: 12px;
+          --primary-color: var(--primary-color, #2196F3);
+          --error-color: var(--error-color, #F44336);
+          --warning-color: var(--warning-color, #FF9800);
+          --success-color: var(--success-color, #4CAF50);
+          --background-color: var(--card-background-color, #fff);
+          --text-color: var(--primary-text-color, #212121);
+          --secondary-text: var(--secondary-text-color, #727272);
+          --border-color: var(--divider-color, #e0e0e0);
+          --dark-mode: ${this._hass?.themes?.darkMode ? 'true' : 'false'};
         }
 
         .card {
-          background: var(--primary-color);
-          color: var(--text-color);
-          border-radius: var(--ha-card-border-radius);
+          background: var(--background-color);
+          border-radius: 8px;
           padding: 16px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          color: var(--text-color);
         }
 
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 2px solid var(--border-color);
-        }
-
-        .title {
+        .card-title {
           font-size: 20px;
-          font-weight: 600;
-          margin: 0;
+          font-weight: 500;
+          margin: 0 0 16px 0;
+          padding: 0;
         }
 
         .tabs {
           display: flex;
           gap: 8px;
-          margin-bottom: 16px;
           border-bottom: 1px solid var(--border-color);
+          margin: 0 -16px 16px -16px;
+          padding: 0 16px;
         }
 
         .tab-btn {
-          padding: 8px 16px;
           background: none;
           border: none;
-          color: var(--secondary-text);
+          padding: 12px 16px;
           cursor: pointer;
+          color: var(--secondary-text);
           font-size: 14px;
           font-weight: 500;
           border-bottom: 3px solid transparent;
-          transition: all 0.3s ease;
+          transition: all 0.2s ease;
         }
 
         .tab-btn.active {
-          color: var(--text-color);
-          border-bottom-color: var(--primary-color-rgb, #3498db);
+          color: var(--primary-color);
+          border-bottom-color: var(--primary-color);
         }
 
         .tab-btn:hover {
@@ -533,301 +730,325 @@ canvas {
         }
 
         .tab-content {
-          display: none;
+          animation: fadeIn 0.2s ease;
         }
 
-        .tab-content.active {
-          display: block;
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
 
-        /* Board View */
-        .board {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 16px;
+        .backup-controls {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
         }
 
-        .column {
-          background: var(--ha-card-background, #f5f5f5);
-          border-radius: 8px;
-          padding: 12px;
-          min-height: 400px;
-        }
-
-        .column-header {
+        .create-btn {
+          padding: 12px 16px;
+          border: none;
+          border-radius: 6px;
+          font-weight: 500;
+          cursor: pointer;
+          font-size: 14px;
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-bottom: 12px;
-          font-weight: 600;
-          font-size: 14px;
-          color: var(--text-color);
-        }
-
-        .column-count {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 24px;
-          height: 24px;
-          background: var(--border-color);
-          border-radius: 50%;
-          font-size: 12px;
-          font-weight: bold;
-        }
-
-        .chore-card {
-          background: white;
-          border: 1px solid var(--border-color);
-          border-radius: 6px;
-          padding: 12px;
-          margin-bottom: 10px;
-          cursor: grab;
           transition: all 0.2s ease;
-          border-left: 4px solid var(--border-color);
         }
 
-        .chore-card:hover {
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .chore-card.priority-high {
-          border-left-color: #ff5252;
-        }
-
-        .chore-card.priority-medium {
-          border-left-color: #ffa726;
-        }
-
-        .chore-card.priority-low {
-          border-left-color: #66bb6a;
-        }
-
-        .chore-title {
-          font-weight: 600;
-          margin: 0 0 6px 0;
-          font-size: 14px;
-        }
-
-        .chore-meta {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 12px;
-          color: var(--secondary-text);
-          margin-top: 8px;
-        }
-
-        .chore-assignee {
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 12px;
+        .full-backup {
+          background: var(--success-color);
           color: white;
-          font-weight: 500;
         }
 
-        .chore-actions {
-          display: flex;
-          gap: 4px;
-          margin-top: 8px;
+        .full-backup:hover {
+          opacity: 0.9;
+          box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
         }
 
-        .btn-small {
-          padding: 4px 8px;
-          font-size: 11px;
-          border: 1px solid var(--border-color);
-          background: none;
-          border-radius: 4px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .btn-small:hover {
-          background: var(--border-color);
-        }
-
-        /* Add Form */
-        .add-form {
-          background: var(--ha-card-background, #f9f9f9);
-          padding: 16px;
-          border-radius: 8px;
-          margin-bottom: 16px;
-        }
-
-        .form-group {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        .form-group.full {
-          grid-column: 1 / -1;
-        }
-
-        label {
-          display: block;
-          font-size: 12px;
-          font-weight: 600;
-          margin-bottom: 4px;
-          color: var(--text-color);
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select {
-          width: 100%;
-          padding: 8px;
-          border: 1px solid var(--border-color);
-          border-radius: 4px;
-          font-size: 13px;
-          background: white;
-          color: var(--text-color);
-        }
-
-        input[type="text"]:focus,
-        input[type="number"]:focus,
-        select:focus {
-          outline: none;
-          border-color: #3498db;
-          box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
-        }
-
-        .btn-primary {
-          grid-column: 1 / -1;
-          padding: 10px 16px;
-          background: #3498db;
+        .partial-backup {
+          background: var(--primary-color);
           color: white;
-          border: none;
-          border-radius: 6px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
         }
 
-        .btn-primary:hover {
-          background: #2980b9;
+        .partial-backup:hover {
+          opacity: 0.9;
+          box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
         }
 
-        /* Schedule View */
-        .schedule {
-          overflow-x: auto;
-        }
-
-        .week-grid {
-          display: grid;
-          grid-template-columns: 120px repeat(7, 1fr);
-          gap: 1px;
-          background: var(--border-color);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-
-        .week-cell {
-          background: white;
-          padding: 12px;
-          min-height: 100px;
-          font-size: 12px;
-        }
-
-        .week-header {
-          background: var(--ha-card-background, #f5f5f5);
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .chore-item {
-          background: #e3f2fd;
-          padding: 4px 6px;
-          border-radius: 3px;
-          margin-bottom: 4px;
-          font-size: 11px;
-          color: #1976d2;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        /* Stats View */
-        .stats-container {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-
-        .stat-card {
-          background: var(--ha-card-background, #f5f5f5);
-          padding: 16px;
-          border-radius: 8px;
-          text-align: center;
-        }
-
-        .stat-value {
-          font-size: 28px;
-          font-weight: bold;
-          color: #3498db;
-          margin: 8px 0;
-        }
-
-        .stat-label {
-          font-size: 12px;
-          color: var(--secondary-text);
-          font-weight: 500;
-        }
-
-        .leaderboard {
-          background: white;
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-
-        .leaderboard-row {
-          display: grid;
-          grid-template-columns: 40px 1fr auto auto;
-          align-items: center;
-          padding: 12px 16px;
-          border-bottom: 1px solid var(--border-color);
-          font-size: 13px;
-        }
-
-        .leaderboard-row:last-child {
-          border-bottom: none;
-        }
-
-        .rank {
-          font-weight: bold;
+        .create-btn .icon {
           font-size: 16px;
         }
 
-        .name {
-          font-weight: 500;
+        .error-banner {
+          background: var(--error-color);
+          color: white;
+          padding: 12px 16px;
+          border-radius: 6px;
+          margin-bottom: 16px;
+          font-size: 14px;
         }
 
-        .streak {
-          color: #ff9800;
+        .backups-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .backup-item {
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          padding: 16px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .backup-item:hover {
+          border-color: var(--primary-color);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .backup-item.selected {
+          border-color: var(--primary-color);
+          background: rgba(33, 150, 243, 0.05);
+        }
+
+        .backup-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+        }
+
+        .backup-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .backup-info h3 {
+          margin: 0 0 8px 0;
+          font-size: 16px;
+        }
+
+        .badge.method {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          background: rgba(100, 116, 139, 0.15);
+          color: #64748B;
+        }
+
+        .badge.protected {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          background: rgba(76, 175, 80, 0.15);
+          color: #4caf50;
+        }
+
+        .backup-type {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 12px;
           font-weight: 600;
         }
 
-        .completion {
-          color: #66bb6a;
-          font-weight: 600;
+        .backup-type.full {
+          background: rgba(76, 175, 80, 0.2);
+          color: var(--success-color);
+        }
+
+        .backup-type.partial {
+          background: rgba(255, 152, 0, 0.2);
+          color: var(--warning-color);
+        }
+
+        .badge {
+          display: inline-block;
+          padding: 2px 8px;
+          margin-left: 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          background: rgba(33, 150, 243, 0.2);
+          color: var(--primary-color);
+        }
+
+        .backup-meta {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+          min-width: 150px;
+        }
+
+        .date, .size {
+          font-size: 13px;
+          color: var(--secondary-text);
+        }
+
+        .backup-details {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid var(--border-color);
+        }
+
+        .backup-details h4 {
+          margin: 0 0 12px 0;
+          font-size: 14px;
+          color: var(--secondary-text);
+        }
+
+        .contents-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+
+        .content-item {
+          padding: 8px 12px;
+          background: rgba(33, 150, 243, 0.1);
+          border-radius: 4px;
+          font-size: 13px;
+        }
+
+        .addon-list {
+          margin-top: 8px;
+          padding: 8px;
+          background: rgba(0, 0, 0, 0.02);
+          border-radius: 4px;
+          font-size: 12px;
+        }
+
+        .addon-list span {
+          display: inline-block;
+          margin-right: 8px;
+          margin-top: 4px;
+          padding: 2px 6px;
+          background: var(--border-color);
+          border-radius: 3px;
         }
 
         .empty-state {
           text-align: center;
           padding: 40px 20px;
           color: var(--secondary-text);
+          font-size: 14px;
         }
 
-        .emoji {
-          margin-right: 4px;
+        .health-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+
+        .health-card {
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          padding: 16px;
+        }
+
+        .health-card canvas { max-height: 150px; display: block; }
+        .health-card h3 {
+          margin: 0 0 12px 0;
+          font-size: 14px;
+          color: var(--secondary-text);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .health-value {
+          font-size: 32px;
+          font-weight: 600;
+          margin: 8px 0;
+        }
+
+        .health-value.good {
+          color: var(--success-color);
+        }
+
+        .health-value.warning {
+          color: var(--warning-color);
+        }
+
+        .health-value.error {
+          color: var(--error-color);
+        }
+
+        .health-label {
+          margin: 8px 0 0 0;
+          font-size: 13px;
+          color: var(--secondary-text);
+        }
+
+        .schedule-section, .settings-section {
+          margin-bottom: 24px;
+          padding: 16px;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+        }
+
+        .schedule-section h3, .settings-section h3 {
+          margin: 0 0 12px 0;
+          font-size: 16px;
+        }
+
+        .schedule-info {
+          background: rgba(33, 150, 243, 0.05);
+          padding: 12px;
+          border-radius: 4px;
+          margin-top: 12px;
+          font-size: 13px;
+        }
+
+        .setting-item {
+          margin-bottom: 12px;
+        }
+
+        .setting-item label {
+          display: block;
+          font-weight: 500;
+          margin-bottom: 4px;
+        }
+
+        .setting-item p {
+          margin: 0;
+          font-size: 14px;
+          color: var(--secondary-text);
+        }
+
+        @media (max-width: 600px) {
+          .backup-header {
+            flex-direction: column;
+          }
+
+          .backup-meta {
+            align-items: flex-start;
+          }
+
+          .health-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .contents-grid {
+            grid-template-columns: 1fr;
+          }
         }
       
 /* === Modern Bento Light Mode === */
+
 
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
@@ -840,10 +1061,10 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
+  --bento-radius: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -851,8 +1072,8 @@ canvas {
 }
 * { box-sizing: border-box; }
 
-.card, .card-container, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
+.card, .card, .reports-card, .export-card {
+  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -922,7 +1143,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
+.alert-item:hover { box-shadow: var(--bento-shadow); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -1033,7 +1254,7 @@ textarea { min-height: 80px; resize: vertical; }
 .timeline-time { font-size: 12px; color: var(--bento-text-secondary); font-weight: 500; }
 .timeline-content { font-size: 13px; color: var(--bento-text); margin-top: 4px; }
 
-canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 16px; }
+canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 16px; }
 .canvas-container { position: relative; margin-bottom: 16px; }
 .chart-container { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 16px; border: 1px solid var(--bento-border); margin-bottom: 16px; }
 
@@ -1108,20 +1329,44 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 ::-webkit-scrollbar-thumb:hover { background: var(--bento-text-secondary); }
 
 @media (max-width: 768px) {
-  .card, .card-container, .reports-card, .export-card { padding: 16px; }
+  .card, .card, .reports-card, .export-card { padding: 16px; }
   .stats, .stats-grid, .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .panels { flex-direction: column; }
   .board { flex-direction: column; }
   .column { min-width: unset; }
 }
 
-/* === DARK MODE === */
+
+/* === DARK MODE (H6 fix) === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    color-scheme: dark !important;
+  }
+  .card { background: var(--bento-card); color: var(--bento-text); }
+  .backup-item { border-color: var(--bento-border); }
+  .backup-item:hover { border-color: var(--bento-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .backup-item.selected { background: rgba(59,130,246,0.12); }
+  .health-card, .schedule-section, .settings-section { border-color: var(--bento-border); background: var(--bento-bg); }
+  .content-item { background: rgba(59,130,246,0.15); color: var(--bento-text); }
+  .addon-list { background: rgba(255,255,255,0.05); }
+  .schedule-info { background: rgba(59,130,246,0.1); }
+  .create-btn.full-backup { background: #059669; }
+  .create-btn.partial-backup { background: #2563EB; }
+}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
-          .card, .card-container { padding: 14px; }
+          .card, .card { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
           .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
@@ -1136,123 +1381,29 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
+      
 
 </style>
 
       <div class="card">
-        <div class="card-header">
-          <h2 class="title">🏠 ${this.config.title || 'Chore Tracker'}</h2>
-        </div>
+        <h1 class="card-title">${this._config.title || 'Backup Manager'}</h1>
 
         <div class="tabs">
-          <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">📋 Board</button>
-          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">📅 Schedule</button>
-          <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">🏆 Stats</button>
-          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">⚙️ Ustawienia</button>
+          <button class="tab-btn ${this._activeTab === 'backups' ? 'active' : ''}"
+                  data-tab="backups">
+            ${L ? 'Kopie zapasowe' : 'Backups'}
+          </button>
+          <button class="tab-btn ${this._activeTab === 'health' ? 'active' : ''}"
+                  data-tab="health">
+            ${L ? 'Zdrowie' : 'Health'}
+          </button>
+          <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}"
+                  data-tab="settings">
+            ${L ? 'Ustawienia' : 'Settings'}
+          </button>
         </div>
 
-        <!-- Board Tab -->
-        ${this.activeTab === 'board' ? `
-        <div class="tab-content active" id="board-tab">
-          <div class="add-form">
-            <div class="form-group full">
-              <label>Chore Name</label>
-              <input type="text" id="chore-name" placeholder="Enter chore name">
-            </div>
-
-            <div class="form-group">
-              <div>
-                <label>Assignee</label>
-                <select id="chore-assignee">
-                  ${this.members.map(m => `<option value="${m.name}">${m.name}</option>`).join('')}
-                </select>
-              </div>
-              <div>
-                <label>Room/Area</label>
-                <select id="chore-room">
-                  <option value="Kitchen">🍳 Kitchen</option>
-                  <option value="Bathroom">🚿 Bathroom</option>
-                  <option value="Bedroom">🛏️ Bedroom</option>
-                  <option value="Living">🛋️ Living Room</option>
-                  <option value="Yard">🌳 Yard</option>
-                  <option value="General">📌 General</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <div>
-                <label>Frequency</label>
-                <select id="chore-frequency">
-                  <option value="daily">Codziennie</option>
-            <option value="every_2_days">Co 2 dni</option>
-            <option value="every_3_days">Co 3 dni</option>
-            <option value="weekly">Co tydzień</option>
-            <option value="biweekly">Co 2 tygodnie</option>
-            <option value="monthly">Co miesiąc</option>
-            <option value="once">Jednorazowe</option>
-                </select>
-              </div>
-              <div>
-                <label>Priority</label>
-                <select id="chore-priority">
-                  <option value="low">Low 🟢</option>
-                  <option value="medium">Medium 🟡</option>
-                  <option value="high">High 🔴</option>
-                </select>
-              </div>
-            </div>
-
-            <button class="btn-primary" id="add-btn">➕ Add Chore</button>
-          </div>
-
-          <div class="board" id="board">
-            <div class="column" data-status="todo">
-              <div class="column-header">
-                <span>📝 To Do</span>
-                <div class="column-count">0</div>
-              </div>
-            </div>
-            <div class="column" data-status="in-progress">
-              <div class="column-header">
-                <span>⏳ In Progress</span>
-                <div class="column-count">0</div>
-              </div>
-            </div>
-            <div class="column" data-status="done">
-              <div class="column-header">
-                <span>✅ Done</span>
-                <div class="column-count">0</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        ` : ''}
-
-        <!-- Schedule Tab -->
-        ${this.activeTab === 'schedule' ? `
-        <div class="tab-content active" id="schedule-tab">
-          <div class="schedule" id="schedule"></div>
-          <div id="empty-schedule" class="empty-state" style="display:none;">
-            <div class="empty-icon">📅</div>
-            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Schedule Yet</h3>
-            <p style="margin:0 0 16px;max-width:280px;">Add chores with assigned days to see your weekly schedule here.</p>
-          </div>
-        </div>
-        ` : ''}
-
-        <!-- Stats Tab -->
-        ${this.activeTab === 'stats' ? `
-        <div class="tab-content active" id="stats-tab">
-          <div class="stats-container" id="stats-container"></div>
-          <div class="leaderboard" id="leaderboard"></div>
-          <div id="empty-stats" class="empty-state" style="display:none;">
-            <div class="empty-icon">📊</div>
-            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Stats Yet</h3>
-            <p style="margin:0 0 16px;max-width:280px;">Complete some chores and check back — your productivity stats will appear here.</p>
-          </div>
-        </div>
-        ` : ''}
+        ${tabContent[this._activeTab]()}
       </div>
     `;
 
@@ -1260,265 +1411,93 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this._lastHtml = html;
     this.shadowRoot.innerHTML = html;
 
-    this.setupEventListeners();
-    this.updateBoard();
-  }
+    this._attachEventListeners();
 
-  setupEventListeners() {
-    // Tab switching
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-    });
-
-    // Add chore
-    this.shadowRoot.getElementById('add-btn').addEventListener('click', () => this.addChore());
-
-    // Board column clicks
-    this.shadowRoot.querySelectorAll('.column').forEach(col => {
-      col.addEventListener('click', (e) => {
-        if (e.target.classList.contains('btn-small')) {
-          const action = e.target.dataset.action;
-          const choreId = e.target.closest('.chore-card').dataset.id;
-          if (action === 'next') this.moveChore(choreId, 'next');
-          if (action === 'prev') this.moveChore(choreId, 'prev');
-          if (action === 'delete') this.deleteChore(choreId);
-        }
-      });
-    });
-  }
-
-  switchTab(tabName) {
-    this.activeTab = tabName;
-    this.shadowRoot.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-
-    this.shadowRoot.getElementById(`${tabName}-tab`).classList.add('active');
-    this.shadowRoot.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
-    if (tabName === 'schedule') this.updateSchedule();
-    if (tabName === 'stats') this.updateStats();
-  }
-
-  addChore() {
-    const name = this.shadowRoot.getElementById('chore-name').value.trim();
-    const assignee = this.shadowRoot.getElementById('chore-assignee').value;
-    const room = this.shadowRoot.getElementById('chore-room').value;
-    const frequency = this.shadowRoot.getElementById('chore-frequency').value;
-    const priority = this.shadowRoot.getElementById('chore-priority').value;
-
-    if (!name) return;
-
-    const chore = {
-      id: Date.now(),
-      name,
-      assignee,
-      room,
-      frequency,
-      priority,
-      status: 'todo',
-      completedCount: 0,
-      lastCompleted: null,
-      streak: 0
-    };
-
-    this.chores.push(chore);
-    this._saveData();
-    this.shadowRoot.getElementById('chore-name').value = '';
-    this.updateBoard();
-  }
-
-  moveChore(choreId, direction) {
-    const chore = this.chores.find(c => c.id == choreId);
-    if (!chore) return;
-
-    const statuses = ['todo', 'in-progress', 'done'];
-    const currentIndex = statuses.indexOf(chore.status);
-
-    if (direction === 'next' && currentIndex < statuses.length - 1) {
-      chore.status = statuses[currentIndex + 1];
-      if (chore.status === 'done') {
-        chore.completedCount++;
-        chore.lastCompleted = new Date();
-        chore.streak++;
+    if (this._activeTab === 'health') {
+        this._loadChartJS().then(() => {
+          setTimeout(() => this._drawFrequencyChart(), 100);
+        });
       }
-    } else if (direction === 'prev' && currentIndex > 0) {
-      chore.status = statuses[currentIndex - 1];
+  }
+
+  _switchTab(tab) {
+    this._activeTab = tab;
+    try { localStorage.setItem('ha-backup-manager-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+    this._updateUI();
+  }
+
+  _drawFrequencyChart() {
+    const canvas = this.shadowRoot?.getElementById('frequency-chart');
+    if (!canvas) return;
+
+    // Destroy existing chart if it exists
+    if (this._charts['frequency']) {
+      this._charts['frequency'].destroy();
     }
 
-    this._saveData();
-    this.updateBoard();
-  }
+    const ctx = canvas.getContext('2d');
+    const labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    const maxValue = Math.max(...this._healthData.weeklyData, 5);
 
-  deleteChore(choreId) {
-    this.chores = this.chores.filter(c => c.id != choreId);
-    this._saveData();
-    this.updateBoard();
-  }
-
-  updateBoard() {
-    const statuses = ['todo', 'in-progress', 'done'];
-
-    statuses.forEach(status => {
-      const column = this.shadowRoot.querySelector(`[data-status="${status}"]`);
-      const choreCards = this.chores.filter(c => c.status === status);
-
-      const cardsHtml = choreCards.map(chore => `
-        <div class="chore-card priority-${chore.priority}" data-id="${chore.id}">
-          <h3 class="chore-title">${chore.name}</h3>
-          <div class="chore-meta">
-            <span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${chore.assignee}</span>
-            <span>${this.getRoomEmoji(chore.room)}</span>
-          </div>
-          <div style="font-size: 11px; color: var(--secondary-text); margin-top: 6px;">
-            ${this.getFrequencyLabel(chore.frequency)} • ${chore.priority.charAt(0).toUpperCase() + chore.priority.slice(1)}
-          </div>
-          <div class="chore-actions">
-            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next →</button>` : ''}
-            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">← Back</button>` : ''}
-            <button class="btn-small" data-action="delete">🗑️</button>
-          </div>
-        </div>
-      `).join('');
-
-      const countEl = column.querySelector('.column-count');
-      countEl.textContent = choreCards.length;
-
-      const existingCards = column.querySelectorAll('.chore-card');
-      existingCards.forEach(card => card.remove());
-
-      column.insertAdjacentHTML('beforeend', cardsHtml);
+    this._charts['frequency'] = new window.Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Backups',
+          data: this._healthData.weeklyData,
+          backgroundColor: '#3B82F6',
+          borderColor: '#3B82F6',
+          borderRadius: 4,
+          borderSkipped: false,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'x',
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: maxValue,
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)',
+            },
+          },
+          x: {
+            grid: {
+              display: false,
+            },
+          },
+        },
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+      },
     });
   }
 
-  updateSchedule() {
-    const scheduleEl = this.shadowRoot.getElementById('schedule');
-    const emptyEl = this.shadowRoot.getElementById('empty-schedule');
-
-    if (this.chores.length === 0) {
-      scheduleEl.style.display = 'none';
-      emptyEl.style.display = 'block';
-      return;
-    }
-
-    scheduleEl.style.display = 'block';
-    emptyEl.style.display = 'none';
-
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    let html = '<div class="week-grid">';
-
-    html += '<div class="week-cell week-header">Chore</div>';
-    days.forEach(day => {
-      html += `<div class="week-cell week-header">${day}</div>`;
+  _attachEventListeners() {
+    // Tab button listeners
+    this.shadowRoot?.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+      btn.addEventListener('click', () => this._switchTab(btn.getAttribute('data-tab')));
     });
-
-    this.chores.forEach(chore => {
-      html += `<div class="week-cell"><strong>${chore.name}</strong></div>`;
-      days.forEach((_, index) => {
-        const show = this.isChoreOnDay(chore, index);
-        html += `<div class="week-cell">${show ? `<div class="chore-item">${chore.room}</div>` : ''}</div>`;
+    // Backup item click (H1 fix)
+    this.shadowRoot?.querySelectorAll('.backup-item[data-slug]').forEach(item => {
+      item.addEventListener('click', () => {
+        const slug = item.getAttribute('data-slug');
+        const backup = this._backups.find(b => b.slug === slug);
+        if (backup) this._selectBackup(backup);
       });
     });
-
-    html += '</div>';
-    scheduleEl.innerHTML = html;
-  }
-
-  isChoreOnDay(chore, dayIndex) {
-    if (chore.frequency === 'daily') return true;
-    if (chore.frequency === 'weekly') return dayIndex === 0;
-    if (chore.frequency === 'biweekly') return dayIndex === 0;
-    if (chore.frequency === 'monthly') return dayIndex === 0;
-    return false;
-  }
-
-  updateStats() {
-    const statsEl = this.shadowRoot.getElementById('stats-container');
-    const leaderboardEl = this.shadowRoot.getElementById('leaderboard');
-    const emptyEl = this.shadowRoot.getElementById('empty-stats');
-
-    const completedChores = this.chores.filter(c => c.completedCount > 0).length;
-    const totalChores = this.chores.length;
-    const overallCompletion = totalChores > 0 ? Math.round((completedChores / totalChores) * 100) : 0;
-
-    const memberStats = {};
-    this.members.forEach(m => {
-      const memberChores = this.chores.filter(c => c.assignee === m.name);
-      const completedByMember = memberChores.reduce((sum, c) => sum + c.completedCount, 0);
-      const totalByMember = memberChores.length;
-      const maxStreak = memberChores.length > 0 ? Math.max(...memberChores.map(c => c.streak)) : 0;
-
-      memberStats[m.name] = {
-        completed: completedByMember,
-        total: totalByMember,
-        streak: maxStreak
-      };
+    // Create backup buttons
+    this.shadowRoot?.querySelectorAll('.create-btn[data-backup-type]').forEach(btn => {
+      btn.addEventListener('click', () => this._createBackup(btn.getAttribute('data-backup-type') === 'full'));
     });
-
-    const sortedMembers = Object.entries(memberStats).sort((a, b) => b[1].completed - a[1].completed);
-
-    statsEl.innerHTML = `
-      <div class="stat-card">
-        <div class="stat-label">📋 Total Chores</div>
-        <div class="stat-value">${totalChores}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">✅ Completed</div>
-        <div class="stat-value">${completedChores}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">📊 Completion Rate</div>
-        <div class="stat-value">${overallCompletion}%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">👥 Active Members</div>
-        <div class="stat-value">${this.members.length}</div>
-      </div>
-    `;
-
-    if (sortedMembers.length === 0) {
-      leaderboardEl.style.display = 'none';
-      emptyEl.style.display = 'block';
-      return;
-    }
-
-    leaderboardEl.style.display = 'block';
-    emptyEl.style.display = 'none';
-
-    leaderboardEl.innerHTML = sortedMembers.map((entry, index) => `
-      <div class="leaderboard-row">
-        <div class="rank">#${index + 1}</div>
-        <div class="name">${entry[0]}</div>
-        <div class="completion">${entry[1].completed} done</div>
-        <div class="streak">🔥 ${entry[1].streak}</div>
-      </div>
-    `).join('');
-  }
-
-  getMemberColor(memberName) {
-    const member = this.members.find(m => m.name === memberName);
-    return member ? member.color : '#999999';
-  }
-
-  getRoomEmoji(room) {
-    const emojis = {
-      'Kitchen': '🍳',
-      'Bathroom': '🚿',
-      'Bedroom': '🛏️',
-      'Living': '🛋️',
-      'Yard': '🌳',
-      'General': '📌'
-    };
-    return emojis[room] || '📌';
-  }
-
-  getFrequencyLabel(freq) {
-    const labels = {
-      'daily': 'Daily',
-      'weekly': 'Weekly',
-      'biweekly': 'Bi-weekly',
-      'monthly': 'Monthly'
-    };
-    return labels[freq] || freq;
+    // Pagination
+    this._setupPaginationListeners();
   }
   // --- Pagination helper ---
   _renderPagination(tabName, totalItems) {
@@ -1568,12 +1547,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 }
 
-customElements.define('ha-chore-tracker', HaChoreTracker);
-
+if (!customElements.get('ha-backup-manager')) { customElements.define('ha-backup-manager', HaBackupManager); }
 window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-chore-tracker', name: 'Chore Tracker', description: 'Track household chores and responsibilities', preview: false });
+window.customCards.push({ type: 'ha-backup-manager', name: 'Backup Manager', description: 'Manage Home Assistant backups with monitoring', preview: false });
+;
 
-class HaChoreTrackerEditor extends HTMLElement {
+class HaBackupManagerEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -1594,10 +1573,20 @@ class HaChoreTrackerEditor extends HTMLElement {
         input { outline:none; transition:border-color .2s; }
         input:focus { border-color:var(--primary-color,#3b82f6); }
       </style>
-      <h3>Chore Tracker</h3>
+      <h3>Backup Manager</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Chore Tracker'}"
+              <input type="text" id="cf_title" value="${this._config?.title || 'Backup Manager'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Warning after (days)</label>
+              <input type="text" id="cf_warn_after_days" value="${this._config?.warn_after_days || '3'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Max backups</label>
+              <input type="text" id="cf_max_backups" value="${this._config?.max_backups || '10'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
@@ -1606,7 +1595,17 @@ class HaChoreTrackerEditor extends HTMLElement {
           this._config = { ...this._config, title: e.target.value };
           this._dispatch();
         });
+        const f_warn_after_days = this.shadowRoot.querySelector('#cf_warn_after_days');
+        if (f_warn_after_days) f_warn_after_days.addEventListener('input', (e) => {
+          this._config = { ...this._config, warn_after_days: e.target.value };
+          this._dispatch();
+        });
+        const f_max_backups = this.shadowRoot.querySelector('#cf_max_backups');
+        if (f_max_backups) f_max_backups.addEventListener('input', (e) => {
+          this._config = { ...this._config, max_backups: e.target.value };
+          this._dispatch();
+        });
   }
   connectedCallback() { this._render(); }
 }
-if (!customElements.get('ha-chore-tracker-editor')) { customElements.define('ha-chore-tracker-editor', HaChoreTrackerEditor); }
+if (!customElements.get('ha-backup-manager-editor')) { customElements.define('ha-backup-manager-editor', HaBackupManagerEditor); }

@@ -1,67 +1,3 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
 /**
  * Home Assistant Data Exporter Card
  * Export devices, entities, states, and attributes to CSV/JSON
@@ -513,13 +449,13 @@ canvas {
 /* ===== END BENTO LIGHT MODE ===== */
 
         :host {
-          --primary-color: var(--bento-primary);
-          --bg-color: var(--bento-card);
-          --text-color: var(--bento-text);
-          --secondary-text: var(--bento-text-secondary);
-          --border-color: var(--bento-border);
-          --hover-bg: var(--bento-primary-light);
-          --accent: var(--bento-primary);
+          --primary-color: var(--ha-card-header-color, #1976d2);
+          --bg-color: var(--ha-card-background, var(--card-background-color, #fff));
+          --text-color: var(--primary-text-color, #333);
+          --secondary-text: var(--secondary-text-color, #666);
+          --border-color: var(--divider-color, #e0e0e0);
+          --hover-bg: var(--table-row-alternative-background-color, #f5f5f5);
+          --accent: var(--accent-color, #03a9f4);
         }
         .exporter-card {
           background: var(--bg-color);
@@ -527,8 +463,6 @@ canvas {
           padding: 16px;
           font-family: var(--ha-card-header-font-family, inherit);
           color: var(--text-color);
-          overflow: hidden;
-          min-width: 0;
         }
         .card-header {
           display: flex;
@@ -551,7 +485,7 @@ canvas {
           margin-bottom: 12px;
           flex-wrap: wrap;
         }
-        .toolbar select, .toolbar input[type="text"] {
+        .toolbar select, .toolbar input {
           padding: 6px 10px;
           border: 1px solid var(--bento-border);
           border-radius: 6px;
@@ -560,11 +494,11 @@ canvas {
           font-size: 13px;
           outline: none;
         }
-        .toolbar input[type="text"] {
+        .toolbar input {
           flex: 1;
           min-width: 150px;
         }
-        .toolbar select:focus, .toolbar input[type="text"]:focus {
+        .toolbar select:focus, .toolbar input:focus {
           border-color: var(--accent);
         }
         .toolbar-spacer {
@@ -875,7 +809,7 @@ canvas {
         @media (max-width: 480px) {
           .tab { font-size: 11px; padding: 5px 8px; }
           .entity-grid { gap: 8px; }
-          .toolbar input[type="text"] { min-width: 100px; }
+          .toolbar input { min-width: 100px; }
           .toolbar select { padding: 4px 8px; font-size: 12px; }
           .btn-sm { padding: 4px 8px; font-size: 10px; }
         }
@@ -923,9 +857,10 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:400;background:var(--bento-border,#e2e8f0);color:var(--bento-text,#1e293b);padding:5px 10px;border-radius:6px"><input type="checkbox" id="includeAttrs" checked style="margin:0;accent-color:var(--primary-color)" /> Atrybuty</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button>
+            <label class="export-option export-option-sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="includeAttrs" checked style="margin:0" /> Atrybuty</label>
           </div>
-          <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
+          <div class="snapshot-bar" style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
               <input type="checkbox" id="snapshotEnabled" ${this._snapshotSettings.enabled ? 'checked' : ''} />
               Snapshots

@@ -1,67 +1,3 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
 /**
  * HA Log Email Card v1.0
  * Send periodic email summaries of HA errors and warnings.
@@ -641,11 +577,11 @@ class HALogEmail extends HTMLElement {
             Polling wysyła persistent_notification w HA przy wykryciu nowego ERROR. Alternatywnie użyj automatyzacji:
           </p>
           <p style="margin:0 0 8px 0;font-weight:600;font-size:13px">Automatyczne powiadomienia przy nowym bledzie</p>
-          <p style="margin:0 0 12px 0;font-size:12px;color:var(--bento-text-secondary)">
+          <p style="margin:0 0 12px 0;font-size:12px;color:var(--text2)">
             Skopiuj ponizszq automatyzacje do <code>automations.yaml</code> aby otrzymywac natychmiastowy email/powiadomienie przy kazdym nowym ERROR w system_log.
           </p>
           <details style="margin-top:8px">
-            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary)">Pokaz YAML automatyzacji</summary>
+            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--primary)">Pokaz YAML automatyzacji</summary>
             <pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.5;margin-top:8px">alias: "Log Email - Instant Error Alert"
 description: "Wyslij powiadomienie przy nowym bledzie w system_log"
 trigger:
@@ -679,39 +615,11 @@ max: 3</pre>
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
 
-        
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
-          --bg: var(--bento-bg); --card: var(--bento-card); --border: var(--bento-border);
-          --text: var(--bento-text); --text2: var(--bento-text-secondary); --text3: var(--bento-text-muted);
-          --primary: var(--bento-primary); --success: var(--bento-success); --error: var(--bento-error);
-          --warning: var(--bento-warning); --radius: var(--bento-radius-sm); --radius-sm: var(--bento-radius-xs);
+        :host {
+          --bg: var(--primary-background-color, #F8FAFC); --card: var(--card-background-color, #FFFFFF); --border: var(--divider-color, #E2E8F0);
+          --text: var(--primary-text-color, #1E293B); --text2: var(--secondary-text-color, #64748B); --text3: var(--disabled-text-color, #94A3B8);
+          --primary: #3B82F6; --success: #10B981; --error: #EF4444;
+          --warning: #F59E0B; --radius: 12px; --radius-sm: 8px;
           display: block; font-family: Inter, sans-serif;
           color-scheme: light dark;
         }
@@ -722,88 +630,88 @@ max: 3</pre>
           }
         }
         * { box-sizing: border-box; }
-        .card { background: var(--bento-card); border-radius: var(--bento-radius-md); overflow: hidden; max-width: 100%; box-sizing: border-box; }
+        .card { background: var(--card); border-radius: var(--radius); overflow: hidden; max-width: 100%; box-sizing: border-box; }
         .header { padding: 16px 20px 0; display: flex; align-items: center; gap: 10px; }
         .header-icon { font-size: 22px; }
-        .header-title { font-size: 16px; font-weight: 700; color: var(--bento-text); }
-        .header-badge { margin-left: auto; background: var(--bento-border); color: var(--bento-text-secondary); font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 500; }
-        .tabs { display: flex; border-bottom: 1px solid var(--bento-border); margin-top: 12px; }
-        .tab { flex: 1; padding: 10px 4px; font-size: 12px; font-weight: 600; text-align: center; cursor: pointer; color: var(--bento-text-secondary); border: none; background: none; transition: all .2s; }
-        .tab:hover { color: var(--bento-primary); }
-        .tab.active { color: var(--bento-primary); border-bottom: 2px solid var(--bento-primary); margin-bottom: -1px; }
+        .header-title { font-size: 16px; font-weight: 700; color: var(--text); }
+        .header-badge { margin-left: auto; background: var(--border); color: var(--text2); font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 500; }
+        .tabs { display: flex; border-bottom: 1px solid var(--border); margin-top: 12px; }
+        .tab { flex: 1; padding: 10px 4px; font-size: 12px; font-weight: 600; text-align: center; cursor: pointer; color: var(--text2); border: none; background: none; transition: all .2s; }
+        .tab:hover { color: var(--primary); }
+        .tab.active { color: var(--primary); border-bottom: 2px solid var(--primary); margin-bottom: -1px; }
         .content { padding: 16px; }
 
         .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-        .stat-card { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; border: 1px solid var(--bento-border); }
+        .stat-card { background: var(--bg); border-radius: var(--radius-sm); padding: 14px; text-align: center; border: 1px solid var(--border); }
         .stat-card.stat-error { border-color: #ef444440; background: #ef444408; }
         .stat-card.stat-warn { border-color: #f59e0b40; background: #f59e0b08; }
         .stat-card.stat-ok { border-color: #10b98140; background: #10b98108; }
         .stat-icon { font-size: 20px; margin-bottom: 4px; }
-        .stat-value { font-size: 22px; font-weight: 700; color: var(--bento-text); }
-        .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+        .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
+        .stat-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
 
-        .section-header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin: 12px 0 8px; }
-        .loading-bar { height: 3px; background: linear-gradient(90deg, var(--bento-primary), transparent); border-radius: 2px; animation: load 1s infinite; margin-bottom: 8px; }
+        .section-header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin: 12px 0 8px; }
+        .loading-bar { height: 3px; background: linear-gradient(90deg, var(--primary), transparent); border-radius: 2px; animation: load 1s infinite; margin-bottom: 8px; }
         @keyframes load { 0%{background-position:0} 100%{background-position:200px} }
 
-        .log-entry { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 6px; padding: 8px; border-radius: var(--bento-radius-sm); margin-bottom: 4px; font-size: 12px; min-width: 0; overflow: hidden; }
+        .log-entry { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 6px; padding: 8px; border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 12px; min-width: 0; overflow: hidden; }
         .error-entry { background: #ef444408; border: 1px solid #ef444420; }
         .warn-entry { background: #f59e0b08; border: 1px solid #f59e0b20; }
-        .log-time { color: var(--bento-text-muted); flex-shrink: 0; }
+        .log-time { color: var(--text3); flex-shrink: 0; }
         .log-domain { font-weight: 600; flex-shrink: 1; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; word-break: break-all; }
         .error-domain { color: #ef4444; }
         .warn-domain { color: #f59e0b; }
-        .log-msg { color: var(--bento-text-secondary); flex-basis: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap; min-width: 0; }
-        .empty-state { text-align: center; color: var(--bento-text-secondary); padding: 16px; font-size: 13px; background: var(--bento-bg); border-radius: var(--bento-radius-sm); }
-        .last-updated { font-size: 11px; color: var(--bento-text-muted); text-align: right; margin-top: 8px; }
-        .info-note { font-size: 12px; color: var(--bento-text-secondary); background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 8px 10px; border-left: 3px solid var(--bento-primary); margin-top: 8px; }
+        .log-msg { color: var(--text2); flex-basis: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap; min-width: 0; }
+        .empty-state { text-align: center; color: var(--text2); padding: 16px; font-size: 13px; background: var(--bg); border-radius: var(--radius-sm); }
+        .last-updated { font-size: 11px; color: var(--text3); text-align: right; margin-top: 8px; }
+        .info-note { font-size: 12px; color: var(--text2); background: var(--bg); border-radius: var(--radius-sm); padding: 8px 10px; border-left: 3px solid var(--primary); margin-top: 8px; }
 
-        .refresh-btn { background: var(--bento-border); border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--bento-text-secondary); cursor: pointer; font-weight: 500; }
-        .refresh-btn:hover { background: var(--bento-primary); color: white; }
+        .refresh-btn { background: var(--border); border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--text2); cursor: pointer; font-weight: 500; }
+        .refresh-btn:hover { background: var(--primary); color: white; }
 
         .schedule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .schedule-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; }
-        .schedule-title { font-weight: 600; color: var(--bento-text); margin-bottom: 4px; }
-        .schedule-desc { font-size: 12px; color: var(--bento-text-secondary); margin-bottom: 10px; }
+        .schedule-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+        .schedule-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+        .schedule-desc { font-size: 12px; color: var(--text2); margin-bottom: 10px; }
         .schedule-row { display: flex; align-items: center; justify-content: space-between; }
         .schedule-status { font-size: 12px; font-weight: 600; }
         .status-on { color: #10b981; }
-        .status-off { color: var(--bento-text-muted); }
-        .toggle-btn { background: var(--bento-primary); border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; color: white; cursor: pointer; font-weight: 500; }
+        .status-off { color: var(--text3); }
+        .toggle-btn { background: var(--primary); border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; color: white; cursor: pointer; font-weight: 500; }
         .toggle-btn:hover { opacity: .85; }
-        .info-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 12px; font-size: 13px; color: var(--bento-text-secondary); }
+        .info-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-size: 13px; color: var(--text2); }
         .setup-steps { line-height: 1.8; }
         .setup-steps p { margin: 6px 0; }
-        .setup-steps pre { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: 4px; padding: 8px; font-size: 12px; color: var(--bento-primary); margin: 4px 0; overflow-x: auto; }
-        code { background: var(--bento-border); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+        .setup-steps pre { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-size: 12px; color: var(--primary); margin: 4px 0; overflow-x: auto; }
+        code { background: var(--border); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
 
-        .smtp-section { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+        .smtp-section { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
     .smtp-missing { border-color: #f59e0b40; background: #fef3c710; }
     .smtp-header { display: flex; align-items: center; gap: 10px; }
     .smtp-icon { font-size: 22px; }
-    .smtp-title { font-weight: 700; font-size: 13px; color: var(--bento-text); }
-    .smtp-sub { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
-    .smtp-sub code { background: var(--bento-border); padding: 1px 5px; border-radius: 4px; font-size: 10px; }
+    .smtp-title { font-weight: 700; font-size: 13px; color: var(--text); }
+    .smtp-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .smtp-sub code { background: var(--border); padding: 1px 5px; border-radius: 4px; font-size: 10px; }
     .smtp-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-    .smtp-guide { margin-top: 12px; font-size: 12px; line-height: 1.6; color: var(--bento-text-secondary); }
+    .smtp-guide { margin-top: 12px; font-size: 12px; line-height: 1.6; color: var(--text2); }
     .smtp-guide p { margin: 6px 0; }
-    .smtp-guide code { background: var(--bento-border); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+    .smtp-guide code { background: var(--border); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
     .badge-ok { color: #10b981; font-size: 12px; font-weight: 600; }
     .badge-er { color: #ef4444; font-size: 12px; font-weight: 600; }
     .send-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .send-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 16px; text-align: center; }
+        .send-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; text-align: center; }
         .send-icon { font-size: 28px; margin-bottom: 6px; }
-        .send-title { font-weight: 700; color: var(--bento-text); margin-bottom: 4px; }
-        .send-desc { font-size: 12px; color: var(--bento-text-secondary); margin-bottom: 10px; }
+        .send-title { font-weight: 700; color: var(--text); margin-bottom: 4px; }
+        .send-desc { font-size: 12px; color: var(--text2); margin-bottom: 10px; }
         .send-counts { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
         .count-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
         .error-badge { background: #ef444420; color: #ef4444; }
         .warn-badge { background: #f59e0b20; color: #f59e0b; }
         .info-badge { background: #3b82f620; color: #3b82f6; }
-        .send-btn { width: 100%; background: var(--bento-primary); color: white; border: none; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: .2s; }
+        .send-btn { width: 100%; background: var(--primary); color: white; border: none; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: .2s; }
         .send-btn:hover { background: #2563eb; transform: translateY(-1px); }
         .send-btn:active { transform: translateY(0); }
-        .send-status { padding: 10px 14px; border-radius: var(--bento-radius-sm); margin-top: 12px; font-size: 13px; font-weight: 500; text-align: center; }
+        .send-status { padding: 10px 14px; border-radius: var(--radius-sm); margin-top: 12px; font-size: 13px; font-weight: 500; text-align: center; }
         .send-status.sending { background: #3b82f620; color: #3b82f6; }
         .send-status.success { background: #10b98120; color: #10b981; }
         .send-status.error { background: #ef444420; color: #ef4444; }

@@ -57,13 +57,34 @@ window.HAToolsBentoCSS = `
 /* ── Dark mode ───────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: var(--primary-background-color, #0f172a);
-    --bento-card: var(--card-background-color, #1e293b);
-    --bento-border: var(--divider-color, #334155);
-    --bento-text: var(--primary-text-color, #f1f5f9);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-text-muted: var(--disabled-text-color, #64748b);
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
   }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
 }
 
 /* ── Reset ───────────────────────────────────── */
@@ -75,7 +96,6 @@ window.HAToolsBentoCSS = `
   border: 1px solid var(--bento-border);
   border-radius: var(--bento-radius-md);
   box-shadow: var(--bento-shadow-sm);
-  overflow: hidden;
   color: var(--bento-text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
@@ -111,7 +131,7 @@ window.HAToolsBentoCSS = `
   border-bottom: 2px solid var(--bento-border, var(--divider-color, #334155)) !important;
   padding: 0 4px !important;
   margin-bottom: 20px !important;
-  overflow-x: auto !important;
+  overflow: hidden !important;
   flex-wrap: nowrap !important;
 }
 .tab, .tab-btn, .tab-button, .dtab {
@@ -142,9 +162,10 @@ window.HAToolsBentoCSS = `
 }
 
 /* ── Tab content animation ───────────────────── */
-.tab-content { display: none; }
-.tab-content.active {
+.tab-content {
   display: block;
+}
+.tab-content.active {
   animation: bentoFadeIn 0.3s ease-out;
 }
 @keyframes bentoFadeIn {
@@ -440,7 +461,6 @@ pre {
 
 /* ── Mobile — 768 px ─────────────────────────── */
 @media (max-width: 768px) {
-  .card { overflow: hidden; }
   .content { padding: 12px; }
   .tabs { flex-wrap: wrap !important; overflow-x: visible !important; gap: 2px !important; }
   .tab, .tab-button, .tab-btn { padding: 6px 10px !important; font-size: 12px !important; white-space: nowrap !important; }

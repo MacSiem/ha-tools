@@ -1,67 +1,3 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
 /**
  * HA Energy Insights - Bento Light Mode Panel Tool
  * Energy monitoring with cost tracking, device breakdown, and efficiency recommendations
@@ -516,102 +452,74 @@ ${this._getStyles()}
     return `
       <style>${window.HAToolsBentoCSS || ""}
 
-        
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
-          --pr: var(--bento-primary); --pr-l: var(--bento-primary-light);
-          --ok: var(--bento-success); --ok-l: var(--bento-success-light);
-          --er: var(--bento-error); --er-l: var(--bento-error-light);
-          --wa: var(--bento-warning); --wa-l: var(--bento-warning-light);
-          --bg: var(--bento-bg); --ca: var(--bento-card); --bo: var(--bento-border);
-          --tx: var(--bento-text); --t2: var(--bento-text-secondary); --t3: var(--bento-text-muted);
-          --r1: var(--bento-radius-xs); --r2: var(--bento-radius-sm); --r3: var(--bento-radius-md);
-          --sh: var(--bento-shadow-sm);
+        :host {
+          --pr: #3B82F6; --pr-l: rgba(59,130,246,.1);
+          --ok: #10B981; --ok-l: rgba(16,185,129,.1);
+          --er: #EF4444; --er-l: rgba(239,68,68,.1);
+          --wa: #F59E0B; --wa-l: rgba(245,158,11,.1);
+          --bg: var(--primary-background-color, #F8FAFC); --ca: var(--card-background-color, #FFFFFF); --bo: var(--divider-color, #E2E8F0);
+          --tx: var(--primary-text-color, #1E293B); --t2: var(--secondary-text-color, #64748B); --t3: var(--disabled-text-color, #94A3B8);
+          --r1: 6px; --r2: 12px; --r3: 16px;
+          --sh: 0 1px 3px rgba(0,0,0,.05);
           font-family: 'Inter', sans-serif;
           display: block;
-          background: var(--bento-bg);
-          color: var(--bento-text);
+          background: var(--bg);
+          color: var(--tx);
         }
         @media (prefers-color-scheme: dark) {
           :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
         }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .panel-root { display: flex; flex-direction: column; height: 100%; background: var(--bento-bg); }
-        .panel-header { padding: 24px 24px 16px; border-bottom: 1px solid var(--bo); background: var(--bento-card); }
-        .panel-title { font-size: 17px; font-weight: 700; color: var(--bento-text); margin: 0; display: flex; align-items: center; gap: 10px; }
+        .panel-root { display: flex; flex-direction: column; height: 100%; background: var(--bg); }
+        .panel-header { padding: 24px 24px 16px; border-bottom: 1px solid var(--bo); background: var(--ca); }
+        .panel-title { font-size: 17px; font-weight: 700; color: var(--tx); margin: 0; display: flex; align-items: center; gap: 10px; }
         .panel-title-icon { font-size: 24px; }
-        .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--bo); padding: 0 24px; background: var(--bento-card); overflow-x: auto; scrollbar-width: none; }
+        .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--bo); padding: 0 24px; background: var(--ca); overflow-x: auto; scrollbar-width: none; }
         .tab-bar::-webkit-scrollbar { display: none; }
-        .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--bento-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; font-family: 'Inter', sans-serif; border-radius: 0; }
-        .tab-btn:hover { color: var(--bento-primary); background: var(--pr-l); }
-        .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); font-weight: 600; }
+        .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--t2); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; font-family: 'Inter', sans-serif; border-radius: 0; }
+        .tab-btn:hover { color: var(--pr); background: var(--pr-l); }
+        .tab-btn.active { color: var(--pr); border-bottom-color: var(--pr); font-weight: 600; }
         .panel-body { flex: 1; overflow-y: auto; padding: 20px; animation: fadeSlideIn 0.3s ease-out; }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
-        .stat-card { background: var(--bento-bg); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; text-align: center; min-width: 0; overflow: hidden; }
-        .stat-card:hover { box-shadow: var(--bento-shadow-md); }
-        .stat-label { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
-        .stat-value { font-size: 24px; font-weight: 700; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
-        .stat-value.highlight { color: var(--bento-primary); }
+        .stat-card { background: var(--bg); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; text-align: center; min-width: 0; overflow: hidden; }
+        .stat-card:hover { box-shadow: var(--sh); }
+        .stat-label { font-size: 11px; font-weight: 500; color: var(--t2); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+        .stat-value { font-size: 24px; font-weight: 700; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
+        .stat-value.highlight { color: var(--pr); }
         .stat-sub { font-size: 11px; color: var(--t3); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .recommendation { background: var(--pr-l); border: 1px solid rgba(59,130,246,.2); border-radius: var(--r2); padding: 14px 16px; font-size: 13px; color: var(--bento-text); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
+        .recommendation { background: var(--pr-l); border: 1px solid rgba(59,130,246,.2); border-radius: var(--r2); padding: 14px 16px; font-size: 13px; color: var(--tx); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
         .recommendation-icon { font-size: 18px; flex-shrink: 0; }
         .trend-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-        .trend-up { background: var(--er-l); color: var(--bento-error); }
-        .trend-down { background: var(--ok-l); color: var(--bento-success); }
+        .trend-up { background: var(--er-l); color: var(--er); }
+        .trend-down { background: var(--ok-l); color: var(--ok); }
         .trend-neutral { background: rgba(158,158,158,.15); color: #9e9e9e; }
-        .section-title { font-size: 13px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+        .section-title { font-size: 13px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
         .device-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
         .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r1); transition: background .15s; }
         .device-row:hover { background: var(--pr-l); }
-        .device-rank { font-size: 11px; font-weight: 700; color: var(--bento-primary); width: 24px; flex-shrink: 0; text-align: center; }
-        .device-name { font-size: 13px; font-weight: 500; flex: 1; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .device-rank { font-size: 11px; font-weight: 700; color: var(--pr); width: 24px; flex-shrink: 0; text-align: center; }
+        .device-name { font-size: 13px; font-weight: 500; flex: 1; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .device-bar-wrap { width: 70px; height: 6px; background: var(--bo); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
-        .device-bar { height: 100%; background: var(--bento-primary); border-radius: 4px; transition: width .4s; }
-        .device-value { font-size: 12px; font-weight: 600; color: var(--bento-primary); flex-shrink: 0; min-width: 70px; text-align: right; }
-        .chart-container { position: relative; height: 240px; margin-bottom: 12px; background: var(--bento-card); border: 1px solid var(--bo); border-radius: var(--r2); padding: 16px; box-shadow: var(--bento-shadow-md); }
+        .device-bar { height: 100%; background: var(--pr); border-radius: 4px; transition: width .4s; }
+        .device-value { font-size: 12px; font-weight: 600; color: var(--pr); flex-shrink: 0; min-width: 70px; text-align: right; }
+        .chart-container { position: relative; height: 240px; margin-bottom: 12px; background: var(--ca); border: 1px solid var(--bo); border-radius: var(--r2); padding: 16px; box-shadow: var(--sh); }
         canvas { max-width: 100%; display: block; }
-        .chart-label { text-align: center; font-size: 12px; color: var(--bento-text-secondary); margin-top: 8px; }
+        .chart-label { text-align: center; font-size: 12px; color: var(--t2); margin-top: 8px; }
         .tips-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 16px; }
-        .tip-card { background: var(--bento-card); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; font-size: 13px; color: var(--bento-text); box-shadow: var(--bento-shadow-md); }
-        .tip-card strong { color: var(--bento-primary); display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; }
-        .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 16px; color: var(--bento-text-secondary); font-size: 14px; }
-        .spinner { width: 32px; height: 32px; border: 3px solid var(--bo); border-top-color: var(--bento-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
-        .error-msg { padding: 16px; background: var(--er-l); border-left: 4px solid var(--bento-error); border-radius: var(--r1); font-size: 13px; color: var(--bento-error); }
-        .no-sensors { padding: 40px 24px; text-align: center; color: var(--bento-text-secondary); font-size: 13px; }
-        button { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; border-radius: var(--r1); transition: all .2s; cursor: pointer; border: none; padding: 8px 14px; background: var(--bento-primary); color: white; }
+        .tip-card { background: var(--ca); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; font-size: 13px; color: var(--tx); box-shadow: var(--sh); }
+        .tip-card strong { color: var(--pr); display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; }
+        .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 16px; color: var(--t2); font-size: 14px; }
+        .spinner { width: 32px; height: 32px; border: 3px solid var(--bo); border-top-color: var(--pr); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .error-msg { padding: 16px; background: var(--er-l); border-left: 4px solid var(--er); border-radius: var(--r1); font-size: 13px; color: var(--er); }
+        .no-sensors { padding: 40px 24px; text-align: center; color: var(--t2); font-size: 13px; }
+        button { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; border-radius: var(--r1); transition: all .2s; cursor: pointer; border: none; padding: 8px 14px; background: var(--pr); color: white; }
         button:hover { background: #2563EB; }
-        .refresh-btn { background: transparent; color: var(--bento-text-secondary); padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
-        .refresh-btn:hover { color: var(--bento-primary); background: var(--pr-l); }
+        .refresh-btn { background: transparent; color: var(--t2); padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+        .refresh-btn:hover { color: var(--pr); background: var(--pr-l); }
         .refresh-btn svg { width: 18px; height: 18px; }
-        .tools-banner { background: var(--bento-card); border-top: 1px solid var(--bo); padding: 12px 24px; text-align: center; font-size: 12px; color: var(--bento-text-secondary); }
-        .tools-banner a { color: var(--bento-primary); text-decoration: none; font-weight: 600; }
+        .tools-banner { background: var(--ca); border-top: 1px solid var(--bo); padding: 12px 24px; text-align: center; font-size: 12px; color: var(--t2); }
+        .tools-banner a { color: var(--pr); text-decoration: none; font-weight: 600; }
         .tools-banner a:hover { text-decoration: underline; }
         @media (max-width: 768px) {
           .panel-header { padding: 16px; }

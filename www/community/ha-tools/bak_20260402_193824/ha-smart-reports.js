@@ -1,67 +1,3 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
 /**
  * Home Assistant Smart Reports Card
  * Energy reports, automation statistics, and system health overview
@@ -187,11 +123,11 @@ class HASmartReports extends HTMLElement {
 }
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
+    --bento-bg: #1a1a2e;
+    --bento-card: #16213e;
+    --bento-text: #e2e8f0;
+    --bento-text-secondary: #94a3b8;
+    --bento-border: #334155;
     --bento-success: #34d399;
     --bento-warning: #fbbf24;
     --bento-error: #f87171;
@@ -395,28 +331,28 @@ canvas {
           --green: #4caf50; --red: #f44336; --orange: #ff9800; --blue: #2196f3;
         }
         .reports-card {
-          background: var(--bento-bg); border-radius: 12px; padding: 16px;
-          font-family: var(--ha-card-header-font-family, inherit); color: var(--bento-text);
+          background: var(--bg); border-radius: 12px; padding: 16px;
+          font-family: var(--ha-card-header-font-family, inherit); color: var(--text);
         }
         .card-header {
           display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
         }
         .card-header h2 { margin: 0; font-size: 18px; font-weight: 500; }
         .period-select {
-          padding: 4px 8px; border: 1px solid var(--bento-border); border-radius: 6px;
-          background: var(--bento-bg); color: var(--bento-text); font-size: 12px;
+          padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+          background: var(--bg); color: var(--text); font-size: 12px;
         }
         .tabs {
           display: flex; gap: 4px; margin-bottom: 16px;
-          border-bottom: 1px solid var(--bento-border); padding-bottom: 8px;
+          border-bottom: 1px solid var(--border); padding-bottom: 8px;
         }
         .tab {
           padding: 6px 14px; border: none; border-radius: 6px 6px 0 0;
-          background: transparent; color: var(--bento-text-secondary); cursor: pointer;
+          background: transparent; color: var(--text2); cursor: pointer;
           font-size: 13px; font-weight: 500; transition: all 0.2s;
         }
-        .tab:hover { background: var(--bento-primary-light); }
-        .tab.active { background: var(--bento-primary); color: #fff; }
+        .tab:hover { background: var(--hover); }
+        .tab.active { background: var(--primary); color: #fff; }
         .tab-icon { margin-right: 4px; }
         .section { margin-bottom: 16px; }
         .section-title {
@@ -428,20 +364,20 @@ canvas {
           gap: 10px; margin-bottom: 16px;
         }
         .stat-card {
-          background: var(--bento-primary-light); border-radius: 8px; padding: 12px;
+          background: var(--hover); border-radius: 8px; padding: 12px;
           text-align: center;
         }
         .stat-value { font-size: 22px; font-weight: 700; }
-        .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+        .stat-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
         .stat-trend { font-size: 11px; margin-top: 4px; }
-        .trend-up { color: var(--bento-error); }
-        .trend-down { color: var(--bento-success); }
+        .trend-up { color: var(--red); }
+        .trend-down { color: var(--green); }
         .bar-chart { margin: 8px 0; }
         .bar-row {
           display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px;
         }
-        .bar-label { width: 80px; text-align: right; font-size: 12px; color: var(--bento-text-secondary); flex-shrink: 0; }
-        .bar-container { flex: 1; height: 20px; background: var(--bento-primary-light); border-radius: 4px; overflow: hidden; }
+        .bar-label { width: 80px; text-align: right; font-size: 12px; color: var(--text2); flex-shrink: 0; }
+        .bar-container { flex: 1; height: 20px; background: var(--hover); border-radius: 4px; overflow: hidden; }
         .bar-fill {
           height: 100%; border-radius: 4px; transition: width 0.5s ease;
           display: flex; align-items: center; padding: 0 6px;
@@ -451,34 +387,34 @@ canvas {
         .auto-list { }
         .auto-item {
           display: flex; justify-content: space-between; align-items: center;
-          padding: 8px 0; border-bottom: 1px solid var(--bento-border); font-size: 13px;
+          padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
         }
         .auto-item:last-child { border-bottom: none; }
         .auto-name { font-weight: 500; flex: 1; }
         .auto-count {
-          background: var(--bento-primary-light); padding: 2px 8px; border-radius: 12px;
+          background: var(--hover); padding: 2px 8px; border-radius: 12px;
           font-size: 12px; font-weight: 600; margin-left: 8px;
         }
         .auto-status {
-          font-size: 11px; color: var(--bento-text-secondary); margin-left: 8px; width: 60px; text-align: right;
+          font-size: 11px; color: var(--text2); margin-left: 8px; width: 60px; text-align: right;
         }
         .health-item {
           display: flex; justify-content: space-between; align-items: center;
-          padding: 8px 12px; background: var(--bento-primary-light); border-radius: 6px;
+          padding: 8px 12px; background: var(--hover); border-radius: 6px;
           margin-bottom: 6px; font-size: 13px;
         }
         .health-dot {
           width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0;
         }
         .health-name { flex: 1; font-weight: 500; }
-        .health-value { font-family: monospace; font-size: 12px; color: var(--bento-text-secondary); }
+        .health-value { font-family: monospace; font-size: 12px; color: var(--text2); }
         .export-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
         .btn-export {
-          padding: 6px 14px; border: 1px solid var(--bento-border); border-radius: 6px;
-          background: var(--bento-bg); color: var(--bento-text); cursor: pointer; font-size: 12px;
+          padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px;
+          background: var(--bg); color: var(--text); cursor: pointer; font-size: 12px;
         }
-        .btn-export:hover { background: var(--bento-primary-light); }
-        .btn-export.primary { background: var(--bento-primary); color: #fff; border-color: var(--bento-primary); }
+        .btn-export:hover { background: var(--hover); }
+        .btn-export.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
 
         /* RESPONSIVE */
         @media (max-width: 768px) {
@@ -615,21 +551,21 @@ canvas {
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-warning)">${totalEnergy.toFixed(1)}</div>
+          <div class="stat-value" style="color:var(--orange)">${totalEnergy.toFixed(1)}</div>
           <div class="stat-label">kWh Total</div>
           <div class="stat-trend" style="font-size:11px;color:var(--bento-text-muted)">${sensors.filter(s => s.unit.includes('kWh')).length} sensor\u00F3w kWh</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-primary)">${cost.toFixed(2)}</div>
+          <div class="stat-value" style="color:var(--blue)">${cost.toFixed(2)}</div>
           <div class="stat-label">${this._config.currency} Cost</div>
           <div class="stat-trend" style="font-size:11px;color:var(--bento-text-muted)">@ ${this._config.energy_price} ${this._config.currency}/kWh</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-success)">${sensors.length}</div>
+          <div class="stat-value" style="color:var(--green)">${sensors.length}</div>
           <div class="stat-label">Energy Sensors</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-error)">${sensors.length > 0 ? sensors[0].name.split(' ').slice(0, 2).join(' ') : '-'}</div>
+          <div class="stat-value" style="color:var(--red)">${sensors.length > 0 ? sensors[0].name.split(' ').slice(0, 2).join(' ') : '-'}</div>
           <div class="stat-label">Top Consumer</div>
         </div>
       </div>
@@ -677,19 +613,19 @@ canvas {
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-primary)">${automations.length}</div>
+          <div class="stat-value" style="color:var(--blue)">${automations.length}</div>
           <div class="stat-label">Total Automations</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-success)">${active}</div>
+          <div class="stat-value" style="color:var(--green)">${active}</div>
           <div class="stat-label">Active</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-error)">${disabled}</div>
+          <div class="stat-value" style="color:var(--red)">${disabled}</div>
           <div class="stat-label">Disabled</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-warning)">${recentCount}</div>
+          <div class="stat-value" style="color:var(--orange)">${recentCount}</div>
           <div class="stat-label">Triggered Today</div>
         </div>
       </div>
@@ -700,7 +636,7 @@ canvas {
             <div class="auto-item">
               <span class="auto-name">${this._sanitize(a.name)}</span>
               <span class="auto-status">${this._timeAgo(a.last_triggered)}</span>
-              <span class="auto-count" style="color:${a.state === 'on' ? 'var(--bento-success)' : 'var(--bento-error)'}">
+              <span class="auto-count" style="color:${a.state === 'on' ? 'var(--green)' : 'var(--red)'}">
                 ${a.state}
               </span>
             </div>
@@ -736,19 +672,19 @@ canvas {
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-primary)">${allEntities.length}</div>
+          <div class="stat-value" style="color:var(--blue)">${allEntities.length}</div>
           <div class="stat-label">Total Entities</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-success)">${Object.keys(domains).length}</div>
+          <div class="stat-value" style="color:var(--green)">${Object.keys(domains).length}</div>
           <div class="stat-label">Domains</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:${unavailable > 0 ? 'var(--bento-error)' : 'var(--bento-success)'}">${unavailable}</div>
+          <div class="stat-value" style="color:${unavailable > 0 ? 'var(--red)' : 'var(--green)'}">${unavailable}</div>
           <div class="stat-label">Unavailable</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:${unknown > 0 ? 'var(--bento-warning)' : 'var(--bento-success)'}">${unknown}</div>
+          <div class="stat-value" style="color:${unknown > 0 ? 'var(--orange)' : 'var(--green)'}">${unknown}</div>
           <div class="stat-label">Unknown</div>
         </div>
       </div>
@@ -786,7 +722,7 @@ canvas {
 
     return items.map(i => `
       <div class="health-item">
-        <span class="health-dot" style="background:${i.ok ? 'var(--bento-success)' : 'var(--bento-warning)'}"></span>
+        <span class="health-dot" style="background:${i.ok ? 'var(--green)' : 'var(--orange)'}"></span>
         <span class="health-name">${this._sanitize(i.name)}</span>
         <span class="health-value">${i.value}</span>
       </div>

@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace_resources",
+  "data": {
+    "items": [
+      {
+        "id": "a822f7108298468da8fe26368dcc817a",
+        "url": "/browser_mod.js?automatically-added&2.10.2",
+        "type": "module"
+      },
+      {
+        "id": "579662ba6eec4572841ffa1882c44479",
+        "url": "/hacsfiles/battery-state-card/battery-state-card.js?hacstag=1775239105",
+        "type": "module"
+      },
+      {
+        "id": "e3491c492d894a5daa7127accd9aeaa9",
+        "url": "/hacsfiles/advanced-camera-card/advanced-camera-card.js",
+        "type": "module"
+      },
+      {
+        "id": "91f8a00c556b4ec99800423573ac8152",
+        "url": "/hacsfiles/apexcharts-card/apexcharts-card.js",
+        "type": "module"
+      },
+      {
+        "id": "707d97a80b7648c08fefa85d20dc3c8e",
+        "url": "/hacsfiles/Bubble-Card/bubble-card.js",
+        "type": "module"
+      },
+      {
+        "id": "427859abcd1e409797f48467adf35d09",
+        "url": "/hacsfiles/button-card/button-card.js",
+        "type": "module"
+      },
+      {
+        "id": "2cd890cbf0ab4acfbf422c83b328ceff",
+        "url": "/hacsfiles/clock-weather-card/clock-weather-card.js",
+        "type": "module"
+      },
+      {
+        "id": "ca4594d0597e48b3bcf952310a360f8c",
+        "url": "/hacsfiles/custom-card-features/custom-card-features.min.js",
+        "type": "module"
+      },
+      {
+        "id": "d33679c6e603465490bcce2c2fbb1f39",
+        "url": "/hacsfiles/custom-ui/custom-ui.js",
+        "type": "module"
+      },
+      {
+        "id": "af144c139dcc47ae88372f7e44a0eafa",
+        "url": "/hacsfiles/flex-table-card/flex-table-card.js",
+        "type": "module"
+      },
+      {
+        "id": "9dc192ede68e4b9fbcfa7273e575df1f",
+        "url": "/hacsfiles/hass-swipe-navigation/swipe-navigation.js",
+        "type": "module"
+      },
+      {
+        "id": "480306168e6f46e5b6b458447befa063",
+        "url": "/hacsfiles/logbook-card/logbook-card.js",
+        "type": "module"
+      },
+      {
+        "id": "b841eacb282045729fd2bed3eeee163e",
+        "url": "/hacsfiles/lovelace-auto-entities/auto-entities.js",
+        "type": "module"
+      },
+      {
+        "id": "ba14b163c5cc47a89d8838dcb1df2673",
+        "url": "/hacsfiles/lovelace-canary/canary.js",
+        "type": "module"
+      },
+      {
+        "id": "061fb5dd3fdb42ee996bc73943edb55b",
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+        "type": "module"
+      },
+      {
+        "id": "819022116e1e4aab9e7b767cef022e80",
+        "url": "/hacsfiles/lovelace-fold-entity-row/fold-entity-row.js",
+        "type": "module"
+      },
+      {
+        "id": "c887194a24344317996684cddcc0a480",
+        "url": "/hacsfiles/lovelace-hourly-weather/hourly-weather.js",
+        "type": "module"
+      },
+      {
+        "id": "558ca900a88848f6903203fa5a5f69b8",
+        "url": "/hacsfiles/lovelace-multiple-entity-row/multiple-entity-row.js",
+        "type": "module"
+      },
+      {
+        "id": "bcd1545a72f64fba9ee5e3eadf5dc61a",
+        "url": "/hacsfiles/lovelace-mushroom/mushroom.js",
+        "type": "module"
+      },
+      {
+        "id": "0ad37a6e0bee4885bfd24c91e5c400ae",
+        "url": "/hacsfiles/lovelace-navbar-card/navbar-card.js",
+        "type": "module"
+      },
+      {
+        "id": "a7f3ea684b2a4ea59ae5eea66865410b",
+        "url": "/hacsfiles/lovelace-plotly-graph-card/plotly-graph-card.js",
+        "type": "module"
+      },
+      {
+        "id": "a7f24852600b4b9897dc3953a899c235",
+        "url": "/hacsfiles/material-you-utilities/material-you-utilities.min.js",
+        "type": "module"
+      },
+      {
+        "id": "552a48a87d2a49adbb440d6a18220927",
+        "url": "/hacsfiles/mini-graph-card/mini-graph-card-bundle.js",
+        "type": "module"
+      },
+      {
+        "id": "7a2dd53ee73a4200aee486f24791aa69",
+        "url": "/hacsfiles/stack-in-card/stack-in-card.js",
+        "type": "module"
+      },
+      {
+        "id": "f43e1508ad394170bd492c992dece16e",
+        "url": "/hacsfiles/swipe-glance-card/swipe-glance-card.js",
+        "type": "module"
+      },
+      {
+        "id": "fe1f9f38c3314da09698f38d920c8d79",
+        "url": "/hacsfiles/universal-remote-card/universal-remote-card.min.js",
+        "type": "module"
+      },
+      {
+        "id": "66cdb0a9d59c4b0e9deb4fae893368bb",
+        "url": "/hacsfiles/vertical-stack-in-card/vertical-stack-in-card.js",
+        "type": "module"
+      },
+      {
+        "id": "bento_css_7777",
+        "url": "/local/community/ha-tools/ha-tools-bento.js?hacstag=1775239105",
+        "type": "module"
+      },
+      {
+        "id": "c9b6002ec1ac4603879057a247c44bc9",
+        "url": "/local/community/ha-tools/ha-tools-loader.js?hacstag=1775239105",
+        "type": "module"
+      },
+      {
+        "id": "4f9377dfde974a74ac99da48854d68d8",
+        "url": "/hacsfiles/anchor-card/anchor-card.js",
+        "type": "module"
+      }
+    ]
+  }
+}

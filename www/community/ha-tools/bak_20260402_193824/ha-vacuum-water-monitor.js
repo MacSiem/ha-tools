@@ -1,67 +1,3 @@
-
-// ── HA Tools Server Persistence Helper ──
-// Uses HA frontend/set_user_data for cross-device per-user persistence
-// Falls back to localStorage for instant reads (cache), writes to both
-window._haToolsPersistence = window._haToolsPersistence || {
-  _cache: {},
-  _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
-
-  async save(key, data) {
-    const fullKey = 'ha-tools-' + key;
-    // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
-    // Write to HA server (cross-device)
-    if (this._hass) {
-      try {
-        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
-      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
-    }
-    this._cache[fullKey] = data;
-  },
-
-  async load(key) {
-    const fullKey = 'ha-tools-' + key;
-    // 1. Memory cache (instant)
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    // 2. localStorage (fast, may be stale on other device)
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-      }
-    } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
-    if (this._hass) {
-      try {
-        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
-        if (result && result.value !== undefined && result.value !== null) {
-          this._cache[fullKey] = result.value;
-          // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
-          return result.value;
-        }
-      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
-    }
-    return this._cache[fullKey] || null;
-  },
-
-  // Synchronous read from cache/localStorage only (for initial render)
-  loadSync(key) {
-    const fullKey = 'ha-tools-' + key;
-    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
-    try {
-      const raw = localStorage.getItem(fullKey);
-      if (raw) {
-        this._cache[fullKey] = JSON.parse(raw);
-        return this._cache[fullKey];
-      }
-    } catch(e) {}
-    return null;
-  }
-};
-
 /**
  * HA Vacuum Water Monitor v3.0.0
  * Lovelace card for tracking vacuum cleaner water levels, history, maintenance and stats
@@ -1215,64 +1151,64 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
         <div class="section-block">
           <div class="section-title" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-            \u2699\uFE0F W\u0142asne warto\u015Bci kalibracji <span style="font-size:10px;color:var(--bento-text-muted);font-weight:400">(kliknij aby rozwi\u0144\u0105\u0107)</span>
+            \u2699\uFE0F W\u0142asne warto\u015Bci kalibracji <span style="font-size:10px;color:var(--vwm-text-muted);font-weight:400">(kliknij aby rozwi\u0144\u0105\u0107)</span>
           </div>
           <div style="display:none;margin-top:8px">
-            <div style="font-size:11px;color:var(--bento-text-secondary);margin-bottom:10px;line-height:1.5">
+            <div style="font-size:11px;color:var(--vwm-text-secondary);margin-bottom:10px;line-height:1.5">
               Je\u015Bli Twojego robota nie ma na li\u015Bcie lub chcesz skorygowa\u0107 warto\u015Bci \u2014 wpisz w\u0142asne dane. Zostan\u0105 zapisane w pami\u0119ci przegl\u0105darki.
             </div>
             <div id="vwm-custom-form" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
                 Zbiornik stacji (ml)
-                <input type="number" id="vwm-custom-tank" placeholder="np. 3000" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+                <input type="number" id="vwm-custom-tank" placeholder="np. 3000" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
                 Zbiornik robota (ml)
-                <input type="number" id="vwm-custom-robot-tank" placeholder="np. 350" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+                <input type="number" id="vwm-custom-robot-tank" placeholder="np. 350" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
                 Mycie mopa (ml/cykl)
-                <input type="number" id="vwm-custom-wash" placeholder="np. 150" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+                <input type="number" id="vwm-custom-wash" placeholder="np. 150" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
-                Zasi\u0119g / \u0142adowanie (m\u00B2)                <input type="number" id="vwm-custom-area" placeholder="np. 250" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Zasi\u0119g / \u0142adowanie (m\u00B2)                <input type="number" id="vwm-custom-area" placeholder="np. 250" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
             </div>
             <div style="margin-top:10px">
-              <div style="font-size:11px;color:var(--bento-text-secondary);margin-bottom:6px">Tryby mopowania \u2014 nazwa trybu i zu\u017Cycie ml/m\u00B2:</div>
+              <div style="font-size:11px;color:var(--vwm-text-secondary);margin-bottom:6px">Tryby mopowania \u2014 nazwa trybu i zu\u017Cycie ml/m\u00B2:</div>
               <div id="vwm-custom-modes" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
                 <div style="display:flex;gap:4px;align-items:center">
-                  <input type="text" placeholder="np. low" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+                  <input type="text" placeholder="np. low" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
                 </div>
                 <div style="display:flex;gap:4px;align-items:center">
-                  <input type="text" placeholder="np. medium" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+                  <input type="text" placeholder="np. medium" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
                 </div>
                 <div style="display:flex;gap:4px;align-items:center">
-                  <input type="text" placeholder="np. high" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+                  <input type="text" placeholder="np. high" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
                 </div>
               </div>
               <div style="margin-top:6px;text-align:right">
-                <button onclick="this.getRootNode().host._addCustomMode()" style="padding:4px 10px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-card);color:var(--bento-text-secondary);font-size:10px;cursor:pointer">+ Dodaj tryb</button>
+                <button onclick="this.getRootNode().host._addCustomMode()" style="padding:4px 10px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-surface);color:var(--vwm-text-secondary);font-size:10px;cursor:pointer">+ Dodaj tryb</button>
               </div>
             </div>
             <div style="margin-top:12px;display:flex;gap:8px">
               <button onclick="this.getRootNode().host._saveCustomCalibration()" style="flex:1;padding:8px 16px;border:none;border-radius:8px;background:#3b82f6;color:white;font-weight:600;font-size:12px;cursor:pointer">\uD83D\uDCBE Zapisz</button>
-              <button onclick="this.getRootNode().host._clearCustomCalibration()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text-secondary);font-size:12px;cursor:pointer">\uD83D\uDDD1 Wyczy\u015B\u0107</button>
+              <button onclick="this.getRootNode().host._clearCustomCalibration()" style="padding:8px 16px;border:1px solid var(--vwm-border);border-radius:8px;background:var(--vwm-surface);color:var(--vwm-text-secondary);font-size:12px;cursor:pointer">\uD83D\uDDD1 Wyczy\u015B\u0107</button>
             </div>
           </div>
         </div>
         <div class="section-block" style="text-align:center;padding:16px">
-          <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:8px">
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:8px">
             Brakuje Twojego robota lub masz dok\u0142adniejsze dane?
           </div>
           <a href="https://github.com/MacSiem/ha-vacuum-water-monitor/issues/new?title=Calibration+data+for+[MODEL]&body=Model:%0ATank+ml:%0AWater+per+m2:%0AMop+wash+ml:%0ASource:%0A" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:8px;background:#24292e;color:white;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
             Zg\u0142o\u015B dane lub korekt\u0119 na GitHub
           </a>
-          <div style="margin-top:6px;font-size:10px;color:var(--bento-text-muted)">
+          <div style="margin-top:6px;font-size:10px;color:var(--vwm-text-muted)">
             Dane kalibracyjne: specyfikacje producent\u00F3w + testy Smart Home Hookup / Vacuum Wars + pomiary u\u017Cytkownik\u00F3w.
           </div>
         </div>
@@ -1465,7 +1401,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     if (!container) return;
     const div = document.createElement('div');
     div.style.cssText = 'display:flex;gap:4px;align-items:center';
-    div.innerHTML = '<input type="text" placeholder="tryb" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name"><input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val"><span onclick="this.parentElement.remove()" style="cursor:pointer;color:var(--bento-text-muted);font-size:14px">\u00D7</span>';
+    div.innerHTML = '<input type="text" placeholder="tryb" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name"><input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val"><span onclick="this.parentElement.remove()" style="cursor:pointer;color:var(--vwm-text-muted);font-size:14px">\u00D7</span>';
     container.appendChild(div);
   }
   _buildDatabaseTab() {
@@ -1522,16 +1458,16 @@ class HAVacuumWaterMonitor extends HTMLElement {
           <div style="font-weight:700;font-size:14px;margin-bottom:8px">\uD83E\uDDA4 ${active.label} <span style="font-size:11px;color:#3b82f6;font-weight:500">(aktywny profil)</span></div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">
             <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
-              <div style="font-size:20px;font-weight:700;color:var(--bento-text)">${active.tank_ml}</div>
-              <div style="font-size:10px;color:var(--bento-text-muted)">ml zbiornik</div>
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${active.tank_ml}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">ml zbiornik</div>
             </div>
             <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
-              <div style="font-size:20px;font-weight:700;color:var(--bento-text)">${active.avg_area_per_charge}</div>
-              <div style="font-size:10px;color:var(--bento-text-muted)">m\u00B2 / \u0142adowanie</div>
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${active.avg_area_per_charge}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">m\u00B2 / \u0142adowanie</div>
             </div>
             <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
-              <div style="font-size:20px;font-weight:700;color:var(--bento-text)">${levels.length}</div>
-              <div style="font-size:10px;color:var(--bento-text-muted)">tryb\u00F3w mopu</div>
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${levels.length}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">tryb\u00F3w mopu</div>
             </div>
           </div>
           <div style="font-size:12px;font-weight:600;margin-bottom:6px">Zu\u017Cycie wody wg trybu:</div>
@@ -1540,16 +1476,16 @@ class HAVacuumWaterMonitor extends HTMLElement {
               const area = Math.round(active.tank_ml / val);
               const pct = Math.round((val / Math.max(...levels.map(l => l[1]))) * 100);
               return `<div style="padding:8px;background:var(--vwm-bg,#fff);border-radius:8px;border:1px solid var(--vwm-border,#e5e7eb)">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--bento-text-secondary);margin-bottom:4px">${mode}</div>
-                <div style="font-size:16px;font-weight:700;color:var(--bento-text)">${val} <span style="font-size:10px;font-weight:400">ml/m\u00B2</span></div>
-                <div style="margin:4px 0;height:4px;background:rgba(59,130,246,0.12);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;border-radius:2px;background:${val <= 8 ? '#22c55e' : val <= 14 ? '#3b82f6' : val <= 18 ? '#f59e0b' : '#ef4444'}"></div></div>
-                <div style="font-size:10px;color:var(--bento-text-muted)">\u2248 ${area} m\u00B2 / zbiornik</div>
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--vwm-text-secondary);margin-bottom:4px">${mode}</div>
+                <div style="font-size:16px;font-weight:700;color:var(--vwm-text)">${val} <span style="font-size:10px;font-weight:400">ml/m\u00B2</span></div>
+                <div style="margin:4px 0;height:4px;background:var(--vwm-overlay-medium);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;border-radius:2px;background:${val <= 8 ? '#22c55e' : val <= 14 ? '#3b82f6' : val <= 18 ? '#f59e0b' : '#ef4444'}"></div></div>
+                <div style="font-size:10px;color:var(--vwm-text-muted)">\u2248 ${area} m\u00B2 / zbiornik</div>
               </div>`;
             }).join('')}
           </div>
-          ${active.mop_type ? `<div style="margin-top:8px;font-size:11px;color:var(--bento-text-secondary)">\uD83E\uDDF9 ${active.mop_type}</div>` : ''}
-          ${active.notes ? `<div style="margin-top:4px;font-size:11px;color:var(--bento-text-muted);font-style:italic">\uD83D\uDCA1 ${active.notes}</div>` : ''}
-          ${active.mop_wash_ml ? `<div style="margin-top:4px;font-size:11px;color:var(--bento-text-secondary)">\uD83D\uDEBF Mycie mopa w stacji: ${active.mop_wash_ml}ml/cykl${active.mop_wash_modes ? ' (' + Object.entries(active.mop_wash_modes).map(([k,v]) => k + ': ' + v + 'ml').join(', ') + ')' : ''}</div>` : ''}
+          ${active.mop_type ? `<div style="margin-top:8px;font-size:11px;color:var(--vwm-text-secondary)">\uD83E\uDDF9 ${active.mop_type}</div>` : ''}
+          ${active.notes ? `<div style="margin-top:4px;font-size:11px;color:var(--vwm-text-muted);font-style:italic">\uD83D\uDCA1 ${active.notes}</div>` : ''}
+          ${active.mop_wash_ml ? `<div style="margin-top:4px;font-size:11px;color:var(--vwm-text-secondary)">\uD83D\uDEBF Mycie mopa w stacji: ${active.mop_wash_ml}ml/cykl${active.mop_wash_modes ? ' (' + Object.entries(active.mop_wash_modes).map(([k,v]) => k + ': ' + v + 'ml').join(', ') + ')' : ''}</div>` : ''}
         </div>`;
     }
 
@@ -1585,7 +1521,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
             <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(16)}">high</span> Intensywne \u2014 gres</div>
             <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(22)}">max/deep</span> G\u0142\u0119bokie mycie</div>
           </div>
-          <div style="margin-top:10px;font-size:11px;color:var(--bento-text-secondary);line-height:1.5">
+          <div style="margin-top:10px;font-size:11px;color:var(--vwm-text-secondary);line-height:1.5">
             <strong>Zbiornik</strong> \u2014 pojemno\u015B\u0107 wbudowanego zbiornika robota (nie stacji). Roboty z auto-refill (Dreame, Ecovacs) maj\u0105 ma\u0142e zbiorniki (~80 ml), bo uzupe\u0142niaj\u0105 je automatycznie ze stacji (3\u20134L).<br>
             <strong>Zasi\u0119g / zbiornik</strong> \u2014 szacowana powierzchnia kt\u00F3r\u0105 robot wyczy\u015Bci na jednym pe\u0142nym zbiorniku w danym trybie.<br>
             <strong>Zasi\u0119g / \u0142ad.</strong> \u2014 max powierzchnia na jednym \u0142adowaniu baterii (niezale\u017Cnie od wody).
@@ -1621,16 +1557,16 @@ class HAVacuumWaterMonitor extends HTMLElement {
     return `
       <div class="tab-content">
         <div style="margin-bottom:16px">
-          <div style="font-size:15px;font-weight:700;color:var(--bento-text);margin-bottom:4px">\u2699\uFE0F Ustawienia</div>
-          <div style="font-size:12px;color:var(--bento-text-secondary)">Zarz\u0105dzanie urz\u0105dzeniami, metody resetu zbiornika i automatyzacje.</div>
+          <div style="font-size:15px;font-weight:700;color:var(--vwm-text);margin-bottom:4px">\u2699\uFE0F Ustawienia</div>
+          <div style="font-size:12px;color:var(--vwm-text-secondary)">Zarz\u0105dzanie urz\u0105dzeniami, metody resetu zbiornika i automatyzacje.</div>
         </div>
 
         <!-- Device management -->
         <div style="background:var(--vwm-overlay-light,rgba(0,0,0,0.03));border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:14px;padding:16px;margin-bottom:16px">
-          <div style="font-size:14px;font-weight:700;color:var(--bento-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
+          <div style="font-size:14px;font-weight:700;color:var(--vwm-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
             \uD83E\uDDA4 Urz\u0105dzenia
           </div>
-          <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:12px;line-height:1.5">
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:12px;line-height:1.5">
             Dodaj, usu\u0144 lub odkryj odkurzacze w Home Assistant.
           </div>
           ${userDevsHtml}
@@ -1648,10 +1584,10 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
         <!-- Refill methods -->
         <div style="background:var(--vwm-overlay-light,rgba(0,0,0,0.03));border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:14px;padding:16px">
-          <div style="font-size:14px;font-weight:700;color:var(--bento-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
+          <div style="font-size:14px;font-weight:700;color:var(--vwm-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
             \uD83D\uDD04 Metody resetu zbiornika
           </div>
-          <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:12px;line-height:1.5">
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:12px;line-height:1.5">
             Wybierz jak chcesz resetowa\u0107 licznik wody po uzupe\u0142nieniu zbiornika. Mo\u017Cesz u\u017Cy\u0107 jednej lub kilku metod jednocze\u015Bnie.
           </div>
 
@@ -1789,59 +1725,37 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const _newHtml = `
       <style>${window.HAToolsBentoCSS || ""}
 
-        
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
+        :host {
   display: block;
   font-family: Inter, sans-serif;
-  --vwm-bg: var(--bento-card);
-  --vwm-text: var(--bento-text);
-  --vwm-text-secondary: var(--bento-text-secondary);
-  --vwm-text-muted: var(--bento-text-muted);
-  --vwm-border: var(--bento-border);
-  --vwm-surface: var(--bento-bg);
-  --vwm-overlay-light: var(--bento-primary-light);
+  --vwm-bg: var(--card-background-color, #fff);
+  --vwm-text: var(--primary-text-color, #1a1a2e);
+  --vwm-text-secondary: var(--secondary-text-color, #6b7280);
+  --vwm-text-muted: var(--disabled-text-color, #9ca3af);
+  --vwm-border: var(--divider-color, #e5e7eb);
+  --vwm-surface: var(--primary-background-color, #f3f4f6);
+  --vwm-overlay-light: rgba(0,0,0,0.04);
   --vwm-overlay-medium: rgba(0,0,0,0.08);
+  --bento-bg: var(--vwm-surface);
+  --bento-card: var(--vwm-bg);
+  --bento-border: var(--vwm-border);
+  --bento-text: var(--vwm-text);
+  --bento-text-secondary: var(--vwm-text-secondary);
+  --bento-text-muted: var(--vwm-text-muted);
 }
-        .card { background: var(--bento-bg); border-radius: 16px; padding: 16px; color: var(--bento-text); ; }
-        .card-title { font-size: 15px; font-weight: 700; color: var(--bento-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--vwm-bg); border-radius: 16px; padding: 16px; color: var(--vwm-text); ; }
+        .card-title { font-size: 15px; font-weight: 700; color: var(--vwm-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         .device-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .device-name { font-weight: 600; font-size: 14px; }
         .status-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.3px; }
         /* Device tabs */
         .device-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .dtab { background: var(--bento-primary-light); color: var(--bento-text-secondary); border: 1px solid var(--bento-border); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .dtab { background: var(--vwm-overlay-light); color: var(--vwm-text-secondary); border: 1px solid var(--vwm-border); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
         .dtab-active { background: rgba(99,102,241,0.2); color: #818cf8; border-color: rgba(99,102,241,0.4); }
         /* Tab navigation */
-        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: var(--bento-primary-light); border-radius: 10px; padding: 3px; border-bottom: none !important; }
-        .tab-btn { flex: 1; background: transparent; color: var(--bento-text-muted); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
-        .tab-active { background: rgba(59,130,246,0.12); color: var(--bento-text); }
+        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: var(--vwm-overlay-light); border-radius: 10px; padding: 3px; border-bottom: none !important; }
+        .tab-btn { flex: 1; background: transparent; color: var(--vwm-text-muted); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .tab-active { background: var(--vwm-overlay-medium); color: var(--vwm-text); }
         /* Content */
         .tab-content { }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
@@ -1849,29 +1763,29 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
         .details { flex: 1; display: flex; flex-direction: column; gap: 6px; }
         .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-        .row-label { color: var(--bento-text-secondary); }
-        .row-val { font-weight: 600; color: var(--bento-text); }
+        .row-label { color: var(--vwm-text-secondary); }
+        .row-val { font-weight: 600; color: var(--vwm-text); }
         .chip { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
         .chip-active { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); animation: pulse 1.5s infinite; }
-        .chip-idle { background: var(--bento-primary-light); color: var(--bento-text-muted); border: 1px solid var(--bento-border); }
+        .chip-idle { background: var(--vwm-overlay-light); color: var(--vwm-text-muted); border: 1px solid var(--vwm-border); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .refill-wrap { margin-top: 12px; text-align: right; }
         .refill-btn { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: Inter, sans-serif; }
         .refill-btn:hover { background: rgba(59,130,246,0.25); }
         .alert-banner { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 500; margin-bottom: 10px; }
         .alert-warn { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
-        .no-water-note { color: var(--bento-text-muted); font-size: 12px; text-align: center; padding: 12px 0; }
+        .no-water-note { color: var(--vwm-text-muted); font-size: 12px; text-align: center; padding: 12px 0; }
         /* Sections */
-        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bento-border); }
-        .section-title { font-size: 11px; font-weight: 700; color: var(--bento-text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vwm-border); }
+        .section-title { font-size: 11px; font-weight: 700; color: var(--vwm-text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
         /* Dock */
         .dock-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 3px 0; }
         .dock-val { font-weight: 600; font-size: 12px; }
         /* Consumables */
         .consumable-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-        .con-label { font-size: 11px; color: var(--bento-text-secondary); width: 100px; flex-shrink: 0; }
+        .con-label { font-size: 11px; color: var(--vwm-text-secondary); width: 100px; flex-shrink: 0; }
         .con-bar-wrap { flex: 1; }
-        .con-bar { height: 4px; background: rgba(59,130,246,0.12); border-radius: 2px; overflow: hidden; }
+        .con-bar { height: 4px; background: var(--vwm-overlay-medium); border-radius: 2px; overflow: hidden; }
         .con-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
         .con-val { font-size: 11px; font-weight: 600; width: 55px; text-align: right; flex-shrink: 0; }
         /* Custom maintenance */
@@ -1880,42 +1794,42 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .maint-done-btn, .maint-del-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px; }
         /* Add form */
         .add-maint-form { display: flex; gap: 6px; flex-wrap: wrap; }
-        .maint-input { background: var(--bento-primary-light); border: 1px solid var(--bento-border); border-radius: 6px; color: var(--bento-text); padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
+        .maint-input { background: var(--vwm-overlay-light); border: 1px solid var(--vwm-border); border-radius: 6px; color: var(--vwm-text); padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
         .maint-days, .maint-icon { max-width: 100px; }
-        .maint-input::placeholder { color: var(--bento-text-muted); }
+        .maint-input::placeholder { color: var(--vwm-text-muted); }
         .maint-add-btn { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; white-space: nowrap; }
         /* History */
         .current-session-card { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
         .cs-title { font-size: 12px; font-weight: 700; color: #22c55e; margin-bottom: 6px; }
-        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--bento-text-secondary); }
-        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--bento-border); font-size: 12px; }
-        .session-date { color: var(--bento-text-secondary); font-weight: 500; }
-        .session-time { color: var(--bento-text-muted); font-size: 11px; }
+        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--vwm-text-secondary); }
+        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--vwm-border); font-size: 12px; }
+        .session-date { color: var(--vwm-text-secondary); font-weight: 500; }
+        .session-time { color: var(--vwm-text-muted); font-size: 11px; }
         .session-stats { display: flex; gap: 8px; }
-        .session-stat { background: var(--bento-primary-light); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--bento-text-secondary); }
+        .session-stat { background: var(--vwm-overlay-light); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--vwm-text-secondary); }
         /* Stats */
-        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--bento-border); }
+        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); }
         .stats-device { flex: 1; font-weight: 500; }
         .stats-status { font-size: 11px; }
         .stats-pct { font-weight: 700; font-size: 13px; width: 35px; text-align: right; }
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
-        .stat-box { background: var(--bento-primary-light); border-radius: 10px; padding: 10px; text-align: center; }
-        .stat-num { font-size: 20px; font-weight: 700; color: var(--bento-text); }
-        .stat-label { font-size: 10px; color: var(--bento-text-muted); margin-top: 2px; }
+        .stat-box { background: var(--vwm-overlay-light); border-radius: 10px; padding: 10px; text-align: center; }
+        .stat-num { font-size: 20px; font-weight: 700; color: var(--vwm-text); }
+        .stat-label { font-size: 10px; color: var(--vwm-text-muted); margin-top: 2px; }
         /* Discovered */
-        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--bento-border); flex-wrap: wrap; }
+        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); flex-wrap: wrap; }
         .disc-name { font-weight: 500; }
-        .disc-id { color: var(--bento-text-muted); font-size: 10px; font-family: monospace; flex: 1; }
+        .disc-id { color: var(--vwm-text-muted); font-size: 10px; font-family: monospace; flex: 1; }
         .disc-state { font-size: 11px; font-weight: 600; }
-        .disc-bat { font-size: 11px; color: var(--bento-text-secondary); }
+        .disc-bat { font-size: 11px; color: var(--vwm-text-secondary); }
         /* Battery */
         .battery-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; }
         .battery-icon { flex-shrink: 0; }
-        .battery-track { flex: 1; height: 6px; background: rgba(59,130,246,0.12); border-radius: 3px; overflow: hidden; }
+        .battery-track { flex: 1; height: 6px; background: var(--vwm-overlay-medium); border-radius: 3px; overflow: hidden; }
         .battery-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
         .battery-pct { font-weight: 700; font-size: 12px; width: 35px; text-align: right; }
         /* Empty */
-        .empty-state { text-align: center; color: var(--bento-text-muted); padding: 20px; font-size: 13px; line-height: 1.5; }
+        .empty-state { text-align: center; color: var(--vwm-text-muted); padding: 20px; font-size: 13px; line-height: 1.5; }
 
 /* Tips banner */
 .tip-banner {
@@ -2007,12 +1921,12 @@ class HAVacuumWaterMonitor extends HTMLElement {
       
         @media (prefers-color-scheme: dark) {
           :host {
-            --bento-bg: var(--primary-background-color, #1a1a2e);
-            --bento-card: var(--card-background-color, #16213e);
-            --bento-text: var(--primary-text-color, #e2e8f0);
-            --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-            --bento-border: var(--divider-color, #334155);
-            --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --bento-bg: #1a1a2e;
+            --bento-card: #16213e;
+            --bento-text: #e2e8f0;
+            --bento-text-secondary: #94a3b8;
+            --bento-border: #334155;
+            --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
             --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
           }
         }

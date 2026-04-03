@@ -298,55 +298,27 @@ class HAPurgeCache extends HTMLElement {
 
         /* Inter font loaded by ha-tools-loader.js - no @import needed */
 
-        
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
+        :host {
           display: block;
           font-family: 'Inter', sans-serif;
           color: var(--primary-text-color, #1a1a2e);
-          --pc-primary: var(--bento-primary);
-          --pc-primary-hover: var(--bento-primary-hover);
-          --pc-danger: var(--bento-error);
+          --pc-primary: #3B82F6;
+          --pc-primary-hover: #2563EB;
+          --pc-danger: #EF4444;
           --pc-danger-hover: #DC2626;
-          --pc-success: var(--bento-success);
-          --pc-warning: var(--bento-warning);
-          --pc-bg: var(--bento-card);
-          --pc-border: var(--bento-border);
-          --pc-text: var(--bento-text);
-          --pc-text-sec: var(--bento-text-secondary);
-          --pc-radius: var(--bento-radius-sm);
+          --pc-success: #10B981;
+          --pc-warning: #F59E0B;
+          --pc-bg: var(--card-background-color, #ffffff);
+          --pc-border: var(--divider-color, #e2e8f0);
+          --pc-text: var(--primary-text-color, #1a1a2e);
+          --pc-text-sec: var(--secondary-text-color, #64748b);
+          --pc-radius: 12px;
         }
 
         .card { max-width: 900px; margin: 0 auto; padding: 16px; }
         h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
-        .subtitle { color: var(--bento-text-secondary); font-size: 13px; margin-bottom: 20px; }
-        .ha-ver { font-size: 12px; color: var(--bento-text-secondary); font-weight: 400; }
+        .subtitle { color: var(--pc-text-sec); font-size: 13px; margin-bottom: 20px; }
+        .ha-ver { font-size: 12px; color: var(--pc-text-sec); font-weight: 400; }
 
         /* Stats Grid */
         .stats-grid {
@@ -356,15 +328,15 @@ class HAPurgeCache extends HTMLElement {
           margin-bottom: 20px;
         }
         .stat-card {
-          background: var(--bento-bg);
-          border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius-sm);
+          background: var(--pc-bg);
+          border: 1.5px solid var(--pc-border);
+          border-radius: var(--pc-radius);
           padding: 14px;
         }
-        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--bento-text-secondary); letter-spacing: 0.5px; margin-bottom: 6px; }
+        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--pc-text-sec); letter-spacing: 0.5px; margin-bottom: 6px; }
         .stat-value { font-size: 14px; font-weight: 500; }
-        .stat-num { font-size: 22px; font-weight: 700; color: var(--bento-primary); }
-        .stat-sub { font-size: 12px; color: var(--bento-text-secondary); }
+        .stat-num { font-size: 22px; font-weight: 700; color: var(--pc-primary); }
+        .stat-sub { font-size: 12px; color: var(--pc-text-sec); }
 
         /* Actions */
         .actions-grid {
@@ -378,31 +350,31 @@ class HAPurgeCache extends HTMLElement {
           align-items: center;
           gap: 10px;
           padding: 14px 16px;
-          border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius-sm);
-          background: var(--bento-bg);
+          border: 1.5px solid var(--pc-border);
+          border-radius: var(--pc-radius);
+          background: var(--pc-bg);
           cursor: pointer;
           font-family: 'Inter', sans-serif;
           font-size: 13px;
           font-weight: 500;
-          color: var(--bento-text);
+          color: var(--pc-text);
           transition: all 0.15s ease;
         }
-        .action-btn:hover { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+        .action-btn:hover { border-color: var(--pc-primary); background: rgba(59, 130, 246, 0.04); }
         .action-btn .action-icon { font-size: 20px; }
         .action-btn .action-label { line-height: 1.3; }
-        .action-btn .action-desc { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; }
+        .action-btn .action-desc { font-size: 11px; color: var(--pc-text-sec); font-weight: 400; }
 
         .action-btn.danger { border-color: rgba(239, 68, 68, 0.3); }
-        .action-btn.danger:hover { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
+        .action-btn.danger:hover { border-color: var(--pc-danger); background: rgba(239, 68, 68, 0.04); }
 
-        .action-btn.primary { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.06); }
-        .action-btn.primary:hover { background: var(--bento-primary); color: white; }
+        .action-btn.primary { border-color: var(--pc-primary); background: rgba(59, 130, 246, 0.06); }
+        .action-btn.primary:hover { background: var(--pc-primary); color: white; }
 
         /* Log */
         .log-section {
-          border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius-sm);
+          border: 1.5px solid var(--pc-border);
+          border-radius: var(--pc-radius);
           overflow: hidden;
           margin-bottom: 20px;
         }
@@ -412,8 +384,8 @@ class HAPurgeCache extends HTMLElement {
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          color: var(--bento-text-secondary);
-          border-bottom: 1px solid var(--bento-border);
+          color: var(--pc-text-sec);
+          border-bottom: 1px solid var(--pc-border);
           background: rgba(0,0,0,0.02);
         }
         #action-log {
@@ -434,8 +406,8 @@ class HAPurgeCache extends HTMLElement {
 
         /* LS Keys */
         .keys-section {
-          border: 1.5px solid var(--bento-border);
-          border-radius: var(--bento-radius-sm);
+          border: 1.5px solid var(--pc-border);
+          border-radius: var(--pc-radius);
           overflow: hidden;
         }
         .keys-header {
@@ -444,8 +416,8 @@ class HAPurgeCache extends HTMLElement {
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          color: var(--bento-text-secondary);
-          border-bottom: 1px solid var(--bento-border);
+          color: var(--pc-text-sec);
+          border-bottom: 1px solid var(--pc-border);
           background: rgba(0,0,0,0.02);
           display: flex;
           justify-content: space-between;
@@ -470,18 +442,18 @@ class HAPurgeCache extends HTMLElement {
         }
         .key-row:hover { background: rgba(0,0,0,0.03); }
         .key-name { flex: 1; font-family: 'Menlo', 'Consolas', monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .key-size { font-weight: 600; color: var(--bento-text-secondary); min-width: 50px; text-align: right; }
+        .key-size { font-weight: 600; color: var(--pc-text-sec); min-width: 50px; text-align: right; }
         .btn-sm {
           padding: 2px 6px;
-          border: 1px solid var(--bento-border);
+          border: 1px solid var(--pc-border);
           border-radius: 4px;
           background: var(--card-background-color, white);
           cursor: pointer;
           font-size: 10px;
           line-height: 1;
         }
-        .btn-sm.btn-danger { color: var(--bento-error); border-color: rgba(239, 68, 68, 0.3); }
-        .btn-sm.btn-danger:hover { background: var(--bento-error); color: white; }
+        .btn-sm.btn-danger { color: var(--pc-danger); border-color: rgba(239, 68, 68, 0.3); }
+        .btn-sm.btn-danger:hover { background: var(--pc-danger); color: white; }
 
         /* Dark mode */
         @media (prefers-color-scheme: dark) {
@@ -501,20 +473,20 @@ class HAPurgeCache extends HTMLElement {
         .tip-banner {
           background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03));
           border: 1.5px solid rgba(59,130,246,0.2);
-          border-radius: var(--bento-radius-sm);
+          border-radius: var(--pc-radius);
           padding: 14px 16px;
           margin-bottom: 16px;
           font-size: 13px;
           line-height: 1.6;
           position: relative;
         }
-        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--bento-primary); }
+        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--pc-primary); }
         .tip-banner ul { margin: 6px 0 0 16px; padding: 0; }
         .tip-banner li { margin-bottom: 3px; }
         .tip-banner .tip-dismiss {
           position: absolute; top: 8px; right: 10px;
           background: none; border: none; cursor: pointer;
-          font-size: 16px; color: var(--bento-text-secondary); opacity: 0.6;
+          font-size: 16px; color: var(--pc-text-sec); opacity: 0.6;
         }
         .tip-banner .tip-dismiss:hover { opacity: 1; }
         .tip-banner.hidden { display: none; }

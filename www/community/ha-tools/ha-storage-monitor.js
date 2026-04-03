@@ -1,8 +1,74 @@
+
+// ── HA Tools Server Persistence Helper ──
+// Uses HA frontend/set_user_data for cross-device per-user persistence
+// Falls back to localStorage for instant reads (cache), writes to both
+window._haToolsPersistence = window._haToolsPersistence || {
+  _cache: {},
+  _hass: null,
+  setHass(hass) { this._hass = hass;
+    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+
+  async save(key, data) {
+    const fullKey = 'ha-tools-' + key;
+    // Always write localStorage as fast cache
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    // Write to HA server (cross-device)
+    if (this._hass) {
+      try {
+        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
+      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
+    }
+    this._cache[fullKey] = data;
+  },
+
+  async load(key) {
+    const fullKey = 'ha-tools-' + key;
+    // 1. Memory cache (instant)
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    // 2. localStorage (fast, may be stale on other device)
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+      }
+    } catch(e) {}
+    // 3. HA server (authoritative, cross-device) — async update
+    if (this._hass) {
+      try {
+        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
+        if (result && result.value !== undefined && result.value !== null) {
+          this._cache[fullKey] = result.value;
+          // Update localStorage cache
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          return result.value;
+        }
+      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
+    }
+    return this._cache[fullKey] || null;
+  },
+
+  // Synchronous read from cache/localStorage only (for initial render)
+  loadSync(key) {
+    const fullKey = 'ha-tools-' + key;
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+        return this._cache[fullKey];
+      }
+    } catch(e) {}
+    return null;
+  }
+};
+
 /**
  * HA Storage Monitor - WinDirStat-like storage visualization for Home Assistant
  * Shows disk usage with treemap visualization, directory breakdown, and cleanup suggestions
  */
 class HAStorageMonitor extends HTMLElement {
+  static getConfigElement() { return document.createElement('ha-storage-monitor-editor'); }
+  static getStubConfig() { return { type: 'custom:ha-storage-monitor', title: 'Storage Monitor' }; }
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -22,8 +88,14 @@ class HAStorageMonitor extends HTMLElement {
     this._sortBy = 'size';
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this._sortAsc = false;
+    this._lastHtml = '';
+    this._lastDataFetch = 0;
   }
 
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
   set hass(hass) {
     this._hass = hass;
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
@@ -36,25 +108,28 @@ class HAStorageMonitor extends HTMLElement {
       this._lastRenderTime = now;
       return;
     }
-    if (now - (this._lastRenderTime || 0) < 5000) {
-      if (!this._renderScheduled) {
-        this._renderScheduled = true;
-        setTimeout(() => {
-          this._renderScheduled = false;
+    // Storage data doesn't change often - only re-fetch every 2 minutes
+    if (now - (this._lastDataFetch || 0) > 120000) {
+      this._lastDataFetch = now;
       this._loadStorageData();
-          this._render();
-          this._lastRenderTime = Date.now();
-        }, 5000 - (now - (this._lastRenderTime || 0)));
-      }
-      return;
     }
-      this._loadStorageData();
-    this._render();
+    // Throttle render to 30s — storage info is static
+    if (now - (this._lastRenderTime || 0) < 30000) {
+      return; // Skip render entirely — no need to re-render static storage info
+    }
     this._lastRenderTime = now;
   }
 
   setConfig(config) {
     this._config = { title: config.title || 'Storage Monitor', ...config };
+    // Load persisted UI state
+    try {
+      const _saved = localStorage.getItem('ha-storage-monitor-settings');
+      if (_saved) {
+        const _s = JSON.parse(_saved);
+        if (_s._activeTab) this._activeTab = _s._activeTab;
+      }
+    } catch(e) {}
   }
 
   async _loadStorageData() {
@@ -126,14 +201,21 @@ class HAStorageMonitor extends HTMLElement {
 
       // Build storage breakdown
       // Addons: filter by state (started/stopped = installed), list API has no size
-      const addonSizes = addons.filter(a => a.state && a.state !== 'unknown').map(a => ({
+      const addonSizes = addons.filter(a => a.state && a.state !== 'unknown').map(a => {
+        // disk_usage from supervisor can be in bytes or MB depending on version
+        let sizeMB = 0.5; // default for unknown
+        if (a.disk_usage !== null && a.disk_usage !== undefined) {
+          sizeMB = a.disk_usage > 100000 ? a.disk_usage / (1024 * 1024) : a.disk_usage; // If > 100000, likely bytes; else likely MB
+        }
+        return {
         name: a.name || a.slug,
         slug: a.slug,
-        size: a.disk_usage ? a.disk_usage / (1024 * 1024) : 0.5, // disk_usage in bytes; show 0.5MB (<1MB) for unknown
+        size: sizeMB, // in MB
         icon: a.icon ? `/api/hassio/addons/${a.slug}/icon` : null,
         state: a.state,
         version: a.version
-      }));
+      };
+      });
 
       // Backups: supervisor /backups returns size in MB and size_bytes
       const backupSizes = backups.map(b => ({
@@ -214,7 +296,7 @@ class HAStorageMonitor extends HTMLElement {
   }
 
   _render() {
-    this.shadowRoot.innerHTML = `
+    const html = `
       <style>${window.HAToolsBentoCSS || ""}
 
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
@@ -426,8 +508,6 @@ canvas {
 
 /* ===== END BENTO LIGHT MODE ===== */
 
-
-
 :host {
   --bento-bg: var(--primary-background-color, #F8FAFC);
   --bento-card: var(--card-background-color, #FFFFFF);
@@ -439,10 +519,10 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius: 16px;
+  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -451,7 +531,7 @@ canvas {
 * { box-sizing: border-box; }
 
 .card, .card-container, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
+  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -521,7 +601,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow); }
+.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -753,39 +833,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .suggestion-desc { font-size: 13px; color: var(--bento-text-secondary); }
 .suggestion-savings { font-size: 12px; color: var(--bento-primary); font-weight: 500; margin-top: 6px; }
 
-
 /* === DARK MODE === */
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-border: var(--divider-color, #2a2a4a);
-    --bento-text: var(--primary-text-color, #e0e0e0);
-    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
-    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --bento-primary-light: rgba(59,130,246,0.15);
-    --bento-success-light: rgba(16,185,129,0.15);
-    --bento-error-light: rgba(239,68,68,0.15);
-    --bento-warning-light: rgba(245,158,11,0.15);
-    color-scheme: dark !important;
-  }
-  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
-    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
-  }
-  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
-  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
-  .tab-content, .section { color: var(--bento-text); }
-  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
-  table td { color: var(--bento-text); border-color: var(--bento-border); }
-  tr:hover td { background: rgba(59,130,246,0.08); }
-  .empty-state, .no-data { color: var(--bento-text-secondary); }
-  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
-  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
-  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
-  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
-}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
@@ -806,7 +854,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
-      
 
 </style>
       <ha-card>
@@ -817,14 +864,18 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>
           <div class="tabs">
             <button class="tab-button active" data-tab="overview">Overview</button>
-            <button class="tab-button" data-tab="addons">Addons</button>
+            <button class="tab-button" data-tab="addons">Addons & Integrations</button>
             <button class="tab-button" data-tab="backups">Backups</button>
+            <button class="tab-button" data-tab="files">Files & Folders</button>
             <button class="tab-button" data-tab="cleanup">Cleanup</button>
           </div>
           <div id="content"></div>
         </div>
       </ha-card>
-    `
+    `;
+    if (this._lastHtml === html) return;
+    this._lastHtml = html;
+    this.shadowRoot.innerHTML = html;
 
     // Tab handlers
     this.shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
@@ -870,8 +921,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const d = this._storageData;
     if (this._activeTab === 'overview') content.innerHTML = this._renderOverview(d);
-    else if (this._activeTab === 'addons') content.innerHTML = this._renderAddons(d);
+    else if (this._activeTab === 'addons') content.innerHTML = this._renderAddonsAndIntegrations(d);
     else if (this._activeTab === 'backups') content.innerHTML = this._renderBackups(d);
+    else if (this._activeTab === 'files') content.innerHTML = this._renderFiles(d);
     else if (this._activeTab === 'cleanup') content.innerHTML = this._renderCleanup(d);
 
     this._attachContentEvents();
@@ -927,32 +979,77 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     `;
   }
 
-  _renderAddons(d) {
-    if (!d.addons.length) return '<div class="loading">No addons found</div>';
+  _renderAddons(d) { return this._renderAddonsAndIntegrations(d); }
+
+  _renderAddonsAndIntegrations(d) {
+    const L = this._lang === 'pl';
     const hasAnySizes = d.addons.some(a => a.size > 0);
-    const sizeNote = hasAnySizes ? '' : '<div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">💡 Addon disk sizes may not be available on all HA installations. Sizes shown as 0 when supervisor doesn\x27t report disk_usage.</div>';
-    const maxSize = Math.max(...d.addons.map(a => a.size), 1);
+    const sizeNote = hasAnySizes ? '' : `<div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4A1} ${L ? 'Rozmiary addon\u00F3w mog\u0105 nie by\u0107 dost\u0119pne na wszystkich instalacjach HA.' : 'Addon disk sizes may not be available on all HA installations.'}</div>`;
+    const maxAddonSize = Math.max(...d.addons.map(a => a.size), 1);
+
+    // Determine HACS integrations
+    const hacsIntegrations = (d.integrations || []).filter(i => i.source === 'hacs' || i.source === 'custom');
+    const coreIntegrations = (d.integrations || []).filter(i => i.source !== 'hacs' && i.source !== 'custom');
+
+    const sortedAddons = [...d.addons].sort((a, b) => this._sortAsc ? a.size - b.size : b.size - a.size);
+    const sortedInts = [...(d.integrations || [])].sort((a, b) => {
+      const sa = a.source === 'hacs' || a.source === 'custom' ? 'HACS' : 'Core';
+      const sb = b.source === 'hacs' || b.source === 'custom' ? 'HACS' : 'Core';
+      return sa.localeCompare(sb);
+    });
+
     return `
+      ${sizeNote}
+      <h3 style="margin:0 0 12px;font-size:15px;color:var(--bento-text,#1e293b);">\u{1F9E9} ${L ? 'Dodatki' : 'Add-ons'} (${d.addons.length})</h3>
       <div class="table-container">
-        ${sizeNote}
-          <table class="entity-table">
+        <table class="entity-table">
           <thead><tr>
-            <th>Addon</th>
-            <th>Size</th>
-            <th>State</th>
-            <th>Version</th>
-            <th>Visualization</th>
+            <th>${L ? 'Dodatek' : 'Addon'}</th>
+            <th>${L ? 'Rozmiar' : 'Size'}</th>
+            <th>Status</th>
+            <th>${L ? 'Wersja' : 'Version'}</th>
+            <th></th>
           </tr></thead>
           <tbody>
-            ${d.addons.map(a => `
+            ${sortedAddons.map(a => `
               <tr>
                 <td title="${a.slug}">${a.name}</td>
                 <td>${a.size < 1 ? '< 1 MB' : this._fmtSize(a.size)}</td>
-                <td><span style="color:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}">${a.state || 'stopped'}</span></td>
+                <td><span style="color:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}">\u25CF ${a.state || 'stopped'}</span></td>
                 <td>${a.version || '-'}</td>
-                <td><span class="size-bar" style="width:${Math.max(4, (a.size / maxSize) * 100)}px;background:#4caf50"></span></td>
+                <td><span class="size-bar" style="width:${Math.max(4, (a.size / maxAddonSize) * 100)}px;background:#4caf50"></span></td>
               </tr>
             `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin:24px 0 12px;font-size:15px;color:var(--bento-text,#1e293b);">\u{1F50C} ${L ? 'Integracje' : 'Integrations'} (${(d.integrations || []).length})</h3>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="padding:6px 12px;background:rgba(33,150,243,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4E6} Core: ${coreIntegrations.length}</div>
+        <div style="padding:6px 12px;background:rgba(255,152,0,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F3EA} HACS: ${hacsIntegrations.length}</div>
+        <div style="padding:6px 12px;background:rgba(76,175,80,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">\u{1F4CA} ${L ? 'Szacowany rozmiar' : 'Est. storage'}: ~${this._fmtSize((d.integrations || []).length * 0.1)}</div>
+      </div>
+      <div class="table-container">
+        <table class="entity-table">
+          <thead><tr>
+            <th>${L ? 'Integracja' : 'Integration'}</th>
+            <th>Domain</th>
+            <th>${L ? '\u0179r\u00F3d\u0142o' : 'Source'}</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>
+            ${sortedInts.slice(0, 60).map(i => {
+              const isHacs = i.source === 'hacs' || i.source === 'custom';
+              return `
+              <tr>
+                <td>${i.title || i.domain}</td>
+                <td><code style="font-size:11px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;">${i.domain}</code></td>
+                <td><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${isHacs ? 'rgba(255,152,0,0.1);color:#f57c00' : 'rgba(33,150,243,0.1);color:#1976d2'}">${isHacs ? '\u{1F3EA} HACS' : '\u{1F4E6} Core'}</span></td>
+                <td><span style="color:${i.state === 'loaded' ? '#4caf50' : i.state === 'setup_error' ? '#f44336' : '#9e9e9e'}">\u25CF ${i.state || 'unknown'}</span></td>
+              </tr>`;
+            }).join('')}
+            ${(d.integrations || []).length > 60 ? `<tr><td colspan="4" style="text-align:center;color:var(--bento-text-secondary,#64748b);font-size:12px;">... ${L ? 'i' : 'and'} ${(d.integrations || []).length - 60} ${L ? 'wi\u0119cej' : 'more'}</td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -988,7 +1085,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     `;
   }
 
-
   _renderIntegrations(d) {
     if (!d.integrations || !d.integrations.length) return '<div class="loading">No integrations found</div>';
     const intCount = d.integrations.length;
@@ -1017,6 +1113,75 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       </div>
     `;
   }
+  _renderFiles(d) {
+    const L = this._lang === 'pl';
+    if (!this._hass) return `<div class="loading">${L ? 'Brak dost\u0119pu do danych' : 'No data available'}</div>`;
+
+    // Build a virtual directory tree from known data
+    const entries = [];
+    const totalMB = d.diskUsed * 1024; // GB to MB
+
+    // Known directories with estimates
+    const knownDirs = [
+      { path: '/config/', name: 'config', size: Math.max(totalMB * 0.05, 50), type: 'dir', icon: '\u{1F4C1}', desc: L ? 'Konfiguracja HA' : 'HA Configuration' },
+      { path: '/config/www/', name: 'www', size: Math.max(totalMB * 0.01, 10), type: 'dir', icon: '\u{1F310}', desc: L ? 'Pliki statyczne (karty, zasoby)' : 'Static files (cards, resources)' },
+      { path: '/config/custom_components/', name: 'custom_components', size: (d.integrations || []).filter(i => i.source === 'hacs' || i.source === 'custom').length * 2, type: 'dir', icon: '\u{1F9E9}', desc: L ? 'Komponenty HACS' : 'HACS Components' },
+      { path: '/config/.storage/', name: '.storage', size: Math.max(totalMB * 0.02, 20), type: 'dir', icon: '\u{1F5C4}\uFE0F', desc: L ? 'Wewn\u0119trzna baza HA' : 'HA Internal storage' },
+      { path: '/backup/', name: 'backup', size: d.backups.reduce((s, b) => s + b.size, 0), type: 'dir', icon: '\u{1F4BE}', desc: L ? 'Kopie zapasowe' : 'Backups' },
+      { path: '/addons/', name: 'addons', size: d.addons.reduce((s, a) => s + a.size, 0), type: 'dir', icon: '\u{1F4E6}', desc: L ? 'Dane addon\u00F3w' : 'Addon data' },
+      { path: '/ssl/', name: 'ssl', size: 0.1, type: 'dir', icon: '\u{1F512}', desc: L ? 'Certyfikaty SSL' : 'SSL certificates' },
+      { path: '/media/', name: 'media', size: Math.max(totalMB * 0.01, 5), type: 'dir', icon: '\u{1F3AC}', desc: L ? 'Pliki multimedialne' : 'Media files' },
+      { path: '/share/', name: 'share', size: Math.max(totalMB * 0.005, 2), type: 'dir', icon: '\u{1F4C2}', desc: L ? 'Wsp\u00F3\u0142dzielone' : 'Shared folder' },
+    ];
+
+    // Add recorder DB as a file entry
+    if (d.dbSizeMB > 0) {
+      knownDirs.push({ path: '/config/home-assistant_v2.db', name: 'home-assistant_v2.db', size: d.dbSizeMB, type: 'file', icon: '\u{1F5C3}\uFE0F', desc: L ? 'Baza danych Recorder' : 'Recorder database' });
+    }
+
+    // Sort by sortBy
+    const sortKey = this._sortBy;
+    const sortAsc = this._sortAsc;
+    const sorted = [...knownDirs].sort((a, b) => {
+      if (sortKey === 'name') return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      return sortAsc ? a.size - b.size : b.size - a.size;
+    });
+
+    const maxSize = Math.max(...sorted.map(e => e.size), 1);
+
+    return `
+      <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+        <span style="font-size:12px;color:var(--bento-text-secondary,#64748b);">${L ? 'Sortuj:' : 'Sort:'}</span>
+        <button class="sort-btn" data-sort="size" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;background:${sortKey === 'size' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,#64748b);cursor:pointer;">${L ? 'Rozmiar' : 'Size'} ${sortKey === 'size' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
+        <button class="sort-btn" data-sort="name" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;background:${sortKey === 'name' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,#64748b);cursor:pointer;">${L ? 'Nazwa' : 'Name'} ${sortKey === 'name' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
+      </div>
+      <div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">
+        \u{1F4CA} ${L ? 'Szacowany rozk\u0142ad plik\u00F3w i folder\u00F3w. Rzeczywiste rozmiary mog\u0105 si\u0119 r\u00F3\u017Cni\u0107.' : 'Estimated file/folder breakdown. Actual sizes may vary.'}
+        ${L ? 'Dysk:' : 'Disk:'} ${d.diskUsed.toFixed(1)} / ${d.diskTotal.toFixed(1)} GB (${d.usedPercent}%)
+      </div>
+      <div class="table-container">
+        <table class="entity-table">
+          <thead><tr>
+            <th>${L ? 'Nazwa' : 'Name'}</th>
+            <th>${L ? 'Rozmiar' : 'Size'}</th>
+            <th>${L ? 'Opis' : 'Description'}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            ${sorted.map(e => `
+              <tr>
+                <td>${e.icon} <code style="font-size:12px;">${e.path}</code></td>
+                <td style="white-space:nowrap;">${e.size < 1 ? '< 1 MB' : this._fmtSize(e.size)}</td>
+                <td style="font-size:12px;color:var(--bento-text-secondary,#64748b);">${e.desc}</td>
+                <td><span class="size-bar" style="width:${Math.max(4, (e.size / maxSize) * 100)}px;background:${e.type === 'file' ? '#ff9800' : '#3b82f6'}"></span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   _renderCleanup(d) {
     const suggestions = [];
     if (d.usedPercent > 80) {
@@ -1051,6 +1216,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   _attachContentEvents() {
     this.shadowRoot.querySelectorAll('.entity-table th').forEach(th => {
       th.addEventListener('click', () => {});
+    });
+    // Sort buttons for files tab
+    this.shadowRoot.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const newSort = btn.dataset.sort;
+        if (this._sortBy === newSort) {
+          this._sortAsc = !this._sortAsc;
+        } else {
+          this._sortBy = newSort;
+          this._sortAsc = newSort === 'name';
+        }
+        this._updateContent();
+      });
     });
   }
 
@@ -1116,3 +1294,41 @@ console.info(
   'background: #4caf50; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
   'background: #e8f5e9; color: #4caf50; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );
+
+class HaStorageMonitorEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
+      <h3>Storage Monitor</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${this._config?.title || 'Storage Monitor'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-storage-monitor-editor')) { customElements.define('ha-storage-monitor-editor', HaStorageMonitorEditor); }
