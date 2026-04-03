@@ -1,0 +1,3 @@
+*.bak
+www/community/ha-tools/bak_*/
+www/community/ha-tools/cry_analyzer_log.json
