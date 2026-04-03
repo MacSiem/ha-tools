@@ -683,9 +683,6 @@ class HaEnergyOptimizer extends HTMLElement {
         :host {
           font-family: 'Inter', sans-serif;
         }
-        @media (prefers-color-scheme: dark) {
-          :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
-        }
         .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); }
         .card-title { font-size: 17px; font-weight: 700; color: var(--bento-text); margin: 0 0 4px; }
         .data-source-badge { font-size: 11px; color: var(--bento-text-muted); margin-bottom: 14px; }
@@ -718,7 +715,7 @@ class HaEnergyOptimizer extends HTMLElement {
         .compare-mode-bar { display: flex; gap: 4px; margin-bottom: 16px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 4px; }
         .compare-mode-btn { flex: 1; padding: 8px 10px; border: none; background: transparent; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--bento-text-secondary); border-radius: 8px; transition: all .2s; font-family: 'Inter', sans-serif; white-space: nowrap; }
         .compare-mode-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
-        .compare-mode-btn.active { color: #fff; background: var(--bento-primary); font-weight: 600; box-shadow: 0 2px 6px rgba(59,130,246,.3); }
+        .compare-mode-btn.active { color: var(--bento-bg-inverted, #fff); background: var(--bento-primary); font-weight: 600; box-shadow: 0 2px 6px rgba(var(--bento-primary-rgb, 59,130,246),.3); }
         .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
         .comparison-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; }
         .comparison-title { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; }
@@ -743,7 +740,7 @@ class HaEnergyOptimizer extends HTMLElement {
         .difficulty-badge { display: inline-flex; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--bento-primary-light); color: var(--bento-primary); text-transform: capitalize; }
         .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--bento-border); }
         .pagination-btn { padding: 6px 14px; border: 1.5px solid var(--bento-border); background: var(--bento-card); color: var(--bento-text); border-radius: var(--bento-radius-xs); cursor: pointer; font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif; transition: all .2s; }
-        .pagination-btn:hover:not(:disabled) { background: var(--bento-primary); color: #fff; border-color: var(--bento-primary); }
+        .pagination-btn:hover:not(:disabled) { background: var(--bento-primary); color: var(--bento-bg-inverted, #fff); border-color: var(--bento-primary); }
         .pagination-btn:disabled { opacity: .4; cursor: not-allowed; }
         .pagination-info { font-size: 12px; color: var(--bento-text-secondary); }
         .page-size-select { padding: 5px 8px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs); font-size: 12px; font-family: 'Inter', sans-serif; background: var(--bento-card); color: var(--bento-text); }
@@ -771,15 +768,15 @@ class HaEnergyOptimizer extends HTMLElement {
         .settings-btn:hover { color: var(--bento-primary); border-color: var(--bento-primary); background: var(--bento-primary-light); }
         .settings-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 100; justify-content: center; align-items: center; }
         .settings-overlay.active { display: flex; }
-        .settings-panel { background: var(--bento-card, #1e293b); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 24px; max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+        .settings-panel { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 24px; max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
         .settings-panel h3 { margin: 0 0 16px; font-size: 16px; color: var(--bento-text); }
         .settings-panel .form-row { margin-bottom: 14px; }
         .settings-panel label { display: block; font-size: 12px; font-weight: 500; color: var(--bento-text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .4px; }
         .settings-panel input, .settings-panel select { width: 100%; padding: 8px 12px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); background: var(--bento-bg); color: var(--bento-text); font-size: 13px; font-family: 'Inter', sans-serif; box-sizing: border-box; }
         .settings-panel .btn-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
-        .settings-panel .btn-save { padding: 8px 20px; background: var(--bento-primary); color: #fff; border: none; border-radius: var(--bento-radius-sm); cursor: pointer; font-weight: 600; font-size: 13px; }
+        .settings-panel .btn-save { padding: 8px 20px; background: var(--bento-primary); color: var(--bento-bg-inverted, #fff); border: none; border-radius: var(--bento-radius-sm); cursor: pointer; font-weight: 600; font-size: 13px; }
         .settings-panel .btn-cancel { padding: 8px 20px; background: transparent; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); cursor: pointer; color: var(--bento-text-secondary); font-size: 13px; }
-        .rate-annotation { font-size: 11px; color: var(--bento-text-muted, #64748b); margin-top: 2px; }
+        .rate-annotation { font-size: 11px; color: var(--bento-text-muted); margin-top: 2px; }
         </style>
     `;
   }
@@ -1448,7 +1445,7 @@ async _drawComparisonChart() {
         data: {
           labels: xLabels,
           datasets: [
-            { label: currentLabel, data: currentData, backgroundColor: 'rgba(59,130,246,.7)', borderColor: '#3B82F6', borderWidth: 1, borderRadius: 4 },
+            { label: currentLabel, data: currentData, backgroundColor: 'rgba(var(--bento-primary-rgb, 59,130,246),.7)', borderColor: 'var(--bento-primary)', borderWidth: 1, borderRadius: 4 },
             { label: prevLabel, data: prevData, backgroundColor: 'rgba(148,163,184,.5)', borderColor: '#94A3B8', borderWidth: 1, borderRadius: 4 }
           ]
         },
@@ -1656,20 +1653,20 @@ class HaEnergyOptimizerEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--bento-text); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
+        input:focus { border-color:var(--bento-primary); }
       </style>
       <h3>Energy Optimizer</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Energy Optimizer'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-bg);color:var(--bento-text);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>
               <input type="text" id="cf_currency" value="${this._config?.currency || 'PLN'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-bg);color:var(--bento-text);font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

@@ -676,7 +676,7 @@ class HAEnergyEmail extends HTMLElement {
           font-family: 'Inter', sans-serif;
         }
         @media (prefers-color-scheme: dark) {
-          :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
+          :host { }
         }
         .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); }
         .header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
@@ -720,28 +720,28 @@ class HAEnergyEmail extends HTMLElement {
         .btn-primary:hover { background: #2563EB !important; }
         .btn-ok { background: var(--bento-success) !important; color: #fff !important; border-color: var(--bento-success) !important; }
         .smtp-section { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-        .smtp-missing { border-color: #f59e0b40; background: #fef3c720; }
+        .smtp-missing { border-color: rgba(245,158,11,.25); background: rgba(245,158,11,.125); }
         .smtp-header { display: flex; align-items: center; gap: 12px; }
         .smtp-icon { font-size: 24px; }
-        .smtp-title { font-weight: 700; font-size: 14px; color: var(--t1, #1e293b); }
+        .smtp-title { font-weight: 700; font-size: 14px; color: var(--bento-text); }
         .smtp-detail { font-size: 12px; color: var(--bento-text-secondary); margin-top: 2px; }
         .smtp-detail code { background: var(--bento-border); padding: 1px 6px; border-radius: 4px; font-size: 11px; }
         .smtp-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
         .smtp-guide { margin-top: 16px; }
-        .guide-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; color: var(--t1, #1e293b); }
+        .guide-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; color: var(--bento-text); }
         .guide-steps { display: flex; flex-direction: column; gap: 16px; }
         .guide-step { display: flex; gap: 12px; }
-        .step-num { flex-shrink: 0; width: 28px; height: 28px; background: var(--primary, #3b82f6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .step-num { flex-shrink: 0; width: 28px; height: 28px; background: var(--bento-primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
         .guide-step p { margin: 4px 0; font-size: 13px; color: var(--bento-text-secondary); line-height: 1.5; }
-        .guide-step pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; white-space: pre; margin: 8px 0; }
-        .guide-step a { color: var(--primary, #3b82f6); text-decoration: none; }
+        .guide-step pre { background: var(--bento-text); color: var(--bento-border); padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; white-space: pre; margin: 8px 0; }
+        .guide-step a { color: var(--bento-primary); text-decoration: none; }
         .guide-step a:hover { text-decoration: underline; }
         .guide-alt { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bento-border); }
         .smtp-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
         .smtp-table th { background: var(--bento-border); padding: 6px 10px; text-align: left; font-weight: 600; }
         .smtp-table td { padding: 6px 10px; border-bottom: 1px solid var(--bento-border); }
         .smtp-table tr:hover td { background: var(--bento-border); }
-        .toast { display: none; position: fixed; bottom: 24px; right: 24px; z-index: 9999; background: #1e293b; color: #e2e8f0; padding: 12px 20px; border-radius: var(--bento-radius-sm); font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 320px; }
+        .toast { display: none; position: fixed; bottom: 24px; right: 24px; z-index: 9999; background: var(--bento-text); color: var(--bento-border); padding: 12px 20px; border-radius: var(--bento-radius-sm); font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: 320px; }
         .toast.show { display: block; animation: slideUp .3s ease-out; }
         @keyframes slideUp { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
         .preview-box { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 16px; font-size: 13px; color: var(--bento-text); max-height: 320px; overflow-y: auto; }
@@ -1034,17 +1034,17 @@ class HAEnergyEmail extends HTMLElement {
       </div>
       <div class="grid3">
         <div class="stat">
-          <div class="stat-val" style="color:#F59E0B">${totalEnergy.toFixed(1)}</div>
+          <div class="stat-val" style="color:var(--bento-warning)">${totalEnergy.toFixed(1)}</div>
           <div class="stat-lbl">kWh ${periodLabel}</div>
           <div class="stat-sub">${displayData.length} ${L ? 'urz\u0105dze\u0144' : 'devices'}</div>
         </div>
         <div class="stat">
-          <div class="stat-val" style="color:#3B82F6">${totalCost.toFixed(2)}</div>
+          <div class="stat-val" style="color:var(--bento-primary)">${totalCost.toFixed(2)}</div>
           <div class="stat-lbl">${this._config.currency} ${L ? 'Koszt' : 'Cost'}</div>
           <div class="stat-sub">@ ${this._getTariffLabel()}</div>
         </div>
         <div class="stat">
-          <div class="stat-val" style="color:#10B981">${displayData.length > 0 ? displayData[0].name.split(' ').slice(0,2).join(' ') : '-'}</div>
+          <div class="stat-val" style="color:var(--bento-success)">${displayData.length > 0 ? displayData[0].name.split(' ').slice(0,2).join(' ') : '-'}</div>
           <div class="stat-lbl">${L ? 'Najwi\u0119ksze zu\u017Cycie' : 'Top Consumer'}</div>
           <div class="stat-sub">${displayData.length > 0 ? displayData[0].month.toFixed(1) + ' kWh' : ''}</div>
         </div>
@@ -1128,7 +1128,7 @@ class HAEnergyEmail extends HTMLElement {
         `${L ? '1. dzie\u0144 miesi\u0105ca o' : '1st of month at'} ${sd.monthly_time}`,
         'enable-monthly', 'disable-monthly', 'create-monthly', 'time-monthly', sd.monthly_time, ''
       )}
-      <div style="margin-top:12px;padding:12px 16px;background:rgba(59,130,246,0.08);border-left:3px solid var(--bento-primary,#3B82F6);border-radius:6px;font-size:13px;color:var(--bento-text);">
+      <div style="margin-top:12px;padding:12px 16px;background:rgba(59,130,246,0.08);border-left:3px solid var(--bento-primary);border-radius:6px;font-size:13px;color:var(--bento-text);">
         <strong>\u2139\uFE0F ${L ? 'Info' : 'Info'}:</strong> ${L
           ? 'Ustawienia (email, serwis, godziny) s\u0105 zapisywane w Home Assistant i dzia\u0142aj\u0105 na ka\u017Cdym urz\u0105dzeniu.'
           : 'Settings (email, service, times) are stored in Home Assistant and work across all your devices.'}
@@ -1182,8 +1182,8 @@ class HAEnergyEmail extends HTMLElement {
         ${periodNote}
         <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:10px">\u{1F4E7} ${recipientLine} \u00A0\u2022\u00A0 ${range} \u00A0\u2022\u00A0 ${devData.length} ${L ? 'urz.' : 'dev.'}</div>
         <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
-          <div><span style="font-size:18px;font-weight:700;color:#F59E0B">${totalEnergy.toFixed(1)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">kWh</span></div>
-          <div><span style="font-size:18px;font-weight:700;color:#3B82F6">${totalCost.toFixed(2)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">${this._config.currency}</span></div>
+          <div><span style="font-size:18px;font-weight:700;color:var(--bento-warning)">${totalEnergy.toFixed(1)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">kWh</span></div>
+          <div><span style="font-size:18px;font-weight:700;color:var(--bento-primary)">${totalCost.toFixed(2)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">${this._config.currency}</span></div>
         </div>
         <table class="preview-table">
           <thead><tr><th>${L ? 'Urz\u0105dzenie' : 'Device'}</th><th>kWh</th><th>${L ? 'Koszt' : 'Cost'} (${this._config.currency})</th></tr></thead>
@@ -1621,10 +1621,10 @@ class HAEnergyEmail extends HTMLElement {
         const cost = (d.cost || d.month * price).toFixed(2);
         const pct = totalKwh > 0 ? ((d.month / totalKwh) * 100).toFixed(0) : 0;
         const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
-        return `<tr style="background:${bg}"><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:14px">${d.name}</td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:600">${kwh}</td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right">${cost}</td><td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:right;color:#64748b">${pct}%</td></tr>`;
+        return `<tr style="background:${bg}"><td style="padding:10px 14px;border-bottom:1px solid var(--bento-border);font-size:14px">${d.name}</td><td style="padding:10px 14px;border-bottom:1px solid var(--bento-border);text-align:right;font-weight:600">${kwh}</td><td style="padding:10px 14px;border-bottom:1px solid var(--bento-border);text-align:right">${cost}</td><td style="padding:10px 14px;border-bottom:1px solid var(--bento-border);text-align:right;color:var(--bento-text-secondary)">${pct}%</td></tr>`;
       }).join('');
-      const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
-        <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);padding:24px 28px;color:#fff">
+      const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid var(--bento-border)">
+        <div style="background:linear-gradient(135deg,#1e40af,var(--bento-primary));padding:24px 28px;color:#fff">
           <h1 style="margin:0;font-size:22px;font-weight:700">\u26A1 ${L ? 'Raport energii' : 'Energy Report'} \u2014 ${typeName}</h1>
           <p style="margin:6px 0 0;opacity:.85;font-size:14px">${dateStr} \u2022 ${periodLabels[type]} \u2022 ${devices.length} ${L ? 'urz.' : 'dev.'}</p>
         </div>
@@ -1643,12 +1643,12 @@ class HAEnergyEmail extends HTMLElement {
               <div style="font-size:12px;color:#065f46;margin-top:2px">${L ? 'Top' : 'Top'}: ${topDevice ? topDevice.month.toFixed(1) : 0} kWh</div>
             </div>
           </div>
-          <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
+          <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid var(--bento-border)">
             <thead><tr style="background:#f1f5f9">
-              <th style="padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;color:#64748b;letter-spacing:.5px">${L ? 'Urz\u0105dzenie' : 'Device'}</th>
-              <th style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;color:#64748b;letter-spacing:.5px">kWh</th>
-              <th style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;color:#64748b;letter-spacing:.5px">${currency}</th>
-              <th style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;color:#64748b;letter-spacing:.5px">%</th>
+              <th style="padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;color:var(--bento-text-secondary);letter-spacing:.5px">${L ? 'Urz\u0105dzenie' : 'Device'}</th>
+              <th style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;color:var(--bento-text-secondary);letter-spacing:.5px">kWh</th>
+              <th style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;color:var(--bento-text-secondary);letter-spacing:.5px">${currency}</th>
+              <th style="padding:10px 14px;text-align:right;font-size:12px;text-transform:uppercase;color:var(--bento-text-secondary);letter-spacing:.5px">%</th>
             </tr></thead>
             <tbody>${deviceRows}
             <tr style="background:#f1f5f9;font-weight:700">
@@ -1795,25 +1795,25 @@ class HaEnergyEmailEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--bento-text); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
+        input:focus { border-color:var(--bento-primary); }
       </style>
       <h3>Energy Email Reports</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Energy Email Reports'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>
               <input type="text" id="cf_currency" value="${this._config?.currency || 'PLN'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Energy price</label>
               <input type="text" id="cf_energy_price" value="${this._config?.energy_price || '0.65'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

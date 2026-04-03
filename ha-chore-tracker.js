@@ -1,5 +1,5 @@
-
-// ── HA Tools Server Persistence Helper ──
+﻿
+// â”€â”€ HA Tools Server Persistence Helper â”€â”€
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
 window._haToolsPersistence = window._haToolsPersistence || {
@@ -32,7 +32,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
         this._cache[fullKey] = JSON.parse(raw);
       }
     } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
+    // 3. HA server (authoritative, cross-device) â€” async update
     if (this._hass) {
       try {
         const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
@@ -184,7 +184,7 @@ class HaChoreTracker extends HTMLElement {
     return this._hass;
   }
   _addMember() {
-    const colors = ['#4CAF50','#2196F3','#FF9800','#E91E63','#9C27B0','#00BCD4','#FF5722','#795548'];
+    const colors = ['#4CAF50','#2196F3','var(--bento-warning)','#E91E63','#9C27B0','#00BCD4','#FF5722','#795548'];
     const color = colors[this.members.length % colors.length];
     this.members.push({name: 'Osoba ' + (this.members.length + 1), color: color});
     this._saveMembers();
@@ -262,21 +262,21 @@ class HaChoreTracker extends HTMLElement {
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
 :host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+  --bento-primary: var(--bento-primary);
+  --bento-primary-hover: var(--bento-primary-hover);
+  --bento-primary-light: var(--bento-primary-light);
+  --bento-success: var(--bento-success);
+  --bento-success-light: var(--bento-success-light);
+  --bento-error: var(--bento-error);
+  --bento-error-light: var(--bento-error-light);
+  --bento-warning: var(--bento-warning);
+  --bento-warning-light: var(--bento-warning-light);
+  --bento-bg: var(--primary-background-color, var(--bento-bg));
+  --bento-card: var(--card-background-color, var(--bento-card));
+  --bento-border: var(--divider-color, var(--bento-border));
+  --bento-text: var(--primary-text-color, var(--bento-text));
+  --bento-text-secondary: var(--secondary-text-color, var(--bento-text-secondary));
+  --bento-text-muted: var(--disabled-text-color, var(--bento-text-muted));
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;
@@ -341,7 +341,7 @@ class HaChoreTracker extends HTMLElement {
 .tab.active, .tab-btn.active, .tab-button.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
-  background: rgba(59, 130, 246, 0.04);
+  background: var(--bento-primary-light);
   font-weight: 600;
 }
 
@@ -473,10 +473,10 @@ canvas {
         }
 
         :host {
-          --primary-color: var(--ha-card-background, #ffffff);
-          --text-color: var(--primary-text-color, #212121);
-          --secondary-text: var(--secondary-text-color, #727272);
-          --border-color: var(--divider-color, #e0e0e0);
+          --primary-color: var(--ha-card-background, var(--bento-card));
+          --text-color: var(--primary-text-color, var(--bento-text));
+          --secondary-text: var(--secondary-text-color, var(--bento-text-secondary));
+          --border-color: var(--divider-color, var(--bento-border));
           --ha-card-border-radius: 12px;
         }
 
@@ -525,7 +525,7 @@ canvas {
 
         .tab-btn.active {
           color: var(--text-color);
-          border-bottom-color: var(--primary-color-rgb, #3498db);
+          border-bottom-color: var(--primary-color-rgb, var(--bento-primary));
         }
 
         .tab-btn:hover {
@@ -548,7 +548,7 @@ canvas {
         }
 
         .column {
-          background: var(--ha-card-background, #f5f5f5);
+          background: var(--ha-card-background, var(--bento-bg));
           border-radius: 8px;
           padding: 12px;
           min-height: 400px;
@@ -592,15 +592,15 @@ canvas {
         }
 
         .chore-card.priority-high {
-          border-left-color: #ff5252;
+          border-left-color: var(--bento-error);
         }
 
         .chore-card.priority-medium {
-          border-left-color: #ffa726;
+          border-left-color: var(--bento-warning);
         }
 
         .chore-card.priority-low {
-          border-left-color: #66bb6a;
+          border-left-color: var(--bento-success);
         }
 
         .chore-title {
@@ -648,7 +648,7 @@ canvas {
 
         /* Add Form */
         .add-form {
-          background: var(--ha-card-background, #f9f9f9);
+          background: var(--ha-card-background, var(--bento-bg));
           padding: 16px;
           border-radius: 8px;
           margin-bottom: 16px;
@@ -689,14 +689,14 @@ canvas {
         input[type="number"]:focus,
         select:focus {
           outline: none;
-          border-color: #3498db;
+          border-color: var(--bento-primary);
           box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
         }
 
         .btn-primary {
           grid-column: 1 / -1;
           padding: 10px 16px;
-          background: #3498db;
+          background: var(--bento-primary);
           color: white;
           border: none;
           border-radius: 6px;
@@ -706,7 +706,7 @@ canvas {
         }
 
         .btn-primary:hover {
-          background: #2980b9;
+          background: var(--bento-primary-hover);
         }
 
         /* Schedule View */
@@ -731,7 +731,7 @@ canvas {
         }
 
         .week-header {
-          background: var(--ha-card-background, #f5f5f5);
+          background: var(--ha-card-background, var(--bento-bg));
           font-weight: 600;
           display: flex;
           align-items: center;
@@ -739,12 +739,12 @@ canvas {
         }
 
         .chore-item {
-          background: #e3f2fd;
+          background: var(--bento-primary-light);
           padding: 4px 6px;
           border-radius: 3px;
           margin-bottom: 4px;
           font-size: 11px;
-          color: #1976d2;
+          color: var(--bento-primary);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -759,7 +759,7 @@ canvas {
         }
 
         .stat-card {
-          background: var(--ha-card-background, #f5f5f5);
+          background: var(--ha-card-background, var(--bento-bg));
           padding: 16px;
           border-radius: 8px;
           text-align: center;
@@ -768,7 +768,7 @@ canvas {
         .stat-value {
           font-size: 28px;
           font-weight: bold;
-          color: #3498db;
+          color: var(--bento-primary);
           margin: 8px 0;
         }
 
@@ -808,12 +808,12 @@ canvas {
         }
 
         .streak {
-          color: #ff9800;
+          color: var(--bento-warning);
           font-weight: 600;
         }
 
         .completion {
-          color: #66bb6a;
+          color: var(--bento-success);
           font-weight: 600;
         }
 
@@ -830,16 +830,16 @@ canvas {
 /* === Modern Bento Light Mode === */
 
 :host {
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-success: #10B981;
-  --bento-warning: #F59E0B;
-  --bento-error: #EF4444;
+  --bento-bg: var(--primary-background-color, var(--bento-bg));
+  --bento-card: var(--card-background-color, var(--bento-card));
+  --bento-primary: var(--bento-primary);
+  --bento-primary-hover: var(--bento-primary-hover);
+  --bento-text: var(--primary-text-color, var(--bento-text));
+  --bento-text-secondary: var(--secondary-text-color, var(--bento-text-secondary));
+  --bento-border: var(--divider-color, var(--bento-border));
+  --bento-success: var(--bento-success);
+  --bento-warning: var(--bento-warning);
+  --bento-error: var(--bento-error);
   --bento-radius: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
@@ -862,8 +862,8 @@ canvas {
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; overflow-x: auto; padding-bottom: 0; }
 .tab, .tab-btn, .tab-button { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
-.tab.active, .tab-btn.active, .tab-button.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-.tab:hover, .tab-btn:hover, .tab-button:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab.active, .tab-btn.active, .tab-button.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: var(--bento-primary-light); }
+.tab:hover, .tab-btn:hover, .tab-button:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
 .tab-icon { margin-right: 6px; }
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeSlideIn 0.3s ease-out; }
@@ -874,11 +874,11 @@ button.active, .btn.active, .btn-act { background: var(--bento-primary); color: 
 .btn-primary { padding: 9px 16px; background: var(--bento-primary); color: white; border: 1.5px solid var(--bento-primary); border-radius: var(--bento-radius-sm); cursor: pointer; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; transition: var(--bento-transition); box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25); }
 .btn-primary:hover { background: var(--bento-primary-hover); border-color: var(--bento-primary-hover); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35); transform: translateY(-1px); }
 .btn-secondary { padding: 9px 16px; background: var(--bento-card); color: var(--bento-text); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--bento-transition); }
-.btn-secondary:hover { border-color: var(--bento-primary); color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.btn-secondary:hover { border-color: var(--bento-primary); color: var(--bento-primary); background: var(--bento-primary-light); }
 .btn-danger { padding: 9px 16px; background: var(--bento-card); color: var(--bento-error); border: 1.5px solid var(--bento-error); border-radius: var(--bento-radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--bento-transition); }
 .btn-danger:hover { background: var(--bento-error); color: white; }
 .btn-small { padding: 5px 12px; font-size: 12px; border: 1px solid var(--bento-border); background: var(--bento-card); color: var(--bento-text-secondary); border-radius: var(--bento-radius-xs); cursor: pointer; font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--bento-transition); }
-.btn-small:hover { border-color: var(--bento-primary); color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.btn-small:hover { border-color: var(--bento-primary); color: var(--bento-primary); background: var(--bento-primary-light); }
 
 input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="email"], input[type="search"], select, textarea, .search-input, .sinput, .sinput-sm, .alert-search-box, .period-select { padding: 9px 14px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-sm); font-size: 13px; background: var(--bento-card); color: var(--bento-text); font-family: 'Inter', sans-serif; transition: var(--bento-transition); outline: none; }
 input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus, input[type="time"]:focus, select:focus, textarea:focus, .search-input:focus, .sinput:focus, .sinput-sm:focus, .alert-search-box:focus, .period-select:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
@@ -908,16 +908,16 @@ textarea { min-height: 80px; resize: vertical; }
 .device-table th:first-child, .entity-table th:first-child, .table th:first-child, table th:first-child { border-radius: var(--bento-radius-xs) 0 0 0; }
 .device-table th:last-child, .entity-table th:last-child, .table th:last-child, table th:last-child { border-radius: 0 var(--bento-radius-xs) 0 0; }
 .device-table th:hover, .entity-table th:hover, .table th:hover, table th:hover { background: rgba(59, 130, 246, 0.06); color: var(--bento-primary); }
-.device-table th.sorted, .entity-table th.sorted, .table th.sorted, table th.sorted { background: rgba(59, 130, 246, 0.08); color: var(--bento-primary); }
+.device-table th.sorted, .entity-table th.sorted, .table th.sorted, table th.sorted { background: var(--bento-primary-light); color: var(--bento-primary); }
 .device-table td, .entity-table td, .table td, .alert-table td, .data-table td, .backup-table td, table td { padding: 12px 16px; border-bottom: 1px solid var(--bento-border); color: var(--bento-text); font-size: 13px; font-family: 'Inter', sans-serif; }
 .device-table tr:hover, .entity-table tr:hover, .table tbody tr:hover, .alert-table tr:hover, table tr:hover { background: rgba(59, 130, 246, 0.03); }
 .table-container { overflow-x: auto; border-radius: var(--bento-radius-sm); border: 1px solid var(--bento-border); }
 .sort-indicator { font-size: 10px; margin-left: 4px; color: var(--bento-primary); }
 
 .status-badge, .severity-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
-.status-online, .status-home, .status-active, .status-ok, .status-healthy, .status-running, .status-complete, .status-completed, .status-success, .badge-success { background: rgba(16, 185, 129, 0.1); color: #059669; }
-.status-offline, .status-error, .status-failed, .status-critical, .severity-critical, .badge-error, .badge-danger { background: rgba(239, 68, 68, 0.1); color: #DC2626; }
-.status-away, .status-warning, .severity-warning, .badge-warning { background: rgba(245, 158, 11, 0.1); color: #B45309; }
+.status-online, .status-home, .status-active, .status-ok, .status-healthy, .status-running, .status-complete, .status-completed, .status-success, .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--bento-success); }
+.status-offline, .status-error, .status-failed, .status-critical, .severity-critical, .badge-error, .badge-danger { background: rgba(239, 68, 68, 0.1); color: var(--bento-error); }
+.status-away, .status-warning, .severity-warning, .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--bento-warning); }
 .status-unavailable, .status-unknown, .status-idle, .status-inactive, .status-stopped, .badge-neutral { background: rgba(100, 116, 139, 0.1); color: var(--bento-text-secondary); }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
@@ -925,7 +925,7 @@ textarea { min-height: 80px; resize: vertical; }
 .alert-item:hover { box-shadow: var(--bento-shadow); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
-.alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.alert-info { border-color: var(--bento-primary); background: var(--bento-primary-light); }
 .alert-text { flex: 1; }
 .alert-type { font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--bento-text); }
 .alert-time { font-size: 12px; color: var(--bento-text-secondary); }
@@ -976,8 +976,8 @@ textarea { min-height: 80px; resize: vertical; }
 .dd-div { border-top: 1px solid var(--bento-border); margin: 4px 0; }
 
 .auto-item, .tr-item, .list-item, .automation-item { padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--bento-border); display: flex; align-items: center; gap: 10px; transition: var(--bento-transition); font-family: 'Inter', sans-serif; }
-.auto-item:hover, .tr-item:hover, .list-item:hover, .automation-item:hover { background: rgba(59, 130, 246, 0.04); }
-.auto-item.sel, .tr-item.sel, .list-item.selected, .automation-item.selected { background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--bento-primary); }
+.auto-item:hover, .tr-item:hover, .list-item:hover, .automation-item:hover { background: var(--bento-primary-light); }
+.auto-item.sel, .tr-item.sel, .list-item.selected, .automation-item.selected { background: var(--bento-primary-light); border-left: 3px solid var(--bento-primary); }
 .auto-item.error-item, .automation-item.error-item { border-left: 3px solid var(--bento-error); }
 .auto-name { font-weight: 500; font-size: 13px; color: var(--bento-text); }
 .auto-meta { font-size: 12px; color: var(--bento-text-secondary); }
@@ -1011,13 +1011,13 @@ textarea { min-height: 80px; resize: vertical; }
 .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 16px; }
 .week-header { padding: 8px; text-align: center; font-size: 12px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: 0.03em; border-radius: var(--bento-radius-xs); }
 .week-cell { padding: 8px; text-align: center; font-size: 12px; background: var(--bento-bg); border: 1px solid var(--bento-border); cursor: pointer; transition: var(--bento-transition); border-radius: var(--bento-radius-xs); }
-.week-cell:hover { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.week-cell:hover { border-color: var(--bento-primary); background: var(--bento-primary-light); }
 .chore-item { padding: 8px 12px; border-bottom: 1px solid var(--bento-border); font-size: 13px; }
 
 .leaderboard { background: var(--bento-bg); border-radius: var(--bento-radius-sm); border: 1px solid var(--bento-border); overflow: hidden; }
 .leaderboard-row { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--bento-border); gap: 12px; font-size: 13px; transition: var(--bento-transition); }
 .leaderboard-row:last-child { border-bottom: none; }
-.leaderboard-row:hover { background: rgba(59, 130, 246, 0.04); }
+.leaderboard-row:hover { background: var(--bento-primary-light); }
 .rank { font-weight: 700; color: var(--bento-primary); font-size: 14px; min-width: 28px; }
 .name { font-weight: 500; color: var(--bento-text); flex: 1; }
 .streak { color: var(--bento-warning); font-weight: 600; }
@@ -1026,7 +1026,7 @@ textarea { min-height: 80px; resize: vertical; }
 .baby-selector { display: flex; gap: 8px; margin-bottom: 16px; }
 .quick-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .quick-btn, .action-btn { padding: 10px 16px; border: 1.5px solid var(--bento-border); background: var(--bento-card); border-radius: var(--bento-radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif; transition: var(--bento-transition); display: flex; align-items: center; gap: 6px; color: var(--bento-text); }
-.quick-btn:hover, .action-btn:hover { border-color: var(--bento-primary); color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.quick-btn:hover, .action-btn:hover { border-color: var(--bento-primary); color: var(--bento-primary); background: var(--bento-primary-light); }
 .quick-btn.active, .action-btn.active { background: var(--bento-primary); color: white; border-color: var(--bento-primary); }
 .timeline { position: relative; padding-left: 24px; }
 .timeline-item { padding: 12px 0; border-bottom: 1px solid var(--bento-border); position: relative; }
@@ -1056,15 +1056,15 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 .health-score, .score { font-size: 48px; font-weight: 700; color: var(--bento-primary); text-align: center; margin: 16px 0; }
 .emoji { font-size: 20px; line-height: 1; }
-.device-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: rgba(59, 130, 246, 0.08); border-radius: var(--bento-radius-xs); font-size: 16px; }
+.device-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: var(--bento-primary-light); border-radius: var(--bento-radius-xs); font-size: 16px; }
 
 .recommendation-card, .tip-card, .suggestion-card { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 16px; border: 1px solid var(--bento-border); margin-bottom: 12px; transition: var(--bento-transition); }
 .recommendation-card:hover, .tip-card:hover, .suggestion-card:hover { border-color: var(--bento-primary); box-shadow: var(--bento-shadow-md); }
 
 .export-options, .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .export-option, .option-card { background: var(--bento-bg); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 16px; cursor: pointer; transition: var(--bento-transition); text-align: center; }
-.export-option:hover, .option-card:hover { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-.export-option.selected, .option-card.selected { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.08); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+.export-option:hover, .option-card:hover { border-color: var(--bento-primary); background: var(--bento-primary-light); }
+.export-option.selected, .option-card.selected { border-color: var(--bento-primary); background: var(--bento-primary-light); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
 
 .storage-bar, .usage-bar { width: 100%; height: 24px; background: var(--bento-border); border-radius: var(--bento-radius-xs); overflow: hidden; margin-bottom: 12px; }
 .storage-fill, .usage-fill { height: 100%; border-radius: var(--bento-radius-xs); transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); background: var(--bento-primary); }
@@ -1095,7 +1095,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .backup-date, .backup-size { font-size: 12px; color: var(--bento-text-secondary); }
 
 .report-section { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 20px; border: 1px solid var(--bento-border); margin-bottom: 16px; }
-.insight-card { padding: 14px; border-left: 3px solid var(--bento-primary); background: rgba(59, 130, 246, 0.04); border-radius: 0 var(--bento-radius-xs) var(--bento-radius-xs) 0; margin-bottom: 10px; }
+.insight-card { padding: 14px; border-left: 3px solid var(--bento-primary); background: var(--bento-primary-light); border-radius: 0 var(--bento-radius-xs) var(--bento-radius-xs) 0; margin-bottom: 10px; }
 
 @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -1141,14 +1141,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       <div class="card">
         <div class="card-header">
-          <h2 class="title">🏠 ${this.config.title || 'Chore Tracker'}</h2>
+          <h2 class="title">đźŹ  ${this.config.title || 'Chore Tracker'}</h2>
         </div>
 
         <div class="tabs">
-          <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">📋 Board</button>
-          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">📅 Schedule</button>
-          <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">🏆 Stats</button>
-          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">⚙️ Ustawienia</button>
+          <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">đź“‹ Board</button>
+          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">đź“… Schedule</button>
+          <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">đźŹ† Stats</button>
+          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">âš™ď¸Ź Ustawienia</button>
         </div>
 
         <!-- Board Tab -->
@@ -1170,12 +1170,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Room/Area</label>
                 <select id="chore-room">
-                  <option value="Kitchen">🍳 Kitchen</option>
-                  <option value="Bathroom">🚿 Bathroom</option>
-                  <option value="Bedroom">🛏️ Bedroom</option>
-                  <option value="Living">🛋️ Living Room</option>
-                  <option value="Yard">🌳 Yard</option>
-                  <option value="General">📌 General</option>
+                  <option value="Kitchen">đźŤł Kitchen</option>
+                  <option value="Bathroom">đźšż Bathroom</option>
+                  <option value="Bedroom">đź›Źď¸Ź Bedroom</option>
+                  <option value="Living">đź›‹ď¸Ź Living Room</option>
+                  <option value="Yard">đźŚł Yard</option>
+                  <option value="General">đź“Ś General</option>
                 </select>
               </div>
             </div>
@@ -1187,41 +1187,41 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
                   <option value="daily">Codziennie</option>
             <option value="every_2_days">Co 2 dni</option>
             <option value="every_3_days">Co 3 dni</option>
-            <option value="weekly">Co tydzień</option>
+            <option value="weekly">Co tydzieĹ„</option>
             <option value="biweekly">Co 2 tygodnie</option>
-            <option value="monthly">Co miesiąc</option>
+            <option value="monthly">Co miesiÄ…c</option>
             <option value="once">Jednorazowe</option>
                 </select>
               </div>
               <div>
                 <label>Priority</label>
                 <select id="chore-priority">
-                  <option value="low">Low 🟢</option>
-                  <option value="medium">Medium 🟡</option>
-                  <option value="high">High 🔴</option>
+                  <option value="low">Low đźź˘</option>
+                  <option value="medium">Medium đźźˇ</option>
+                  <option value="high">High đź”´</option>
                 </select>
               </div>
             </div>
 
-            <button class="btn-primary" id="add-btn">➕ Add Chore</button>
+            <button class="btn-primary" id="add-btn">âž• Add Chore</button>
           </div>
 
           <div class="board" id="board">
             <div class="column" data-status="todo">
               <div class="column-header">
-                <span>📝 To Do</span>
+                <span>đź“ť To Do</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="in-progress">
               <div class="column-header">
-                <span>⏳ In Progress</span>
+                <span>âŹł In Progress</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="done">
               <div class="column-header">
-                <span>✅ Done</span>
+                <span>âś… Done</span>
                 <div class="column-count">0</div>
               </div>
             </div>
@@ -1234,7 +1234,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="tab-content active" id="schedule-tab">
           <div class="schedule" id="schedule"></div>
           <div id="empty-schedule" class="empty-state" style="display:none;">
-            <div class="empty-icon">📅</div>
+            <div class="empty-icon">đź“…</div>
             <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Schedule Yet</h3>
             <p style="margin:0 0 16px;max-width:280px;">Add chores with assigned days to see your weekly schedule here.</p>
           </div>
@@ -1247,9 +1247,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="stats-container" id="stats-container"></div>
           <div class="leaderboard" id="leaderboard"></div>
           <div id="empty-stats" class="empty-state" style="display:none;">
-            <div class="empty-icon">📊</div>
+            <div class="empty-icon">đź“Š</div>
             <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Stats Yet</h3>
-            <p style="margin:0 0 16px;max-width:280px;">Complete some chores and check back — your productivity stats will appear here.</p>
+            <p style="margin:0 0 16px;max-width:280px;">Complete some chores and check back â€” your productivity stats will appear here.</p>
           </div>
         </div>
         ` : ''}
@@ -1370,12 +1370,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <span>${this.getRoomEmoji(chore.room)}</span>
           </div>
           <div style="font-size: 11px; color: var(--secondary-text); margin-top: 6px;">
-            ${this.getFrequencyLabel(chore.frequency)} • ${chore.priority.charAt(0).toUpperCase() + chore.priority.slice(1)}
+            ${this.getFrequencyLabel(chore.frequency)} â€˘ ${chore.priority.charAt(0).toUpperCase() + chore.priority.slice(1)}
           </div>
           <div class="chore-actions">
-            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next →</button>` : ''}
-            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">← Back</button>` : ''}
-            <button class="btn-small" data-action="delete">🗑️</button>
+            ${status !== 'done' ? `<button class="btn-small" data-action="next">Next â†’</button>` : ''}
+            ${status !== 'todo' ? `<button class="btn-small" data-action="prev">â† Back</button>` : ''}
+            <button class="btn-small" data-action="delete">đź—‘ď¸Ź</button>
           </div>
         </div>
       `).join('');
@@ -1458,19 +1458,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     statsEl.innerHTML = `
       <div class="stat-card">
-        <div class="stat-label">📋 Total Chores</div>
+        <div class="stat-label">đź“‹ Total Chores</div>
         <div class="stat-value">${totalChores}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">✅ Completed</div>
+        <div class="stat-label">âś… Completed</div>
         <div class="stat-value">${completedChores}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">📊 Completion Rate</div>
+        <div class="stat-label">đź“Š Completion Rate</div>
         <div class="stat-value">${overallCompletion}%</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">👥 Active Members</div>
+        <div class="stat-label">đź‘Ą Active Members</div>
         <div class="stat-value">${this.members.length}</div>
       </div>
     `;
@@ -1489,7 +1489,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="rank">#${index + 1}</div>
         <div class="name">${entry[0]}</div>
         <div class="completion">${entry[1].completed} done</div>
-        <div class="streak">🔥 ${entry[1].streak}</div>
+        <div class="streak">đź”Ą ${entry[1].streak}</div>
       </div>
     `).join('');
   }
@@ -1501,14 +1501,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   getRoomEmoji(room) {
     const emojis = {
-      'Kitchen': '🍳',
-      'Bathroom': '🚿',
-      'Bedroom': '🛏️',
-      'Living': '🛋️',
-      'Yard': '🌳',
-      'General': '📌'
+      'Kitchen': 'đźŤł',
+      'Bathroom': 'đźšż',
+      'Bedroom': 'đź›Źď¸Ź',
+      'Living': 'đź›‹ď¸Ź',
+      'Yard': 'đźŚł',
+      'General': 'đź“Ś'
     };
-    return emojis[room] || '📌';
+    return emojis[room] || 'đź“Ś';
   }
 
   getFrequencyLabel(freq) {
@@ -1590,15 +1590,15 @@ class HaChoreTrackerEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,var(--bento-text)); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
+        input:focus { border-color:var(--primary-color,var(--bento-primary)); }
       </style>
       <h3>Chore Tracker</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Chore Tracker'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,var(--bento-border));border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,var(--bento-text));font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

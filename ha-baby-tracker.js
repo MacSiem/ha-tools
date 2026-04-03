@@ -435,22 +435,13 @@ canvas {
 
 /* ===== END BENTO LIGHT MODE ===== */
 
-        :host {
-          --primary-text: var(--primary-text-color, #212121);
-          --secondary-text: var(--secondary-text-color, #727272);
-          --card-bg: var(--card-background-color, #ffffff);
-          --primary: var(--primary-color, #1976d2);
-          --divider: var(--divider-color, #e0e0e0);
-          --surface: var(--ha-card-background, #ffffff);
-        }
-
         .card {
-          background: var(--card-bg);
+          background: var(--bento-card);
           border-radius: 12px;
           padding: 16px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--bento-shadow-md);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          color: var(--primary-text);
+          color: var(--bento-text);
         }
 
         .card-header {
@@ -458,7 +449,7 @@ canvas {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 20px;
-          border-bottom: 1px solid var(--divider);
+          border-bottom: 1px solid var(--bento-border);
           padding-bottom: 12px;
         }
 
@@ -476,9 +467,9 @@ canvas {
 
         .baby-button {
           padding: 8px 12px;
-          border: 2px solid var(--divider);
+          border: 2px solid var(--bento-border);
           background: transparent;
-          color: var(--primary-text);
+          color: var(--bento-text);
           border-radius: 8px;
           cursor: pointer;
           font-size: 13px;
@@ -487,21 +478,21 @@ canvas {
         }
 
         .baby-button:hover {
-          border-color: var(--primary);
-          background: rgba(25, 118, 210, 0.05);
+          border-color: var(--bento-primary);
+          background: var(--bento-primary-light);
         }
 
         .baby-button.active {
-          background: var(--primary);
+          background: var(--bento-primary);
           color: white;
-          border-color: var(--primary);
+          border-color: var(--bento-primary);
         }
 
         .tabs {
           display: flex;
           gap: 8px;
           margin-bottom: 20px;
-          border-bottom: 2px solid var(--divider);
+          border-bottom: 2px solid var(--bento-border);
           overflow-x: auto;
         }
 
@@ -509,7 +500,7 @@ canvas {
           padding: 12px 16px;
           background: transparent;
           border: none;
-          color: var(--secondary-text);
+          color: var(--bento-text-secondary);
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
@@ -520,12 +511,12 @@ canvas {
         }
 
         .tab-button:hover {
-          color: var(--primary-text);
+          color: var(--bento-text);
         }
 
         .tab-button.active {
-          color: var(--primary);
-          border-bottom-color: var(--primary);
+          color: var(--bento-primary);
+          border-bottom-color: var(--bento-primary);
         }
 
         .tab-content {
@@ -545,7 +536,7 @@ canvas {
           font-size: 13px;
           font-weight: 600;
           margin-bottom: 6px;
-          color: var(--primary-text);
+          color: var(--bento-text);
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
@@ -563,10 +554,10 @@ canvas {
         input, select, textarea {
           width: 100%;
           padding: 10px 12px;
-          border: 1px solid var(--divider);
+          border: 1px solid var(--bento-border);
           border-radius: 6px;
-          background: var(--surface);
-          color: var(--primary-text);
+          background: var(--bento-card);
+          color: var(--bento-text);
           font-size: 14px;
           font-family: inherit;
           box-sizing: border-box;
@@ -575,8 +566,8 @@ canvas {
 
         input:focus, select:focus, textarea:focus {
           outline: none;
-          border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+          border-color: var(--bento-primary);
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         textarea {
@@ -606,27 +597,27 @@ canvas {
         }
 
         .btn-primary {
-          background: var(--primary);
+          background: var(--bento-primary);
           color: white;
         }
 
         .btn-primary:hover {
           opacity: 0.9;
-          box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
         }
 
         .btn-secondary {
           background: transparent;
-          color: var(--primary);
-          border: 1px solid var(--primary);
+          color: var(--bento-primary);
+          border: 1px solid var(--bento-primary);
         }
 
         .btn-secondary:hover {
-          background: rgba(25, 118, 210, 0.05);
+          background: var(--bento-primary-light);
         }
 
         .btn-danger {
-          background: #f44336;
+          background: var(--bento-error);
           color: white;
         }
 
@@ -644,10 +635,10 @@ canvas {
           justify-content: space-between;
           align-items: center;
           padding: 12px;
-          border: 1px solid var(--divider);
+          border: 1px solid var(--bento-border);
           border-radius: 6px;
           margin-bottom: 8px;
-          background: rgba(0, 0, 0, 0.02);
+          background: var(--bento-primary-light);
         }
 
         .list-item-content {
@@ -656,26 +647,26 @@ canvas {
 
         .list-item-time {
           font-size: 12px;
-          color: var(--secondary-text);
+          color: var(--bento-text-secondary);
           margin-bottom: 4px;
         }
 
         .list-item-title {
           font-size: 14px;
           font-weight: 500;
-          color: var(--primary-text);
+          color: var(--bento-text);
         }
 
         .list-item-subtitle {
           font-size: 12px;
-          color: var(--secondary-text);
+          color: var(--bento-text-secondary);
           margin-top: 4px;
         }
 
         .badge {
           display: inline-block;
           padding: 4px 8px;
-          background: var(--primary);
+          background: var(--bento-primary);
           color: white;
           border-radius: 4px;
           font-size: 11px;
@@ -685,22 +676,22 @@ canvas {
         .timer-display {
           text-align: center;
           padding: 20px;
-          background: rgba(25, 118, 210, 0.08);
+          background: var(--bento-primary-light);
           border-radius: 8px;
           margin-bottom: 16px;
-          border: 2px dashed var(--primary);
+          border: 2px dashed var(--bento-primary);
         }
 
         .timer-value {
           font-size: 48px;
           font-weight: 700;
-          color: var(--primary);
+          color: var(--bento-primary);
           font-variant-numeric: tabular-nums;
         }
 
         .timer-label {
           font-size: 12px;
-          color: var(--secondary-text);
+          color: var(--bento-text-secondary);
           margin-top: 8px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -714,8 +705,8 @@ canvas {
         }
 
         .stat-card {
-          background: rgba(25, 118, 210, 0.08);
-          border: 1px solid var(--divider);
+          background: var(--bento-primary-light);
+          border: 1px solid var(--bento-border);
           border-radius: 8px;
           padding: 16px;
           text-align: center;
@@ -724,12 +715,12 @@ canvas {
         .stat-value {
           font-size: 28px;
           font-weight: 700;
-          color: var(--primary);
+          color: var(--bento-primary);
         }
 
         .stat-label {
           font-size: 12px;
-          color: var(--secondary-text);
+          color: var(--bento-text-secondary);
           margin-top: 6px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -739,15 +730,15 @@ canvas {
           width: 100%;
           max-width: 100%;
           margin: 20px 0;
-          border: 1px solid var(--divider);
+          border: 1px solid var(--bento-border);
           border-radius: 8px;
-          background: rgba(0, 0, 0, 0.02);
+          background: var(--bento-bg);
         }
 
         .empty-state {
           text-align: center;
           padding: 40px 20px;
-          color: var(--secondary-text);
+          color: var(--bento-text-secondary);
         }
 
         .empty-state-icon {
@@ -762,7 +753,7 @@ canvas {
         .export-section {
           margin-top: 20px;
           padding-top: 20px;
-          border-top: 1px solid var(--divider);
+          border-top: 1px solid var(--bento-border);
         }
       
 /* === Modern Bento Light Mode === */
@@ -1059,7 +1050,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 /* Tips banner */
 .tip-banner {
-  background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03));
+  background: linear-gradient(135deg, var(--bento-primary-light), rgba(59,130,246,0.03));
   border: 1.5px solid rgba(59,130,246,0.2);
   border-radius: 12px;
   padding: 14px 16px;
@@ -1068,13 +1059,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   line-height: 1.6;
   position: relative;
 }
-.tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #3B82F6; }
+.tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--bento-primary); }
 .tip-banner ul { margin: 6px 0 0 16px; padding: 0; }
 .tip-banner li { margin-bottom: 3px; }
 .tip-banner .tip-dismiss {
   position: absolute; top: 8px; right: 10px;
   background: none; border: none; cursor: pointer;
-  font-size: 16px; color: var(--secondary-text-color, #888); opacity: 0.6;
+  font-size: 16px; color: var(--bento-text-secondary); opacity: 0.6;
 }
 .tip-banner .tip-dismiss:hover { opacity: 1; }
 .tip-banner.hidden { display: none; }
@@ -1161,13 +1152,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           ${this.babies.map((b, i) => `
             <div style="display:flex;align-items:center;gap:8px">
               <input type="text" value="${b.name}" data-child-idx="${i}" class="child-name-input" 
-                style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card,#fff);color:var(--bento-text,#333)">
+                style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card);color:var(--bento-text)">
               ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="Usuń">🗑</button>` : ''}
             </div>
           `).join('')}
         </div>
         <div style="display:flex;gap:8px">
-          <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ Dodaj dziecko</button>
+          <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ Dodaj dziecko</button>
           <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 Zapisz nazwy</button>
         </div>
       </div>
@@ -1339,10 +1330,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             </p>
 
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-              <label style="font-size:13px;font-weight:600;color:var(--bento-text,#1e293b)">
+              <label style="font-size:13px;font-weight:600;color:var(--bento-text)">
                 ${this._lang === 'pl' ? 'J\u0119zyk sentences:' : 'Sentences language:'}
               </label>
-              <select id="sentenceLangSelect" style="padding:6px 12px;border-radius:8px;border:1px solid var(--bento-border,#e2e8f0);font-size:13px;background:var(--bento-card,#fff);color:var(--bento-text,#1e293b)">
+              <select id="sentenceLangSelect" style="padding:6px 12px;border-radius:8px;border:1px solid var(--bento-border);font-size:13px;background:var(--bento-card);color:var(--bento-text)">
                 ${this._renderLangOptions()}
               </select>
               <button class="btn-primary" id="generateSentencesBtn" style="font-size:13px;padding:6px 16px">
@@ -1356,7 +1347,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
             <div id="sentencesOutput" style="position:relative;margin-bottom:16px;display:${this._generatedYaml ? 'block' : 'none'}">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                <span style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748B)">
+                <span style="font-size:12px;font-weight:600;color:var(--bento-text-secondary)">
                   ${this._lang === 'pl' ? 'Wygenerowany YAML' : 'Generated YAML'}
                   ${this._generatedYaml ? ' \u2014 <code>custom_sentences/' + (this._sentenceLang || this._lang || 'en') + '/baby.yaml</code>' : ''}
                 </span>
@@ -1364,14 +1355,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
                   ${this._lang === 'pl' ? 'Kopiuj' : 'Copy'}
                 </button>
               </div>
-              <pre id="sentencesYaml" style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;line-height:1.6;overflow-x:auto;max-height:400px;overflow-y:auto;margin:0;white-space:pre">${this._generatedYaml || ''}</pre>
+              <pre id="sentencesYaml" style="background:var(--bento-text);color:var(--bento-border);padding:12px;border-radius:8px;font-size:11px;line-height:1.6;overflow-x:auto;max-height:400px;overflow-y:auto;margin:0;white-space:pre">${this._generatedYaml || ''}</pre>
             </div>
 
-            <div style="margin-top:20px;padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px">
-              <div style="font-size:12px;font-weight:600;color:var(--bento-text,#1e293b);margin-bottom:8px">
+            <div style="margin-top:20px;padding:12px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:8px">
+              <div style="font-size:12px;font-weight:600;color:var(--bento-text);margin-bottom:8px">
                 ${this._lang === 'pl' ? 'Jak u\u017Cy\u0107:' : 'How to use:'}
               </div>
-              <ol style="margin:0;padding-left:20px;font-size:12px;color:var(--bento-text-secondary,#64748B);line-height:1.8">
+              <ol style="margin:0;padding-left:20px;font-size:12px;color:var(--bento-text-secondary);line-height:1.8">
                 <li>${this._lang === 'pl'
                     ? 'Wybierz j\u0119zyk i kategorie komend powy\u017Cej'
                     : 'Select language and command categories above'}</li>
@@ -1395,13 +1386,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">
               ${this._lang === 'pl' ? 'Integracja z HA' : 'HA Integration'}
             </h3>
-            <div style="font-size:12px;line-height:1.8;color:var(--bento-text-secondary,#64748B)">
+            <div style="font-size:12px;line-height:1.8;color:var(--bento-text-secondary)">
               <div><strong>${this._lang === 'pl' ? 'Karta Lovelace:' : 'Lovelace Card:'}</strong>
                 ${this._lang === 'pl'
                   ? 'Baby Tracker jest \u0142adowany automatycznie przez ha-tools-panel. Mo\u017Cesz te\u017C doda\u0107 go jako osobn\u0105 kart\u0119:'
                   : 'Baby Tracker is loaded automatically by ha-tools-panel. You can also add it as a standalone card:'}
               </div>
-              <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
+              <pre style="background:var(--bento-text);color:var(--bento-border);padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
               <div><strong>Entity:</strong>
                 ${this._lang === 'pl'
                   ? 'Dane zapisywane s\u0105 w input_* helpers. Stw\u00F3rz je w Settings > Helpers:'
@@ -2155,15 +2146,15 @@ class HaBabyTrackerEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--bento-text); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
+        input:focus { border-color:var(--bento-primary); }
       </style>
       <h3>Baby Tracker</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Baby Tracker'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

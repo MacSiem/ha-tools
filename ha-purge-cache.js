@@ -302,23 +302,12 @@ class HAPurgeCache extends HTMLElement {
           display: block;
           font-family: 'Inter', sans-serif;
           color: var(--primary-text-color, #1a1a2e);
-          --pc-primary: #3B82F6;
-          --pc-primary-hover: #2563EB;
-          --pc-danger: #EF4444;
-          --pc-danger-hover: #DC2626;
-          --pc-success: #10B981;
-          --pc-warning: #F59E0B;
-          --pc-bg: var(--card-background-color, #ffffff);
-          --pc-border: var(--divider-color, #e2e8f0);
-          --pc-text: var(--primary-text-color, #1a1a2e);
-          --pc-text-sec: var(--secondary-text-color, #64748b);
-          --pc-radius: 12px;
-        }
+          }
 
         .card { max-width: 900px; margin: 0 auto; padding: 16px; }
         h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
-        .subtitle { color: var(--pc-text-sec); font-size: 13px; margin-bottom: 20px; }
-        .ha-ver { font-size: 12px; color: var(--pc-text-sec); font-weight: 400; }
+        .subtitle { color: var(--bento-text-secondary); font-size: 13px; margin-bottom: 20px; }
+        .ha-ver { font-size: 12px; color: var(--bento-text-secondary); font-weight: 400; }
 
         /* Stats Grid */
         .stats-grid {
@@ -328,15 +317,15 @@ class HAPurgeCache extends HTMLElement {
           margin-bottom: 20px;
         }
         .stat-card {
-          background: var(--pc-bg);
-          border: 1.5px solid var(--pc-border);
-          border-radius: var(--pc-radius);
+          background: var(--bento-bg);
+          border: 1.5px solid var(--bento-border);
+          border-radius: var(--bento-radius);
           padding: 14px;
         }
-        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--pc-text-sec); letter-spacing: 0.5px; margin-bottom: 6px; }
+        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--bento-text-secondary); letter-spacing: 0.5px; margin-bottom: 6px; }
         .stat-value { font-size: 14px; font-weight: 500; }
-        .stat-num { font-size: 22px; font-weight: 700; color: var(--pc-primary); }
-        .stat-sub { font-size: 12px; color: var(--pc-text-sec); }
+        .stat-num { font-size: 22px; font-weight: 700; color: var(--bento-primary); }
+        .stat-sub { font-size: 12px; color: var(--bento-text-secondary); }
 
         /* Actions */
         .actions-grid {
@@ -350,31 +339,31 @@ class HAPurgeCache extends HTMLElement {
           align-items: center;
           gap: 10px;
           padding: 14px 16px;
-          border: 1.5px solid var(--pc-border);
-          border-radius: var(--pc-radius);
-          background: var(--pc-bg);
+          border: 1.5px solid var(--bento-border);
+          border-radius: var(--bento-radius);
+          background: var(--bento-bg);
           cursor: pointer;
           font-family: 'Inter', sans-serif;
           font-size: 13px;
           font-weight: 500;
-          color: var(--pc-text);
+          color: var(--bento-text);
           transition: all 0.15s ease;
         }
-        .action-btn:hover { border-color: var(--pc-primary); background: rgba(59, 130, 246, 0.04); }
+        .action-btn:hover { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
         .action-btn .action-icon { font-size: 20px; }
         .action-btn .action-label { line-height: 1.3; }
-        .action-btn .action-desc { font-size: 11px; color: var(--pc-text-sec); font-weight: 400; }
+        .action-btn .action-desc { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; }
 
         .action-btn.danger { border-color: rgba(239, 68, 68, 0.3); }
-        .action-btn.danger:hover { border-color: var(--pc-danger); background: rgba(239, 68, 68, 0.04); }
+        .action-btn.danger:hover { border-color: var(--bento-danger); background: rgba(239, 68, 68, 0.04); }
 
-        .action-btn.primary { border-color: var(--pc-primary); background: rgba(59, 130, 246, 0.06); }
-        .action-btn.primary:hover { background: var(--pc-primary); color: white; }
+        .action-btn.primary { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.06); }
+        .action-btn.primary:hover { background: var(--bento-primary); color: white; }
 
         /* Log */
         .log-section {
-          border: 1.5px solid var(--pc-border);
-          border-radius: var(--pc-radius);
+          border: 1.5px solid var(--bento-border);
+          border-radius: var(--bento-radius);
           overflow: hidden;
           margin-bottom: 20px;
         }
@@ -384,8 +373,8 @@ class HAPurgeCache extends HTMLElement {
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          color: var(--pc-text-sec);
-          border-bottom: 1px solid var(--pc-border);
+          color: var(--bento-text-secondary);
+          border-bottom: 1px solid var(--bento-border);
           background: rgba(0,0,0,0.02);
         }
         #action-log {
@@ -406,8 +395,8 @@ class HAPurgeCache extends HTMLElement {
 
         /* LS Keys */
         .keys-section {
-          border: 1.5px solid var(--pc-border);
-          border-radius: var(--pc-radius);
+          border: 1.5px solid var(--bento-border);
+          border-radius: var(--bento-radius);
           overflow: hidden;
         }
         .keys-header {
@@ -416,8 +405,8 @@ class HAPurgeCache extends HTMLElement {
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          color: var(--pc-text-sec);
-          border-bottom: 1px solid var(--pc-border);
+          color: var(--bento-text-secondary);
+          border-bottom: 1px solid var(--bento-border);
           background: rgba(0,0,0,0.02);
           display: flex;
           justify-content: space-between;
@@ -442,27 +431,23 @@ class HAPurgeCache extends HTMLElement {
         }
         .key-row:hover { background: rgba(0,0,0,0.03); }
         .key-name { flex: 1; font-family: 'Menlo', 'Consolas', monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .key-size { font-weight: 600; color: var(--pc-text-sec); min-width: 50px; text-align: right; }
+        .key-size { font-weight: 600; color: var(--bento-text-secondary); min-width: 50px; text-align: right; }
         .btn-sm {
           padding: 2px 6px;
-          border: 1px solid var(--pc-border);
+          border: 1px solid var(--bento-border);
           border-radius: 4px;
           background: var(--card-background-color, white);
           cursor: pointer;
           font-size: 10px;
           line-height: 1;
         }
-        .btn-sm.btn-danger { color: var(--pc-danger); border-color: rgba(239, 68, 68, 0.3); }
-        .btn-sm.btn-danger:hover { background: var(--pc-danger); color: white; }
+        .btn-sm.btn-danger { color: var(--bento-danger); border-color: rgba(239, 68, 68, 0.3); }
+        .btn-sm.btn-danger:hover { background: var(--bento-danger); color: white; }
 
         /* Dark mode */
         @media (prefers-color-scheme: dark) {
           :host {
-            --pc-bg: #1e1e2e;
-            --pc-border: #313244;
-            --pc-text: #cdd6f4;
-            --pc-text-sec: #6c7086;
-          }
+            }
           .log-success { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }
           .log-error { background: rgba(239, 68, 68, 0.12); color: #fca5a5; }
           .log-info { background: rgba(59, 130, 246, 0.1); color: #93c5fd; }
@@ -473,20 +458,20 @@ class HAPurgeCache extends HTMLElement {
         .tip-banner {
           background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03));
           border: 1.5px solid rgba(59,130,246,0.2);
-          border-radius: var(--pc-radius);
+          border-radius: var(--bento-radius);
           padding: 14px 16px;
           margin-bottom: 16px;
           font-size: 13px;
           line-height: 1.6;
           position: relative;
         }
-        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--pc-primary); }
+        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--bento-primary); }
         .tip-banner ul { margin: 6px 0 0 16px; padding: 0; }
         .tip-banner li { margin-bottom: 3px; }
         .tip-banner .tip-dismiss {
           position: absolute; top: 8px; right: 10px;
           background: none; border: none; cursor: pointer;
-          font-size: 16px; color: var(--pc-text-sec); opacity: 0.6;
+          font-size: 16px; color: var(--bento-text-secondary); opacity: 0.6;
         }
         .tip-banner .tip-dismiss:hover { opacity: 1; }
         .tip-banner.hidden { display: none; }

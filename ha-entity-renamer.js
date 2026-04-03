@@ -1,5 +1,5 @@
-/**
- * HA Entity Renamer — Device & Entity Rename Tool
+﻿/**
+ * HA Entity Renamer â€” Device & Entity Rename Tool
  * Renames devices/entities and propagates changes across dashboards, automations, scripts, config.
  * Part of HA Tools suite.
  */
@@ -66,7 +66,7 @@ class HAEntityRenamer extends HTMLElement {
         this._deviceEntities[did].sort((a, b) => a.entity_id.localeCompare(b.entity_id));
       }
     } catch (e) {
-      this._message = { type: 'error', text: 'Błąd ładowania danych: ' + e.message };
+      this._message = { type: 'error', text: 'BĹ‚Ä…d Ĺ‚adowania danych: ' + e.message };
     }
     this._loading = false;
   }
@@ -154,7 +154,7 @@ class HAEntityRenamer extends HTMLElement {
   async _analyzeImpact() {
     if (!this._renameQueue.length) return;
     this._loading = true;
-    this._message = { type: 'info', text: 'Analizuję wpływ zmian...' };
+    this._message = { type: 'info', text: 'AnalizujÄ™ wpĹ‚yw zmian...' };
     this.render();
 
     const impact = {};
@@ -237,7 +237,7 @@ class HAEntityRenamer extends HTMLElement {
   async _executeRenames() {
     if (!this._renameQueue.length && !Object.keys(this._deviceRenameQueue).length) return;
     this._loading = true;
-    this._message = { type: 'info', text: 'Analizuję wpływ i zmieniam nazwy...' };
+    this._message = { type: 'info', text: 'AnalizujÄ™ wpĹ‚yw i zmieniam nazwy...' };
     this.render();
 
     // Auto-run impact analysis before execution using search/related
@@ -290,9 +290,9 @@ class HAEntityRenamer extends HTMLElement {
     for (const [devId, newName] of Object.entries(this._deviceRenameQueue)) {
       try {
         await this._hass.callWS({ type: 'config/device_registry/update', device_id: devId, name_by_user: newName });
-        this._renameLog.unshift({ time: ts, oldId: '📱 ' + devId.substring(0, 8) + '...', newId: '📱 ' + newName, status: 'ok', impact: null });
+        this._renameLog.unshift({ time: ts, oldId: 'đź“± ' + devId.substring(0, 8) + '...', newId: 'đź“± ' + newName, status: 'ok', impact: null });
       } catch (e) {
-        this._renameLog.unshift({ time: ts, oldId: '📱 device', newId: '📱 ' + newName, status: 'error', error: e.message, impact: null });
+        this._renameLog.unshift({ time: ts, oldId: 'đź“± device', newId: 'đź“± ' + newName, status: 'error', error: e.message, impact: null });
       }
     }
 
@@ -324,7 +324,7 @@ class HAEntityRenamer extends HTMLElement {
     const totalImpact = Object.values(impact).reduce((a, i) => a + i.automations.length + i.scripts.length + i.dashboards.length, 0);
     this._message = {
       type: fail > 0 ? 'warning' : 'success',
-      text: `Zmieniono ${ok} encji${devCount ? ', ' + devCount + ' urządzeń' : ''}${fail > 0 ? `, ${fail} błędów` : ''}. ${totalImpact > 0 ? `⚠️ ${totalImpact} miejsc wymaga aktualizacji (szczegóły w historii).` : ''} Zrestartuj HA.`,
+      text: `Zmieniono ${ok} encji${devCount ? ', ' + devCount + ' urzÄ…dzeĹ„' : ''}${fail > 0 ? `, ${fail} bĹ‚Ä™dĂłw` : ''}. ${totalImpact > 0 ? `âš ď¸Ź ${totalImpact} miejsc wymaga aktualizacji (szczegĂłĹ‚y w historii).` : ''} Zrestartuj HA.`,
     };
     this._renameQueue = [];
     this._deviceRenameQueue = {};
@@ -346,13 +346,13 @@ class HAEntityRenamer extends HTMLElement {
       :host { display: block; font-family: 'Inter', var(--paper-font-body1_-_font-family, sans-serif); }
       * { box-sizing: border-box; }
       .card {
-        background: var(--bento-card, var(--card-background-color, #1E293B));
+        background: var(--bento-card, var(--card-background-color, var(--bento-card, #1E293B)));
         border: 1px solid var(--bento-border, var(--divider-color, #334155));
         border-radius: var(--bento-radius, 14px);
-        padding: 24px; color: var(--bento-text, var(--primary-text-color, #E2E8F0));
+        padding: 24px; color: var(--bento-text, var(--primary-text-color, var(--bento-text, #E2E8F0)));
       }
       h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
-      .subtitle { color: var(--bento-text-secondary, var(--secondary-text-color, #94A3B8)); font-size: 13px; margin-bottom: 16px; }
+      .subtitle { color: var(--bento-text-secondary, var(--secondary-text-color, var(--bento-text-secondary, #94A3B8))); font-size: 13px; margin-bottom: 16px; }
       .msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
       .msg.info { background: var(--bento-primary-light); color: var(--bento-primary); border: 1px solid var(--bento-primary); }
       .msg.success { background: var(--bento-success-light); color: var(--bento-success); border: 1px solid var(--bento-success); }
@@ -366,27 +366,27 @@ class HAEntityRenamer extends HTMLElement {
         flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px;
         border: 1px solid var(--bento-border, #334155);
         background: var(--bento-bg, var(--primary-background-color, #0F172A));
-        color: var(--bento-text, #E2E8F0); outline: none;
+        color: var(--bento-text, #E2E8F0)); outline: none;
       }
-      .search-bar input:focus { border-color: var(--bento-primary, #3B82F6); }
+      .search-bar input:focus { border-color: var(--bento-primary, #3B82F6)); }
 
       .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
       .stat-card .num { font-size: 26px; font-weight: 700; }
-      .stat-card .label { font-size: 11px; text-transform: uppercase; color: var(--bento-text-secondary, #94A3B8); margin-top: 4px; }
+      .stat-card .label { font-size: 11px; text-transform: uppercase; color: var(--bento-text-secondary, #94A3B8)); margin-top: 4px; }
 
       .device-list { max-height: 60vh; overflow-y: auto; }
       .device-item {
         border: 1px solid var(--bento-border, #334155); border-radius: 10px;
         margin-bottom: 8px; overflow: hidden; transition: border-color 0.15s;
       }
-      .device-item.selected { border-color: var(--bento-primary, #3B82F6); }
+      .device-item.selected { border-color: var(--bento-primary, #3B82F6)); }
       .device-header {
         display: flex; align-items: center; gap: 10px; padding: 12px 16px;
         cursor: pointer; user-select: none;
       }
       .device-header:hover { background: rgba(59,130,246,0.05); }
       .device-name { flex: 1; font-weight: 600; font-size: 14px; }
-      .device-meta { font-size: 11px; color: var(--bento-text-secondary, #94A3B8); }
+      .device-meta { font-size: 11px; color: var(--bento-text-secondary, #94A3B8)); }
       .device-expand { font-size: 12px; transition: transform 0.2s; }
       .device-expand.open { transform: rotate(90deg); }
       .entity-list { padding: 0 16px 12px; }
@@ -394,7 +394,7 @@ class HAEntityRenamer extends HTMLElement {
         display: flex; align-items: center; gap: 8px; padding: 6px 0;
         border-top: 1px solid rgba(255,255,255,0.05); font-size: 12px;
       }
-      .entity-id { flex: 1; font-family: 'JetBrains Mono', 'Fira Code', monospace; color: var(--bento-text-secondary, #94A3B8); word-break: break-all; }
+      .entity-id { flex: 1; font-family: 'JetBrains Mono', 'Fira Code', monospace; color: var(--bento-text-secondary, #94A3B8)); word-break: break-all; }
       .entity-name { flex: 1; min-width: 120px; }
       .entity-domain { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(59,130,246,0.12); color: #93C5FD; }
 
@@ -402,16 +402,16 @@ class HAEntityRenamer extends HTMLElement {
         padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;
         font-size: 12px; font-weight: 600; font-family: inherit; transition: all 0.15s;
       }
-      .btn-primary { background: var(--bento-primary, #3B82F6); color: white; }
+      .btn-primary { background: var(--bento-primary, #3B82F6)); color: white; }
       .btn-primary:hover { opacity: 0.85; }
-      .btn-danger { background: #EF4444; color: white; }
+      .btn-danger { background: var(--bento-error, #EF4444); color: white; }
       .btn-danger:hover { opacity: 0.85; }
       .btn-sm { padding: 4px 10px; font-size: 11px; }
       .btn-outline {
         background: transparent; border: 1px solid var(--bento-border, #334155);
-        color: var(--bento-text, #E2E8F0);
+        color: var(--bento-text, #E2E8F0));
       }
-      .btn-outline:hover { border-color: var(--bento-primary, #3B82F6); color: var(--bento-primary, #3B82F6); }
+      .btn-outline:hover { border-color: var(--bento-primary, #3B82F6)); color: var(--bento-primary, #3B82F6)); }
       .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
       .prefix-section {
@@ -423,13 +423,13 @@ class HAEntityRenamer extends HTMLElement {
       .prefix-row input {
         padding: 6px 10px; border-radius: 6px; font-size: 13px; width: 180px;
         border: 1px solid var(--bento-border, #334155);
-        background: var(--bento-bg, #0F172A); color: var(--bento-text, #E2E8F0);
+        background: var(--bento-bg, #0F172A); color: var(--bento-text, #E2E8F0));
         font-family: 'JetBrains Mono', monospace;
       }
-      .prefix-row .arrow { color: var(--bento-text-secondary, #94A3B8); }
+      .prefix-row .arrow { color: var(--bento-text-secondary, #94A3B8)); }
 
       .queue-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      .queue-table th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--bento-text-secondary, #94A3B8); border-bottom: 1px solid var(--bento-border, #334155); }
+      .queue-table th { text-align: left; padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--bento-text-secondary, #94A3B8)); border-bottom: 1px solid var(--bento-border, #334155); }
       .queue-table td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
       .queue-table .old { color: #FCA5A5; text-decoration: line-through; }
       .queue-table .new { color: #86EFAC; }
@@ -442,37 +442,24 @@ class HAEntityRenamer extends HTMLElement {
       .queue-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
 
       .log-entry { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; }
-      .log-time { color: var(--bento-text-secondary, #94A3B8); font-size: 10px; }
+      .log-time { color: var(--bento-text-secondary, #94A3B8)); font-size: 10px; }
       .log-ok { color: #86EFAC; }
       .log-err { color: #FCA5A5; }
 
-      .empty-state { text-align: center; padding: 40px; color: var(--bento-text-secondary, #94A3B8); }
+      .empty-state { text-align: center; padding: 40px; color: var(--bento-text-secondary, #94A3B8)); }
       .empty-state .icon { font-size: 40px; margin-bottom: 8px; }
-      .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--bento-primary, #3B82F6); border-radius: 50%; animation: spin 0.8s linear infinite; }
-      @keyframes spin { to { transform: rotate(360deg); } }
-    
-        @media (prefers-color-scheme: dark) {
-          :host {
-            --bento-bg: #1a1a2e;
-            --bento-card: #16213e;
-            --bento-text: #e2e8f0;
-            --bento-text-secondary: #94a3b8;
-            --bento-border: #334155;
-            --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-          }
-        }
-        </style>
+      .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--bento-primary, #3B82F6)); border-radius: 50%; animation: spin 0.8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }</style>
     <div class="card">
-      <h1>🏷️ Device & Entity Renamer</h1>
-      <div class="subtitle">${this._devices.length} urządzeń • ${this._entities.length} encji</div>
+      <h1>đźŹ·ď¸Ź Device & Entity Renamer</h1>
+      <div class="subtitle">${this._devices.length} urzÄ…dzeĹ„ â€˘ ${this._entities.length} encji</div>
 
       ${this._message ? `<div class="msg ${this._message.type}">${this._loading ? '<span class="spinner"></span> ' : ''}${this._message.text}</div>` : ''}
 
       <div class="tabs">
-        <button class="tab-button ${this._activeTab === 'devices' ? 'active' : ''}" data-tab="devices">📱 Urządzenia</button>
-        <button class="tab-button ${this._activeTab === 'queue' ? 'active' : ''}" data-tab="queue">📋 Kolejka${queueCount > 0 ? ` (${queueCount})` : ''}</button>
-        <button class="tab-button ${this._activeTab === 'log' ? 'active' : ''}" data-tab="log">📜 Historia</button>
+        <button class="tab-button ${this._activeTab === 'devices' ? 'active' : ''}" data-tab="devices">đź“± UrzÄ…dzenia</button>
+        <button class="tab-button ${this._activeTab === 'queue' ? 'active' : ''}" data-tab="queue">đź“‹ Kolejka${queueCount > 0 ? ` (${queueCount})` : ''}</button>
+        <button class="tab-button ${this._activeTab === 'log' ? 'active' : ''}" data-tab="log">đź“ś Historia</button>
       </div>
 
       ${this._activeTab === 'devices' ? this._renderDevicesTab(devices) : ''}
@@ -488,15 +475,15 @@ class HAEntityRenamer extends HTMLElement {
   _renderDevicesTab(devices) {
     return `
       <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="🔍 Szukaj urządzeń lub encji..." value="${this._searchQuery}">
+        <input type="text" id="searchInput" placeholder="đź”Ť Szukaj urzÄ…dzeĹ„ lub encji..." value="${this._searchQuery}">
       </div>
       <div class="stats-row">
-        <div class="stat-card"><div class="num">${this._devices.length}</div><div class="label">Urządzenia</div></div>
+        <div class="stat-card"><div class="num">${this._devices.length}</div><div class="label">UrzÄ…dzenia</div></div>
         <div class="stat-card"><div class="num">${this._entities.length}</div><div class="label">Encje</div></div>
         <div class="stat-card"><div class="num">${this._renameQueue.length}</div><div class="label">W kolejce</div></div>
       </div>
       <div class="device-list">
-        ${devices.length === 0 ? '<div class="empty-state"><div class="icon">🔍</div>Brak wyników</div>' :
+        ${devices.length === 0 ? '<div class="empty-state"><div class="icon">đź”Ť</div>Brak wynikĂłw</div>' :
           devices.map(d => {
             const ents = this._deviceEntities[d.id] || [];
             const isExpanded = this._expandedDevices.has(d.id);
@@ -504,7 +491,7 @@ class HAEntityRenamer extends HTMLElement {
             return `
             <div class="device-item ${isSelected ? 'selected' : ''}">
               <div class="device-header" data-device-id="${d.id}">
-                <span class="device-expand ${isExpanded ? 'open' : ''}">▶</span>
+                <span class="device-expand ${isExpanded ? 'open' : ''}">â–¶</span>
                 <span class="device-name">${this._getDeviceName(d)}</span>
                 <span class="device-meta">${ents.length} encji</span>
               </div>
@@ -519,22 +506,22 @@ class HAEntityRenamer extends HTMLElement {
                     <span class="entity-id">${e.entity_id}</span>
                     <span class="entity-name">${e.name || e.original_name || ''}</span>
                     ${inQueue
-                      ? '<button class="btn btn-sm btn-danger" data-remove-queue="' + e.entity_id + '">✕</button>'
+                      ? '<button class="btn btn-sm btn-danger" data-remove-queue="' + e.entity_id + '">âś•</button>'
                       : '<button class="btn btn-sm btn-outline" data-add-single="' + e.entity_id + '">+ Kolejka</button>'}
                   </div>`;
                 }).join('')}
               </div>
               ${isSelected ? `
               <div class="prefix-section">
-                <h3>📱 Nazwa urządzenia</h3>
+                <h3>đź“± Nazwa urzÄ…dzenia</h3>
                 <div class="prefix-row" style="margin-bottom:12px">
-                  <input type="text" id="deviceName" value="${this._deviceRenameQueue[d.id] || this._getDeviceName(d)}" placeholder="Nowa nazwa urządzenia" style="width:300px;font-family:inherit">
-                  <button class="btn btn-primary btn-sm" id="applyDeviceName" data-device-id="${d.id}">Zmień nazwę</button>
+                  <input type="text" id="deviceName" value="${this._deviceRenameQueue[d.id] || this._getDeviceName(d)}" placeholder="Nowa nazwa urzÄ…dzenia" style="width:300px;font-family:inherit">
+                  <button class="btn btn-primary btn-sm" id="applyDeviceName" data-device-id="${d.id}">ZmieĹ„ nazwÄ™</button>
                 </div>
-                <h3>🔄 Zmiana prefiksu entity_id dla wszystkich encji</h3>
+                <h3>đź”„ Zmiana prefiksu entity_id dla wszystkich encji</h3>
                 <div class="prefix-row">
                   <input type="text" id="prefixOld" value="${this._prefixOld || ''}" placeholder="Stary prefiks">
-                  <span class="arrow">→</span>
+                  <span class="arrow">â†’</span>
                   <input type="text" id="prefixNew" value="${this._prefixNew || ''}" placeholder="Nowy prefiks">
                   <button class="btn btn-primary btn-sm" id="applyPrefix">Zastosuj</button>
                 </div>
@@ -547,15 +534,15 @@ class HAEntityRenamer extends HTMLElement {
 
   _renderQueueTab() {
     if (!this._renameQueue.length) {
-      return '<div class="empty-state"><div class="icon">📋</div>Kolejka jest pusta.<br>Dodaj encje z zakładki Urządzenia.</div>';
+      return '<div class="empty-state"><div class="icon">đź“‹</div>Kolejka jest pusta.<br>Dodaj encje z zakĹ‚adki UrzÄ…dzenia.</div>';
     }
     const devEntries = Object.entries(this._deviceRenameQueue);
     return `
       ${devEntries.length ? `<div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);">
-        <strong style="font-size:12px;">📱 Urządzenia do zmiany nazwy:</strong>
+        <strong style="font-size:12px;">đź“± UrzÄ…dzenia do zmiany nazwy:</strong>
         ${devEntries.map(([did, name]) => {
           const dev = this._devices.find(d => d.id === did);
-          return `<div style="font-size:12px;margin-top:4px;"><span class="old">${dev ? this._getDeviceName(dev) : did}</span> → <span class="new">${name}</span> <button class="btn btn-sm btn-danger" data-remove-dev-queue="${did}">✕</button></div>`;
+          return `<div style="font-size:12px;margin-top:4px;"><span class="old">${dev ? this._getDeviceName(dev) : did}</span> â†’ <span class="new">${name}</span> <button class="btn btn-sm btn-danger" data-remove-dev-queue="${did}">âś•</button></div>`;
         }).join('')}
       </div>` : ''}
       <div class="queue-list">
@@ -565,33 +552,33 @@ class HAEntityRenamer extends HTMLElement {
             return `<div style="border:1px solid var(--bento-border,#334155);border-radius:8px;padding:12px;margin-bottom:8px;">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                 <span class="old" style="flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;">${r.oldId}</span>
-                <button class="btn btn-sm btn-danger" data-remove-queue="${r.oldId}">✕</button>
+                <button class="btn btn-sm btn-danger" data-remove-queue="${r.oldId}">âś•</button>
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
-                <span style="color:var(--bento-text-secondary,#94A3B8);">→</span>
+                <span style="color:var(--bento-text-secondary, #94A3B8));">â†’</span>
                 <span class="new" style="font-family:'JetBrains Mono',monospace;font-size:11px;">${r.newId !== r.oldId ? r.newId : '<span style="opacity:0.4">bez zmian entity_id</span>'}</span>
-                ${r.newName ? '<span style="font-size:11px;color:#93C5FD;">📝 ' + r.newName + '</span>' : ''}
+                ${r.newName ? '<span style="font-size:11px;color:#93C5FD;">đź“ť ' + r.newName + '</span>' : ''}
               </div>
               ${hasImpact ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);">
-                <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ Używane w:</span>
-                ${imp.automations.map(a => '<span class="impact-badge automation">⚙ ' + a + '</span>').join('')}
-                ${imp.scripts.map(s => '<span class="impact-badge script">📜 ' + s + '</span>').join('')}
-                ${imp.dashboards.map(d => '<span class="impact-badge dashboard">📊 ' + d + '</span>').join('')}
-                ${(imp.scenes||[]).map(s => '<span class="impact-badge scene">🎬 ' + s + '</span>').join('')}
-              </div>` : (imp ? '<div style="margin-top:4px;font-size:10px;color:var(--bento-text-secondary,#94A3B8);">✓ Nie używane w automatyzacjach, skryptach ani dashboardach</div>' : '')}
+                <span style="font-size:10px;color:var(--bento-text-secondary, #94A3B8));">âš ď¸Ź UĹĽywane w:</span>
+                ${imp.automations.map(a => '<span class="impact-badge automation">âš™ ' + a + '</span>').join('')}
+                ${imp.scripts.map(s => '<span class="impact-badge script">đź“ś ' + s + '</span>').join('')}
+                ${imp.dashboards.map(d => '<span class="impact-badge dashboard">đź“Š ' + d + '</span>').join('')}
+                ${(imp.scenes||[]).map(s => '<span class="impact-badge scene">đźŽ¬ ' + s + '</span>').join('')}
+              </div>` : (imp ? '<div style="margin-top:4px;font-size:10px;color:var(--bento-text-secondary, #94A3B8));">âś“ Nie uĹĽywane w automatyzacjach, skryptach ani dashboardach</div>' : '')}
             </div>`;
           }).join('')}
       </div>
       <div class="queue-actions">
-        <button class="btn btn-outline" id="clearQueue">🗑️ Wyczyść</button>
-        <button class="btn btn-outline" id="analyzeImpact" ${this._loading ? 'disabled' : ''}>🔍 Analizuj wpływ</button>
-        <button class="btn btn-danger" id="executeRenames" ${this._loading ? 'disabled' : ''}>🚀 Wykonaj zmiany (${this._renameQueue.length})</button>
+        <button class="btn btn-outline" id="clearQueue">đź—‘ď¸Ź WyczyĹ›Ä‡</button>
+        <button class="btn btn-outline" id="analyzeImpact" ${this._loading ? 'disabled' : ''}>đź”Ť Analizuj wpĹ‚yw</button>
+        <button class="btn btn-danger" id="executeRenames" ${this._loading ? 'disabled' : ''}>đźš€ Wykonaj zmiany (${this._renameQueue.length})</button>
       </div>`;
   }
 
   _renderLogTab() {
     if (!this._renameLog.length) {
-      return '<div class="empty-state"><div class="icon">📜</div>Brak historii zmian.<br>Wykonaj zmiany z zakładki Kolejka.</div>';
+      return '<div class="empty-state"><div class="icon">đź“ś</div>Brak historii zmian.<br>Wykonaj zmiany z zakĹ‚adki Kolejka.</div>';
     }
     return `
       <div>
@@ -602,15 +589,15 @@ class HAEntityRenamer extends HTMLElement {
           <div class="log-entry" style="padding:8px 0;${hasImpact ? 'padding-bottom:12px;' : ''}">
             <span class="log-time">${l.time}</span>
             <span class="${l.status === 'ok' ? 'log-ok' : 'log-err'}">
-              ${l.status === 'ok' ? '✅' : '❌'} ${l.oldId} → ${l.newId}
+              ${l.status === 'ok' ? 'âś…' : 'âťŚ'} ${l.oldId} â†’ ${l.newId}
             </span>
             ${l.error ? `<br><small style="color:#FCA5A5">${l.error}</small>` : ''}
             ${hasImpact ? `<div style="margin-top:4px;padding-left:24px;">
-              <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ Używane w:</span>
-              ${imp.automations.map(a => '<span class="impact-badge automation">⚙ ' + a + '</span>').join('')}
-              ${imp.scripts.map(s => '<span class="impact-badge script">📜 ' + s + '</span>').join('')}
-              ${imp.dashboards.map(d => '<span class="impact-badge dashboard">📊 ' + d + '</span>').join('')}
-              ${(imp.scenes||[]).map(s => '<span class="impact-badge scene">🎬 ' + s + '</span>').join('')}
+              <span style="font-size:10px;color:var(--bento-text-secondary, #94A3B8));">âš ď¸Ź UĹĽywane w:</span>
+              ${imp.automations.map(a => '<span class="impact-badge automation">âš™ ' + a + '</span>').join('')}
+              ${imp.scripts.map(s => '<span class="impact-badge script">đź“ś ' + s + '</span>').join('')}
+              ${imp.dashboards.map(d => '<span class="impact-badge dashboard">đź“Š ' + d + '</span>').join('')}
+              ${(imp.scenes||[]).map(s => '<span class="impact-badge scene">đźŽ¬ ' + s + '</span>').join('')}
             </div>` : ''}
           </div>`;
         }).join('')}
@@ -640,7 +627,7 @@ class HAEntityRenamer extends HTMLElement {
       });
     }
 
-    // Device headers — toggle expand + select
+    // Device headers â€” toggle expand + select
     root.querySelectorAll('.device-header').forEach(hdr => {
       hdr.addEventListener('click', () => {
         const did = hdr.dataset.deviceId;
@@ -664,7 +651,7 @@ class HAEntityRenamer extends HTMLElement {
         const newName = (root.getElementById('deviceName') || {}).value || '';
         if (newName) {
           this._deviceRenameQueue[devId] = newName;
-          this._message = { type: 'info', text: `Nazwa urządzenia "${newName}" dodana do kolejki.` };
+          this._message = { type: 'info', text: `Nazwa urzÄ…dzenia "${newName}" dodana do kolejki.` };
           this.render();
         }
       });
@@ -679,7 +666,7 @@ class HAEntityRenamer extends HTMLElement {
         const objId = oldId.split('.')[1] || '';
         const ent = this._entities.find(en => en.entity_id === oldId);
         const currentName = ent ? (ent.name || ent.original_name || '') : '';
-        const newObjId = prompt('Nowy entity_id (object_id) — zostaw bez zmian jeśli chcesz zmienić tylko friendly name:', objId);
+        const newObjId = prompt('Nowy entity_id (object_id) â€” zostaw bez zmian jeĹ›li chcesz zmieniÄ‡ tylko friendly name:', objId);
         if (newObjId === null) return; // cancelled
         const newFriendly = prompt('Nowy friendly name (zostaw puste = bez zmian):', currentName);
         if (newFriendly === null) return; // cancelled
@@ -728,7 +715,7 @@ class HAEntityRenamer extends HTMLElement {
     const executeRenames = root.getElementById('executeRenames');
     if (executeRenames) {
       executeRenames.addEventListener('click', () => {
-        if (confirm(`Czy na pewno chcesz zmienić nazwy ${this._renameQueue.length} encji? Ta operacja jest nieodwracalna.`)) {
+        if (confirm(`Czy na pewno chcesz zmieniÄ‡ nazwy ${this._renameQueue.length} encji? Ta operacja jest nieodwracalna.`)) {
           this._executeRenames();
         }
       });
@@ -758,15 +745,14 @@ class HaEntityRenamerEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,var(--bento-card, #1E293B)); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
-      </style>
+        input:focus { border-color:var(--primary-color,var(--bento-primary, #3B82F6)); }</style>
       <h3>Entity Renamer</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${this._config?.title || 'Entity Renamer'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,var(--bento-text, #E2E8F0));border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,var(--bento-card, #1E293B));font-size:14px;box-sizing:border-box;">
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

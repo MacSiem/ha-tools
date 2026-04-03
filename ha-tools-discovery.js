@@ -84,10 +84,11 @@
 
         const css = `
           <style>
+            ${window.HAToolsBentoCSS || ''}
             .hatd-banner {
-              border: 1px solid #334155;
-              border-radius: 12px;
-              background: rgba(59,130,246,0.04);
+              border: 1px solid var(--bento-border, #334155);
+              border-radius: var(--bento-radius, 12px);
+              background: var(--bento-primary-light, rgba(59,130,246,0.04));
               padding: 14px 16px;
               margin-top: 16px;
               font-family: 'Inter', -apple-system, sans-serif;
@@ -103,19 +104,19 @@
               flex: 1;
               font-size: 13px;
               font-weight: 600;
-              color: #3B82F6;
+              color: var(--bento-primary, #3B82F6);
             }
             .hatd-count {
               font-size: 11px;
-              background: rgba(59,130,246,0.12);
-              color: #3B82F6;
+              background: var(--bento-primary-light, rgba(59,130,246,0.12));
+              color: var(--bento-primary, #3B82F6);
               border-radius: 20px;
               padding: 2px 8px;
               font-weight: 600;
             }
             .hatd-toggle {
               font-size: 11px;
-              color: #64748B;
+              color: var(--bento-text-secondary, #64748B);
               transition: transform 0.2s;
             }
             .hatd-toggle.open { transform: rotate(180deg); }
@@ -125,7 +126,7 @@
               font-weight: 600;
               text-transform: uppercase;
               letter-spacing: 0.5px;
-              color: #64748B;
+              color: var(--bento-text-secondary, #64748B);
               margin-bottom: 8px;
               margin-top: 12px;
             }
@@ -134,18 +135,25 @@
               display: flex;
               align-items: center;
               gap: 12px;
-              background: rgba(59,130,246,0.06);
-              border: 1px solid rgba(59,130,246,0.2);
-              border-radius: 8px;
+              background: var(--bento-primary-light, rgba(59,130,246,0.06));
+              border: 1px solid var(--bento-border, rgba(59,130,246,0.2));
+              border-radius: var(--bento-radius, 8px);
               padding: 10px 12px;
               margin-bottom: 8px;
             }
             .hatd-panel-icon { font-size: 22px; }
             .hatd-panel-text { flex: 1; }
-            .hatd-panel-name { font-size: 13px; font-weight: 600; color: #1E293B; }
-            .hatd-panel-desc { font-size: 11px; color: #64748B; }
+            .hatd-panel-name { 
+              font-size: 13px; 
+              font-weight: 600; 
+              color: var(--bento-text, #1E293B); 
+            }
+            .hatd-panel-desc { 
+              font-size: 11px; 
+              color: var(--bento-text-secondary, #64748B); 
+            }
             @media (prefers-color-scheme: dark) {
-              .hatd-panel-name { color: #e2e8f0; }
+              .hatd-panel-name { color: var(--bento-text-dark, #e2e8f0); }
             }
             @media (max-width: 768px) {
               .hatd-banner { padding: 10px 12px; margin-top: 12px; }
@@ -168,27 +176,27 @@
               align-items: center;
               gap: 6px;
               background: rgba(255,255,255,0.03);
-              border: 1px solid #334155;
-              border-radius: 8px;
+              border: 1px solid var(--bento-border, #334155);
+              border-radius: var(--bento-radius, 8px);
               padding: 7px 10px;
               font-size: 12px;
-              color: #94a3b8;
+              color: var(--bento-text-muted, #94a3b8);
               text-decoration: none;
               transition: all 0.15s;
             }
             .hatd-tool-chip:hover {
-              border-color: #3B82F6;
-              color: #3B82F6;
-              background: rgba(59,130,246,0.07);
+              border-color: var(--bento-primary, #3B82F6);
+              color: var(--bento-primary, #3B82F6);
+              background: var(--bento-primary-light, rgba(59,130,246,0.07));
             }
             .hatd-tool-chip.related {
-              border-color: rgba(245,158,11,0.4);
-              color: #F59E0B;
-              background: rgba(245,158,11,0.05);
+              border-color: var(--bento-warning-light, rgba(245,158,11,0.4));
+              color: var(--bento-warning, #F59E0B);
+              background: var(--bento-warning-light, rgba(245,158,11,0.05));
             }
             .hatd-tool-chip.related:hover {
-              border-color: #F59E0B;
-              background: rgba(245,158,11,0.1);
+              border-color: var(--bento-warning, #F59E0B);
+              background: var(--bento-warning-light, rgba(245,158,11,0.1));
             }
             .hatd-chip-icon { font-size: 14px; }
             .hatd-chip-name { flex: 1; font-weight: 500; }
@@ -196,10 +204,10 @@
               display: inline-flex;
               align-items: center;
               gap: 6px;
-              background: #3B82F6;
-              color: white;
+              background: var(--bento-primary, #3B82F6);
+              color: var(--bento-card, white);
               border: none;
-              border-radius: 8px;
+              border-radius: var(--bento-radius, 8px);
               padding: 8px 14px;
               font-size: 12px;
               font-weight: 600;
@@ -208,7 +216,9 @@
               white-space: nowrap;
               flex-shrink: 0;
             }
-            .hatd-install-btn:hover { background: #2563EB; }
+            .hatd-install-btn:hover { 
+              background: var(--bento-primary-hover, #2563EB); 
+            }
           </style>
         `;
 
@@ -341,5 +351,3 @@
   window._hatd_loaded = true;
   console.log('[HA Tools Discovery] v1.0.0 loaded - ' + HA_TOOLS_REGISTRY.length + ' tools in registry');
 })();
-
-

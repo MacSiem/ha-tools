@@ -948,9 +948,9 @@ textarea { min-height: 80px; resize: vertical; }
 .sort-indicator { font-size: 10px; margin-left: 4px; color: var(--bento-primary); }
 
 .status-badge, .severity-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
-.status-online, .status-home, .status-active, .status-ok, .status-healthy, .status-running, .status-complete, .status-completed, .status-success, .badge-success { background: rgba(16, 185, 129, 0.1); color: #059669; }
-.status-offline, .status-error, .status-failed, .status-critical, .severity-critical, .badge-error, .badge-danger { background: rgba(239, 68, 68, 0.1); color: #DC2626; }
-.status-away, .status-warning, .severity-warning, .badge-warning { background: rgba(245, 158, 11, 0.1); color: #B45309; }
+.status-online, .status-home, .status-active, .status-ok, .status-healthy, .status-running, .status-complete, .status-completed, .status-success, .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--bento-success); }
+.status-offline, .status-error, .status-failed, .status-critical, .severity-critical, .badge-error, .badge-danger { background: rgba(239, 68, 68, 0.1); color: var(--bento-error); }
+.status-away, .status-warning, .severity-warning, .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--bento-warning); }
 .status-unavailable, .status-unknown, .status-idle, .status-inactive, .status-stopped, .badge-neutral { background: rgba(100, 116, 139, 0.1); color: var(--bento-text-secondary); }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
@@ -1165,18 +1165,18 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 .finding { padding: 14px 16px; border-radius: var(--bento-radius-sm); border: 1px solid var(--bento-border); margin-bottom: 8px; background: var(--bento-card); transition: var(--bento-transition); }
 .finding:hover { box-shadow: var(--bento-shadow-sm); }
-.finding.critical { border-left: 3px solid #f44336; }
-.finding.warning { border-left: 3px solid #ff9800; }
-.finding.info { border-left: 3px solid #03a9f4; }
-.finding.pass { border-left: 3px solid #4caf50; }
+.finding.critical { border-left: 3px solid var(--bento-error); }
+.finding.warning { border-left: 3px solid var(--bento-warning); }
+.finding.info { border-left: 3px solid var(--bento-primary); }
+.finding.pass { border-left: 3px solid var(--bento-success); }
 .finding-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .finding-icon { font-size: 16px; }
 .finding-title { font-weight: 600; font-size: 13px; color: var(--bento-text); flex: 1; }
 .finding-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
-.badge-critical { background: rgba(244, 67, 54, 0.1); color: #f44336; }
-.badge-warning { background: rgba(255, 152, 0, 0.1); color: #ff9800; }
-.badge-info { background: rgba(3, 169, 244, 0.1); color: #03a9f4; }
-.badge-pass { background: rgba(76, 175, 80, 0.1); color: #4caf50; }
+.badge-critical { background: rgba(244, 67, 54, 0.1); color: var(--bento-error); }
+.badge-warning { background: rgba(255, 152, 0, 0.1); color: var(--bento-warning); }
+.badge-info { background: rgba(3, 169, 244, 0.1); color: var(--bento-primary); }
+.badge-pass { background: rgba(76, 175, 80, 0.1); color: var(--bento-success); }
 .finding-desc { font-size: 12px; color: var(--bento-text-secondary); line-height: 1.5; }
 .finding-fix { font-size: 12px; color: var(--bento-primary); margin-top: 6px; font-weight: 500; }
 
@@ -1273,10 +1273,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   _renderOverview(d) {
     const circ = 2 * Math.PI * 42;
     const sc = d.score;
-    const scoreColor = sc >= 80 ? '#4caf50' : sc >= 60 ? '#ff9800' : '#f44336';
+    const scoreColor = sc >= 80 ? 'var(--bento-success)' : sc >= 60 ? 'var(--bento-warning)' : 'var(--bento-error)';
     const grade = sc >= 90 ? 'A' : sc >= 80 ? 'B' : sc >= 70 ? 'C' : sc >= 60 ? 'D' : 'F';
     const gradeMsg = sc >= 90 ? 'Excellent security posture' : sc >= 80 ? 'Good, minor improvements possible' : sc >= 60 ? 'Fair, several issues to address' : 'Needs attention \u2014 critical issues found';
-    let html = `<div class="score-section"><div class="score-ring"><svg viewBox="0 0 100 100"><circle class="score-bg" cx="50" cy="50" r="42" /><circle class="score-fill" cx="50" cy="50" r="42" style="stroke:${scoreColor};stroke-dasharray:${(sc/100)*circ} ${circ}" /></svg><div class="score-text"><div class="score-num" style="color:${scoreColor}">${sc}</div><div class="score-label">Score</div></div></div><div class="score-summary"><h3>Grade: ${grade} \u2014 ${gradeMsg}</h3><div class="summary-row"><div class="summary-dot" style="background:#f44336"></div><span class="summary-count">${d.critCount}</span> Critical</div><div class="summary-row"><div class="summary-dot" style="background:#ff9800"></div><span class="summary-count">${d.warnCount}</span> Warnings</div><div class="summary-row"><div class="summary-dot" style="background:#03a9f4"></div><span class="summary-count">${d.infoCount}</span> Info</div><div class="summary-row"><div class="summary-dot" style="background:#4caf50"></div><span class="summary-count">${d.passCount}</span> Passed</div></div></div>`;
+    let html = `<div class="score-section"><div class="score-ring"><svg viewBox="0 0 100 100"><circle class="score-bg" cx="50" cy="50" r="42" /><circle class="score-fill" cx="50" cy="50" r="42" style="stroke:${scoreColor};stroke-dasharray:${(sc/100)*circ} ${circ}" /></svg><div class="score-text"><div class="score-num" style="color:${scoreColor}">${sc}</div><div class="score-label">Score</div></div></div><div class="score-summary"><h3>Grade: ${grade} \u2014 ${gradeMsg}</h3><div class="summary-row"><div class="summary-dot" style="background:var(--bento-error)"></div><span class="summary-count">${d.critCount}</span> Critical</div><div class="summary-row"><div class="summary-dot" style="background:var(--bento-warning)"></div><span class="summary-count">${d.warnCount}</span> Warnings</div><div class="summary-row"><div class="summary-dot" style="background:var(--bento-primary)"></div><span class="summary-count">${d.infoCount}</span> Info</div><div class="summary-row"><div class="summary-dot" style="background:var(--bento-success)"></div><span class="summary-count">${d.passCount}</span> Passed</div></div></div>`;
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px"><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.addons.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Addons installed</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.users.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">User accounts</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.entities}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Entities</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.totalChecks}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Checks run</div></div></div>`;
     if (d.critCount > 0) { html += '<div class="section-title">\u{1F6A8} Critical Issues</div>'; d.findings.critical.forEach(f => { html += this._renderFinding(f, 'critical'); }); }
     if (d.warnCount > 0) { html += '<div class="section-title">\u26A0\uFE0F Warnings</div>'; d.findings.warning.forEach(f => { html += this._renderFinding(f, 'warning'); }); }
@@ -1326,12 +1326,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   _renderAddonsSection(d) {
     if (!d.addons.length) return '<div class="empty-msg">No addons installed</div>';
-    return `<div class="table-container"><table class="entity-table"><thead><tr><th>Addon</th><th>Version</th><th>State</th><th>Protection</th><th>Auto-update</th><th>Host Network</th></tr></thead><tbody>${d.addons.map(a => { const prot = a.protected !== false; const autoUp = a.auto_update !== false; const hostNet = a.host_network === true; const updateAvail = a.update_available; return `<tr><td>${this._sanitize(a.name || a.slug)}${updateAvail ? ' \u2B06\uFE0F' : ''}</td><td>${a.version || '-'}${updateAvail ? ` \u2192 ${a.version_latest}` : ''}</td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td><td style="color:${prot ? '#4caf50' : '#f44336'}">${prot ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${autoUp ? '#4caf50' : '#ff9800'}">${autoUp ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${hostNet ? '#ff9800' : 'var(--bento-text-secondary)'}">${hostNet ? '\u26A0 Yes' : 'No'}</td></tr>`; }).join('')}</tbody></table></div>`;
+    return `<div class="table-container"><table class="entity-table"><thead><tr><th>Addon</th><th>Version</th><th>State</th><th>Protection</th><th>Auto-update</th><th>Host Network</th></tr></thead><tbody>${d.addons.map(a => { const prot = a.protected !== false; const autoUp = a.auto_update !== false; const hostNet = a.host_network === true; const updateAvail = a.update_available; return `<tr><td>${this._sanitize(a.name || a.slug)}${updateAvail ? ' \u2B06\uFE0F' : ''}</td><td>${a.version || '-'}${updateAvail ? ` \u2192 ${a.version_latest}` : ''}</td><td><span class="status-dot" style="background:${a.state === 'started' ? 'var(--bento-success)' : 'var(--bento-text-muted)'}"></span>${a.state || 'stopped'}</td><td style="color:${prot ? 'var(--bento-success)' : 'var(--bento-error)'}">${prot ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${autoUp ? 'var(--bento-success)' : 'var(--bento-warning)'}">${autoUp ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${hostNet ? 'var(--bento-warning)' : 'var(--bento-text-secondary)'}">${hostNet ? '\u26A0 Yes' : 'No'}</td></tr>`; }).join('')}</tbody></table></div>`;
   }
 
   _renderUsers(d) {
     if (!d.users.length) return '<div class="empty-msg">Could not retrieve user list</div>';
-    return `<div class="table-container"><table class="entity-table"><thead><tr><th>User</th><th>Role</th><th>Active</th><th>Local Only</th><th>System</th></tr></thead><tbody>${d.users.map(u => `<tr><td>${this._sanitize(u.name || 'Unnamed')}</td><td>${u.is_owner ? '\u{1F451} Owner' : u.group_ids?.includes('system-admin') ? 'Admin' : 'User'}</td><td style="color:${u.is_active !== false ? '#4caf50' : '#9e9e9e'}">${u.is_active !== false ? '\u2713 Active' : 'Inactive'}</td><td>${u.local_only ? '\u2713 Yes' : 'No'}</td><td>${u.system_generated ? '\u{1F916} Yes' : 'No'}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="table-container"><table class="entity-table"><thead><tr><th>User</th><th>Role</th><th>Active</th><th>Local Only</th><th>System</th></tr></thead><tbody>${d.users.map(u => `<tr><td>${this._sanitize(u.name || 'Unnamed')}</td><td>${u.is_owner ? '\u{1F451} Owner' : u.group_ids?.includes('system-admin') ? 'Admin' : 'User'}</td><td style="color:${u.is_active !== false ? 'var(--bento-success)' : 'var(--bento-text-muted)'}">${u.is_active !== false ? '\u2713 Active' : 'Inactive'}</td><td>${u.local_only ? '\u2713 Yes' : 'No'}</td><td>${u.system_generated ? '\u{1F916} Yes' : 'No'}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   _renderNetwork(d) {
@@ -1426,8 +1426,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       exposedAddons.forEach(a => {
         const hasIngress = a.ingress === true;
         const ports = a.ports ? Object.entries(a.ports).map(([port, config]) => `${port}${config.host_port ? `→${config.host_port}` : ''}`).join(', ') : 'N/A';
-        const color = hasIngress ? '#4caf50' : a.state === 'started' ? '#ff9800' : '#9e9e9e';
-        html += `<tr><td>${this._sanitize(a.name)}</td><td style="color:${color}">${hasIngress ? '\u2713 Yes' : '\u2717 No'}</td><td><code style="font-size:12px;background:var(--bento-bg);padding:4px 8px;border-radius:4px">${ports}</code></td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td></tr>`;
+        const color = hasIngress ? 'var(--bento-success)' : a.state === 'started' ? 'var(--bento-warning)' : 'var(--bento-text-muted)';
+        html += `<tr><td>${this._sanitize(a.name)}</td><td style="color:${color}">${hasIngress ? '\u2713 Yes' : '\u2717 No'}</td><td><code style="font-size:12px;background:var(--bento-bg);padding:4px 8px;border-radius:4px">${ports}</code></td><td><span class="status-dot" style="background:${a.state === 'started' ? 'var(--bento-success)' : 'var(--bento-text-muted)'}"></span>${a.state || 'stopped'}</td></tr>`;
       });
       html += '</tbody></table></div>';
     }
@@ -1465,11 +1465,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     html += `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">`;
     html += `<div style="padding:4px 10px;background:rgba(33,150,243,0.08);border-radius:6px;font-size:11px;color:var(--bento-text-secondary);">\u{1F4E6} Core: ${coreInts.length}</div>`;
     html += `<div style="padding:4px 10px;background:rgba(255,152,0,0.08);border-radius:6px;font-size:11px;color:var(--bento-text-secondary);">\u{1F3EA} HACS: ${hacsInts.length}</div>`;
-    if (errorInts.length > 0) html += `<div style="padding:4px 10px;background:rgba(244,67,54,0.08);border-radius:6px;font-size:11px;color:#f44336;">\u26A0 Errors: ${errorInts.length}</div>`;
+    if (errorInts.length > 0) html += `<div style="padding:4px 10px;background:rgba(244,67,54,0.08);border-radius:6px;font-size:11px;color:var(--bento-error);">\u26A0 Errors: ${errorInts.length}</div>`;
     html += `</div>`;
     html += `<div class="table-container"><table class="entity-table"><thead><tr><th>Integration</th><th>Domain</th><th>Source</th><th>Status</th></tr></thead><tbody>`;
     d.integrations.forEach(e => {
-      const statusColor = e.state === 'loaded' ? '#4caf50' : e.state === 'setup_error' ? '#f44336' : e.state === 'not_loaded' ? '#ff9800' : '#9e9e9e';
+      const statusColor = e.state === 'loaded' ? 'var(--bento-success)' : e.state === 'setup_error' ? 'var(--bento-error)' : e.state === 'not_loaded' ? 'var(--bento-warning)' : 'var(--bento-text-muted)';
       const isHacs = e.source === 'hacs' || e.source === 'custom';
       html += `<tr><td>${this._sanitize(e.title || e.domain)}</td><td style="font-family:monospace;font-size:12px">${e.domain}</td>`;
       html += `<td><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${isHacs ? 'rgba(255,152,0,0.1);color:#f57c00' : 'rgba(33,150,243,0.1);color:#1976d2'}">${isHacs ? '\u{1F3EA} HACS' : '\u{1F4E6} Core'}</span></td>`;
@@ -1547,8 +1547,8 @@ window.customCards.push({ type: 'ha-security-check', name: 'Security Check', des
 
 console.info(
   '%c  HA-SECURITY-CHECK  %c v1.0.0 ',
-  'background: #f44336; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
-  'background: #ffebee; color: #f44336; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
+  'background: var(--bento-error); color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
+  'background: #ffebee; color: var(--bento-error); font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );
 
 class HaSecurityCheckEditor extends HTMLElement {

@@ -1792,34 +1792,20 @@ class HAVacuumWaterMonitor extends HTMLElement {
         :host {
   display: block;
   font-family: Inter, sans-serif;
-  --vwm-bg: var(--card-background-color, #fff);
-  --vwm-text: var(--primary-text-color, #1a1a2e);
-  --vwm-text-secondary: var(--secondary-text-color, #6b7280);
-  --vwm-text-muted: var(--disabled-text-color, #9ca3af);
-  --vwm-border: var(--divider-color, #e5e7eb);
-  --vwm-surface: var(--primary-background-color, #f3f4f6);
-  --vwm-overlay-light: rgba(0,0,0,0.04);
-  --vwm-overlay-medium: rgba(0,0,0,0.08);
-  --bento-bg: var(--vwm-surface);
-  --bento-card: var(--vwm-bg);
-  --bento-border: var(--vwm-border);
-  --bento-text: var(--vwm-text);
-  --bento-text-secondary: var(--vwm-text-secondary);
-  --bento-text-muted: var(--vwm-text-muted);
 }
-        .card { background: var(--vwm-bg); border-radius: 16px; padding: 16px; color: var(--vwm-text); ; }
-        .card-title { font-size: 15px; font-weight: 700; color: var(--vwm-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--bento-card); border-radius: 16px; padding: 16px; color: var(--bento-text); ; }
+        .card-title { font-size: 15px; font-weight: 700; color: var(--bento-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         .device-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .device-name { font-weight: 600; font-size: 14px; }
         .status-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.3px; }
         /* Device tabs */
         .device-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .dtab { background: var(--vwm-overlay-light); color: var(--vwm-text-secondary); border: 1px solid var(--vwm-border); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
-        .dtab-active { background: rgba(99,102,241,0.2); color: #818cf8; border-color: rgba(99,102,241,0.4); }
+        .dtab { background: rgba(0,0,0,0.04); color: var(--bento-text-secondary); border: 1px solid var(--bento-border); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .dtab-active { background: rgba(99,102,241,0.2); color: var(--bento-primary); border-color: rgba(99,102,241,0.4); }
         /* Tab navigation */
-        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: var(--vwm-overlay-light); border-radius: 10px; padding: 3px; border-bottom: none !important; }
-        .tab-btn { flex: 1; background: transparent; color: var(--vwm-text-muted); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
-        .tab-active { background: var(--vwm-overlay-medium); color: var(--vwm-text); }
+        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: rgba(0,0,0,0.04); border-radius: 10px; padding: 3px; border-bottom: none !important; }
+        .tab-btn { flex: 1; background: transparent; color: var(--bento-text-secondary); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .tab-active { background: rgba(0,0,0,0.08); color: var(--bento-text); }
         /* Content */
         .tab-content { }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
@@ -1827,29 +1813,29 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
         .details { flex: 1; display: flex; flex-direction: column; gap: 6px; }
         .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-        .row-label { color: var(--vwm-text-secondary); }
-        .row-val { font-weight: 600; color: var(--vwm-text); }
+        .row-label { color: var(--bento-text-secondary); }
+        .row-val { font-weight: 600; color: var(--bento-text); }
         .chip { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
-        .chip-active { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); animation: pulse 1.5s infinite; }
-        .chip-idle { background: var(--vwm-overlay-light); color: var(--vwm-text-muted); border: 1px solid var(--vwm-border); }
+        .chip-active { background: rgba(34,197,94,0.15); color: var(--bento-success); border: 1px solid rgba(34,197,94,0.3); animation: pulse 1.5s infinite; }
+        .chip-idle { background: rgba(0,0,0,0.04); color: var(--bento-text-secondary); border: 1px solid var(--bento-border); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .refill-wrap { margin-top: 12px; text-align: right; }
-        .refill-btn { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: Inter, sans-serif; }
+        .refill-btn { background: rgba(59,130,246,0.15); color: var(--bento-primary); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: Inter, sans-serif; }
         .refill-btn:hover { background: rgba(59,130,246,0.25); }
-        .alert-banner { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 500; margin-bottom: 10px; }
-        .alert-warn { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
-        .no-water-note { color: var(--vwm-text-muted); font-size: 12px; text-align: center; padding: 12px 0; }
+        .alert-banner { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--bento-error); border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 500; margin-bottom: 10px; }
+        .alert-warn { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); color: var(--bento-warning); }
+        .no-water-note { color: var(--bento-text-secondary); font-size: 12px; text-align: center; padding: 12px 0; }
         /* Sections */
-        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vwm-border); }
-        .section-title { font-size: 11px; font-weight: 700; color: var(--vwm-text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bento-border); }
+        .section-title { font-size: 11px; font-weight: 700; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
         /* Dock */
         .dock-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 3px 0; }
         .dock-val { font-weight: 600; font-size: 12px; }
         /* Consumables */
         .consumable-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-        .con-label { font-size: 11px; color: var(--vwm-text-secondary); width: 100px; flex-shrink: 0; }
+        .con-label { font-size: 11px; color: var(--bento-text-secondary); width: 100px; flex-shrink: 0; }
         .con-bar-wrap { flex: 1; }
-        .con-bar { height: 4px; background: var(--vwm-overlay-medium); border-radius: 2px; overflow: hidden; }
+        .con-bar { height: 4px; background: rgba(0,0,0,0.08); border-radius: 2px; overflow: hidden; }
         .con-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
         .con-val { font-size: 11px; font-weight: 600; width: 55px; text-align: right; flex-shrink: 0; }
         /* Custom maintenance */
@@ -1858,42 +1844,42 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .maint-done-btn, .maint-del-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px; }
         /* Add form */
         .add-maint-form { display: flex; gap: 6px; flex-wrap: wrap; }
-        .maint-input { background: var(--vwm-overlay-light); border: 1px solid var(--vwm-border); border-radius: 6px; color: var(--vwm-text); padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
+        .maint-input { background: rgba(0,0,0,0.04); border: 1px solid var(--bento-border); border-radius: 6px; color: var(--bento-text); padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
         .maint-days, .maint-icon { max-width: 100px; }
-        .maint-input::placeholder { color: var(--vwm-text-muted); }
-        .maint-add-btn { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; white-space: nowrap; }
+        .maint-input::placeholder { color: var(--bento-text-secondary); }
+        .maint-add-btn { background: rgba(34,197,94,0.15); color: var(--bento-success); border: 1px solid rgba(34,197,94,0.3); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; white-space: nowrap; }
         /* History */
         .current-session-card { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
-        .cs-title { font-size: 12px; font-weight: 700; color: #22c55e; margin-bottom: 6px; }
-        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--vwm-text-secondary); }
-        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--vwm-border); font-size: 12px; }
-        .session-date { color: var(--vwm-text-secondary); font-weight: 500; }
-        .session-time { color: var(--vwm-text-muted); font-size: 11px; }
+        .cs-title { font-size: 12px; font-weight: 700; color: var(--bento-success); margin-bottom: 6px; }
+        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--bento-text-secondary); }
+        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--bento-border); font-size: 12px; }
+        .session-date { color: var(--bento-text-secondary); font-weight: 500; }
+        .session-time { color: var(--bento-text-secondary); font-size: 11px; }
         .session-stats { display: flex; gap: 8px; }
-        .session-stat { background: var(--vwm-overlay-light); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--vwm-text-secondary); }
+        .session-stat { background: rgba(0,0,0,0.04); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--bento-text-secondary); }
         /* Stats */
-        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); }
+        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--bento-border); }
         .stats-device { flex: 1; font-weight: 500; }
         .stats-status { font-size: 11px; }
         .stats-pct { font-weight: 700; font-size: 13px; width: 35px; text-align: right; }
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
-        .stat-box { background: var(--vwm-overlay-light); border-radius: 10px; padding: 10px; text-align: center; }
-        .stat-num { font-size: 20px; font-weight: 700; color: var(--vwm-text); }
-        .stat-label { font-size: 10px; color: var(--vwm-text-muted); margin-top: 2px; }
+        .stat-box { background: rgba(0,0,0,0.04); border-radius: 10px; padding: 10px; text-align: center; }
+        .stat-num { font-size: 20px; font-weight: 700; color: var(--bento-text); }
+        .stat-label { font-size: 10px; color: var(--bento-text-secondary); margin-top: 2px; }
         /* Discovered */
-        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); flex-wrap: wrap; }
+        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--bento-border); flex-wrap: wrap; }
         .disc-name { font-weight: 500; }
-        .disc-id { color: var(--vwm-text-muted); font-size: 10px; font-family: monospace; flex: 1; }
+        .disc-id { color: var(--bento-text-secondary); font-size: 10px; font-family: monospace; flex: 1; }
         .disc-state { font-size: 11px; font-weight: 600; }
-        .disc-bat { font-size: 11px; color: var(--vwm-text-secondary); }
+        .disc-bat { font-size: 11px; color: var(--bento-text-secondary); }
         /* Battery */
         .battery-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; }
         .battery-icon { flex-shrink: 0; }
-        .battery-track { flex: 1; height: 6px; background: var(--vwm-overlay-medium); border-radius: 3px; overflow: hidden; }
+        .battery-track { flex: 1; height: 6px; background: rgba(0,0,0,0.08); border-radius: 3px; overflow: hidden; }
         .battery-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
         .battery-pct { font-weight: 700; font-size: 12px; width: 35px; text-align: right; }
         /* Empty */
-        .empty-state { text-align: center; color: var(--vwm-text-muted); padding: 20px; font-size: 13px; line-height: 1.5; }
+        .empty-state { text-align: center; color: var(--bento-text-secondary); padding: 20px; font-size: 13px; line-height: 1.5; }
 
 /* Tips banner */
 .tip-banner {
@@ -1906,7 +1892,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
   line-height: 1.6;
   position: relative;
 }
-.tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #3B82F6; }
+.tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--bento-primary); }
 .tip-banner ul { margin: 6px 0 0 16px; padding: 0; }
 .tip-banner li { margin-bottom: 3px; }
 .tip-banner .tip-dismiss {
