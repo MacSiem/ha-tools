@@ -1,3 +1,67 @@
+
+// ── HA Tools Server Persistence Helper ──
+// Uses HA frontend/set_user_data for cross-device per-user persistence
+// Falls back to localStorage for instant reads (cache), writes to both
+window._haToolsPersistence = window._haToolsPersistence || {
+  _cache: {},
+  _hass: null,
+  setHass(hass) { this._hass = hass;
+    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+
+  async save(key, data) {
+    const fullKey = 'ha-tools-' + key;
+    // Always write localStorage as fast cache
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    // Write to HA server (cross-device)
+    if (this._hass) {
+      try {
+        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
+      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
+    }
+    this._cache[fullKey] = data;
+  },
+
+  async load(key) {
+    const fullKey = 'ha-tools-' + key;
+    // 1. Memory cache (instant)
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    // 2. localStorage (fast, may be stale on other device)
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+      }
+    } catch(e) {}
+    // 3. HA server (authoritative, cross-device) — async update
+    if (this._hass) {
+      try {
+        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
+        if (result && result.value !== undefined && result.value !== null) {
+          this._cache[fullKey] = result.value;
+          // Update localStorage cache
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          return result.value;
+        }
+      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
+    }
+    return this._cache[fullKey] || null;
+  },
+
+  // Synchronous read from cache/localStorage only (for initial render)
+  loadSync(key) {
+    const fullKey = 'ha-tools-' + key;
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+        return this._cache[fullKey];
+      }
+    } catch(e) {}
+    return null;
+  }
+};
+
 class HaNetworkMap extends HTMLElement {
   constructor() {
     super();
@@ -407,96 +471,138 @@ class HaNetworkMap extends HTMLElement {
   _drawMap(canvas) {
     const ctr = canvas.parentElement;
     const cw = ctr ? ctr.clientWidth - 32 : 700;
-    const sz = Math.min(cw, 700);
-    canvas.width = sz; canvas.height = sz;
-    canvas.style.width = sz + 'px'; canvas.style.height = sz + 'px';
-    const ctx = canvas.getContext('2d');
-    const hs = getComputedStyle(this);
-    const bg = hs.getPropertyValue('--bbg').trim() || '#F8FAFC';
-    const tc = hs.getPropertyValue('--btxt').trim() || '#1E293B';
-    const tc2 = hs.getPropertyValue('--btxt2').trim() || '#64748B';
-    ctx.clearRect(0, 0, sz, sz); ctx.fillStyle = bg; ctx.fillRect(0, 0, sz, sz);
-    const cx = sz / 2; const gwY = 40; const rtY = cx * 0.35;
+    const dpr = window.devicePixelRatio || 1;
     const cm = { home:'#10B981', zone:'#3B82F6', away:'#F59E0B', offline:'#EF4444', unknown:'#94A3B8' };
-    // Gateway
-    ctx.fillStyle = '#6366F1'; ctx.beginPath(); ctx.arc(cx, gwY, 18, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('GW', cx, gwY);
-    ctx.fillStyle = tc; ctx.font = '11px Inter,sans-serif'; ctx.fillText(this.gatewayIp, cx, gwY + 28);
-    // Gateway -> Router line
-    ctx.strokeStyle = '#6366F1'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
-    ctx.beginPath(); ctx.moveTo(cx, gwY + 18); ctx.lineTo(cx, rtY - 20); ctx.stroke(); ctx.setLineDash([]);
-    // Router
-    ctx.fillStyle = '#3B82F6'; ctx.beginPath(); ctx.arc(cx, rtY, 22, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Inter,sans-serif'; ctx.fillText('Router', cx, rtY);
-    ctx.fillStyle = tc; ctx.font = '11px Inter,sans-serif'; ctx.fillText(this.routerIp, cx, rtY + 32);
-    // Device area — grouped by status
-    const dStartY = rtY + 55; const dEndY = sz - 20;
-    const uH = dEndY - dStartY; const uW = sz - 60;
     const statusOrder = ['home', 'zone', 'away', 'unknown', 'offline'];
-    const statusLabels = { home: '\u{1F7E2} Online', zone: '\u{1F535} Zone', away: '\u{1F7E1} Away', unknown: '\u26AA Unknown', offline: '\u{1F534} Offline' };
     const groups = {};
     statusOrder.forEach(s => { groups[s] = this.devices.filter(d => d.status === s); });
-
-    // Calculate layout: each group gets a horizontal band
     const activeGroups = statusOrder.filter(s => groups[s].length > 0);
-    const bandH = Math.min(uH / Math.max(activeGroups.length, 1), 120);
-    let bandY = dStartY;
-    const maxPerRow = Math.min(Math.floor(uW / 80), 10);
+    const totalDevs = this.devices.length;
+
+    // Calculate dynamic height based on device count
+    const maxPerRow = Math.min(Math.floor((cw - 80) / 70), 12);
+    let totalRows = 0;
+    activeGroups.forEach(s => { totalRows += Math.ceil(Math.min(groups[s].length, 30) / maxPerRow); });
+    const rowH = 54;
+    const headerH = 100; // gateway + router
+    const groupHeaderH = 22;
+    const calcH = headerH + activeGroups.length * groupHeaderH + totalRows * rowH + 40;
+    const sz = Math.min(cw, 700);
+    const h = Math.max(Math.min(calcH, 1200), 300);
+
+    canvas.width = sz * dpr; canvas.height = h * dpr;
+    canvas.style.width = sz + 'px'; canvas.style.height = h + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const hs = getComputedStyle(this);
+    const isDark = (hs.getPropertyValue('--bbg').trim() || '').includes('1e') || this._hass?.themes?.darkMode;
+    const bg = isDark ? '#1a1c2e' : '#F8FAFC';
+    const cbg = isDark ? '#232540' : '#FFFFFF';
+    const tc = isDark ? '#e2e8f0' : '#1E293B';
+    const tc2 = isDark ? '#94a3b8' : '#64748B';
+    const borderC = isDark ? '#334155' : '#e2e8f0';
+
+    ctx.clearRect(0, 0, sz, h);
+    // Subtle gradient background
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, bg);
+    grad.addColorStop(1, isDark ? '#141627' : '#EFF6FF');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, sz, h);
+
+    const cx = sz / 2;
     this._cDevs = [];
 
-    activeGroups.forEach((status, gi) => {
-      const devs = groups[status].slice(0, 20); // max 20 per group
+    // === ROUTER NODE (combined gateway + router) ===
+    const rtY = 44;
+    // Router glow
+    ctx.shadowColor = '#3B82F6'; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#3B82F6';
+    ctx.beginPath(); ctx.arc(cx, rtY, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Router inner ring
+    ctx.strokeStyle = '#60A5FA'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, rtY, 20, 0, Math.PI * 2); ctx.stroke();
+    // Router icon
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('\u{1F310}', cx, rtY);
+    // Router label
+    ctx.fillStyle = tc; ctx.font = 'bold 11px Inter,sans-serif'; ctx.textBaseline = 'top';
+    ctx.fillText('Router', cx, rtY + 24);
+    ctx.fillStyle = tc2; ctx.font = '10px monospace';
+    ctx.fillText(this.routerIp || this.gatewayIp || '192.168.1.1', cx, rtY + 37);
+
+    // === DEVICE GROUPS ===
+    let bandY = rtY + 58;
+    const nodeR = 6;
+
+    activeGroups.forEach((status) => {
+      const allDevs = groups[status];
+      const devs = allDevs.slice(0, 30);
       const clr = cm[status] || '#94A3B8';
-
-      // Group label
-      ctx.fillStyle = clr + '20';
-      ctx.fillRect(15, bandY - 2, sz - 30, bandH - 4);
-      ctx.fillStyle = clr;
-      ctx.font = 'bold 10px Inter,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillText(statusLabels[status] + ' (' + groups[status].length + ')', 22, bandY + 2);
-
-      // Devices in this group
       const cols = Math.min(devs.length, maxPerRow);
       const rows = Math.ceil(devs.length / cols);
-      const cellW = (uW - 10) / cols;
-      const cellH = Math.min((bandH - 20) / rows, 50);
+      const cellW = Math.max((sz - 80) / cols, 60);
+      const bandH = groupHeaderH + rows * rowH + 8;
+
+      // Group background - rounded rect
+      const gx = 12, gy = bandY - 4, gw = sz - 24, gh = bandH;
+      ctx.fillStyle = clr + '0a';
+      ctx.beginPath();
+      ctx.roundRect(gx, gy, gw, gh, 8);
+      ctx.fill();
+      ctx.strokeStyle = clr + '25'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 8); ctx.stroke();
+
+      // Group label
+      ctx.fillStyle = clr; ctx.font = 'bold 10px Inter,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      const statusNames = { home: 'Online', zone: 'Zone', away: 'Away', unknown: 'Unknown', offline: 'Offline' };
+      ctx.fillText((statusNames[status] || status) + ' (' + allDevs.length + ')', 22, bandY);
 
       devs.forEach((d, i) => {
         const col = i % cols; const row = Math.floor(i / cols);
-        const x = 35 + col * cellW + cellW / 2;
-        const y = bandY + 16 + row * cellH + cellH / 2;
+        const startX = 40 + (sz - 80 - cols * cellW) / 2;
+        const x = startX + col * cellW + cellW / 2;
+        const y = bandY + groupHeaderH + row * rowH + 16;
 
-        // Connection line to router
-        ctx.strokeStyle = clr + '18'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(cx, rtY + 22); ctx.lineTo(x, y); ctx.stroke();
+        // Connection line to router - subtle curve
+        ctx.strokeStyle = clr + '15'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, rtY + 20);
+        const midY = rtY + (y - rtY) * 0.3;
+        ctx.quadraticCurveTo(cx, midY, x, y);
+        ctx.stroke();
 
-        // Device dot
+        // Device circle with subtle shadow
+        ctx.shadowColor = clr + '40'; ctx.shadowBlur = 4;
         ctx.fillStyle = clr;
-        ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = bg; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, nodeR, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
 
-        // Category icon
-        ctx.fillStyle = '#fff'; ctx.font = '8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(d.icon, x, y);
+        // White border
+        ctx.strokeStyle = cbg; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, y, nodeR, 0, Math.PI * 2); ctx.stroke();
 
-        // Name + IP
-        ctx.fillStyle = tc; ctx.font = '9px Inter,sans-serif'; ctx.textBaseline = 'top';
-        const lb = d.name.length > 14 ? d.name.substring(0, 12) + '\u2026' : d.name;
-        ctx.fillText(lb, x, y + 11);
-        if (d.ip) { ctx.fillStyle = tc2; ctx.font = '8px monospace'; ctx.fillText(d.ip, x, y + 22); }
+        // Name below
+        ctx.fillStyle = tc; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        const lb = d.name.length > 12 ? d.name.substring(0, 10) + '\u2026' : d.name;
+        ctx.fillText(lb, x, y + nodeR + 3);
 
-        this._cDevs.push({ d, x, y, r: 12 });
+        // IP or category below name
+        if (d.ip) {
+          ctx.fillStyle = tc2; ctx.font = '8px monospace';
+          ctx.fillText(d.ip, x, y + nodeR + 14);
+        }
+
+        this._cDevs.push({ d, x, y, r: nodeR + 6 });
       });
 
-      bandY += bandH;
+      bandY += bandH + 6;
     });
 
-    if (this.devices.length > 100) {
-      ctx.fillStyle = tc2; ctx.font = '11px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText('+' + (this.devices.length - 100) + (this._lang === 'pl' ? ' wi\u0119cej...' : ' more...'), cx, sz - 5);
-    }
+    // Total counter at bottom
+    ctx.fillStyle = tc2; ctx.font = '10px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(totalDevs + (this._lang === 'pl' ? ' urz\u0105dze\u0144' : ' devices'), cx, h - 8);
   }
   _mapClick(e) {
     const c = e.target; const r = c.getBoundingClientRect();

@@ -1,3 +1,67 @@
+
+// ── HA Tools Server Persistence Helper ──
+// Uses HA frontend/set_user_data for cross-device per-user persistence
+// Falls back to localStorage for instant reads (cache), writes to both
+window._haToolsPersistence = window._haToolsPersistence || {
+  _cache: {},
+  _hass: null,
+  setHass(hass) { this._hass = hass;
+    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+
+  async save(key, data) {
+    const fullKey = 'ha-tools-' + key;
+    // Always write localStorage as fast cache
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    // Write to HA server (cross-device)
+    if (this._hass) {
+      try {
+        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
+      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
+    }
+    this._cache[fullKey] = data;
+  },
+
+  async load(key) {
+    const fullKey = 'ha-tools-' + key;
+    // 1. Memory cache (instant)
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    // 2. localStorage (fast, may be stale on other device)
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+      }
+    } catch(e) {}
+    // 3. HA server (authoritative, cross-device) — async update
+    if (this._hass) {
+      try {
+        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
+        if (result && result.value !== undefined && result.value !== null) {
+          this._cache[fullKey] = result.value;
+          // Update localStorage cache
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          return result.value;
+        }
+      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
+    }
+    return this._cache[fullKey] || null;
+  },
+
+  // Synchronous read from cache/localStorage only (for initial render)
+  loadSync(key) {
+    const fullKey = 'ha-tools-' + key;
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+        return this._cache[fullKey];
+      }
+    } catch(e) {}
+    return null;
+  }
+};
+
 class HATraceViewer extends HTMLElement {
   constructor() {
     super();
@@ -1147,6 +1211,18 @@ class HATraceViewer extends HTMLElement {
       </div>
     </div>`;
     this._bindEvents();
+    // Apply compact classes immediately after render based on current width
+    this._applyCompactClasses();
+  }
+
+  _applyCompactClasses() {
+    const w = this.offsetWidth || this.clientWidth || 0;
+    const card = this.shadowRoot?.querySelector('.card');
+    if (!card || !w) return;
+    card.classList.toggle('compact-mobile', w < 768);
+    card.classList.toggle('compact-xs', w < 480);
+    card.classList.toggle('compact-hide-right', w < 1200);
+    card.classList.toggle('compact-hide-left', w < 900);
   }
 
   // ============================================================
@@ -1698,13 +1774,46 @@ class HATraceViewer extends HTMLElement {
       
         /* Settings Info Bar */
 
+/* === Container-based responsive (for dashboard cards) === */
+.card.compact-hide-right .pan-right { display: none; }
+.card.compact-hide-left .pan-left { display: none !important; }
+.card.compact-hide-left .pan-center.expanded { min-width: 100%; }
+.card.compact-mobile .stats { grid-template-columns: repeat(2, 1fr); }
+.card.compact-mobile .panels { flex-direction: column; }
+.card.compact-mobile .pan-left { display: block !important; width: 100% !important; max-height: 40vh; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--dc); min-width: auto; }
+.card.compact-mobile .pan-center { width: 100% !important; min-width: 0 !important; flex: 1; }
+.card.compact-mobile .pan-right { display: block !important; width: 100% !important; min-width: auto; max-height: 50vh; overflow-y: auto; border-right: none; border-top: 1px solid var(--dc); }
+.card.compact-mobile .pan-right:empty, .card.compact-mobile .pan-right .empty { display: none; }
+.card.compact-mobile .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+.card.compact-mobile .tab, .card.compact-mobile .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+.card.compact-mobile .card-container { padding: 14px; }
+.card.compact-mobile .stats, .card.compact-mobile .stats-grid, .card.compact-mobile .summary-grid, .card.compact-mobile .stat-cards, .card.compact-mobile .kpi-grid, .card.compact-mobile .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.card.compact-mobile .stat-val, .card.compact-mobile .kpi-val, .card.compact-mobile .metric-val { font-size: 18px; }
+.card.compact-mobile .stat-lbl, .card.compact-mobile .kpi-lbl, .card.compact-mobile .metric-lbl { font-size: 10px; }
+.card.compact-mobile .panels, .card.compact-mobile .board { flex-direction: column; }
+.card.compact-mobile .column { min-width: unset; }
+.card.compact-mobile h2 { font-size: 18px; }
+.card.compact-mobile h3 { font-size: 15px; }
+.card.compact-xs .tabs { gap: 1px; }
+.card.compact-xs .tab, .card.compact-xs .tab-btn { padding: 5px 8px; font-size: 11px; }
+.card.compact-xs .stats, .card.compact-xs .stats-grid, .card.compact-xs .summary-grid, .card.compact-xs .stat-cards, .card.compact-xs .kpi-grid, .card.compact-xs .metrics-grid { grid-template-columns: 1fr 1fr; }
+.card.compact-xs .stat-val, .card.compact-xs .kpi-val, .card.compact-xs .metric-val { font-size: 16px; }
+
 </style>`;
   }
 
   // ============================================================
 
-  connectedCallback() { if (this._hass) this.updateAutomationData(); }
-  disconnectedCallback() { if (this.relativeTimeUpdater) clearInterval(this.relativeTimeUpdater); }
+  connectedCallback() {
+    if (this._hass) this.updateAutomationData();
+    // ResizeObserver for mobile view in small dashboard cards
+    this._resizeObserver = new ResizeObserver(() => this._applyCompactClasses());
+    this._resizeObserver.observe(this);
+  }
+  disconnectedCallback() {
+    if (this.relativeTimeUpdater) clearInterval(this.relativeTimeUpdater);
+    if (this._resizeObserver) { this._resizeObserver.disconnect(); this._resizeObserver = null; }
+  }
   static getConfigElement() { return document.createElement('ha-trace-viewer-editor'); }
   static getStubConfig() { return { type: 'custom:ha-trace-viewer', title: 'Trace Viewer' }; }
 }

@@ -1,3 +1,67 @@
+
+// ── HA Tools Server Persistence Helper ──
+// Uses HA frontend/set_user_data for cross-device per-user persistence
+// Falls back to localStorage for instant reads (cache), writes to both
+window._haToolsPersistence = window._haToolsPersistence || {
+  _cache: {},
+  _hass: null,
+  setHass(hass) { this._hass = hass;
+    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+
+  async save(key, data) {
+    const fullKey = 'ha-tools-' + key;
+    // Always write localStorage as fast cache
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    // Write to HA server (cross-device)
+    if (this._hass) {
+      try {
+        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
+      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
+    }
+    this._cache[fullKey] = data;
+  },
+
+  async load(key) {
+    const fullKey = 'ha-tools-' + key;
+    // 1. Memory cache (instant)
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    // 2. localStorage (fast, may be stale on other device)
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+      }
+    } catch(e) {}
+    // 3. HA server (authoritative, cross-device) — async update
+    if (this._hass) {
+      try {
+        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
+        if (result && result.value !== undefined && result.value !== null) {
+          this._cache[fullKey] = result.value;
+          // Update localStorage cache
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          return result.value;
+        }
+      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
+    }
+    return this._cache[fullKey] || null;
+  },
+
+  // Synchronous read from cache/localStorage only (for initial render)
+  loadSync(key) {
+    const fullKey = 'ha-tools-' + key;
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+        return this._cache[fullKey];
+      }
+    } catch(e) {}
+    return null;
+  }
+};
+
 class HaEncodingFixer extends HTMLElement {
   constructor() {
     super();
@@ -22,6 +86,10 @@ class HaEncodingFixer extends HTMLElement {
     this._entityIssues = [];
     this._entityScanning = false;
     this._yamlResults = null;
+    this._restoreScanning = false;
+    this._restoreMissing = [];
+    this._restoreBackupInfo = null;
+    this._restoreSelectedIds = new Set();
     this._yamlScanning = false;
   }
 
@@ -117,6 +185,24 @@ class HaEncodingFixer extends HTMLElement {
         fixYamlAll: 'Napraw wszystkie pliki',
         yamlFixing: 'Naprawianie...',
         yamlFixSuccess: 'Naprawiono',
+        tabRestore: 'Odzyskiwanie',
+        restoreTitle: 'Odzyskiwanie utraconych zasobow',
+        restoreDesc: 'Porownuje zaladowane zasoby lovelace z kopia zapasowa i wykrywa brakujace po uszkodzeniu pliku .storage',
+        scanRestore: 'Skanuj brakujace zasoby',
+        restoreScanning: 'Porownywanie...',
+        restoreOk: 'Wszystkie zasoby obecne',
+        restoreMissing: 'brakujacych zasobow',
+        currentCount: 'Aktualnie',
+        backupCount: 'W kopii',
+        backupDate: 'Data kopii',
+        missingUrl: 'Brakujacy zasob',
+        restoreSelected: 'Przywroc zaznaczone',
+        restoreAll: 'Przywroc wszystkie',
+        restoreDone: 'Przywrocono. Zalecany restart HA (Ustawienia > System > Restart).',
+        noBackup: 'Brak kopii — najpierw utwórz snapshot aktualnych zasobow',
+        createSnapshot: 'Zapisz snapshot',
+        snapshotCreated: 'Snapshot zapisany',
+        corruptionWarning: 'Wykryto utrate zasobow!',
         yamlFixError: 'Blad naprawy',
       },
       en: {
@@ -193,6 +279,24 @@ class HaEncodingFixer extends HTMLElement {
         fixYamlAll: 'Fix all files',
         yamlFixing: 'Fixing...',
         yamlFixSuccess: 'Fixed',
+        tabRestore: 'Restore',
+        restoreTitle: 'Recover lost resources',
+        restoreDesc: 'Compares loaded lovelace resources with backup snapshot — detects missing entries after .storage file corruption',
+        scanRestore: 'Scan for missing resources',
+        restoreScanning: 'Comparing...',
+        restoreOk: 'All resources present',
+        restoreMissing: 'missing resources',
+        currentCount: 'Current',
+        backupCount: 'In backup',
+        backupDate: 'Backup date',
+        missingUrl: 'Missing resource',
+        restoreSelected: 'Restore selected',
+        restoreAll: 'Restore all',
+        restoreDone: 'Restored. HA restart recommended (Settings > System > Restart).',
+        noBackup: 'No backup — create a snapshot of current resources first',
+        createSnapshot: 'Save snapshot',
+        snapshotCreated: 'Snapshot saved',
+        corruptionWarning: 'Resource loss detected!',
         yamlFixError: 'Fix error',
       }
     };
@@ -464,6 +568,24 @@ class HaEncodingFixer extends HTMLElement {
 
     this._lovelaceScanning = false;
     this._updateUI();
+
+    // Auto-create snapshot if none exists
+    try {
+      let hasSnapshot = false;
+      if (window._haToolsPersistence) {
+        window._haToolsPersistence.setHass(this._hass);
+        const snap = await window._haToolsPersistence.load('encoding-fixer-resource-snapshot');
+        if (snap && snap.items) hasSnapshot = true;
+      }
+      if (!hasSnapshot) {
+        const raw = localStorage.getItem('ha-tools-encoding-fixer-resource-snapshot');
+        if (raw) hasSnapshot = true;
+      }
+      if (!hasSnapshot && this._lovelaceResources && this._lovelaceResources.length > 5) {
+        console.info('[Encoding Fixer] Auto-creating first resource snapshot');
+        await this._createResourceSnapshot();
+      }
+    } catch(e) { /* ignore */ }
   }
 
   // --- Backup ---
@@ -630,6 +752,7 @@ class HaEncodingFixer extends HTMLElement {
         <button class="tab-btn ${this._activeTab === 'yaml' ? 'active' : ''}" data-tab="yaml">${t.tabYaml}</button>
         <button class="tab-btn ${this._activeTab === 'lovelace' ? 'active' : ''}" data-tab="lovelace">${t.tabLovelace}</button>
         <button class="tab-btn ${this._activeTab === 'log' ? 'active' : ''}" data-tab="log">${t.tabLog}</button>
+        <button class="tab-btn ${this._activeTab === 'restore' ? 'active' : ''}" data-tab="restore">${t.tabRestore}</button>
       </div>
 
       <div class="tab-content">
@@ -637,6 +760,7 @@ class HaEncodingFixer extends HTMLElement {
         ${this._activeTab === 'yaml' ? this._buildYamlTab() : ''}
         ${this._activeTab === 'lovelace' ? this._buildLovelaceTab() : ''}
         ${this._activeTab === 'log' ? this._buildLogTab() : ''}
+        ${this._activeTab === 'restore' ? this._buildRestoreTab() : ''}
       </div>
 
       <div class="toast"></div>
@@ -862,6 +986,24 @@ class HaEncodingFixer extends HTMLElement {
     const fixYamlAll = sr.querySelector('[data-action="fix-yaml-all"]');
     if (fixYamlAll) fixYamlAll.addEventListener('click', () => this._fixYamlAll());
 
+    // Restore tab handlers
+    const scanRestore = sr.querySelector('[data-action="scan-restore"]');
+    if (scanRestore) scanRestore.addEventListener('click', () => this._scanForMissingResources());
+    const createSnapshot = sr.querySelector('[data-action="create-snapshot"]');
+    if (createSnapshot) createSnapshot.addEventListener('click', () => this._createResourceSnapshot());
+    const restoreSelected = sr.querySelector('[data-action="restore-selected"]');
+    if (restoreSelected) restoreSelected.addEventListener('click', () => this._restoreResources([...this._restoreSelectedIds]));
+    const restoreAllBtn = sr.querySelector('[data-action="restore-all"]');
+    if (restoreAllBtn) restoreAllBtn.addEventListener('click', () => this._restoreResources(this._restoreMissing.map((_, i) => i)));
+    sr.querySelectorAll('[data-restore-select]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.dataset.restoreSelect);
+        if (e.target.checked) this._restoreSelectedIds.add(idx);
+        else this._restoreSelectedIds.delete(idx);
+        this._updateUI();
+      });
+    });
+
     // Test input
     const testInput = sr.querySelector('.test-input');
     if (testInput) {
@@ -946,6 +1088,10 @@ class HaEncodingFixer extends HTMLElement {
     if (!this._hass || this._yamlScanning) return;
     this._yamlScanning = true;
     this._yamlResults = null;
+    this._restoreScanning = false;
+    this._restoreMissing = [];
+    this._restoreBackupInfo = null;
+    this._restoreSelectedIds = new Set();
     this._updateUI();
 
     try {
@@ -1019,6 +1165,10 @@ class HaEncodingFixer extends HTMLElement {
     }
     this._yamlScanning = true;
     this._yamlResults = null;
+    this._restoreScanning = false;
+    this._restoreMissing = [];
+    this._restoreBackupInfo = null;
+    this._restoreSelectedIds = new Set();
     this._updateUI();
 
     try {
@@ -1039,7 +1189,193 @@ class HaEncodingFixer extends HTMLElement {
     this._updateUI();
   }
 
-  _buildYamlTab() {
+
+  // ══════════════════════════════════════════════
+  // Corrupted Resources Recovery
+  // ══════════════════════════════════════════════
+
+  _buildRestoreTab() {
+    const t = this._t;
+
+    let scanStatus = '';
+    if (this._restoreScanning) {
+      scanStatus = `<div class="scan-progress"><div class="spinner-small"></div> ${t.restoreScanning}</div>`;
+    }
+
+    // Backup info
+    let backupInfo = '';
+    if (this._restoreBackupInfo) {
+      const bi = this._restoreBackupInfo;
+      backupInfo = `
+        <div class="restore-info">
+          <div class="restore-stat"><span class="stat-label">${t.currentCount}:</span> <span class="stat-value">${bi.currentCount}</span></div>
+          <div class="restore-stat"><span class="stat-label">${t.backupCount}:</span> <span class="stat-value">${bi.backupCount}</span></div>
+          ${bi.backupDate ? `<div class="restore-stat"><span class="stat-label">${t.backupDate}:</span> <span class="stat-value">${bi.backupDate}</span></div>` : ''}
+          ${bi.currentCount < bi.backupCount ? `<div class="restore-warning">${t.corruptionWarning} ${bi.backupCount - bi.currentCount} ${t.restoreMissing}</div>` : ''}
+        </div>`;
+    }
+
+    // Missing resources list
+    let missingHtml = '';
+    if (this._restoreMissing.length > 0) {
+      const rows = this._restoreMissing.map((m, i) => {
+        const selected = this._restoreSelectedIds.has(i);
+        return `<div class="result-row restore-row">
+          <label class="result-check"><input type="checkbox" data-restore-select="${i}" ${selected ? 'checked' : ''} /></label>
+          <div class="restore-url">${this._escapeHtml(m.url)}</div>
+          <div class="restore-type">${m.type || 'module'}</div>
+        </div>`;
+      }).join('');
+
+      missingHtml = `
+        <div class="section">
+          <div class="results-header">
+            <h3>${this._restoreMissing.length} ${t.restoreMissing}</h3>
+            <div class="results-actions">
+              <button class="btn btn-sm btn-primary" data-action="restore-selected" ${this._restoreSelectedIds.size === 0 ? 'disabled' : ''}>${t.restoreSelected} (${this._restoreSelectedIds.size})</button>
+              <button class="btn btn-sm btn-danger" data-action="restore-all">${t.restoreAll}</button>
+            </div>
+          </div>
+          <div class="results-list">${rows}</div>
+        </div>`;
+    } else if (this._restoreBackupInfo && this._restoreMissing.length === 0 && !this._restoreScanning) {
+      missingHtml = `<div class="section"><div class="empty-state">\u2705 ${t.restoreOk}</div></div>`;
+    }
+
+    return `
+      <div class="section">
+        <h3>${t.restoreTitle}</h3>
+        <p class="section-desc">${t.restoreDesc}</p>
+        <div class="scan-header">
+          <button class="btn btn-primary" data-action="scan-restore" ${this._restoreScanning ? 'disabled' : ''}>${t.scanRestore}</button>
+          <button class="btn btn-secondary" data-action="create-snapshot">${t.createSnapshot}</button>
+        </div>
+        ${scanStatus}
+      </div>
+      ${backupInfo}
+      ${missingHtml}
+    `;
+  }
+
+  async _scanForMissingResources() {
+    if (!this._hass || this._restoreScanning) return;
+    this._restoreScanning = true;
+    this._restoreMissing = [];
+    this._restoreBackupInfo = null;
+    this._restoreSelectedIds = new Set();
+    this._updateUI();
+
+    try {
+      // 1. Get current resources from HA
+      const current = await this._hass.callWS({ type: 'lovelace/resources' });
+      const currentUrls = new Set(current.map(r => (r.url || '').split('?')[0]));
+
+      // 2. Load backup snapshot from server persistence
+      let backup = null;
+      if (window._haToolsPersistence) {
+        window._haToolsPersistence.setHass(this._hass);
+        backup = await window._haToolsPersistence.load('encoding-fixer-resource-snapshot');
+      }
+      // Fallback to localStorage
+      if (!backup) {
+        try {
+          const raw = localStorage.getItem('ha-tools-encoding-fixer-resource-snapshot');
+          if (raw) backup = JSON.parse(raw);
+        } catch(e) {}
+      }
+
+      if (!backup || !backup.items || backup.items.length === 0) {
+        this._restoreBackupInfo = null;
+        this._restoreScanning = false;
+        this._showToast(this._t.noBackup, 'warn');
+        this._updateUI();
+        return;
+      }
+
+      // 3. Compare
+      const missing = [];
+      for (const item of backup.items) {
+        const baseUrl = (item.url || '').split('?')[0];
+        if (!currentUrls.has(baseUrl)) {
+          missing.push({ url: baseUrl, type: item.type || 'module' });
+        }
+      }
+
+      const backupDate = backup.timestamp ? new Date(backup.timestamp).toLocaleString() : null;
+      this._restoreBackupInfo = {
+        currentCount: current.length,
+        backupCount: backup.items.length,
+        backupDate: backupDate
+      };
+      this._restoreMissing = missing;
+
+    } catch(e) {
+      console.warn('[Encoding Fixer] Restore scan error:', e);
+      this._showToast(this._t.errorFixing + ': ' + e.message, 'error');
+    }
+
+    this._restoreScanning = false;
+    this._updateUI();
+  }
+
+  async _createResourceSnapshot() {
+    if (!this._hass) return;
+    try {
+      const resources = await this._hass.callWS({ type: 'lovelace/resources' });
+      const snapshot = {
+        timestamp: Date.now(),
+        items: resources.map(r => ({ url: r.url, type: r.type, id: r.id }))
+      };
+      // Save to both localStorage and server
+      try { localStorage.setItem('ha-tools-encoding-fixer-resource-snapshot', JSON.stringify(snapshot)); } catch(e) {}
+      if (window._haToolsPersistence) {
+        window._haToolsPersistence.setHass(this._hass);
+        await window._haToolsPersistence.save('encoding-fixer-resource-snapshot', snapshot);
+      }
+      this._showToast(this._t.snapshotCreated + ' (' + resources.length + ' resources)', 'success');
+      this._addFixLog('snapshot', 'resources', 'success', resources.length + ' items');
+    } catch(e) {
+      console.warn('[Encoding Fixer] Snapshot error:', e);
+      this._showToast(this._t.errorFixing, 'error');
+    }
+  }
+
+  async _restoreResources(indices) {
+    if (!this._hass) return;
+    const toRestore = indices.map(i => this._restoreMissing[i]).filter(Boolean);
+    if (!toRestore.length) return;
+
+    const confirmMsg = this._lang === 'pl'
+      ? 'Przywrocic ' + toRestore.length + ' zasobow?\nPo przywroceniu zalecany restart HA.'
+      : 'Restore ' + toRestore.length + ' resources?\nHA restart recommended after restore.';
+    if (!confirm(confirmMsg)) return;
+
+    this._createBackup('restore-pre', toRestore);
+    let restored = 0;
+    for (const item of toRestore) {
+      try {
+        await this._hass.callWS({
+          type: 'lovelace/resources/create',
+          res_type: item.type || 'module',
+          url: item.url
+        });
+        this._addFixLog('restore', item.url, 'success', '');
+        restored++;
+      } catch(e) {
+        this._addFixLog('restore', item.url, 'failed', e.message);
+      }
+    }
+
+    // Re-scan
+    await this._scanForMissingResources();
+    // Update snapshot with new state
+    await this._createResourceSnapshot();
+
+    this._showToast(this._t.restoreDone + ' (' + restored + '/' + toRestore.length + ')', 'success');
+  }
+
+
+    _buildYamlTab() {
     const t = this._t;
     const hasDeepScan = this._hasShellCommand('scan_encoding');
     const hasDeepFix = this._hasShellCommand('fix_encoding');
@@ -1296,6 +1632,15 @@ class HaEncodingFixer extends HTMLElement {
 
 .progress-text { font-size: 12px; color: var(--bento-text-secondary); white-space: nowrap; }
 
+.restore-info { background: var(--bento-card); border-radius: 8px; padding: 12px 16px; margin: 12px 0; display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.restore-stat { display: flex; gap: 6px; }
+.stat-label { color: var(--bento-text-secondary); font-size: 13px; }
+.stat-value { font-weight: 600; font-size: 13px; }
+.restore-warning { width: 100%; background: rgba(239,68,68,0.1); color: #ef4444; padding: 8px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; margin-top: 4px; }
+.restore-url { flex: 1; font-family: monospace; font-size: 12px; word-break: break-all; }
+.restore-type { font-size: 12px; color: var(--bento-text-secondary); min-width: 50px; }
+.restore-row { align-items: center; }
+.section-desc { color: var(--bento-text-secondary); font-size: 13px; margin: -4px 0 8px 0; }
 .spinner-small {
   width: 16px;
   height: 16px;

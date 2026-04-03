@@ -1,3 +1,66 @@
+
+// ── HA Tools Server Persistence Helper ──
+// Uses HA frontend/set_user_data for cross-device per-user persistence
+// Falls back to localStorage for instant reads (cache), writes to both
+window._haToolsPersistence = window._haToolsPersistence || {
+  _cache: {},
+  _hass: null,
+  setHass(hass) { this._hass = hass; },
+
+  async save(key, data) {
+    const fullKey = 'ha-tools-' + key;
+    // Always write localStorage as fast cache
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    // Write to HA server (cross-device)
+    if (this._hass) {
+      try {
+        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
+      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
+    }
+    this._cache[fullKey] = data;
+  },
+
+  async load(key) {
+    const fullKey = 'ha-tools-' + key;
+    // 1. Memory cache (instant)
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    // 2. localStorage (fast, may be stale on other device)
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+      }
+    } catch(e) {}
+    // 3. HA server (authoritative, cross-device) — async update
+    if (this._hass) {
+      try {
+        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
+        if (result && result.value !== undefined && result.value !== null) {
+          this._cache[fullKey] = result.value;
+          // Update localStorage cache
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          return result.value;
+        }
+      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
+    }
+    return this._cache[fullKey] || null;
+  },
+
+  // Synchronous read from cache/localStorage only (for initial render)
+  loadSync(key) {
+    const fullKey = 'ha-tools-' + key;
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+        return this._cache[fullKey];
+      }
+    } catch(e) {}
+    return null;
+  }
+};
+
 class HaFrigatePrivacy extends HTMLElement {
   constructor() {
     super();
@@ -207,6 +270,25 @@ class HaFrigatePrivacy extends HTMLElement {
       this._firstHassRender = true;
       this._detectCameras();
       this._updateFrigateStatus();
+      // Check HA timer entity — authoritative server-side state
+      const timerState = hass.states['timer.frigate_privacy'];
+      if (timerState) {
+        if (timerState.state === 'active' && !this._privacyActive) {
+          // Timer running on server but card doesn't know — sync state
+          const finishes = new Date(timerState.attributes.finishes_at).getTime();
+          if (finishes > Date.now()) {
+            this._privacyActive = true;
+            this._privacyEndTime = finishes;
+            this._startCountdown();
+          }
+        } else if (timerState.state === 'idle' && this._privacyActive) {
+          // Timer finished server-side — clean up card state
+          this._privacyActive = false;
+          this._privacyEndTime = null;
+          this._savePrivacyState();
+          if (this._privacyTimerInterval) { clearInterval(this._privacyTimerInterval); this._privacyTimerInterval = null; }
+        }
+      }
       // Check if privacy timer expired while page was away
       if (this._pendingAddonRestart) {
         this._pendingAddonRestart = false;
@@ -371,9 +453,11 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   _saveSchedules() {
-    try {
-      localStorage.setItem(this._storageKey('schedules'), JSON.stringify(this._schedules));
-    } catch(e) { /* ignore */ }
+    try { localStorage.setItem(this._storageKey('schedules'), JSON.stringify(this._schedules)); } catch(e) {}
+    if (window._haToolsPersistence && this._hass) {
+      window._haToolsPersistence.setHass(this._hass);
+      window._haToolsPersistence.save('frigate-privacy-schedules', this._schedules).catch(() => {});
+    }
   }
 
   _loadHistory() {
@@ -384,11 +468,13 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   _saveHistory() {
-    try {
-      // Keep last 50 entries
-      if (this._history.length > 50) this._history = this._history.slice(-50);
-      localStorage.setItem(this._storageKey('history'), JSON.stringify(this._history));
-    } catch(e) { /* ignore */ }
+    // Keep max 50 entries
+    if (this._history.length > 50) this._history = this._history.slice(-50);
+    try { localStorage.setItem(this._storageKey('history'), JSON.stringify(this._history)); } catch(e) {}
+    if (window._haToolsPersistence && this._hass) {
+      window._haToolsPersistence.setHass(this._hass);
+      window._haToolsPersistence.save('frigate-privacy-history', this._history).catch(() => {});
+    }
   }
 
   _loadNotifySettings() {
@@ -404,60 +490,79 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   _saveNotifySettings() {
-    try {
-      localStorage.setItem(this._storageKey('notify'), JSON.stringify({
-        enabled: this._notifyEnabled,
-        service: this._notifyService,
-        beforeEndMin: this._notifyBeforeEndMin
-      }));
-    } catch(e) { /* ignore */ }
+    const data = { enabled: this._notifyEnabled, service: this._notifyService, beforeEndMin: this._notifyBeforeEndMin };
+    try { localStorage.setItem(this._storageKey('notify'), JSON.stringify(data)); } catch(e) {}
+    if (window._haToolsPersistence && this._hass) {
+      window._haToolsPersistence.setHass(this._hass);
+      window._haToolsPersistence.save('frigate-privacy-notify', data).catch(() => {});
+    }
   }
 
   _savePrivacyState() {
-    try {
-      if (this._privacyActive && this._privacyEndTime) {
-        localStorage.setItem(this._storageKey('active'), JSON.stringify({
-          active: true,
-          endTime: this._privacyEndTime,
-          cameras: this._privacyCameras || 'all',
-          startedMin: this._privacyStartedMin || 0,
-          addonId: this._config?.frigate_addon_id || 'ccab4aaf_frigate'
-        }));
-      } else {
-        localStorage.removeItem(this._storageKey('active'));
-      }
-    } catch(e) { /* ignore */ }
+    const data = (this._privacyActive && this._privacyEndTime) ? {
+      active: true,
+      endTime: this._privacyEndTime,
+      cameras: this._privacyCameras || 'all',
+      startedMin: this._privacyStartedMin || 0,
+      addonId: this._config?.frigate_addon_id || 'ccab4aaf_frigate'
+    } : null;
+    // Save to both localStorage (fast) and HA server (cross-device)
+    try { localStorage.setItem(this._storageKey('active'), data ? JSON.stringify(data) : ''); } catch(e) {}
+    if (window._haToolsPersistence && this._hass) {
+      window._haToolsPersistence.setHass(this._hass);
+      window._haToolsPersistence.save('frigate-privacy-active', data).catch(() => {});
+    }
   }
 
   _loadPrivacyState() {
+    // 1. Quick check from localStorage cache
+    let s = null;
     try {
       const raw = localStorage.getItem(this._storageKey('active'));
-      if (!raw) return;
-      const s = JSON.parse(raw);
-      if (!s.active || !s.endTime) return;
+      if (raw) s = JSON.parse(raw);
+    } catch(e) {}
 
-      if (Date.now() >= s.endTime) {
-        // Timer already expired while we were away — restart addon immediately
-        console.info('[Frigate Privacy] Timer expired while away, restarting addon...');
-        localStorage.removeItem(this._storageKey('active'));
-        this._privacyActive = false;
-        this._privacyEndTime = null;
-        this._privacyCameras = s.cameras || 'all';
-        // Defer addon restart until hass is available
-        this._pendingAddonRestart = true;
-        this._addHistoryEntry('auto-resumed', 0, s.cameras);
-      } else {
-        // Timer still active — resume countdown
-        console.info('[Frigate Privacy] Resuming active privacy timer, ' +
-          Math.ceil((s.endTime - Date.now()) / 60000) + ' min remaining');
-        this._privacyActive = true;
-        this._privacyEndTime = s.endTime;
-        this._privacyCameras = s.cameras || 'all';
-        this._privacyStartedMin = s.startedMin || 0;
-        this._warningSent = false;
-        this._startCountdown();
-      }
-    } catch(e) { console.warn('[Frigate Privacy] Load state error:', e); }
+    // 2. Also try server-side data (async, will update later)
+    if (window._haToolsPersistence && this._hass) {
+      window._haToolsPersistence.setHass(this._hass);
+      window._haToolsPersistence.load('frigate-privacy-active').then(serverData => {
+        if (serverData && serverData.active && serverData.endTime) {
+          // Server data is newer/authoritative — use it
+          this._applyPrivacyState(serverData);
+        }
+      }).catch(() => {});
+    }
+
+    // 3. Apply localStorage data immediately (sync)
+    if (s && s.active && s.endTime) {
+      this._applyPrivacyState(s);
+    }
+  }
+
+  _applyPrivacyState(s) {
+    if (!s || !s.active || !s.endTime) return;
+
+    if (Date.now() >= s.endTime) {
+      // Timer already expired while we were away
+      console.info('[Frigate Privacy] Timer expired while away, will restart addon...');
+      this._privacyActive = false;
+      this._privacyEndTime = null;
+      this._privacyCameras = s.cameras || 'all';
+      this._savePrivacyState(); // Clear persisted state
+      // Defer addon restart until hass is available
+      this._pendingAddonRestart = true;
+      this._addHistoryEntry('auto-resumed', 0, s.cameras);
+    } else if (!this._privacyActive) {
+      // Timer still active — resume countdown
+      console.info('[Frigate Privacy] Resuming privacy timer, ' +
+        Math.ceil((s.endTime - Date.now()) / 60000) + ' min remaining');
+      this._privacyActive = true;
+      this._privacyEndTime = s.endTime;
+      this._privacyCameras = s.cameras || 'all';
+      this._privacyStartedMin = s.startedMin || 0;
+      this._warningSent = false;
+      this._startCountdown();
+    }
   }
 
 
@@ -538,6 +643,13 @@ class HaFrigatePrivacy extends HTMLElement {
       this._warningSent = false;
       this._addHistoryEntry('manual', minutes, this._privacyCameras);
       this._savePrivacyState();
+      // Start HA server-side timer (survives page close, works across devices)
+      try {
+        const hrs = Math.floor(parseInt(minutes) / 60);
+        const mins = parseInt(minutes) % 60;
+        const dur = String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0') + ':00';
+        await this._hass.callService('timer', 'start', { entity_id: 'timer.frigate_privacy', duration: dur });
+      } catch(e) { console.warn('[Frigate Privacy] Could not start HA timer:', e); }
       this._startCountdown();
       this._showToast(t.privacyModeStarted + ' ' + minutes + ' ' + t.min, 'success');
       this._sendNotification(
@@ -565,6 +677,10 @@ class HaFrigatePrivacy extends HTMLElement {
         this._privacyTimerInterval = null;
       }
       this._savePrivacyState();
+      // Cancel HA server-side timer
+      try {
+        await this._hass.callService('timer', 'cancel', { entity_id: 'timer.frigate_privacy' });
+      } catch(e) { console.warn('[Frigate Privacy] Could not cancel HA timer:', e); }
       this._addHistoryEntry('cancelled', 0);
       this._warningSent = false;
       this._showToast(t.frigateResumed, 'success');

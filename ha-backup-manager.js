@@ -1,3 +1,67 @@
+
+// ── HA Tools Server Persistence Helper ──
+// Uses HA frontend/set_user_data for cross-device per-user persistence
+// Falls back to localStorage for instant reads (cache), writes to both
+window._haToolsPersistence = window._haToolsPersistence || {
+  _cache: {},
+  _hass: null,
+  setHass(hass) { this._hass = hass;
+    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+
+  async save(key, data) {
+    const fullKey = 'ha-tools-' + key;
+    // Always write localStorage as fast cache
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    // Write to HA server (cross-device)
+    if (this._hass) {
+      try {
+        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
+      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
+    }
+    this._cache[fullKey] = data;
+  },
+
+  async load(key) {
+    const fullKey = 'ha-tools-' + key;
+    // 1. Memory cache (instant)
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    // 2. localStorage (fast, may be stale on other device)
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+      }
+    } catch(e) {}
+    // 3. HA server (authoritative, cross-device) — async update
+    if (this._hass) {
+      try {
+        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
+        if (result && result.value !== undefined && result.value !== null) {
+          this._cache[fullKey] = result.value;
+          // Update localStorage cache
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          return result.value;
+        }
+      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
+    }
+    return this._cache[fullKey] || null;
+  },
+
+  // Synchronous read from cache/localStorage only (for initial render)
+  loadSync(key) {
+    const fullKey = 'ha-tools-' + key;
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+        return this._cache[fullKey];
+      }
+    } catch(e) {}
+    return null;
+  }
+};
+
 class HaBackupManager extends HTMLElement {
   constructor() {
     super();
@@ -27,6 +91,38 @@ class HaBackupManager extends HTMLElement {
     this._error = null;
     this._isDemoData = false;
     this._charts = {};
+    this._installedAddons = {};
+    this._installedIntegrations = {};
+    this._addonsChecked = false;
+  }
+
+  async _detectInstalledBackupIntegrations() {
+    if (!this._hass || this._addonsChecked) return;
+    this._addonsChecked = true;
+    // Check supervisor addons
+    try {
+      const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/addons', method: 'get' });
+      const addons = r?.addons || r?.data?.addons || [];
+      for (const a of addons) {
+        const slug = (a.slug || '').toLowerCase();
+        const name = (a.name || '').toLowerCase();
+        if (slug.includes('google_drive_backup') || name.includes('google drive backup'))
+          this._installedAddons['google_drive'] = { name: a.name, state: a.state };
+        if (slug.includes('samba') || name.includes('samba'))
+          this._installedAddons['samba'] = { name: a.name, state: a.state };
+        if (slug.includes('remote_backup') || slug.includes('remote-backup') || name.includes('remote backup'))
+          this._installedAddons['remote_backup'] = { name: a.name, state: a.state };
+      }
+    } catch(e) {}
+    // Check config entries for integrations
+    try {
+      const entries = await this._hass.callWS({ type: 'config_entries/get' });
+      for (const e of (entries || [])) {
+        if (e.domain === 'synology_dsm') this._installedIntegrations['synology'] = { title: e.title, state: e.state };
+        if (e.domain === 'cloud') this._installedIntegrations['nabu_casa'] = { title: e.title, state: e.state };
+      }
+    } catch(e) {}
+    this._updateUI();
   }
 
   static getConfigElement() {
@@ -72,6 +168,7 @@ class HaBackupManager extends HTMLElement {
     if (!this._firstHassRender) {
       this._firstHassRender = true;
       this._fetchBackups();
+      this._detectInstalledBackupIntegrations();
       this._updateUI();
       this._lastRenderTime = now;
       return;
@@ -279,19 +376,19 @@ class HaBackupManager extends HTMLElement {
 
     return `
       <div class="tab-content active">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
-          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
-            <div style="font-size:24px;font-weight:700;color:var(--bento-text,#1e293b);">${this._backups.length}</div>
-            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Kopii' : 'Backups'}</div>
-            <div style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:2px;">${fullCount} full, ${partialCount} partial</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+          <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-xs,6px);text-align:center;">
+            <div style="font-size:18px;font-weight:700;color:var(--bento-text,#1e293b);line-height:1.2;">${this._backups.length}</div>
+            <div style="font-size:10px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;">${L ? 'Kopii' : 'Backups'}</div>
+            <div style="font-size:9px;color:var(--bento-text-muted,#94a3b8);margin-top:1px;">${fullCount} full, ${partialCount} partial</div>
           </div>
-          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
-            <div style="font-size:24px;font-weight:700;color:var(--bento-primary,#3b82f6);">${totalSize > 0 ? this._formatBytes(totalSize) : '?'}</div>
-            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Rozmiar' : 'Total Size'}</div>
+          <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-xs,6px);text-align:center;">
+            <div style="font-size:18px;font-weight:700;color:var(--bento-primary,#3b82f6);line-height:1.2;">${totalSize > 0 ? this._formatBytes(totalSize) : '?'}</div>
+            <div style="font-size:10px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;">${L ? 'Rozmiar' : 'Total Size'}</div>
           </div>
-          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid ${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-border,#e2e8f0)'};border-radius:var(--bento-radius-sm,10px);text-align:center;">
-            <div style="font-size:24px;font-weight:700;color:${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-text,#1e293b)'};">${daysSince !== null ? daysSince + 'd' : '-'}</div>
-            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Od ostatniego' : 'Since Last'}</div>
+          <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid ${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-border,#e2e8f0)'};border-radius:var(--bento-radius-xs,6px);text-align:center;">
+            <div style="font-size:18px;font-weight:700;color:${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-text,#1e293b)'};line-height:1.2;">${daysSince !== null ? daysSince + 'd' : '-'}</div>
+            <div style="font-size:10px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;">${L ? 'Od ostatniego' : 'Since Last'}</div>
           </div>
         </div>
 
@@ -418,42 +515,32 @@ class HaBackupManager extends HTMLElement {
 
         <div class="settings-section">
           <h3>\u{1F50C} ${L ? 'Integracje do backup\u00F3w' : 'Backup Integrations'}</h3>
-          <p style="color:var(--bento-text-secondary,#64748b);font-size:13px;margin-bottom:12px;">${L ? 'Popularne integracje do automatycznego offsite backup:' : 'Popular integrations for automated offsite backup:'}</p>
+          <p style="color:var(--bento-text-secondary,#64748b);font-size:11px;margin-bottom:8px;">${L ? 'Popularne integracje do automatycznego offsite backup:' : 'Popular integrations for automated offsite backup:'}</p>
 
-          <div style="display:grid;gap:10px;">
-            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
-              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Google Drive Backup</div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>hassio-google-drive-backup</code></div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie na Google Drive z rotacj\u0105 i powiadomieniami.' : 'Automatic backups to Google Drive with rotation and notifications.'}</div>
-            </div>
-
-            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
-              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4C2} Samba / SMB Backup</div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>samba-backup</code></div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopiowanie na NAS/Samba share z harmonogramem cron.' : 'Copy to NAS/Samba share with cron schedule.'}</div>
-            </div>
-
-            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
-              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4F1} Synology NAS</div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Integration: <code>synology_dsm</code></div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopie przez Active Backup for Business lub Hyper Backup.' : 'Backups via Active Backup for Business or Hyper Backup.'}</div>
-            </div>
-
-            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
-              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4E6} Dropbox / OneDrive / S3</div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>remote-backup</code></div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Obs\u0142uguje wiele provider\u00F3w chmurowych (rclone-based).' : 'Supports multiple cloud providers (rclone-based).'}</div>
-            </div>
-
-            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
-              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Nabu Casa Cloud</div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Built-in (${L ? 'wymaga subskrypcji' : 'requires subscription'})</div>
-              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie w chmurze Nabu Casa z \u0142atwym przywracaniem.' : 'Automatic cloud backups via Nabu Casa with easy restoration.'}</div>
-            </div>
+          <div style="display:grid;gap:4px;">
+            ${this._renderIntegrationRow('\u2601\uFE0F', 'Google Drive Backup', 'hassio-google-drive-backup', L ? 'Automatyczne kopie na Google Drive.' : 'Automatic backups to Google Drive.', this._installedAddons['google_drive'], L)}
+            ${this._renderIntegrationRow('\u{1F4C2}', 'Samba / SMB Backup', 'samba-backup', L ? 'Kopiowanie na NAS/Samba share.' : 'Copy to NAS/Samba share.', this._installedAddons['samba'], L)}
+            ${this._renderIntegrationRow('\u{1F4F1}', 'Synology NAS', 'synology_dsm', L ? 'Active Backup / Hyper Backup.' : 'Active Backup / Hyper Backup.', this._installedIntegrations['synology'], L)}
+            ${this._renderIntegrationRow('\u{1F4E6}', 'Dropbox / OneDrive / S3', 'remote-backup', L ? 'Wiele provider\u00F3w chmurowych (rclone).' : 'Multiple cloud providers (rclone).', this._installedAddons['remote_backup'], L)}
+            ${this._renderIntegrationRow('\u2601\uFE0F', 'Nabu Casa Cloud', 'built-in', L ? 'Kopie w chmurze Nabu Casa.' : 'Cloud backups via Nabu Casa.', this._installedIntegrations['nabu_casa'], L)}
           </div>
         </div>
       </div>
     `;
+  }
+
+  _renderIntegrationRow(icon, name, code, desc, installed, L) {
+    const isActive = !!installed;
+    const stateText = isActive ? (installed.state === 'started' || installed.state === 'loaded' ? (L ? 'Aktywna' : 'Active') : installed.state) : '';
+    const borderColor = isActive ? 'var(--bento-success,#10B981)' : 'var(--bento-border,#e2e8f0)';
+    const bgColor = isActive ? 'rgba(16,185,129,0.04)' : 'var(--bento-bg,#f8fafc)';
+    return `<div style="padding:8px 10px;background:${bgColor};border:1px solid ${borderColor};border-radius:var(--bento-radius-xs,6px);display:flex;align-items:center;gap:8px;">
+      <span style="font-size:14px;flex-shrink:0;">${icon}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:12px;color:var(--bento-text,#1e293b);display:flex;align-items:center;gap:6px;">${name}${isActive ? `<span style="font-size:9px;font-weight:700;color:var(--bento-success,#10B981);background:rgba(16,185,129,0.1);padding:1px 6px;border-radius:8px;text-transform:uppercase;letter-spacing:.3px;">${stateText}</span>` : ''}</div>
+        <div style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:1px;">${code} \u2014 ${desc}</div>
+      </div>
+    </div>`;
   }
 
   _updateUI() {
@@ -740,21 +827,21 @@ canvas {
 
         .backup-controls {
           display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
+          gap: 8px;
+          margin-bottom: 12px;
           flex-wrap: wrap;
         }
 
         .create-btn {
-          padding: 12px 16px;
+          padding: 8px 12px;
           border: none;
           border-radius: 6px;
           font-weight: 500;
           cursor: pointer;
-          font-size: 14px;
+          font-size: 12px;
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           transition: all 0.2s ease;
         }
 
@@ -779,28 +866,28 @@ canvas {
         }
 
         .create-btn .icon {
-          font-size: 16px;
+          font-size: 13px;
         }
 
         .error-banner {
           background: var(--error-color);
           color: white;
-          padding: 12px 16px;
+          padding: 8px 12px;
           border-radius: 6px;
-          margin-bottom: 16px;
-          font-size: 14px;
+          margin-bottom: 10px;
+          font-size: 12px;
         }
 
         .backups-list {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 6px;
         }
 
         .backup-item {
           border: 1px solid var(--border-color);
           border-radius: 6px;
-          padding: 16px;
+          padding: 10px 12px;
           cursor: pointer;
           transition: all 0.2s ease;
         }
@@ -828,8 +915,8 @@ canvas {
         }
 
         .backup-info h3 {
-          margin: 0 0 8px 0;
-          font-size: 16px;
+          margin: 0 0 4px 0;
+          font-size: 13px;
         }
 
         .badge.method {
@@ -949,30 +1036,30 @@ canvas {
 
         .health-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 16px;
-          margin-bottom: 24px;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 8px;
+          margin-bottom: 16px;
         }
 
         .health-card {
           border: 1px solid var(--border-color);
           border-radius: 6px;
-          padding: 16px;
+          padding: 10px;
         }
 
-        .health-card canvas { max-height: 150px; display: block; }
+        .health-card canvas { max-height: 120px; display: block; }
         .health-card h3 {
-          margin: 0 0 12px 0;
-          font-size: 14px;
+          margin: 0 0 6px 0;
+          font-size: 11px;
           color: var(--secondary-text);
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.4px;
         }
 
         .health-value {
-          font-size: 32px;
-          font-weight: 600;
-          margin: 8px 0;
+          font-size: 20px;
+          font-weight: 700;
+          margin: 4px 0;
         }
 
         .health-value.good {
@@ -988,44 +1075,45 @@ canvas {
         }
 
         .health-label {
-          margin: 8px 0 0 0;
-          font-size: 13px;
+          margin: 4px 0 0 0;
+          font-size: 11px;
           color: var(--secondary-text);
         }
 
         .schedule-section, .settings-section {
-          margin-bottom: 24px;
-          padding: 16px;
+          margin-bottom: 14px;
+          padding: 12px;
           border: 1px solid var(--border-color);
           border-radius: 6px;
         }
 
         .schedule-section h3, .settings-section h3 {
-          margin: 0 0 12px 0;
-          font-size: 16px;
+          margin: 0 0 8px 0;
+          font-size: 13px;
         }
 
         .schedule-info {
           background: rgba(33, 150, 243, 0.05);
-          padding: 12px;
+          padding: 8px;
           border-radius: 4px;
-          margin-top: 12px;
-          font-size: 13px;
+          margin-top: 8px;
+          font-size: 12px;
         }
 
         .setting-item {
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
 
         .setting-item label {
           display: block;
           font-weight: 500;
-          margin-bottom: 4px;
+          font-size: 12px;
+          margin-bottom: 2px;
         }
 
         .setting-item p {
           margin: 0;
-          font-size: 14px;
+          font-size: 12px;
           color: var(--secondary-text);
         }
 

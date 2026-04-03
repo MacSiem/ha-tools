@@ -1,3 +1,67 @@
+
+// ── HA Tools Server Persistence Helper ──
+// Uses HA frontend/set_user_data for cross-device per-user persistence
+// Falls back to localStorage for instant reads (cache), writes to both
+window._haToolsPersistence = window._haToolsPersistence || {
+  _cache: {},
+  _hass: null,
+  setHass(hass) { this._hass = hass;
+    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+
+  async save(key, data) {
+    const fullKey = 'ha-tools-' + key;
+    // Always write localStorage as fast cache
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    // Write to HA server (cross-device)
+    if (this._hass) {
+      try {
+        await this._hass.callWS({ type: 'frontend/set_user_data', key: fullKey, value: data });
+      } catch(e) { console.warn('[HA Tools Persist] Server save error:', key, e); }
+    }
+    this._cache[fullKey] = data;
+  },
+
+  async load(key) {
+    const fullKey = 'ha-tools-' + key;
+    // 1. Memory cache (instant)
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    // 2. localStorage (fast, may be stale on other device)
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+      }
+    } catch(e) {}
+    // 3. HA server (authoritative, cross-device) — async update
+    if (this._hass) {
+      try {
+        const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
+        if (result && result.value !== undefined && result.value !== null) {
+          this._cache[fullKey] = result.value;
+          // Update localStorage cache
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          return result.value;
+        }
+      } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
+    }
+    return this._cache[fullKey] || null;
+  },
+
+  // Synchronous read from cache/localStorage only (for initial render)
+  loadSync(key) {
+    const fullKey = 'ha-tools-' + key;
+    if (this._cache[fullKey] !== undefined) return this._cache[fullKey];
+    try {
+      const raw = localStorage.getItem(fullKey);
+      if (raw) {
+        this._cache[fullKey] = JSON.parse(raw);
+        return this._cache[fullKey];
+      }
+    } catch(e) {}
+    return null;
+  }
+};
+
 class HADeviceHealth extends HTMLElement {
   constructor() {
     super();
@@ -129,15 +193,33 @@ class HADeviceHealth extends HTMLElement {
     } catch(e) {}
   }
 
-  set hass(hass) {
+  _computeStateHash() {
+    // Build a lightweight hash from device tracker states only
+    if (!this._hass || !this._hass.states) return '';
+    const keys = Object.keys(this._hass.states).filter(k => k.startsWith('device_tracker.') || k.startsWith('sensor.') && (k.includes('battery') || k.includes('signal') || k.includes('rssi')));
+    let h = '';
+    for (const k of keys) {
+      const s = this._hass.states[k];
+      h += k + ':' + s.state + ':' + (s.last_changed || '') + '|';
+    }
+    return h;
+  }
 
-    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
+  set hass(hass) {
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
+    this._hass = hass;
+    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass);
     if (this._firstRender) {
       this._firstRender = false;
+      this._cachedStateHash = this._computeStateHash();
       this._generateAlerts();
       this._render();
       return;
     }
+    // Check if relevant state actually changed
+    const newHash = this._computeStateHash();
+    if (newHash === this._cachedStateHash) return;
+    this._cachedStateHash = newHash;
     // Throttle: only re-render every _throttleMs
     const now = Date.now();
     if (now - this._lastRenderTime < this._throttleMs) {
@@ -478,6 +560,8 @@ class HADeviceHealth extends HTMLElement {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         min-height: 500px;
         color: var(--tc);
+        overflow: hidden;
+        min-width: 0;
       }
 
       .card-header {
@@ -600,6 +684,12 @@ class HADeviceHealth extends HTMLElement {
       .status-online { background: var(--sc); }
       .status-offline { background: var(--ec); }
       .status-unavailable { background: #94A3B8; }
+
+      .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 0;
+      }
 
       .device-table {
         width: 100%;
@@ -953,14 +1043,16 @@ class HADeviceHealth extends HTMLElement {
               <button class="toggle-grouping ${this._groupByDomain ? 'active' : ''}">${this._t('toggleGrouping')}</button>
             </div>
             <div class="control-group">
+              <span style="font-size:12px;color:var(--ts);white-space:nowrap;">Show:</span>
               <select class="page-size-selector" data-tab="devices">
-                ${[15,30,50,100].map(n => `<option value="${n}" ${this._pageSize === n ? 'selected' : ''}>${n} ${this._t('itemsPerPage')}</option>`).join('')}
+                ${[15,30,50,100].map(n => `<option value="${n}" ${this._pageSize === n ? 'selected' : ''}>${n}</option>`).join('')}
               </select>
             </div>
           </div>
           <div class="stats">
             ${this._t('totalDevices')}: ${devices.length} | ${this._t('online')}: ${online} | ${this._t('availability')}: ${availability}%
           </div>
+          <div class="table-wrapper">
           <table class="device-table">
             <thead>
               <tr>
@@ -986,6 +1078,7 @@ class HADeviceHealth extends HTMLElement {
                 .join("")}
             </tbody>
           </table>
+          </div>
           <div class="pagination">
             <button class="pagination-btn pagination-prev" ${this._currentPage === 1 ? 'disabled' : ''}>${this._t('previous')}</button>
             <span class="pagination-info">${this._t('page')} ${this._currentPage} ${this._t('of')} ${totalPages}</span>
@@ -1012,14 +1105,15 @@ class HADeviceHealth extends HTMLElement {
         <div class="tab-content active">
           <div class="controls">
             <div class="control-group">
-              <select class="battery-sort">
+              <select class="battery-sort" style="margin-right:4px;">
                 <option value="level" ${this._batterySortBy === 'level' ? 'selected' : ''}>${this._t('levelWorstFirst')}</option>
                 <option value="name" ${this._batterySortBy === 'name' ? 'selected' : ''}>${this._t('name')}</option>
               </select>
             </div>
             <div class="control-group">
+              <span style="font-size:12px;color:var(--ts);white-space:nowrap;">Show:</span>
               <select class="page-size-selector" data-tab="batteries">
-                ${[15,30,50,100].map(n => `<option value="${n}" ${this._batteryPageSize === n ? 'selected' : ''}>${n} ${this._t('itemsPerPage')}</option>`).join('')}
+                ${[15,30,50,100].map(n => `<option value="${n}" ${this._batteryPageSize === n ? 'selected' : ''}>${n}</option>`).join('')}
               </select>
             </div>
           </div>
@@ -1076,8 +1170,9 @@ class HADeviceHealth extends HTMLElement {
         <div class="tab-content active">
           <div class="controls">
             <div class="control-group">
+              <span style="font-size:12px;color:var(--ts);white-space:nowrap;">Show:</span>
               <select class="page-size-selector" data-tab="network">
-                ${[15,30,50,100].map(n => `<option value="${n}" ${this._networkPageSize === n ? 'selected' : ''}>${n} ${this._t('itemsPerPage')}</option>`).join('')}
+                ${[15,30,50,100].map(n => `<option value="${n}" ${this._networkPageSize === n ? 'selected' : ''}>${n}</option>`).join('')}
               </select>
             </div>
           </div>
