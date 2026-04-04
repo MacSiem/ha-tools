@@ -5,8 +5,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -513,13 +512,13 @@ canvas {
 /* ===== END BENTO LIGHT MODE ===== */
 
         :host {
-          --primary-color: var(--ha-card-header-color, #1976d2);
-          --bg-color: var(--ha-card-background, var(--card-background-color, #fff));
-          --text-color: var(--primary-text-color, #333);
-          --secondary-text: var(--secondary-text-color, #666);
-          --border-color: var(--divider-color, #e0e0e0);
-          --hover-bg: var(--table-row-alternative-background-color, #f5f5f5);
-          --accent: var(--accent-color, #03a9f4);
+          --primary-color: var(--bento-primary);
+          --bg-color: var(--bento-card);
+          --text-color: var(--bento-text);
+          --secondary-text: var(--bento-text-secondary);
+          --border-color: var(--bento-border);
+          --hover-bg: var(--bento-primary-light);
+          --accent: var(--bento-primary);
         }
         .exporter-card {
           background: var(--bg-color);

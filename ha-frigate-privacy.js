@@ -1115,7 +1115,7 @@ class HaFrigatePrivacy extends HTMLElement {
 
       <div class="section">
         <h3>\uD83D\uDCCB ${this._lang === 'pl' ? 'Integracja z Dashboard' : 'Dashboard Integration'}</h3>
-        <p style="margin-bottom:12px;color:var(--text-secondary,#aaa);font-size:0.92em;">
+        <p style="margin-bottom:12px;color:var(--bento-text-secondary);font-size:0.92em;">
           ${this._lang === 'pl'
             ? 'Mozesz dodac Frigate Privacy jako karte w swoim dashboard lub jako przycisk w Bubble Card.'
             : 'You can add Frigate Privacy as a card in your dashboard or as a Bubble Card button.'}
@@ -1123,7 +1123,7 @@ class HaFrigatePrivacy extends HTMLElement {
 
         <div class="code-block">
           <div class="code-label">${this._lang === 'pl' ? 'Karta Lovelace (manual YAML)' : 'Lovelace Card (manual YAML)'}</div>
-          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">type: custom:ha-frigate-privacy
+          <pre style="background:var(--bento-card);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--bento-text);">type: custom:ha-frigate-privacy
 # ${this._lang === 'pl' ? 'Opcjonalna konfiguracja:' : 'Optional config:'}
 frigate_running_entity: binary_sensor.frigate_running
 cameras:
@@ -1134,7 +1134,7 @@ default_duration: 30</pre>
 
         <div class="code-block" style="margin-top:12px;">
           <div class="code-label">Bubble Card - ${this._lang === 'pl' ? 'Przycisk nawigacji' : 'Navigation button'}</div>
-          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">type: custom:bubble-card
+          <pre style="background:var(--bento-card);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--bento-text);">type: custom:bubble-card
 card_type: button
 name: Frigate Privacy
 icon: mdi:camera-off
@@ -1147,7 +1147,7 @@ tap_action:
 
         <div class="code-block" style="margin-top:12px;">
           <div class="code-label">${this._lang === 'pl' ? 'Automatyzacja z input_boolean' : 'Automation with input_boolean'}</div>
-          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">automation:
+          <pre style="background:var(--bento-card);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--bento-text);">automation:
   - alias: "Frigate Privacy Toggle"
     trigger:
       - platform: state
@@ -1337,10 +1337,10 @@ tap_action:
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius: 16px;
+  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -1350,12 +1350,12 @@ tap_action:
 
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: #1a1a2e;
-    --bento-card: #16213e;
-    --bento-text: #e2e8f0;
-    --bento-text-secondary: #94a3b8;
-    --bento-border: #334155;
-    --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
     --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
   }
 }
@@ -1376,8 +1376,8 @@ tap_action:
   margin-bottom: 20px;
   padding: 16px 20px;
   background: var(--bento-card);
-  border-radius: var(--bento-radius);
-  box-shadow: var(--bento-shadow);
+  border-radius: var(--bento-radius-sm);
+  box-shadow: var(--bento-shadow-sm);
   border: 1px solid var(--bento-border);
 }
 
@@ -1449,10 +1449,10 @@ tap_action:
 /* Sections */
 .section {
   background: var(--bento-card);
-  border-radius: var(--bento-radius);
+  border-radius: var(--bento-radius-sm);
   padding: 16px 20px;
   margin-bottom: 12px;
-  box-shadow: var(--bento-shadow);
+  box-shadow: var(--bento-shadow-sm);
   border: 1px solid var(--bento-border);
 }
 
@@ -1471,7 +1471,7 @@ tap_action:
   padding: 16px 20px;
   background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.15));
   border: 1px solid rgba(239,68,68,0.25);
-  border-radius: var(--bento-radius);
+  border-radius: var(--bento-radius-sm);
   margin-bottom: 12px;
 }
 

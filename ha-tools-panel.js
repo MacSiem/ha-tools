@@ -439,11 +439,11 @@ class HAToolsPanel extends HTMLElement {
 /* Dark mode - detect HA dark theme via background luminance or prefers-color-scheme */
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: #1a1a2e;
-    --bento-card: #16213e;
-    --bento-text: #e2e8f0;
-    --bento-text-secondary: #94a3b8;
-    --bento-border: #334155;
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
     --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
     --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
   }
@@ -687,7 +687,7 @@ class HAToolsPanel extends HTMLElement {
 .uninstalled-item {
   display: flex; align-items: center; gap: 12px; padding: 14px 16px;
   background: var(--bento-bg); border: 1.5px dashed var(--bento-border);
-  border-radius: var(--bento-radius); transition: var(--bento-transition);
+  border-radius: var(--bento-radius-md); transition: var(--bento-transition);
 }
 .uninstalled-item:hover { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.03); }
 .ui-icon { font-size: 24px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: var(--bento-card); border-radius: var(--bento-radius-sm); border: 1px solid var(--bento-border); flex-shrink: 0; }
@@ -738,7 +738,7 @@ class HAToolsPanel extends HTMLElement {
   padding: 24px;
   background: linear-gradient(135deg, var(--bento-primary-light) 0%, rgba(16, 185, 129, 0.06) 100%);
   border: 1.5px solid var(--bento-border);
-  border-radius: var(--bento-radius);
+  border-radius: var(--bento-radius-md);
   margin-bottom: 24px;
   gap: 20px;
   flex-wrap: wrap;
@@ -750,7 +750,7 @@ class HAToolsPanel extends HTMLElement {
 .hero-stat-num { display: block; font-size: 28px; font-weight: 700; color: var(--bento-primary); }
 .hero-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--bento-text-secondary); font-weight: 600; }
 .groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.group-card { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--bento-card); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius); cursor: pointer; transition: var(--bento-transition); }
+.group-card { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--bento-card); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-md); cursor: pointer; transition: var(--bento-transition); }
 .group-card:hover { border-color: var(--bento-primary); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
 .group-card-icon { font-size: 28px; }
 .group-card-name { font-size: 14px; font-weight: 600; color: var(--bento-text); }
@@ -760,7 +760,7 @@ class HAToolsPanel extends HTMLElement {
 .group-card-children { display: none; padding: 0 8px 8px; }
 .group-card-wrapper.expanded .group-card-children { display: flex; flex-direction: column; gap: 4px; }
 .group-card-wrapper.expanded .group-card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
-.group-card-children { background: var(--bento-card); border: 1.5px solid var(--bento-border); border-top: none; border-radius: 0 0 var(--bento-radius) var(--bento-radius); }
+.group-card-children { background: var(--bento-card); border: 1.5px solid var(--bento-border); border-top: none; border-radius: 0 0 var(--bento-radius-md) var(--bento-radius-md); }
 .group-child-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-radius: 8px; transition: background 0.15s; font-size: 13px; color: var(--bento-text); }
 .group-child-item:hover { background: var(--bento-hover, rgba(0,0,0,0.04)); }
 .group-child-item .gci-icon { font-size: 16px; width: 24px; text-align: center; flex-shrink: 0; }
@@ -768,10 +768,10 @@ class HAToolsPanel extends HTMLElement {
 .group-card-expand { margin-left: 8px; font-size: 12px; opacity: 0.5; transition: transform 0.2s; }
 .group-card-wrapper.expanded .group-card-expand { transform: rotate(180deg); }
 .tips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.tip-card { display: flex; gap: 12px; padding: 14px; background: var(--bento-card); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius); font-size: 12px; line-height: 1.5; color: var(--bento-text-secondary); }
+.tip-card { display: flex; gap: 12px; padding: 14px; background: var(--bento-card); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-md); font-size: 12px; line-height: 1.5; color: var(--bento-text-secondary); }
 .tip-icon { font-size: 22px; flex-shrink: 0; }
 .tip-text strong { color: var(--bento-text); font-size: 13px; }
-.changelog-card { background: var(--bento-card); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius); padding: 16px; }
+.changelog-card { background: var(--bento-card); border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 16px; }
 .cl-item { padding: 6px 0; font-size: 13px; color: var(--bento-text); display: flex; align-items: center; gap: 8px; }
 .cl-item + .cl-item { border-top: 1px solid var(--bento-border); }
 .cl-tag { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
@@ -783,7 +783,7 @@ class HAToolsPanel extends HTMLElement {
 }
 
 .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-.tool-card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius); padding: 20px; cursor: pointer; transition: var(--bento-transition); animation: fadeSlideIn 0.4s ease-out; }
+.tool-card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; cursor: pointer; transition: var(--bento-transition); animation: fadeSlideIn 0.4s ease-out; }
 .tool-card:hover { border-color: var(--bento-primary); box-shadow: var(--bento-shadow-md); transform: translateY(-2px); }
 .tool-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .tool-card-icon { font-size: 24px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(59, 130, 246, 0.08); border-radius: var(--bento-radius-sm); }
@@ -801,7 +801,7 @@ class HAToolsPanel extends HTMLElement {
 
 /* SETTINGS */
 .settings-view { animation: fadeSlideIn 0.4s ease-out; }
-.settings-group { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius); margin-bottom: 16px; overflow: hidden; }
+.settings-group { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); margin-bottom: 16px; overflow: hidden; }
 .settings-group-header {
   display: flex; justify-content: space-between; align-items: center; padding: 16px 20px;
   font-size: 15px; font-weight: 600; color: var(--bento-text); cursor: pointer;

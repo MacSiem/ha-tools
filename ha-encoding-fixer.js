@@ -5,8 +5,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -1478,10 +1477,10 @@ class HaEncodingFixer extends HTMLElement {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius: 16px;
+  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -1491,12 +1490,12 @@ class HaEncodingFixer extends HTMLElement {
 
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: #1a1a2e;
-    --bento-card: #16213e;
-    --bento-text: #e2e8f0;
-    --bento-text-secondary: #94a3b8;
-    --bento-border: #334155;
-    --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
     --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
   }
 }
@@ -1517,8 +1516,8 @@ class HaEncodingFixer extends HTMLElement {
   margin-bottom: 20px;
   padding: 16px 20px;
   background: var(--bento-card);
-  border-radius: var(--bento-radius);
-  box-shadow: var(--bento-shadow);
+  border-radius: var(--bento-radius-sm);
+  box-shadow: var(--bento-shadow-sm);
   border: 1px solid var(--bento-border);
 }
 
@@ -1554,10 +1553,10 @@ class HaEncodingFixer extends HTMLElement {
 
 .section {
   background: var(--bento-card);
-  border-radius: var(--bento-radius);
+  border-radius: var(--bento-radius-sm);
   padding: 16px 20px;
   margin-bottom: 12px;
-  box-shadow: var(--bento-shadow);
+  box-shadow: var(--bento-shadow-sm);
   border: 1px solid var(--bento-border);
 }
 

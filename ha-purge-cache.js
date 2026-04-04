@@ -298,21 +298,49 @@ class HAPurgeCache extends HTMLElement {
 
         /* Inter font loaded by ha-tools-loader.js - no @import needed */
 
-        :host {
+        
+/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
+
+:host {
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
+  --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
+  --bento-error: #EF4444;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
+  --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+  --bento-radius-xs: 6px;
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:host {
           display: block;
           font-family: 'Inter', sans-serif;
           color: var(--primary-text-color, #1a1a2e);
-          --pc-primary: #3B82F6;
-          --pc-primary-hover: #2563EB;
-          --pc-danger: #EF4444;
+          --pc-primary: var(--bento-primary);
+          --pc-primary-hover: var(--bento-primary-hover);
+          --pc-danger: var(--bento-error);
           --pc-danger-hover: #DC2626;
-          --pc-success: #10B981;
-          --pc-warning: #F59E0B;
-          --pc-bg: var(--card-background-color, #ffffff);
-          --pc-border: var(--divider-color, #e2e8f0);
-          --pc-text: var(--primary-text-color, #1a1a2e);
-          --pc-text-sec: var(--secondary-text-color, #64748b);
-          --pc-radius: 12px;
+          --pc-success: var(--bento-success);
+          --pc-warning: var(--bento-warning);
+          --pc-bg: var(--bento-card);
+          --pc-border: var(--bento-border);
+          --pc-text: var(--bento-text);
+          --pc-text-sec: var(--bento-text-secondary);
+          --pc-radius: var(--bento-radius-sm);
         }
 
         .card { max-width: 900px; margin: 0 auto; padding: 16px; }

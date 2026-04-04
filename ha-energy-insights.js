@@ -5,8 +5,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -516,15 +515,43 @@ ${this._getStyles()}
     return `
       <style>${window.HAToolsBentoCSS || ""}
 
-        :host {
-          --pr: #3B82F6; --pr-l: rgba(59,130,246,.1);
-          --ok: #10B981; --ok-l: rgba(16,185,129,.1);
-          --er: #EF4444; --er-l: rgba(239,68,68,.1);
-          --wa: #F59E0B; --wa-l: rgba(245,158,11,.1);
-          --bg: var(--primary-background-color, #F8FAFC); --ca: var(--card-background-color, #FFFFFF); --bo: var(--divider-color, #E2E8F0);
-          --tx: var(--primary-text-color, #1E293B); --t2: var(--secondary-text-color, #64748B); --t3: var(--disabled-text-color, #94A3B8);
-          --r1: 6px; --r2: 12px; --r3: 16px;
-          --sh: 0 1px 3px rgba(0,0,0,.05);
+        
+/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
+
+:host {
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
+  --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
+  --bento-error: #EF4444;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
+  --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+  --bento-radius-xs: 6px;
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:host {
+          --pr: var(--bento-primary); --pr-l: var(--bento-primary-light);
+          --ok: var(--bento-success); --ok-l: var(--bento-success-light);
+          --er: var(--bento-error); --er-l: var(--bento-error-light);
+          --wa: var(--bento-warning); --wa-l: var(--bento-warning-light);
+          --bg: var(--bento-bg); --ca: var(--bento-card); --bo: var(--bento-border);
+          --tx: var(--bento-text); --t2: var(--bento-text-secondary); --t3: var(--bento-text-muted);
+          --r1: var(--bento-radius-xs); --r2: var(--bento-radius-sm); --r3: var(--bento-radius-md);
+          --sh: var(--bento-shadow-sm);
           font-family: 'Inter', sans-serif;
           display: block;
           background: var(--bento-bg);

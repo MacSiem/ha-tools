@@ -5,8 +5,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -720,24 +719,52 @@ class HAAutomationAnalyzer extends HTMLElement {
 
   render() {
     const styles = `
-      :host {
+      
+/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
+
+:host {
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
+  --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
+  --bento-error: #EF4444;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
+  --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+  --bento-radius-xs: 6px;
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:host {
         display: block;
         --aa-font: var(--ha-font-family-body, var(--mdc-typography-body1-font-family, Roboto, Noto, sans-serif));
-        --aa-radius: var(--ha-card-border-radius, var(--ha-border-radius-sm, 8px));
+        --aa-radius: var(--bento-radius-sm);
         --aa-space-1: var(--ha-space-1, 4px);
         --aa-space-2: var(--ha-space-2, 8px);
         --aa-space-3: var(--ha-space-3, 12px);
         --aa-space-4: var(--ha-space-4, 16px);
         --aa-space-6: var(--ha-space-6, 24px);
-        --aa-border: var(--ha-color-border, var(--divider-color, #e0e0e0));
-        --aa-text: var(--primary-text-color, #212121);
-        --aa-text2: var(--secondary-text-color, #64748b);
-        --aa-bg: var(--primary-background-color, #fafafa);
-        --aa-card: var(--card-background-color, #fff);
-        --aa-primary: var(--primary-color, #3B82F6);
-        --aa-success: var(--success-color, var(--label-badge-green, #10B981));
-        --aa-warning: var(--warning-color, var(--label-badge-yellow, #F59E0B));
-        --aa-danger: var(--error-color, var(--label-badge-red, #EF4444));
+        --aa-border: var(--bento-border);
+        --aa-text: var(--bento-text);
+        --aa-text2: var(--bento-text-secondary);
+        --aa-bg: var(--bento-bg);
+        --aa-card: var(--bento-card);
+        --aa-primary: var(--bento-primary);
+        --aa-success: var(--bento-success);
+        --aa-warning: var(--bento-warning);
+        --aa-danger: var(--bento-error);
         --aa-info: var(--info-color, var(--accent-color, #3B82F6));
         --aa-anim: var(--ha-animation-duration-normal, 250ms);
       }

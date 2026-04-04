@@ -5,8 +5,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -672,7 +671,35 @@ class HAEnergyEmail extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
 
-        :host {
+        
+/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
+
+:host {
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
+  --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
+  --bento-error: #EF4444;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
+  --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+  --bento-radius-xs: 6px;
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:host {
           font-family: 'Inter', sans-serif;
         }
         @media (prefers-color-scheme: dark) {
@@ -723,18 +750,18 @@ class HAEnergyEmail extends HTMLElement {
         .smtp-missing { border-color: #f59e0b40; background: #fef3c720; }
         .smtp-header { display: flex; align-items: center; gap: 12px; }
         .smtp-icon { font-size: 24px; }
-        .smtp-title { font-weight: 700; font-size: 14px; color: var(--t1, #1e293b); }
+        .smtp-title { font-weight: 700; font-size: 14px; color: var(--bento-text); }
         .smtp-detail { font-size: 12px; color: var(--bento-text-secondary); margin-top: 2px; }
         .smtp-detail code { background: var(--bento-border); padding: 1px 6px; border-radius: 4px; font-size: 11px; }
         .smtp-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
         .smtp-guide { margin-top: 16px; }
-        .guide-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; color: var(--t1, #1e293b); }
+        .guide-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; color: var(--bento-text); }
         .guide-steps { display: flex; flex-direction: column; gap: 16px; }
         .guide-step { display: flex; gap: 12px; }
-        .step-num { flex-shrink: 0; width: 28px; height: 28px; background: var(--primary, #3b82f6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .step-num { flex-shrink: 0; width: 28px; height: 28px; background: var(--bento-primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
         .guide-step p { margin: 4px 0; font-size: 13px; color: var(--bento-text-secondary); line-height: 1.5; }
         .guide-step pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; white-space: pre; margin: 8px 0; }
-        .guide-step a { color: var(--primary, #3b82f6); text-decoration: none; }
+        .guide-step a { color: var(--bento-primary); text-decoration: none; }
         .guide-step a:hover { text-decoration: underline; }
         .guide-alt { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bento-border); }
         .smtp-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }

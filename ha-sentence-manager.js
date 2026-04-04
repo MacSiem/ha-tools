@@ -5,8 +5,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -1501,13 +1500,13 @@ canvas {
 /* ===== END BENTO LIGHT MODE ===== */
 
         :host {
-          --primary-color: var(--primary-color, #03a9f4);
-          --error-color: var(--error-color, #f44336);
-          --success-color: var(--success-color, #4caf50);
-          --background-color: var(--ha-card-background, #ffffff);
-          --text-color: var(--primary-text-color, #212121);
-          --secondary-text: var(--secondary-text-color, #757575);
-          --border-color: var(--divider-color, #e0e0e0);
+          --primary-color: var(--bento-primary);
+          --error-color: var(--bento-error);
+          --success-color: var(--bento-success);
+          --background-color: var(--bento-card);
+          --text-color: var(--bento-text);
+          --secondary-text: var(--bento-text-secondary);
+          --border-color: var(--bento-border);
         }
 
         .card {
@@ -1942,10 +1941,10 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius: 16px;
+  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -1954,7 +1953,7 @@ canvas {
 * { box-sizing: border-box; }
 
 .card, .card-container, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
+  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -2024,7 +2023,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow); }
+.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -2038,7 +2037,7 @@ textarea { min-height: 80px; resize: vertical; }
 .section { margin-bottom: 24px; }
 .editor-section, .list-section, .export-section {
   background: var(--bento-card); border: 1px solid var(--bento-border);
-  border-radius: var(--bento-radius); padding: 20px; margin-bottom: 16px;
+  border-radius: var(--bento-radius-sm); padding: 20px; margin-bottom: 16px;
 }
 .editor-section h2, .list-section h2, .export-section h2 {
   font-size: 16px; font-weight: 600; color: var(--bento-text); margin: 0 0 16px 0;

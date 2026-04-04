@@ -14,6 +14,12 @@
   }
 
   var BASE = '/local/community/ha-tools/';
+
+  // Load stack card early (needed before dashboard renders)
+  var stackScript = document.createElement('script');
+  stackScript.type = 'text/javascript';
+  stackScript.src = BASE + 'ha-tools-stack.js' + '?_=' + Date.now();
+  document.head.appendChild(stackScript);
   var bust = '?_=' + Date.now();
 
   function loadScript(file) {
@@ -27,7 +33,8 @@
     });
   }
 
-  // Load panel + all tools in parallel (no dependency chain)
+  // Load Bento CSS first, then panel + all tools in parallel
+  loadScript('ha-tools-bento.js').then(function() {
   var allFiles = [
     'ha-tools-panel.js',
     'ha-automation-analyzer.js',
@@ -62,4 +69,6 @@
       'background:#e0f2fe;color:#1e40af;font-weight:bold;padding:2px 6px;border-radius:0 4px 4px 0;'
     );
   });
+  }); // end bento.then
 })();
+
