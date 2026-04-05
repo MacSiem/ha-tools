@@ -167,9 +167,9 @@ class HaEncodingFixer extends HTMLElement {
         bomExplain: 'BOM (Byte Order Mark) to 3 bajty EF BB BF na poczatku pliku. Moze powodowac bledy parsowania JS.',
         tabYaml: 'Skanuj pliki',
         yamlTitle: 'Skan plikow konfiguracyjnych',
-        yamlDesc: 'Skanuje YAML, YML i skrypty Python w /config/ pod katem BOM, mojibake, emoji i bledow kodowania',
+        yamlDesc: 'Skanuje YAML, YML, JS i skrypty Python w /config/ pod katem BOM, mojibake, podwojnego kodowania UTF-8 i bledow',
         scanYaml: 'Skanuj pliki',
-        yamlScanning: 'Skanowanie plikow YAML na HA...',
+        yamlScanning: 'Skanowanie plikow konfiguracyjnych na HA...',
         yamlOk: 'Pliki YAML w porzadku',
         yamlIssuesFound: 'problemow w plikach YAML',
         yamlFile: 'Plik',
@@ -261,11 +261,11 @@ class HaEncodingFixer extends HTMLElement {
         bomExplain: 'BOM (Byte Order Mark) is 3 bytes EF BB BF at start of file. Can cause JS parse errors.',
         tabYaml: 'Scan files',
         yamlTitle: 'Config file scan',
-        yamlDesc: 'Scans YAML, YML and Python scripts in /config/ for BOM, mojibake, emoji and encoding errors',
+        yamlDesc: 'Scans YAML, YML, JS and Python files in /config/ for BOM, mojibake, double-encoded UTF-8 and errors',
         scanYaml: 'Scan files',
-        yamlScanning: 'Scanning YAML files on HA...',
-        yamlOk: 'YAML files look good',
-        yamlIssuesFound: 'issues in YAML files',
+        yamlScanning: 'Scanning config files on HA...',
+        yamlOk: 'All files look good',
+        yamlIssuesFound: 'issues found',
         yamlFile: 'File',
         yamlLine: 'Line',
         yamlIssue: 'Issue',
@@ -1429,8 +1429,8 @@ class HaEncodingFixer extends HTMLElement {
         <h3>\uD83D\uDD27 ${this._lang === 'pl' ? 'Zaawansowany skan plikow' : 'Advanced file scan'}</h3>
         <p style="font-size:13px;color:var(--bento-text-secondary);margin-bottom:12px;">
           ${this._lang === 'pl'
-            ? 'Podstawowy skan (Sprawdz config) dziala bez konfiguracji. Aby uruchomic pelny skan BOM/mojibake wszystkich plikow YAML, dodaj do <code>configuration.yaml</code>:'
-            : 'Basic scan (Check config) works without setup. To enable full BOM/mojibake scanning of all YAML files, add to <code>configuration.yaml</code>:'}
+            ? 'Podstawowy skan (Sprawdz config) dziala bez konfiguracji. Aby uruchomic pelny skan BOM/mojibake wszystkich plikow (YAML, JS), dodaj do <code>configuration.yaml</code>:'
+            : 'Basic scan (Check config) works without setup. To enable full BOM/mojibake scanning of all files (YAML, JS), add to <code>configuration.yaml</code>:'}
         </p>
         <div class="setup-code"><code>shell_command:
   scan_encoding: "python3 /config/python_scripts/encoding_scanner.py"
