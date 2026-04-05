@@ -2,6 +2,18 @@
 
 All notable changes to HA Tools Panel are documented here.
 
+## [3.8.0] - 2026-04-05
+
+### Added
+- Entity Renamer: YAML file propagation — automatically scan and update entity references in automations.yaml, frigate.yaml, packages/*.yaml when renaming entities with prefix changes
+- Entity Renamer: Restart notification banner with one-click HA restart button after YAML files are updated
+- Entity Renamer: `_hasYamlSupport()` check for graceful degradation — YAML features only activate when optional shell_command helper is configured
+- Optional `scripts/entity_renamer_yaml.py` helper for YAML scanning and replacement (requires manual configuration of shell_commands in configuration.yaml)
+
+### Fixed
+- Entity Renamer: Core entity/device renaming works standalone via HACS without any extra configuration
+- Entity Renamer: Fixed UTF-8 encoding issues with Polish characters in UI
+
 ## [3.7.0] - 2026-04-02
 
 ### Added
