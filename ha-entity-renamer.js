@@ -917,25 +917,6 @@ class HAEntityRenamer extends HTMLElement {
     }
 
 
-    // Restart HA button
-    const restartBtn = root.getElementById('restartHA');
-    if (restartBtn) {
-      restartBtn.addEventListener('click', async () => {
-        if (confirm('Czy na pewno chcesz zrestartować Home Assistant?')) {
-          restartBtn.disabled = true;
-          restartBtn.textContent = '⏳ Restartowanie...';
-          try {
-            await this._hass.callService('homeassistant', 'restart', {});
-            this._needsRestart = false;
-          } catch (e) {
-            alert('Błąd restartu: ' + e.message);
-            restartBtn.disabled = false;
-            restartBtn.textContent = '🔄 Restartuj HA';
-          }
-        }
-      });
-    }
-
     // YAML file checkboxes
     root.querySelectorAll('[data-yaml-file]').forEach(cb => {
       cb.addEventListener('change', (e) => {
