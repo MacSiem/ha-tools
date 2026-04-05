@@ -23,6 +23,10 @@ class HAEntityRenamer extends HTMLElement {
     this._activeTab = 'devices'; // devices | queue | log
     this._renameLog = [];
     this._expandedDevices = new Set();
+    this._yamlScanResults = null;
+    this._yamlPropagateFiles = null;
+    this._yamlPropagateResults = null;
+    this._needsRestart = false;
   }
 
   _sanitize(str) {
@@ -132,6 +136,9 @@ class HAEntityRenamer extends HTMLElement {
   _clearQueue() {
     this._renameQueue = [];
     this._impactResults = null;
+    this._yamlScanResults = null;
+    this._yamlPropagateFiles = null;
+    this._yamlPropagateResults = null;
     this.render();
   }
 
@@ -150,6 +157,88 @@ class HAEntityRenamer extends HTMLElement {
     this.render();
   }
 
+
+  _hasYamlSupport() {
+    try {
+      const svc = this._hass && this._hass.services && this._hass.services.shell_command;
+      return !!(svc && svc.entity_renamer_scan);
+    } catch (e) { return false; }
+  }
+
+  _detectPrefixChanges() {
+    const changes = new Map();
+    for (const r of this._renameQueue) {
+      if (r.oldId === r.newId) continue;
+      const oldObj = r.oldId.split('.')[1] || '';
+      const newObj = r.newId.split('.')[1] || '';
+      const oldParts = oldObj.split('_');
+      const newParts = newObj.split('_');
+      let suffixLen = 0;
+      while (suffixLen < oldParts.length && suffixLen < newParts.length) {
+        if (oldParts[oldParts.length - 1 - suffixLen] === newParts[newParts.length - 1 - suffixLen]) {
+          suffixLen++;
+        } else { break; }
+      }
+      if (suffixLen === 0) continue;
+      const oldPrefix = oldParts.slice(0, oldParts.length - suffixLen).join('_');
+      const newPrefix = newParts.slice(0, newParts.length - suffixLen).join('_');
+      if (oldPrefix && newPrefix && oldPrefix !== newPrefix && !changes.has(oldPrefix)) {
+        changes.set(oldPrefix, newPrefix);
+      }
+    }
+    return [...changes.entries()].map(([oldPrefix, newPrefix]) => ({ oldPrefix, newPrefix }));
+  }
+
+  async _scanYamlFiles() {
+    const prefixChanges = this._detectPrefixChanges();
+    if (!prefixChanges.length) return null;
+    const terms = prefixChanges.map(p => p.oldPrefix).join(',');
+    try {
+      await this._hass.callService('shell_command', 'entity_renamer_clear', {});
+      await new Promise(r => setTimeout(r, 500));
+      await this._hass.callService('shell_command', 'entity_renamer_scan', { terms });
+      await new Promise(r => setTimeout(r, 2500));
+      const resp = await fetch('/local/entity_renamer_scan.json?t=' + Date.now());
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.files) {
+          this._yamlPropagateFiles = new Set(Object.keys(data.files));
+        }
+        return data;
+      }
+    } catch (e) {
+      console.error('YAML scan error:', e);
+    }
+    return null;
+  }
+
+  async _propagateYaml() {
+    if (!this._yamlPropagateFiles || !this._yamlPropagateFiles.size) return [];
+    const prefixChanges = this._detectPrefixChanges();
+    if (!prefixChanges.length) return [];
+    const results = [];
+    const ts = new Date().toLocaleTimeString();
+    for (const file of this._yamlPropagateFiles) {
+      for (const { oldPrefix, newPrefix } of prefixChanges) {
+        try {
+          await this._hass.callService('shell_command', 'entity_renamer_replace', {
+            file_path: file, old_id: oldPrefix, new_id: newPrefix
+          });
+          results.push({ file, oldPrefix, newPrefix, status: 'ok' });
+          this._renameLog.unshift({ time: ts, oldId: '\uD83D\uDCC4 ' + file + ': ' + oldPrefix, newId: '\uD83D\uDCC4 ' + newPrefix, status: 'ok', impact: null });
+        } catch (e) {
+          results.push({ file, oldPrefix, newPrefix, status: 'error', error: e.message });
+          this._renameLog.unshift({ time: ts, oldId: '\uD83D\uDCC4 ' + file, newId: '\uD83D\uDCC4 b\u0142\u0105d', status: 'error', error: e.message, impact: null });
+        }
+      }
+    }
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const resp = await fetch('/local/entity_renamer_result.json?t=' + Date.now());
+      if (resp.ok) { this._yamlPropagateResults = await resp.json(); }
+    } catch (e) {}
+    return results;
+  }
 
   async _analyzeImpact() {
     if (!this._renameQueue.length) return;
@@ -207,6 +296,18 @@ class HAEntityRenamer extends HTMLElement {
     } catch(e) {}
 
     this._impactResults = impact;
+
+    // YAML file scan (only if shell_command services are configured)
+    if (this._hasYamlSupport()) {
+      this._message = { type: 'info', text: 'Skanuję pliki YAML...' };
+      this.render();
+      try {
+        this._yamlScanResults = await this._scanYamlFiles();
+      } catch (e) {
+        console.error('YAML scan failed:', e);
+      }
+    }
+
     this._loading = false;
     this._message = null;
     this._activeTab = 'queue';
@@ -326,9 +427,37 @@ class HAEntityRenamer extends HTMLElement {
       type: fail > 0 ? 'warning' : 'success',
       text: `Zmieniono ${ok} encji${devCount ? ', ' + devCount + ' urządzeń' : ''}${fail > 0 ? `, ${fail} błędów` : ''}. ${totalImpact > 0 ? `⚠️ ${totalImpact} miejsc wymaga aktualizacji (szczegóły w historii).` : ''} Zrestartuj HA.`,
     };
+    // Propagate to YAML files
+    if (this._hasYamlSupport() && this._yamlPropagateFiles && this._yamlPropagateFiles.size > 0) {
+      this._message = { type: 'info', text: 'Aktualizuj\u0119 pliki YAML...' };
+      this.render();
+      try {
+        const yamlResults = await this._propagateYaml();
+        const yamlOk = yamlResults.filter(r => r.status === 'ok').length;
+        const yamlFail = yamlResults.filter(r => r.status === 'error').length;
+        if (yamlOk > 0 || yamlFail > 0) {
+          this._message = { type: yamlFail > 0 ? 'warning' : 'success', text: 'YAML: ' + yamlOk + ' zmian OK' + (yamlFail > 0 ? ', ' + yamlFail + ' b\u0142\u0119d\u00F3w' : '') };
+        }
+        if (yamlOk > 0) {
+          this._needsRestart = true;
+          try {
+            await this._hass.callService('persistent_notification', 'create', {
+              title: 'Entity Renamer \u2014 wymagany restart',
+              message: 'Pliki YAML zosta\u0142y zaktualizowane. Zrestartuj Home Assistant, aby za\u0142adowa\u0107 now\u0105 konfiguracj\u0119.',
+              notification_id: 'entity_renamer_restart'
+            });
+          } catch (e) { console.warn('Could not create HA notification:', e); }
+        }
+      } catch (e) {
+        console.error('YAML propagation error:', e);
+      }
+    }
+
     this._renameQueue = [];
     this._deviceRenameQueue = {};
     this._impactResults = null;
+    this._yamlScanResults = null;
+    this._yamlPropagateFiles = null;
     this._loading = false;
     this._activeTab = 'log';
     await this._loadData();
@@ -610,6 +739,20 @@ class HAEntityRenamer extends HTMLElement {
             </div>`;
           }).join('')}
       </div>
+      ${this._yamlScanResults && this._yamlScanResults.total_matches > 0 ? `
+      <div style="margin:12px 0;padding:12px;background:var(--card-background-color,#1a1a2e);border-radius:8px;border:1px solid rgba(96,165,250,0.3);">
+        <div style="font-weight:600;margin-bottom:8px;color:#60a5fa;">&#128196; Pliki YAML do aktualizacji (${this._yamlScanResults.total_files} plik&#243;w, ${this._yamlScanResults.total_matches} wyst&#261;pie&#324;)</div>
+        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">Zaznaczone pliki zostan&#261; zaktualizowane przy wykonaniu zmian:</div>
+        ${Object.entries(this._yamlScanResults.files).map(([file, matches]) => {
+          const checked = this._yamlPropagateFiles && this._yamlPropagateFiles.has(file);
+          const matchCount = Object.values(matches).reduce((s,m) => s + m.count, 0);
+          return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer;">
+            <input type="checkbox" data-yaml-file="${file}" ${checked ? 'checked' : ''} style="accent-color:#60a5fa;">
+            <span style="font-family:'JetBrains Mono',monospace;color:#e2e8f0;">${file}</span>
+            <span style="color:#60a5fa;font-size:11px;">(${matchCount}x)</span>
+          </label>`;
+        }).join('')}
+      </div>` : ''}
       <div class="queue-actions">
         <button class="btn btn-outline" id="clearQueue">🗑️ Wyczyść</button>
         <button class="btn btn-outline" id="analyzeImpact" ${this._loading ? 'disabled' : ''}>🔍 Analizuj wpływ</button>
@@ -622,6 +765,7 @@ class HAEntityRenamer extends HTMLElement {
       return '<div class="empty-state"><div class="icon">📜</div>Brak historii zmian.<br>Wykonaj zmiany z zakładki Kolejka.</div>';
     }
     return `
+      ${this._needsRestart ? `<div style="margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1));border:1px solid rgba(251,191,36,0.4);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;"><div><div style="font-weight:600;color:#fbbf24;margin-bottom:4px;">⚠️ Wymagany restart Home Assistant</div><div style="font-size:12px;color:#d1d5db;">Pliki YAML zostały zaktualizowane. Zrestartuj HA, aby załadować nową konfigurację.</div></div><button id="restartHA" class="btn btn-outline" style="border-color:rgba(251,191,36,0.5);color:#fbbf24;white-space:nowrap;flex-shrink:0;">🔄 Restartuj HA</button></div>` : ''}
       <div>
         ${this._renameLog.map(l => {
           const imp = l.impact;
@@ -752,6 +896,57 @@ class HAEntityRenamer extends HTMLElement {
 
     const analyzeImpact = root.getElementById('analyzeImpact');
     if (analyzeImpact) analyzeImpact.addEventListener('click', () => this._analyzeImpact());
+
+    // Restart HA button
+    const restartBtn = root.getElementById('restartHA');
+    if (restartBtn) {
+      restartBtn.addEventListener('click', async () => {
+        if (confirm('Czy na pewno chcesz zrestartowa\u0107 Home Assistant?')) {
+          restartBtn.disabled = true;
+          restartBtn.textContent = '\u23F3 Restartowanie...';
+          try {
+            await this._hass.callService('homeassistant', 'restart', {});
+            this._needsRestart = false;
+          } catch (e) {
+            alert('B\u0142\u0105d restartu: ' + e.message);
+            restartBtn.disabled = false;
+            restartBtn.textContent = '\uD83D\uDD04 Restartuj HA';
+          }
+        }
+      });
+    }
+
+
+    // Restart HA button
+    const restartBtn = root.getElementById('restartHA');
+    if (restartBtn) {
+      restartBtn.addEventListener('click', async () => {
+        if (confirm('Czy na pewno chcesz zrestartować Home Assistant?')) {
+          restartBtn.disabled = true;
+          restartBtn.textContent = '⏳ Restartowanie...';
+          try {
+            await this._hass.callService('homeassistant', 'restart', {});
+            this._needsRestart = false;
+          } catch (e) {
+            alert('Błąd restartu: ' + e.message);
+            restartBtn.disabled = false;
+            restartBtn.textContent = '🔄 Restartuj HA';
+          }
+        }
+      });
+    }
+
+    // YAML file checkboxes
+    root.querySelectorAll('[data-yaml-file]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const file = cb.dataset.yamlFile;
+        if (e.target.checked) {
+          this._yamlPropagateFiles.add(file);
+        } else {
+          this._yamlPropagateFiles.delete(file);
+        }
+      });
+    });
 
     const executeRenames = root.getElementById('executeRenames');
     if (executeRenames) {
