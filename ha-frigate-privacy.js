@@ -371,13 +371,17 @@ class HaFrigatePrivacy extends HTMLElement {
         return;
       }
     }
-    // 3. Fallback: check if any camera.frigate_* entities exist
-    const hasFrigateCameras = Object.keys(this._hass.states).some(id =>
-      id.startsWith('camera.') && (
+    // 3. Fallback: check if any Frigate cameras exist (by name, client_id attribute, or entity_picture)
+    const hasFrigateCameras = Object.keys(this._hass.states).some(id => {
+      if (!id.startsWith('camera.')) return false;
+      const camState = this._hass.states[id];
+      const attrs = camState.attributes || {};
+      return (
         id.includes('frigate') ||
-        (this._hass.states[id].attributes.entity_picture || '').includes('frigate')
-      )
-    );
+        (attrs.client_id || '').toLowerCase() === 'frigate' ||
+        (attrs.entity_picture || '').includes('frigate')
+      );
+    });
     if (hasFrigateCameras) {
       this._frigateRunning = true;
       return;
