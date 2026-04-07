@@ -1331,17 +1331,23 @@ tap_action:
   --bento-card: var(--card-background-color, #FFFFFF);
   --bento-primary: #3B82F6;
   --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
   --bento-text: var(--primary-text-color, #1E293B);
   --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-border: var(--divider-color, #E2E8F0);
   --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
   --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
-  --bento-radius-sm: 10px;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
   --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
   color-scheme: light dark;
@@ -1376,7 +1382,7 @@ tap_action:
   margin-bottom: 20px;
   padding: 16px 20px;
   background: var(--bento-card);
-  border-radius: var(--bento-radius-sm);
+  border-radius: var(--bento-radius-md);
   box-shadow: var(--bento-shadow-sm);
   border: 1px solid var(--bento-border);
 }
@@ -1449,7 +1455,7 @@ tap_action:
 /* Sections */
 .section {
   background: var(--bento-card);
-  border-radius: var(--bento-radius-sm);
+  border-radius: var(--bento-radius-md);
   padding: 16px 20px;
   margin-bottom: 12px;
   box-shadow: var(--bento-shadow-sm);
@@ -1471,7 +1477,7 @@ tap_action:
   padding: 16px 20px;
   background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.15));
   border: 1px solid rgba(239,68,68,0.25);
-  border-radius: var(--bento-radius-sm);
+  border-radius: var(--bento-radius-md);
   margin-bottom: 12px;
 }
 
@@ -1515,7 +1521,7 @@ tap_action:
   padding: 5px 10px;
   border: 1px solid rgba(59,130,246,0.3);
   border-radius: var(--bento-radius-xs);
-  background: rgba(59,130,246,0.08);
+  background: var(--bento-primary-light);
   color: var(--bento-primary);
   font-size: 12px;
   font-weight: 600;
@@ -1564,7 +1570,7 @@ tap_action:
 
 .camera-card.selected {
   border-color: var(--bento-primary);
-  background: rgba(59,130,246,0.08);
+  background: var(--bento-primary-light);
 }
 
 .camera-status { font-size: 14px; }
@@ -1701,8 +1707,8 @@ tap_action:
   transition: var(--bento-transition);
 }
 
-.btn-icon:hover { background: rgba(59,130,246,0.08); }
-.btn-icon-danger:hover { background: rgba(239,68,68,0.08); }
+.btn-icon:hover { background: var(--bento-primary-light); }
+.btn-icon-danger:hover { background: var(--bento-error-light); }
 
 /* Schedule form */
 .schedule-form { margin-top: 12px; }
