@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -101,6 +103,8 @@ class HaEnergyOptimizer extends HTMLElement {
     return document.createElement('ha-energy-optimizer-editor');
   }
 
+  getCardSize() { return 8; }
+
   static getStubConfig() {
     return {
       type: 'custom:ha-energy-optimizer',
@@ -116,6 +120,33 @@ class HaEnergyOptimizer extends HTMLElement {
   _sanitize(str) {
     if (!str) return str;
     try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
+
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Optymalizator Energii',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        locale: 'pl-PL',
+      },
+      en: {
+        title: 'Energy Optimizer',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -501,8 +532,8 @@ class HaEnergyOptimizer extends HTMLElement {
     const lastYearMonthStart = new Date(now.getFullYear() - 1, now.getMonth(), 1);
     const lastYearMonthEnd = new Date(now.getFullYear() - 1, now.getMonth() + 1, 0);
     lastYearMonthEnd.setDate(lastYearMonthEnd.getDate() + 1); // exclusive end
-    const lastYearMonthKwh = this._sumRange(lastYearMonthStart, lastYearMonthEnd);
-    const lastYearMonthDaily = this._dailyRange(lastYearMonthStart, lastYearMonthEnd);
+    const lastYearMonthKwh = this._sumRange(lastYearMonthStart, lastYearMonthEnd) || 0;
+    const lastYearMonthDaily = this._dailyRange(lastYearMonthStart, lastYearMonthEnd) || [];
 
     // Monthly totals for last 12 months (for chart)
     const monthlyTotals = [];
@@ -510,7 +541,7 @@ class HaEnergyOptimizer extends HTMLElement {
       const ms = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const me = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
       const label = ms.toLocaleString('default', { month: 'short', year: '2-digit' });
-      monthlyTotals.push({ label, kwh: this._sumRange(ms, me) });
+      monthlyTotals.push({ label, kwh: this._sumRange(ms, me) || 0 });
     }
 
     // Weekly totals for last 8 weeks
@@ -519,15 +550,15 @@ class HaEnergyOptimizer extends HTMLElement {
       const ws = new Date(thisWeekStart); ws.setDate(ws.getDate() - i * 7);
       const we = new Date(ws); we.setDate(we.getDate() + 7);
       const wn = ws.toLocaleDateString('default', { day: 'numeric', month: 'short' });
-      weeklyTotals.push({ label: wn, kwh: this._sumRange(ws, we > now ? today : we) });
+      weeklyTotals.push({ label: wn, kwh: this._sumRange(ws, we > now ? today : we) || 0 });
     }
 
     this._comparisonData = {
       rate, currency,
       // Week
-      thisWeekKwh, lastWeekKwh, thisWeekDaily, lastWeekDaily,
+      thisWeekKwh, lastWeekKwh, thisWeekDaily: thisWeekDaily || [], lastWeekDaily: lastWeekDaily || [],
       // Month
-      thisMonthKwh, lastMonthKwh, thisMonthDaily, lastMonthDaily,
+      thisMonthKwh, lastMonthKwh, thisMonthDaily: thisMonthDaily || [], lastMonthDaily: lastMonthDaily || [],
       // Year
       lastYearMonthKwh, lastYearMonthDaily, thisMonthLabel: now.toLocaleString('default', { month: 'long' }),
       // Aggregates
@@ -610,7 +641,7 @@ class HaEnergyOptimizer extends HTMLElement {
       </div>
 
       ${mode !== 'y-y' ? `
-      <div class="chart-container" style="height:200px">
+      <div class="chart-container" style="height:200px;overflow:hidden">
         <div class="chart-title">
           <span>${mode === 'w-w' ? 'Ostatnie 8 tygodni' : 'Ostatnie 12 miesięcy'}</span>
         </div>
@@ -620,6 +651,7 @@ class HaEnergyOptimizer extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
     const L = this._lang === 'pl';
     if (!this._domBuilt) {
       // First render: full DOM build
@@ -731,7 +763,7 @@ class HaEnergyOptimizer extends HTMLElement {
         .power-draw { text-align: center; padding: 14px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 16px; }
         .power-draw-value { font-size: 28px; font-weight: 700; color: var(--bento-primary); }
         .power-draw-unit { font-size: 11px; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; }
-        .chart-container { position: relative; height: 280px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 16px; }
+        .chart-container { position: relative; height: 280px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 16px; overflow: hidden; }
         .chart-title { font-size: 13px; font-weight: 600; color: var(--bento-text); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         .chart-title span:last-child { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; }
         canvas { max-width: 100% !important; border: none !important; display: block !important; }
@@ -774,8 +806,13 @@ class HaEnergyOptimizer extends HTMLElement {
         .pagination-btn:disabled { opacity: .4; cursor: not-allowed; }
         .pagination-info { font-size: 12px; color: var(--bento-text-secondary); }
         .page-size-select { padding: 5px 8px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs); font-size: 12px; font-family: 'Inter', sans-serif; background: var(--bento-card); color: var(--bento-text); }
-        @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+        
+        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
+        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
+@media (max-width: 768px) {
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab-btn { padding: 6px 10px; font-size: 12px; }
           .card { padding: 14px; }
           .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -787,7 +824,10 @@ class HaEnergyOptimizer extends HTMLElement {
           .tab-btn { padding: 5px 8px; font-size: 11px; }
           .summary-value, .comparison-value { font-size: 16px; }
         }
-      
+        @media (max-width: 360px) {
+          .grid, .stats-row, .comparison-grid { grid-template-columns: 1fr; }
+        }
+
 
 
         /* G6: Chart container constraints */
@@ -1227,8 +1267,8 @@ _drawHeatmap() {
 
     const width = rect.width;
     const height = 200;
-    const padding = 40;
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const padding = rect.width < 350 ? 20 : 40;
+    const days = rect.width < 350 ? ['M','T','W','T','F','S','S'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const cellWidth = (width - padding * 2) / 24;
     const cellHeight = (height - padding * 2) / 7;
 
@@ -1278,7 +1318,8 @@ _drawHeatmap() {
     // Hour labels (X-axis)
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    for (let h = 0; h < 24; h += 3) {
+    const hourStep = rect.width < 350 ? 6 : 3;
+    for (let h = 0; h < 24; h += hourStep) {
       const x = padding + (h + 0.5) * cellWidth;
       ctx.fillText(h + ':00', x, height - padding + 5);
     }
@@ -1330,7 +1371,8 @@ _drawHeatmap() {
           plugins: {
             legend: {
               display: true,
-              position: 'top'
+              position: 'top',
+              labels: { boxWidth: 12, padding: 8, font: { size: 11 } }
             },
             tooltip: {
               callbacks: {
@@ -1410,7 +1452,8 @@ async _drawWeekdayChart() {
           plugins: {
             legend: {
               display: true,
-              position: 'top'
+              position: 'top',
+              labels: { boxWidth: 12, padding: 8, font: { size: 11 } }
             },
             tooltip: {
               callbacks: {
@@ -1481,7 +1524,7 @@ async _drawComparisonChart() {
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: true, position: 'top' }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${parseFloat(c.formattedValue).toFixed(2)} kWh` } } },
+          plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${parseFloat(c.formattedValue).toFixed(2)} kWh` } } },
           scales: { y: { beginAtZero: true, title: { display: true, text: 'kWh' } }, x: { title: { display: true, text: mode === 'w-w' ? 'Dzień tygodnia' : 'Dzień miesiąca' } } }
         }
       });
@@ -1663,9 +1706,6 @@ async _drawComparisonChart() {
 }
 
 if (!customElements.get('ha-energy-optimizer')) { customElements.define('ha-energy-optimizer', HaEnergyOptimizer); }
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-energy-optimizer', name: 'Energy Optimizer', description: 'Optimize energy consumption with peak/off-peak analysis', preview: false });
-
 class HaEnergyOptimizerEditor extends HTMLElement {
   constructor() {
     super();
@@ -1713,3 +1753,8 @@ class HaEnergyOptimizerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-energy-optimizer-editor')) { customElements.define('ha-energy-optimizer-editor', HaEnergyOptimizerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-energy-optimizer', name: 'Energy Optimizer', description: 'Optimize energy consumption with peak/off-peak analysis', preview: false });

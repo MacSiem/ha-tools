@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -100,6 +102,8 @@ class HAEnergyEmail extends HTMLElement {
     this._helpersReady = false;
     this._discoveryDone = false;
     this._excludedDevices = new Set();
+    this._devicePage = 0;
+    this._devicesPerPage = 20;
     // Default schedule times
     this._scheduleDefaults = { daily: '07:30', weekly_day: 'mon', weekly_time: '08:00', monthly_time: '08:00' };
   }
@@ -133,6 +137,33 @@ class HAEnergyEmail extends HTMLElement {
     }
     this._updateLiveData();
     this._lastRenderTime = now;
+  }
+
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Email Energetyczny',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+      },
+      en: {
+        title: 'Energy Email',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -662,6 +693,7 @@ class HAEnergyEmail extends HTMLElement {
   // --- main render ---
 
   _render() {
+    if (!this._hass) return;
     const L = this._lang === 'pl';
     const recipient = this._getRecipient();
     const service = this._getNotifyService();
@@ -705,32 +737,36 @@ class HAEnergyEmail extends HTMLElement {
         @media (prefers-color-scheme: dark) {
           :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
         }
-        .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); }
+        .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); box-sizing: border-box; max-width: 100%; overflow: hidden; }
         .header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
         .header-icon { font-size: 24px; }
         .header-title { font-size: 17px; font-weight: 700; color: var(--bento-text); }
         .header-sub { font-size: 12px; color: var(--bento-text-secondary); margin-top: 1px; }
-        .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; }
+        .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--bento-border) transparent; -webkit-overflow-scrolling: touch; }
+        .tabs::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 4px; }
         .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--bento-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; font-family: 'Inter', sans-serif; border-radius: 0; }
         .tab-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
         .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); font-weight: 600; }
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-        .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-        @media (max-width: 500px) { .grid3 { grid-template-columns: 1fr 1fr; } }
-        .stat { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; min-width: 0; overflow: hidden; }
-        .stat-val { font-size: 24px; font-weight: 700; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .stat-lbl { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+        .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        @media (max-width: 768px) { .grid3 { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 480px) { .grid3 { grid-template-columns: 1fr; } .grid2 { grid-template-columns: repeat(2, 1fr); } }
+        .stat { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; min-width: 0; overflow: hidden; box-sizing: border-box; }
+        .stat-value { font-size: 24px; font-weight: 700; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .stat-label { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
         .stat-sub { font-size: 11px; color: var(--bento-text-muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .section-title { font-size: 13px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
-        .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--bento-radius-xs); transition: background .15s; }
+        .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--bento-radius-xs); transition: background .15s; box-sizing: border-box; max-width: 100%; overflow: hidden; }
         .device-row:hover { background: var(--bento-primary-light); }
-        .device-name { flex: 1; font-size: 13px; color: var(--bento-text); }
-        .device-val { font-size: 12px; font-weight: 600; color: var(--bento-primary); min-width: 70px; text-align: right; }
+        .device-name { flex: 1; font-size: 13px; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .device-val { font-size: 12px; font-weight: 600; color: var(--bento-primary); min-width: 70px; text-align: right; white-space: nowrap; flex-shrink: 0; }
         .device-bar-wrap { flex: 1; background: var(--bento-border); border-radius: 4px; height: 6px; overflow: hidden; }
         .device-bar { height: 100%; background: var(--bento-primary); border-radius: 4px; transition: width .4s; }
-        .schedule-card { border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 10px; }
-        .schedule-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .schedule-name { font-size: 14px; font-weight: 600; color: var(--bento-text); }
+        .schedule-card { border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 10px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
+        .schedule-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; overflow: hidden; }
+        .schedule-name { font-size: 14px; font-weight: 600; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
         .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
         .badge-ok { background: var(--bento-success-light); color: var(--bento-success); }
         .badge-er { background: var(--bento-error-light); color: var(--bento-error); }
@@ -760,7 +796,7 @@ class HAEnergyEmail extends HTMLElement {
         .guide-step { display: flex; gap: 12px; }
         .step-num { flex-shrink: 0; width: 28px; height: 28px; background: var(--bento-primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
         .guide-step p { margin: 4px 0; font-size: 13px; color: var(--bento-text-secondary); line-height: 1.5; }
-        .guide-step pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; white-space: pre; margin: 8px 0; }
+        .guide-step pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; white-space: pre; margin: 8px 0; max-width: 100%; box-sizing: border-box; }
         .guide-step a { color: var(--bento-primary); text-decoration: none; }
         .guide-step a:hover { text-decoration: underline; }
         .guide-alt { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bento-border); }
@@ -780,6 +816,11 @@ class HAEnergyEmail extends HTMLElement {
         .preview-table tr:last-child td { border-bottom: none; }
         .trend-up { color: var(--bento-error); }
         .trend-down { color: var(--bento-success); }
+        .pagination-row { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0 4px; }
+        .pagination-btn { padding: 6px 14px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-xs); background: var(--bento-bg); color: var(--bento-text); font-size: 12px; cursor: pointer; transition: all .15s; }
+        .pagination-btn:hover:not([disabled]) { background: var(--bento-primary-light); border-color: var(--bento-primary); color: var(--bento-primary); }
+        .pagination-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+        .pagination-info { font-size: 12px; color: var(--bento-text-secondary); }
         .info-row { display: flex; gap: 6px; align-items: flex-start; padding: 10px; background: var(--bento-primary-light); border-radius: var(--bento-radius-xs); margin-bottom: 12px; font-size: 12px; color: var(--bento-text); }
         .info-warn { background: var(--bento-warning-light); }
         .auto-on { color: var(--bento-success); }
@@ -823,17 +864,20 @@ class HAEnergyEmail extends HTMLElement {
         .config-input:focus { border-color: var(--bento-primary); outline: none; box-shadow: 0 0 0 3px var(--bento-primary-light); }
         .device-count { font-size: 11px; color: var(--bento-text-muted); font-weight: 400; }
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card { padding: 14px; }
           .grid3 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .stat-val { font-size: 18px; }
-          .stat-lbl { font-size: 10px; }
+          .grid2 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-value { font-size: 18px; }
+          .stat-label { font-size: 10px; }
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
           .tab-btn { padding: 5px 8px; font-size: 11px; }
-          .stat-val { font-size: 16px; }
+          .grid3 { grid-template-columns: 1fr; gap: 8px; }
+          .grid2 { grid-template-columns: 1fr; gap: 8px; }
+          .stat-value { font-size: 16px; }
         }
       
 
@@ -858,10 +902,10 @@ class HAEnergyEmail extends HTMLElement {
       </div>
       <div class="toast" id="toast"></div>
     `
-    this.shadowRoot.querySelectorAll('.tab').forEach(t => {
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(t => {
       t.addEventListener('click', () => {
         this._activeTab = t.dataset.tab;
-        this.shadowRoot.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+        this.shadowRoot.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
         t.classList.add('active');
         this._renderTab();
       });
@@ -930,8 +974,8 @@ class HAEnergyEmail extends HTMLElement {
         <span>${this._config.currency}</span>
         <input type="number" id="price-input" value="${cur}" step="0.01" min="0" style="width:70px;padding:3px 6px;border:1.5px solid var(--bento-primary);border-radius:4px;font-size:12px;background:var(--bento-card);color:var(--bento-text);font-family:'Inter',sans-serif;text-align:center">
         <span>/kWh</span>
-        <button id="price-save" class="btn btn-primary" style="padding:3px 10px;font-size:11px;margin:0">\u2714</button>
-        <button id="price-cancel" class="btn" style="padding:3px 8px;font-size:11px;margin:0">\u2716</button>
+        <button id="price-save" class="btn btn-primary" style="padding:3px 10px;font-size:11px;margin:0" aria-label="Save">\u2714</button>
+        <button id="price-cancel" class="btn" style="padding:3px 8px;font-size:11px;margin:0" aria-label="Cancel">\u2716</button>
       </span>`;
       // Find just the price part and replace
       const priceSpan = root.getElementById('price-display');
@@ -981,6 +1025,7 @@ class HAEnergyEmail extends HTMLElement {
       btn.addEventListener('click', () => {
         const p = btn.dataset.period;
         this._overviewPeriod = p;
+        this._devicePage = 0;
         // Refresh recorder stats if cache is older than 60s
         const cacheTime = this[`_periodCacheTime_${p}`] || 0;
         if (p !== 'total' && Date.now() - cacheTime > 60000) {
@@ -989,6 +1034,10 @@ class HAEnergyEmail extends HTMLElement {
         this._renderTab();
       });
     });
+    const prevBtn = this.shadowRoot.querySelector('[data-page-prev]');
+    if (prevBtn) prevBtn.addEventListener('click', () => { this._devicePage = Math.max(0, (this._devicePage || 0) - 1); this._renderTab(); });
+    const nextBtn = this.shadowRoot.querySelector('[data-page-next]');
+    if (nextBtn) nextBtn.addEventListener('click', () => { this._devicePage = (this._devicePage || 0) + 1; this._renderTab(); });
   }
 
   _attachPeriodEvents() {
@@ -1061,34 +1110,47 @@ class HAEnergyEmail extends HTMLElement {
       </div>
       <div class="grid3">
         <div class="stat">
-          <div class="stat-val" style="color:#F59E0B">${totalEnergy.toFixed(1)}</div>
-          <div class="stat-lbl">kWh ${periodLabel}</div>
+          <div class="stat-value" style="color:#F59E0B">${totalEnergy.toFixed(1)}</div>
+          <div class="stat-label">kWh ${periodLabel}</div>
           <div class="stat-sub">${displayData.length} ${L ? 'urz\u0105dze\u0144' : 'devices'}</div>
         </div>
         <div class="stat">
-          <div class="stat-val" style="color:#3B82F6">${totalCost.toFixed(2)}</div>
-          <div class="stat-lbl">${this._config.currency} ${L ? 'Koszt' : 'Cost'}</div>
+          <div class="stat-value" style="color:#3B82F6">${totalCost.toFixed(2)}</div>
+          <div class="stat-label">${this._config.currency} ${L ? 'Koszt' : 'Cost'}</div>
           <div class="stat-sub">@ ${this._getTariffLabel()}</div>
         </div>
         <div class="stat">
-          <div class="stat-val" style="color:#10B981">${displayData.length > 0 ? displayData[0].name.split(' ').slice(0,2).join(' ') : '-'}</div>
-          <div class="stat-lbl">${L ? 'Najwi\u0119ksze zu\u017Cycie' : 'Top Consumer'}</div>
+          <div class="stat-value" style="color:#10B981">${displayData.length > 0 ? displayData[0].name.split(' ').slice(0,2).join(' ') : '-'}</div>
+          <div class="stat-label">${L ? 'Najwi\u0119ksze zu\u017Cycie' : 'Top Consumer'}</div>
           <div class="stat-sub">${displayData.length > 0 ? displayData[0].month.toFixed(1) + ' kWh' : ''}</div>
         </div>
       </div>
       <div class="section-title">\u26A1 ${L ? 'Zu\u017Cycie wg urz\u0105dzenia' : 'Energy by Device'}</div>
-      ${displayData.map(d => {
-        const pct = maxVal > 0 ? (d.month / maxVal * 100) : 0;
-        const diff = d.month - d.lastMonth;
-        const diffStr = d.lastMonth > 0 && diff !== 0 ? `<span class="${diff > 0 ? 'trend-up' : 'trend-down'}">${diff > 0 ? '+' : ''}${diff.toFixed(1)} kWh</span>` : '';
-        const entityInfo = d.entity_id ? `<span style="font-size:10px;color:var(--bento-text-muted)" title="${d.entity_id}">${d.entity_id.split('.')[1].substring(0,20)}</span>` : '';
-        return `<div class="device-row" title="${d.entity_id || d.name}">
-          <div class="device-name">${d.name} ${entityInfo}</div>
-          <div class="device-bar-wrap"><div class="device-bar" style="width:${pct}%"></div></div>
-          <div class="device-val">${d.month.toFixed(1)} kWh</div>
-          <div style="font-size:11px;color:var(--bento-text-secondary);min-width:60px;text-align:right">${diffStr}</div>
-        </div>`;
-      }).join('')}`;
+      ${(() => {
+        const page = this._devicePage || 0;
+        const perPage = this._devicesPerPage || 20;
+        const totalPages = Math.ceil(displayData.length / perPage);
+        const pageData = displayData.slice(page * perPage, (page + 1) * perPage);
+        const rows = pageData.map(d => {
+          const pct = maxVal > 0 ? (d.month / maxVal * 100) : 0;
+          const diff = d.month - d.lastMonth;
+          const diffStr = d.lastMonth > 0 && diff !== 0 ? `<span class="${diff > 0 ? 'trend-up' : 'trend-down'}">${diff > 0 ? '+' : ''}${diff.toFixed(1)} kWh</span>` : '';
+          const entityInfo = d.entity_id ? `<span style="font-size:10px;color:var(--bento-text-muted)" title="${d.entity_id}">${d.entity_id.split('.')[1].substring(0,20)}</span>` : '';
+          return `<div class="device-row" title="${d.entity_id || d.name}">
+            <div class="device-name">${d.name} ${entityInfo}</div>
+            <div class="device-bar-wrap"><div class="device-bar" style="width:${pct}%"></div></div>
+            <div class="device-val">${d.month.toFixed(1)} kWh</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary);min-width:60px;text-align:right">${diffStr}</div>
+          </div>`;
+        }).join('');
+        const pagination = totalPages > 1 ? `
+          <div class="pagination-row">
+            <button class="pagination-btn" data-page-prev ${page === 0 ? 'disabled' : ''}>\u2190 ${L ? 'Poprzednia' : 'Prev'}</button>
+            <span class="pagination-info">${L ? 'Strona' : 'Page'} ${page + 1} / ${totalPages}</span>
+            <button class="pagination-btn" data-page-next ${page >= totalPages - 1 ? 'disabled' : ''}>${L ? 'Nast\u0119pna' : 'Next'} \u2192</button>
+          </div>` : '';
+        return rows + pagination;
+      })()}`;
   }
 
   _tabSchedule() {
@@ -1229,9 +1291,12 @@ class HAEnergyEmail extends HTMLElement {
   _tabSend() {
     const L = this._lang === 'pl';
     const service = this._getNotifyService();
+    const smtpConfig = this._renderSmtpSection();
     return `
       <div class="info-row">\u{1F4E4}\u00A0 ${L ? 'R\u0119cznie wy\u015Blij raport energii via <b>notify.' + (service || 'email_report') + '</b>.' : 'Manually trigger an energy report via <b>notify.' + (service || 'email_report') + '</b>.'}</div>
-      ${!service ? `<div class="info-row info-warn">\u26A0\uFE0F\u00A0 ${L ? '<b>Nie wykryto serwisu email.</b> Skonfiguruj SMTP w zak\u0142adce Schedule.' : '<b>No email service detected.</b> Configure SMTP in the Schedule tab.'}</div>` : ''}
+      ${!service ? `<div class="info-row info-warn">\u26A0\uFE0F\u00A0 ${L ? '<b>Nie wykryto serwisu email.</b> Skonfiguruj SMTP w zak\u0142adce Schedule lub w ustawieniach Home Assistant.' : '<b>No email service detected.</b> Configure SMTP in the Schedule tab or Home Assistant settings.'}</div>` : ''}
+      ${smtpConfig}
+      <div style="font-size:12px;color:var(--bento-text-secondary);margin:16px 0 12px;padding:10px;background:var(--bento-primary-light);border-radius:var(--bento-radius-xs)">${L ? '💡 Konfiguracja SMTP w: HA Tools Panel → Settings → Log Email' : '💡 SMTP configuration in: HA Tools Panel → Settings → Log Email'}</div>
       <div class="schedule-card">
         <div class="schedule-row"><div class="schedule-name">\u2600\uFE0F ${L ? 'Wy\u015Blij raport dzienny' : 'Send Daily Report Now'}</div><span class="badge badge-pr">Manual</span></div>
         <div id="last-daily" class="last-sent">${this._lastSent.daily ? 'Last sent: ' + this._lastSent.daily : ''}</div>
@@ -1609,7 +1674,7 @@ class HAEnergyEmail extends HTMLElement {
     const price = this._getAvgRate();
     const currency = this._config.currency || 'PLN';
     const dateStr = new Date().toISOString().split('T')[0];
-    const nowStr = new Date().toLocaleString('pl-PL', { hour12: false });
+    const nowStr = new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { hour12: false });
     try {
       if (!svc) throw new Error(L ? 'Nie znaleziono serwisu email' : 'No email service found');
       // Get device data — fetch from recorder for period reports
@@ -1799,12 +1864,13 @@ class HAEnergyEmail extends HTMLElement {
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3500);
   }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
 }
 
-customElements.define('ha-energy-email', HAEnergyEmail);
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-energy-email', name: 'Energy Email Reports', description: 'Send energy reports via email. Auto-discovers energy sensors.', preview: true });
-
+if (!customElements.get('ha-energy-email')) customElements.define('ha-energy-email', HAEnergyEmail);
 class HaEnergyEmailEditor extends HTMLElement {
   constructor() {
     super();
@@ -1862,3 +1928,8 @@ class HaEnergyEmailEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-energy-email-editor')) { customElements.define('ha-energy-email-editor', HaEnergyEmailEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-energy-email', name: 'Energy Email Reports', description: 'Send energy reports via email. Auto-discovers energy sensors.', preview: true });

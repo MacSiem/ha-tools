@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -281,6 +282,7 @@ class HATraceViewer extends HTMLElement {
         entityChanged: 'changed to', triggeredByAction: 'triggered by action',
         copyJson: 'Copy', copied: 'Copied!',
         selectMode: 'Select', cancel: 'Cancel',
+        previousPage: 'Previous page', nextPage: 'Next page',
       },
             pl: {
         traceViewer: 'Przegl\u0105darka \u015alad\u00f3w', automations: 'Automatyzacje', allTraces: 'Wszystkie',
@@ -313,6 +315,7 @@ class HATraceViewer extends HTMLElement {
         entityChanged: 'zmieniono na', triggeredByAction: 'wyzwolone przez akcj\u0119',
         copyJson: 'Kopiuj', copied: 'Skopiowano!',
         selectMode: 'Zaznacz', cancel: 'Anuluj',
+        previousPage: 'Poprzednia strona', nextPage: 'Nast\u0119pna strona',
       },
     };
   }
@@ -943,9 +946,9 @@ class HATraceViewer extends HTMLElement {
     const pageList = this.automations.slice(this.autoPage * ps, (this.autoPage + 1) * ps);
 
     const pag = totalPages > 1 ? `<div class="pag">
-      <button class="pag-btn" data-apdir="-1" ${this.autoPage === 0 ? 'disabled' : ''}>\u2039</button>
+      <button class="pag-btn" data-apdir="-1" ${this.autoPage === 0 ? 'disabled' : ''} aria-label="${this._t('previousPage')}">\u2039</button>
       <span class="pag-info">${this.autoPage + 1}/${totalPages} (${this.automations.length})</span>
-      <button class="pag-btn" data-apdir="1" ${this.autoPage >= totalPages - 1 ? 'disabled' : ''}>\u203A</button>
+      <button class="pag-btn" data-apdir="1" ${this.autoPage >= totalPages - 1 ? 'disabled' : ''} aria-label="${this._t('nextPage')}">\u203A</button>
       <select class="pag-size" id="autoPagSize">
         <option value="15" ${ps === 15 ? 'selected' : ''}>15</option>
         <option value="30" ${ps === 30 ? 'selected' : ''}>30</option>
@@ -1125,6 +1128,7 @@ class HATraceViewer extends HTMLElement {
   // ============================================================
 
   render() {
+    if (!this._hass) return;
     const selN = this.selectedTraceIds.size;
     this.shadowRoot.innerHTML = `${this._css()}
     <div class="card">
@@ -1420,8 +1424,8 @@ class HATraceViewer extends HTMLElement {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 .card {
-  display: flex; height: 100%; background: var(--bento-card); color: var(--bento-text);
-  border-radius: var(--radius); overflow: hidden;
+  display: flex; height: 100%; background: var(--bento-card); color: var(--bento-text); container-type: inline-size;
+  border-radius: var(--radius); overflow: visible;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   border: 1px solid var(--bento-border); box-shadow: var(--shadow);
 }
@@ -1431,6 +1435,7 @@ class HATraceViewer extends HTMLElement {
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 20px; border-bottom: 1px solid var(--bento-border); background: var(--bento-card);
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 .title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .topbar-r { display: flex; gap: 8px; align-items: center; }
@@ -1465,13 +1470,13 @@ class HATraceViewer extends HTMLElement {
   display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px;
   border-bottom: 1px solid var(--bento-border); background: var(--bento-bg); align-items: center;
 }
-.cg { display: flex; gap: 8px; align-items: center; font-size: 12px; }
+.cg { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; flex-shrink: 0; }
 .cg label {
   display: block; font-size: 12px; font-weight: 600; color: var(--bento-text-secondary);
   text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap;
 }
 .cg select, .cg input {
-  padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-xs);
+  width: auto; padding: 6px 10px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-xs);
   background: var(--bento-card); color: var(--bento-text); font-size: 13px;
   font-family: 'Inter', sans-serif; transition: var(--tr); outline: none;
 }
@@ -1555,6 +1560,7 @@ class HATraceViewer extends HTMLElement {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 12px 16px; font-size: 13px; color: var(--bento-text-secondary); border-bottom: 1px solid var(--bento-border);
 }
+@container (max-width: 600px) { .pag { display: none !important; } }
 .pag-btn {
   padding: 8px 14px; border: 1.5px solid var(--bento-border); border-radius: var(--radius-xs);
   background: var(--bento-card); color: var(--bento-text); cursor: pointer; font-size: 13px;
@@ -1772,9 +1778,9 @@ class HATraceViewer extends HTMLElement {
 @media (max-width: 768px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
   .panels { flex-direction: column; }
-  .pan-left { display: block !important; width: 100% !important; max-height: 40vh; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--bento-border); min-width: auto; }
+  .pan-left { display: block !important; width: 100% !important; max-height: 30vh; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--bento-border); min-width: auto; }
   .pan-center { width: 100% !important; min-width: 0 !important; flex: 1; }
-  .pan-right { display: block !important; width: 100% !important; min-width: auto; max-height: 50vh; overflow-y: auto; border-right: none; border-top: 1px solid var(--bento-border); }
+  .pan-right { display: block !important; width: 100% !important; min-width: auto; max-height: none; overflow-y: auto; border-right: none; border-top: 1px solid var(--bento-border); flex: 1; min-height: 300px; }
   .pan-right:empty, .pan-right .empty { display: none; }
 }
 
@@ -1782,7 +1788,7 @@ class HATraceViewer extends HTMLElement {
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1808,11 +1814,11 @@ class HATraceViewer extends HTMLElement {
 .card.compact-hide-left .pan-center.expanded { min-width: 100%; }
 .card.compact-mobile .stats { grid-template-columns: repeat(2, 1fr); }
 .card.compact-mobile .panels { flex-direction: column; }
-.card.compact-mobile .pan-left { display: block !important; width: 100% !important; max-height: 40vh; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--bento-border); min-width: auto; }
+.card.compact-mobile .pan-left { display: block !important; width: 100% !important; max-height: 30vh; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--bento-border); min-width: auto; }
 .card.compact-mobile .pan-center { width: 100% !important; min-width: 0 !important; flex: 1; }
-.card.compact-mobile .pan-right { display: block !important; width: 100% !important; min-width: auto; max-height: 50vh; overflow-y: auto; border-right: none; border-top: 1px solid var(--bento-border); }
+.card.compact-mobile .pan-right { display: block !important; width: 100% !important; min-width: auto; max-height: none; overflow-y: auto; border-right: none; border-top: 1px solid var(--bento-border); flex: 1; min-height: 300px; }
 .card.compact-mobile .pan-right:empty, .card.compact-mobile .pan-right .empty { display: none; }
-.card.compact-mobile .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+.card.compact-mobile .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
 .card.compact-mobile .tab, .card.compact-mobile .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
 .card.compact-mobile .card-container { padding: 14px; }
 .card.compact-mobile .stats, .card.compact-mobile .stats-grid, .card.compact-mobile .summary-grid, .card.compact-mobile .stat-cards, .card.compact-mobile .kpi-grid, .card.compact-mobile .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1843,14 +1849,14 @@ class HATraceViewer extends HTMLElement {
     if (this._resizeObserver) { this._resizeObserver.disconnect(); this._resizeObserver = null; }
   }
   static getConfigElement() { return document.createElement('ha-trace-viewer-editor'); }
+  getCardSize() { return 10; }
+
   static getStubConfig() { return { type: 'custom:ha-trace-viewer', title: 'Trace Viewer' }; }
 }
 
-customElements.define('ha-trace-viewer', HATraceViewer);
+if (!customElements.get('ha-trace-viewer')) customElements.define('ha-trace-viewer', HATraceViewer);
 
 
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-trace-viewer', name: 'Trace Viewer', description: 'Browse and analyze automation traces', preview: false });
 if (!customElements.get('ha-tools-panel')) {
   const _cs = document.currentScript?.src || '';
   const _bu = _cs.substring(0, _cs.lastIndexOf('/') + 1);
@@ -1894,3 +1900,8 @@ class HaTraceViewerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-trace-viewer-editor')) { customElements.define('ha-trace-viewer-editor', HaTraceViewerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-trace-viewer', name: 'Trace Viewer', description: 'Browse and analyze automation traces', preview: false });

@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -77,6 +79,7 @@ class HALogEmail extends HTMLElement {
     this._hass = null;
     this._config = {};
     this._activeTab = 'overview';
+    this._tabsScrollLeft = 0;
     this._logData = null;
     this._logHistory = [];
     try { const saved = sessionStorage.getItem('ha-log-email-history'); if (saved) this._logHistory = JSON.parse(saved); } catch(e) {}
@@ -114,6 +117,50 @@ class HALogEmail extends HTMLElement {
       this._fetchLogData();
       this._render();
     }
+  }
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Log Email',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'B\u0142\u0105d',
+        send: 'Wy\u015Blij',
+        test: 'Test',
+        errors: 'B\u0142\u0119dy',
+        warnings: 'Ostrze\u017Cenia',
+        info: 'Informacje',
+        lastFetch: 'Ostatnie pobranie',
+        sendEmail: 'Wy\u015Blij email',
+        emailSent: 'Email wys\u0142any',
+        emailFailed: 'B\u0142\u0105d wysy\u0142ki',
+        smtpOk: 'SMTP skonfigurowany',
+        smtpFail: 'B\u0142\u0105d SMTP',
+        newErrorsNotif: (n) => `\u26A0\uFE0F ${n} nowy(ch) b\u0142\u0119d\u00F3w w system_log`,
+        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+      },
+      en: {
+        title: 'Log Email',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        send: 'Send',
+        test: 'Test',
+        errors: 'Errors',
+        warnings: 'Warnings',
+        info: 'Info',
+        lastFetch: 'Last fetch',
+        sendEmail: 'Send email',
+        emailSent: 'Email sent',
+        emailFailed: 'Email failed',
+        smtpOk: 'SMTP configured',
+        smtpFail: 'SMTP error',
+        newErrorsNotif: (n) => `\u26A0\uFE0F ${n} new error(s) in system_log`,
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -238,7 +285,7 @@ class HALogEmail extends HTMLElement {
         // Send HA persistent notification
         try {
           await this._hass.callService('persistent_notification', 'create', {
-            title: `⚠️ ${newErrors.length} nowy(ch) błędów w system_log`,
+            title: this._t.newErrorsNotif(newErrors.length),
             message: newErrors.slice(0, 3).map(e => `**${e.name || 'unknown'}**: ${(Array.isArray(e.message) ? e.message[0] : String(e.message || '')).substring(0, 150)}`).join('\n\n'),
             notification_id: 'ha_log_email_poll_' + Date.now()
           });
@@ -294,9 +341,9 @@ class HALogEmail extends HTMLElement {
     try {
       await this._hass.callService('notify', service, {
         title: '\u2705 HA Tools Panel \u2014 SMTP Test (Log Email)',
-        message: 'SMTP jest poprawnie skonfigurowany.\nTestowy email z Log Email.\nCzas: ' + new Date().toLocaleString('pl-PL')
+        message: 'SMTP jest poprawnie skonfigurowany.\nTestowy email z Log Email.\nCzas: ' + new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'))
       });
-      this._smtpStatus = { ok: true, service, time: new Date().toLocaleTimeString('pl-PL') };
+      this._smtpStatus = { ok: true, service, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     } catch (e) {
       this._smtpStatus = { ok: false, service, error: e.message || 'Unknown error' };
     }
@@ -333,19 +380,34 @@ class HALogEmail extends HTMLElement {
     return '<div class="smtp-section smtp-missing">' +
       '<div class="smtp-header">' +
         '<span class="smtp-icon">\u26A0\uFE0F</span>' +
-        '<div>' +
-          '<div class="smtp-title">SMTP nie skonfigurowany</div>' +
-          '<div class="smtp-sub">Wysy\u0142anie email\u00F3w nie b\u0119dzie dzia\u0142a\u0107 bez integracji SMTP</div>' +
+        '<div class="smtp-info">' +
+          '<div class="smtp-title">' + (this._lang === 'pl' ? 'SMTP nie skonfigurowany' : 'SMTP not configured') + '</div>' +
+          '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Wysy\u0142anie emaili wymaga integracji SMTP' : 'Sending emails requires SMTP integration') + '</div>' +
         '</div>' +
-        '<span class="badge-er" style="margin-left:auto">\u274C</span>' +
       '</div>' +
       '<div class="smtp-guide">' +
-        '<p><strong>\u{1F4D6} Jak skonfigurowa\u0107?</strong></p>' +
-        '<p>Dodaj do <code>configuration.yaml</code>:</p>' +
-        '<pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;line-height:1.6;white-space:pre;margin:8px 0">notify:\n  - name: email_report\n    platform: smtp\n    server: smtp.gmail.com\n    port: 587\n    encryption: starttls\n    username: twoj@gmail.com\n    password: !secret gmail_app_password\n    sender: twoj@gmail.com\n    recipient: odbiorca@email.com</pre>' +
-        '<p>Dla Gmail: wygeneruj <b>App Password</b> na <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#3b82f6">myaccount.google.com/apppasswords</a></p>' +
-        '<p>Inne serwery: Outlook (<code>smtp.office365.com:587</code>), WP (<code>smtp.wp.pl:465</code>), Onet (<code>smtp.poczta.onet.pl:465</code>)</p>' +
-        '<p>Po konfiguracji zrestartuj HA.</p>' +
+        '<p style="font-size:12px;color:var(--bento-text-secondary);margin:8px 0">' +
+          (this._lang === 'pl'
+            ? '📋 <b>Konfiguracja w 3 krokach:</b>'
+            : '📋 <b>Setup in 3 steps:</b>') +
+        '</p>' +
+        '<ol style="margin:0;padding-left:20px;font-size:12px;color:var(--bento-text-secondary);line-height:1.8">' +
+          '<li>' + (this._lang === 'pl'
+            ? 'Otwórz <b>Settings → Integrations</b> w HA'
+            : 'Open <b>Settings → Integrations</b> in HA') + '</li>' +
+          '<li>' + (this._lang === 'pl'
+            ? 'Dodaj integrację <b>SMTP</b> (wyszukaj "smtp" lub "email")'
+            : 'Add <b>SMTP</b> integration (search "smtp" or "email")') + '</li>' +
+          '<li>' + (this._lang === 'pl'
+            ? 'Uzupełnij dane serwera (Gmail: smtp.gmail.com:587, Outlook: smtp.office365.com:587)'
+            : 'Fill in server details (Gmail: smtp.gmail.com:587, Outlook: smtp.office365.com:587)') + '</li>' +
+        '</ol>' +
+        '<details style="margin-top:10px">' +
+          '<summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary)">' +
+            (this._lang === 'pl' ? 'Alternatywa: konfiguracja YAML' : 'Alternative: YAML configuration') +
+          '</summary>' +
+          '<pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.5;margin:8px 0;white-space:pre">notify:\n  - name: email_report\n    platform: smtp\n    server: smtp.gmail.com\n    port: 587\n    encryption: starttls\n    username: your@gmail.com\n    password: !secret gmail_app_password\n    sender: your@gmail.com\n    recipient: recipient@email.com</pre>' +
+        '</details>' +
       '</div>' +
     '</div>';
   }
@@ -362,7 +424,7 @@ class HALogEmail extends HTMLElement {
       const data = this._logData;
       const errors = data ? (data.errors || []) : [];
       const warnings = data ? (data.warnings || []) : [];
-      const now = new Date().toLocaleString('pl-PL');
+      const now = new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'));
       const subject = period === 'daily'
         ? 'HA Log - Raport dzienny (' + now + ')'
         : 'HA Log - Raport tygodniowy (' + now + ')';
@@ -381,7 +443,7 @@ class HALogEmail extends HTMLElement {
       if (errors.length === 0 && warnings.length === 0) body += '<p style="color:#10b981">System czysty.</p>';
       body += '<hr><p style="font-size:11px;color:#999">HA Tools Log Email</p>';
       await this._hass.callService('notify', smtp.defaultService, { title: subject, message: body, data: { html: body } });
-      this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString('pl-PL') };
+      this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     } catch (err) {
       this._sendStatus = { status: 'error', period, error: (err.message || 'Unknown error') + ' — Sprawdz konfiguracje SMTP w configuration.yaml i przetestuj usluge notify w Narzedzia deweloperskie > Uslugi.' };
     }
@@ -413,7 +475,7 @@ class HALogEmail extends HTMLElement {
 
     const errors = data.errors || [];
     const warnings = data.warnings || [];
-    const date = new Date().toLocaleString('pl-PL', { timeZone: 'Europe/Warsaw' });
+    const date = new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { timeZone: 'Europe/Warsaw' });
 
     return `
       <div style="font-family:Arial,sans-serif;background:#1a1a2e;color:#e2e8f0;padding:16px;border-radius:8px;font-size:13px;max-height:300px;overflow-y:auto">
@@ -425,7 +487,7 @@ class HALogEmail extends HTMLElement {
           ${errors.length === 0 ? '<p style="color:#10b981">\u2705 No errors in last 24h</p>' :
             errors.slice(0, 10).map(e => `
               <div style="background:#2d1b1b;border-left:3px solid #ef4444;padding:6px 8px;margin-bottom:4px;border-radius:0 4px 4px 0">
-                <span style="color:#94a3b8;font-size:11px">${e.when ? new Date(e.when).toLocaleTimeString('pl-PL') : ''}</span>
+                <span style="color:#94a3b8;font-size:11px">${e.when ? new Date(e.when).toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) : ''}</span>
                 ${e.domain ? `<span style="color:#f87171;font-size:11px"> [${e.domain}]</span>` : ''}
                 <div style="margin-top:2px">${(e.message || '').substring(0, 120)}${(e.message || '').length > 120 ? '...' : ''}</div>
               </div>
@@ -438,7 +500,7 @@ class HALogEmail extends HTMLElement {
           ${warnings.length === 0 ? '<p style="color:#10b981">\u2705 No warnings in last 24h</p>' :
             warnings.slice(0, 10).map(e => `
               <div style="background:#2d2410;border-left:3px solid #f59e0b;padding:6px 8px;margin-bottom:4px;border-radius:0 4px 4px 0">
-                <span style="color:#94a3b8;font-size:11px">${e.when ? new Date(e.when).toLocaleTimeString('pl-PL') : ''}</span>
+                <span style="color:#94a3b8;font-size:11px">${e.when ? new Date(e.when).toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) : ''}</span>
                 ${e.domain ? `<span style="color:#fbbf24;font-size:11px"> [${e.domain}]</span>` : ''}
                 <div style="margin-top:2px">${(e.message || '').substring(0, 120)}${(e.message || '').length > 120 ? '...' : ''}</div>
               </div>
@@ -450,6 +512,7 @@ class HALogEmail extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
     const data = this._logData;
     const errors = data ? (data.errors || []) : [];
     const warnings = data ? (data.warnings || []) : [];
@@ -515,7 +578,7 @@ class HALogEmail extends HTMLElement {
           '<div class="empty-state">\u2705 No errors found in logbook for last 24h</div>' :
           errors.slice(0, 5).map(e => `
             <div class="log-entry error-entry">
-              <span class="log-time">${e.when ? new Date(e.when).toLocaleTimeString('pl-PL') : 'unknown'}</span>
+              <span class="log-time">${e.when ? new Date(e.when).toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) : 'unknown'}</span>
               <span class="log-domain error-domain">${e.domain || 'unknown'}</span>
               <span class="log-msg">${(e.message || '').substring(0, 100)}${(e.message || '').length > 100 ? '…' : ''}</span>
             </div>
@@ -527,14 +590,14 @@ class HALogEmail extends HTMLElement {
           '<div class="empty-state">\u2705 No warnings found in last 24h</div>' :
           warnings.slice(0, 3).map(e => `
             <div class="log-entry warn-entry">
-              <span class="log-time">${e.when ? new Date(e.when).toLocaleTimeString('pl-PL') : 'unknown'}</span>
+              <span class="log-time">${e.when ? new Date(e.when).toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) : 'unknown'}</span>
               <span class="log-domain warn-domain">${e.domain || 'unknown'}</span>
               <span class="log-msg">${(e.message || '').substring(0, 100)}${(e.message || '').length > 100 ? '…' : ''}</span>
             </div>
           `).join('')
         }
 
-        ${data && data.fetchedAt ? `<div class="last-updated">Last fetched: ${new Date(data.fetchedAt).toLocaleTimeString('pl-PL')}</div>` : ''}
+        ${data && data.fetchedAt ? `<div class="last-updated">Last fetched: ${new Date(data.fetchedAt).toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US'))}</div>` : ''}
         ${data && data.note ? `<div class="info-note">\u2139\uFE0F ${data.note}</div>` : ''}
       `;
     } else if (this._activeTab === 'schedule') {
@@ -586,7 +649,7 @@ class HALogEmail extends HTMLElement {
         </div>
         ${this._loading ? '<div class="loading-bar"></div>' : ''}
         ${this._buildEmailPreview()}
-        ${data ? `<div class="last-updated">Based on data from: ${new Date(data.fetchedAt).toLocaleTimeString('pl-PL')}</div>` : ''}
+        ${data ? `<div class="last-updated">Based on data from: ${new Date(data.fetchedAt).toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US'))}</div>` : ''}
       `;
     } else if (this._activeTab === 'send') {
       tabContent = `
@@ -721,25 +784,25 @@ max: 3</pre>
           }
         }
         * { box-sizing: border-box; }
-        .card { background: var(--bento-card); border-radius: var(--bento-radius-md); overflow: hidden; max-width: 100%; box-sizing: border-box; }
+        .card { background: var(--bento-card); border-radius: var(--bento-radius-md); overflow: visible; max-width: 100%; box-sizing: border-box; }
         .header { padding: 16px 20px 0; display: flex; align-items: center; gap: 10px; }
         .header-icon { font-size: 22px; }
         .header-title { font-size: 16px; font-weight: 700; color: var(--bento-text); }
         .header-badge { margin-left: auto; background: var(--bento-border); color: var(--bento-text-secondary); font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 500; }
         .tabs { display: flex; border-bottom: 1px solid var(--bento-border); margin-top: 12px; }
-        .tab { flex: 1; padding: 10px 4px; font-size: 12px; font-weight: 600; text-align: center; cursor: pointer; color: var(--bento-text-secondary); border: none; background: none; transition: all .2s; }
-        .tab:hover { color: var(--bento-primary); }
-        .tab.active { color: var(--bento-primary); border-bottom: 2px solid var(--bento-primary); margin-bottom: -1px; }
+        .tab-btn { flex: 1; padding: 10px 4px; font-size: 12px; font-weight: 600; text-align: center; cursor: pointer; color: var(--bento-text-secondary); border: none; background: none; transition: all .2s; }
+        .tab-btn:hover { color: var(--bento-primary); }
+        .tab-btn.active { color: var(--bento-primary); border-bottom: 2px solid var(--bento-primary); margin-bottom: -1px; }
         .content { padding: 16px; }
 
         .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-        .stat-card { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; border: 1px solid var(--bento-border); }
+        .stat-card { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 10px 8px; text-align: center; border: 1px solid var(--bento-border); }
         .stat-card.stat-error { border-color: #ef444440; background: #ef444408; }
         .stat-card.stat-warn { border-color: #f59e0b40; background: #f59e0b08; }
         .stat-card.stat-ok { border-color: #10b98140; background: #10b98108; }
-        .stat-icon { font-size: 20px; margin-bottom: 4px; }
-        .stat-value { font-size: 22px; font-weight: 700; color: var(--bento-text); }
-        .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+        .stat-icon { font-size: 18px; margin-bottom: 4px; }
+        .stat-value { font-size: 20px; font-weight: 700; color: var(--bento-text); }
+        .stat-label { font-size: 10px; text-transform: uppercase; color: var(--bento-text-secondary); letter-spacing: 0.3px; margin-top: 2px; }
 
         .section-header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin: 12px 0 8px; }
         .loading-bar { height: 3px; background: linear-gradient(90deg, var(--bento-primary), transparent); border-radius: 2px; animation: load 1s infinite; margin-bottom: 8px; }
@@ -761,10 +824,10 @@ max: 3</pre>
         .refresh-btn:hover { background: var(--bento-primary); color: white; }
 
         .schedule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .schedule-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; }
-        .schedule-title { font-weight: 600; color: var(--bento-text); margin-bottom: 4px; }
-        .schedule-desc { font-size: 12px; color: var(--bento-text-secondary); margin-bottom: 10px; }
-        .schedule-row { display: flex; align-items: center; justify-content: space-between; }
+        .schedule-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 12px; overflow: hidden; word-break: break-word; }
+        .schedule-title { font-weight: 600; font-size: 14px; color: var(--bento-text); margin-bottom: 4px; }
+        .schedule-desc { font-size: 12px; color: var(--bento-text-secondary); line-height: 1.4; margin-bottom: 10px; }
+        .schedule-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
         .schedule-status { font-size: 12px; font-weight: 600; }
         .status-on { color: #10b981; }
         .status-off { color: var(--bento-text-muted); }
@@ -808,7 +871,12 @@ max: 3</pre>
         .send-status.error { background: #ef444420; color: #ef4444; }
       
         /* === MOBILE FIX === */
-        @media (max-width: 768px) {
+        
+        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
+        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
+@media (max-width: 768px) {
           .card { overflow: hidden; }
           .content { overflow: hidden; padding: 12px; }
           .log-entry { flex-wrap: wrap; gap: 2px 6px; }
@@ -817,9 +885,11 @@ max: 3</pre>
           .overview-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
           .send-grid { grid-template-columns: 1fr; }
           .schedule-grid { grid-template-columns: 1fr; }
+          .schedule-card { padding: 10px; }
+          .toggle-btn { font-size: 11px; padding: 4px 10px; }
           pre { white-space: pre-wrap; word-break: break-all; max-width: calc(100vw - 80px); overflow-x: auto; }
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab-btn, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -831,9 +901,12 @@ max: 3</pre>
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab-btn, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+          .stat-icon { font-size: 16px; }
+          .stat-value { font-size: 16px; }
+          .overview-grid { gap: 6px; }
         }
       
 
@@ -848,7 +921,7 @@ max: 3</pre>
 
         <div class="tabs">
           ${tabs.map(t => `
-            <button class="tab ${this._activeTab === t.id ? 'active' : ''}" data-tab="${t.id}">
+            <button class="tab-btn ${this._activeTab === t.id ? 'active' : ''}" data-tab="${t.id}">
               ${t.icon} ${t.label}
             </button>
           `).join('')}
@@ -860,9 +933,19 @@ max: 3</pre>
       </ha-card>
     `;
 
+    // Restore tabs scroll position
+    if (this._tabsScrollLeft) {
+      requestAnimationFrame(() => {
+        const tabsEl = this.shadowRoot.querySelector('.tabs');
+        if (tabsEl) tabsEl.scrollLeft = this._tabsScrollLeft;
+      });
+    }
+
     // Bind events
-    this.shadowRoot.querySelectorAll('.tab').forEach(el => {
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(el => {
       el.addEventListener('click', (e) => {
+        const tabsEl = this.shadowRoot.querySelector('.tabs');
+        this._tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
         this._activeTab = e.currentTarget.dataset.tab;
         this._render();
       });
@@ -950,12 +1033,17 @@ max: 3</pre>
     html += '<div style="margin-top:12px;padding:10px;background:rgba(59,130,246,0.06);border-radius:8px;font-size:12px;color:var(--bento-text-secondary,#64748b);">💡 History is stored in browser sessionStorage and resets when the tab is closed. Each automatic/manual refresh adds a snapshot.</div>';
     return html;
   }
+
+  disconnectedCallback() {
+    if (this._pollingTimer) {
+      clearInterval(this._pollingTimer);
+      this._pollingTimer = null;
+    }
+  }
 }
 
-customElements.define('ha-log-email', HALogEmail);
+if (!customElements.get('ha-log-email')) customElements.define('ha-log-email', HALogEmail);
 
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-log-email', name: 'Log Email Summary', description: 'Email digest of HA errors and warnings', preview: false });
 window.customElements.whenDefined('ha-log-email').then(() => {
   console.log('[ha-log-email] v1.0 registered');
 });
@@ -1007,3 +1095,8 @@ class HaLogEmailEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-log-email-editor')) { customElements.define('ha-log-email-editor', HaLogEmailEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-log-email', name: 'Log Email Summary', description: 'Email digest of HA errors and warnings', preview: false });

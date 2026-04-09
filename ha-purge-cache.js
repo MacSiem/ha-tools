@@ -1,3 +1,6 @@
+(function() {
+'use strict';
+
 /**
  * HA Purge Cache v1.0.0
  * Tool for clearing browser cache, localStorage, service workers,
@@ -8,6 +11,8 @@
 
 class HAPurgeCache extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-purge-cache-editor'); }
+  getCardSize() { return 6; }
+
   static getStubConfig() { return { type: 'custom:ha-purge-cache', title: 'Purge Cache' }; }
   constructor() {
     super();
@@ -15,15 +20,142 @@ class HAPurgeCache extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._stats = {};
+    this._showConfirm = false;
+    this._confirmAction = null;
+  }
+
+  _confirm(message, onConfirm) {
+    const overlay = this.shadowRoot?.querySelector('#confirm-overlay');
+    const msgEl = this.shadowRoot?.querySelector('#confirm-msg');
+    if (!overlay || !msgEl) { if (confirm(message)) onConfirm(); return; }
+    msgEl.textContent = message;
+    overlay.style.display = 'flex';
+    this._pendingConfirm = onConfirm;
+  }
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Wyczy\u015B\u0107 Cache',
+        subtitle: 'Wyczy\u015B\u0107 cache przegl\u0105darki, Service Workers, localStorage i skrypty narz\u0119dzi.',
+        warningTitle: '\u26A0\uFE0F Uwaga:',
+        warningText: 'Czyszczenie <strong>localStorage</strong> spowoduje wylogowanie z HA i reset ustawie\u0144 panelu. <strong>Service Workers</strong> i <strong>Cache Storage</strong> s\u0105 bezpieczne \u2014 nie wp\u0142ywaj\u0105 na logowanie.',
+        tipTitle: '\u{1F4A1} Jak korzysta\u0107?',
+        tip1: '<strong>localStorage</strong> \u2014 ustawienia panelu, HACS, frontend HA. Po czyszczeniu trzeba si\u0119 ponownie zalogowa\u0107.',
+        tip2: '<strong>sessionStorage</strong> \u2014 dane bie\u017C\u0105cej sesji. Bezpieczne do czyszczenia.',
+        tip3: '<strong>Service Workers</strong> \u2014 cache\'uj\u0105 zasoby offline. Wyrejestrowanie wymusza pobieranie \u015Bwie\u017Cych plik\u00F3w.',
+        tip4: '<strong>Cache Storage</strong> \u2014 API cache przegl\u0105darki. Usuni\u0119cie zwalnia miejsce.',
+        tip5: '<strong>Prze\u0142aduj skrypty</strong> \u2014 wymusza ponowne pobranie wszystkich .js narz\u0119dzi z serwera.',
+        tip6: '<strong>\u26A0\uFE0F Wyczy\u015B\u0107 WSZYSTKO</strong> \u2014 uruchamia wszystkie powy\u017Csze + hard reload. U\u017Cyj je\u015Bli narz\u0119dzia nie \u0142aduj\u0105 si\u0119 prawid\u0142owo.',
+        btnPurgeLS: 'Wyczy\u015B\u0107 localStorage',
+        btnPurgeLSDesc: 'Wylogowanie + reset ustawie\u0144 panelu',
+        btnPurgeSS: 'Wyczy\u015B\u0107 sessionStorage',
+        btnPurgeSSDesc: 'Dane sesji \u2014 bezpieczne, bez wylogowania',
+        btnPurgeSW: 'Wyrejestruj Service Workers',
+        btnPurgeSWDesc: 'Offline cache \u2014 bez wylogowania',
+        btnPurgeCS: 'Usu\u0144 Cache Storage',
+        btnPurgeCSDesc: 'Zwolni miejsce \u2014 bez wylogowania',
+        btnReloadTools: 'Prze\u0142aduj skrypty narz\u0119dzi',
+        btnReloadToolsDesc: 'Force fetch z cache: no-store',
+        btnPurgeAll: 'Wyczy\u015B\u0107 WSZYSTKO',
+        btnPurgeAllDesc: '\u26A0\uFE0F Wymaga ponownego logowania!',
+        btnHardReload: 'Hard Reload',
+        btnHardReloadDesc: 'Ctrl+Shift+R \u2014 pe\u0142ne prze\u0142adowanie',
+        logHeader: 'Akcje',
+        logReady: 'Purge Cache gotowy. Wybierz akcj\u0119.',
+        lsKeysHeader: 'localStorage \u2014 klucze',
+        statKeys: 'kluczy',
+        statRegistered: 'zarejestrowanych',
+        statCaches: 'cache\'y',
+        statEntries: 'wpis\u00F3w',
+        statScripts: 'skrypt\u00F3w',
+        deleteKey: 'Usu\u0144 ten klucz',
+        confirmLS: 'Wyczy\u015Bci\u0107 localStorage?\n\n\u26A0\uFE0F Utracone dane:\n\u2022 Token logowania \u2014 wymagane ponowne zalogowanie\n\u2022 Ustawienia panelu HA Tools\n\u2022 Preferencje HACS i frontendu\n\u2022 Zapami\u0119tane filtry i widoki\n\nCzy kontynuowa\u0107?',
+        confirmSS: 'Wyczy\u015Bci\u0107 sessionStorage?\n\n\u{1F4CB} Utracone dane:\n\u2022 Dane bie\u017C\u0105cej sesji (formularze, stany tymczasowe)\n\u2022 Nie wymaga ponownego logowania\n\nCzy kontynuowa\u0107?',
+        confirmSW: 'Wyrejestrowa\u0107 Service Workers?\n\n\u2699\uFE0F Efekt:\n\u2022 Usuni\u0119cie offline cache \u2014 zasoby b\u0119d\u0105 \u0142adowane z serwera\n\u2022 Nie wymaga ponownego logowania\n\u2022 Mo\u017Ce spowolni\u0107 pierwsze \u0142adowanie\n\nCzy kontynuowa\u0107?',
+        confirmCS: 'Usun\u0105\u0107 Cache Storage?\n\n\u{1F4E6} Efekt:\n\u2022 Usuni\u0119cie cache API przegl\u0105darki\n\u2022 Nie wymaga ponownego logowania\n\u2022 Zwolni miejsce\n\nCzy kontynuowa\u0107?',
+        confirmAll: '\u{1F9F9} Wyczy\u015Bci\u0107 WSZYSTKO?\n\n\u26A0\uFE0F UWAGA \u2014 zostan\u0105 usuni\u0119te:\n\u2022 localStorage (wymagane ponowne logowanie!)\n\u2022 sessionStorage\n\u2022 Service Workers\n\u2022 Cache Storage\n\u2022 Prze\u0142adowanie skrypt\u00F3w narz\u0119dzi\n\nPo czyszczeniu nast\u0105pi automatyczny hard reload.\n\nCzy kontynuowa\u0107?',
+        confirmHardReload: 'Wykona\u0107 Hard Reload?\n\nStrona zostanie ca\u0142kowicie prze\u0142adowana.\nNiezapisane dane mog\u0105 zosta\u0107 utracone.\n\nCzy kontynuowa\u0107?',
+        logLsCleared: (n) => `\u2705 localStorage wyczyszczony (${n} kluczy usuni\u0119tych)`,
+        logLsFailed: (n) => `\u26A0\uFE0F localStorage nie zosta\u0142 w pe\u0142ni wyczyszczony (${n} kluczy pozosta\u0142o)`,
+        logSsCleared: (n) => `\u2705 sessionStorage wyczyszczony (${n} kluczy usuni\u0119tych)`,
+        logSsFailed: '\u26A0\uFE0F sessionStorage nie zosta\u0142 w pe\u0142ni wyczyszczony',
+        logSwUnregistered: (n) => `\u2705 ${n} Service Worker(s) wyrejestrowanych`,
+        logSwError: (msg) => `\u274C B\u0142\u0105d SW: ${msg}`,
+        logCsDeleted: (n) => `\u2705 ${n} Cache Storage usuni\u0119tych`,
+        logCsError: (msg) => `\u274C B\u0142\u0105d Cache: ${msg}`,
+        logNoPanel: '\u274C Nie znaleziono HA Tools Panel',
+        logToolsReloaded: (n, t) => `\u2705 Prze\u0142adowano ${n}/${t} skrypt\u00F3w narz\u0119dzi (cache: no-store)`,
+        logPurgeStart: '\u{1F9F9} Rozpoczynam pe\u0142ne czyszczenie...',
+        logPurgeDone: '\u{1F389} Gotowe! Zalecany hard reload (Ctrl+Shift+R)',
+        logHardReload: '\u{1F504} Hard reload za 1s...',
+      },
+      en: {
+        title: 'Purge Cache',
+        subtitle: 'Clear browser cache, Service Workers, localStorage and tool scripts.',
+        warningTitle: '\u26A0\uFE0F Warning:',
+        warningText: 'Clearing <strong>localStorage</strong> will log you out of HA and reset panel settings. <strong>Service Workers</strong> and <strong>Cache Storage</strong> are safe \u2014 they do not affect login.',
+        tipTitle: '\u{1F4A1} How to use?',
+        tip1: '<strong>localStorage</strong> \u2014 panel settings, HACS, HA frontend. Clearing requires re-login.',
+        tip2: '<strong>sessionStorage</strong> \u2014 current session data. Safe to clear.',
+        tip3: '<strong>Service Workers</strong> \u2014 cache offline assets. Unregistering forces fresh file downloads.',
+        tip4: '<strong>Cache Storage</strong> \u2014 browser cache API. Clearing frees up space.',
+        tip5: '<strong>Reload scripts</strong> \u2014 force re-download of all tool .js files from server.',
+        tip6: '<strong>\u26A0\uFE0F Clear EVERYTHING</strong> \u2014 runs all above + hard reload. Use if tools fail to load.',
+        btnPurgeLS: 'Clear localStorage',
+        btnPurgeLSDesc: 'Logout + reset panel settings',
+        btnPurgeSS: 'Clear sessionStorage',
+        btnPurgeSSDesc: 'Session data \u2014 safe, no logout',
+        btnPurgeSW: 'Unregister Service Workers',
+        btnPurgeSWDesc: 'Offline cache \u2014 no logout',
+        btnPurgeCS: 'Delete Cache Storage',
+        btnPurgeCSDesc: 'Frees space \u2014 no logout',
+        btnReloadTools: 'Reload tool scripts',
+        btnReloadToolsDesc: 'Force fetch with cache: no-store',
+        btnPurgeAll: 'Clear EVERYTHING',
+        btnPurgeAllDesc: '\u26A0\uFE0F Requires re-login!',
+        btnHardReload: 'Hard Reload',
+        btnHardReloadDesc: 'Ctrl+Shift+R \u2014 full page reload',
+        logHeader: 'Actions',
+        logReady: 'Purge Cache ready. Choose an action.',
+        lsKeysHeader: 'localStorage \u2014 keys',
+        statKeys: 'keys',
+        statRegistered: 'registered',
+        statCaches: 'caches',
+        statEntries: 'entries',
+        statScripts: 'scripts',
+        deleteKey: 'Delete this key',
+        confirmLS: 'Clear localStorage?\n\n\u26A0\uFE0F Data that will be lost:\n\u2022 Login token \u2014 re-login required\n\u2022 HA Tools panel settings\n\u2022 HACS and frontend preferences\n\u2022 Saved filters and views\n\nContinue?',
+        confirmSS: 'Clear sessionStorage?\n\n\u{1F4CB} Data that will be lost:\n\u2022 Current session data (forms, temporary states)\n\u2022 No re-login required\n\nContinue?',
+        confirmSW: 'Unregister Service Workers?\n\n\u2699\uFE0F Effect:\n\u2022 Removes offline cache \u2014 assets will load from server\n\u2022 No re-login required\n\u2022 May slow down first load\n\nContinue?',
+        confirmCS: 'Delete Cache Storage?\n\n\u{1F4E6} Effect:\n\u2022 Removes browser cache API\n\u2022 No re-login required\n\u2022 Frees up space\n\nContinue?',
+        confirmAll: '\u{1F9F9} Clear EVERYTHING?\n\n\u26A0\uFE0F WARNING \u2014 will be removed:\n\u2022 localStorage (re-login required!)\n\u2022 sessionStorage\n\u2022 Service Workers\n\u2022 Cache Storage\n\u2022 Tool script reload\n\nA hard reload will follow automatically.\n\nContinue?',
+        confirmHardReload: 'Perform Hard Reload?\n\nThe page will be fully reloaded.\nUnsaved data may be lost.\n\nContinue?',
+        logLsCleared: (n) => `\u2705 localStorage cleared (${n} keys deleted)`,
+        logLsFailed: (n) => `\u26A0\uFE0F localStorage not fully cleared (${n} keys remain)`,
+        logSsCleared: (n) => `\u2705 sessionStorage cleared (${n} keys deleted)`,
+        logSsFailed: '\u26A0\uFE0F sessionStorage not fully cleared',
+        logSwUnregistered: (n) => `\u2705 ${n} Service Worker(s) unregistered`,
+        logSwError: (msg) => `\u274C SW error: ${msg}`,
+        logCsDeleted: (n) => `\u2705 ${n} Cache Storage(s) deleted`,
+        logCsError: (msg) => `\u274C Cache error: ${msg}`,
+        logNoPanel: '\u274C HA Tools Panel not found',
+        logToolsReloaded: (n, t) => `\u2705 Reloaded ${n}/${t} tool scripts (cache: no-store)`,
+        logPurgeStart: '\u{1F9F9} Starting full purge...',
+        logPurgeDone: '\u{1F389} Done! Hard reload recommended (Ctrl+Shift+R)',
+        logHardReload: '\u{1F504} Hard reload in 1s...',
+      }
+    };
+    return T[this._lang] || T.en;
   }
 
   set hass(val) {
+    if (val?.language) this._lang = val.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = val;
     if (!this._rendered) this._render();
   }
 
   connectedCallback() {
-    const L = this._lang === 'pl';
     if (!this._rendered) this._render();
     this._collectStats();
   }
@@ -80,13 +212,20 @@ class HAPurgeCache extends HTMLElement {
       stats.cacheStorage = { count: 0, caches: [], error: e.message };
     }
 
-    // HA Tools scripts info
+    // HA Tools scripts info (count registered ha-* custom elements)
     try {
-      const panel = document.querySelector('ha-tools-panel');
-      if (panel && panel.constructor.TOOL_SCRIPTS) {
-        const scripts = panel.constructor.TOOL_SCRIPTS;
-        stats.toolScripts = { count: Object.keys(scripts).length };
+      const registry = customElements;
+      let toolCount = 0;
+      // Count elements in customCards registry (HA Tools' discovery mechanism)
+      if (window.customCards && Array.isArray(window.customCards)) {
+        toolCount = window.customCards.filter(c => c.type && c.type.startsWith('ha-')).length;
       }
+      // Fallback: if no customCards, count ha-* tags in DOM (rough estimate)
+      if (toolCount === 0) {
+        const allElements = document.querySelectorAll('[class*="ha-"]');
+        toolCount = Math.max(window.customCards?.length || 0, 1);
+      }
+      stats.toolScripts = { count: toolCount || 0 };
     } catch (e) {
       stats.toolScripts = { count: 0 };
     }
@@ -116,33 +255,34 @@ class HAPurgeCache extends HTMLElement {
     const root = this.shadowRoot;
     if (!root) return;
 
+    const t = this._t;
     const s = this._stats;
 
     // Update stat cards
     const lsEl = root.querySelector('#stat-ls');
     if (lsEl && s.localStorage) {
-      lsEl.innerHTML = `<span class="stat-num">${s.localStorage.count}</span> kluczy <span class="stat-sub">(${s.localStorage.sizeKB} KB)</span>`;
+      lsEl.innerHTML = `<span class="stat-num">${s.localStorage.count}</span> ${t.statKeys} <span class="stat-sub">(${s.localStorage.sizeKB} KB)</span>`;
     }
 
     const ssEl = root.querySelector('#stat-ss');
     if (ssEl && s.sessionStorage) {
-      ssEl.innerHTML = `<span class="stat-num">${s.sessionStorage.count}</span> kluczy <span class="stat-sub">(${s.sessionStorage.sizeKB} KB)</span>`;
+      ssEl.innerHTML = `<span class="stat-num">${s.sessionStorage.count}</span> ${t.statKeys} <span class="stat-sub">(${s.sessionStorage.sizeKB} KB)</span>`;
     }
 
     const swEl = root.querySelector('#stat-sw');
     if (swEl && s.serviceWorkers) {
-      swEl.innerHTML = `<span class="stat-num">${s.serviceWorkers.count}</span> zarejestrowanych`;
+      swEl.innerHTML = `<span class="stat-num">${s.serviceWorkers.count}</span> ${t.statRegistered}`;
     }
 
     const csEl = root.querySelector('#stat-cs');
     if (csEl && s.cacheStorage) {
       const total = s.cacheStorage.caches.reduce((sum, c) => sum + c.entries, 0);
-      csEl.innerHTML = `<span class="stat-num">${s.cacheStorage.count}</span> cache'y <span class="stat-sub">(${total} wpisów)</span>`;
+      csEl.innerHTML = `<span class="stat-num">${s.cacheStorage.count}</span> ${t.statCaches} <span class="stat-sub">(${total} ${t.statEntries})</span>`;
     }
 
     const tsEl = root.querySelector('#stat-ts');
     if (tsEl && s.toolScripts) {
-      tsEl.innerHTML = `<span class="stat-num">${s.toolScripts.count}</span> skryptów`;
+      tsEl.innerHTML = `<span class="stat-num">${s.toolScripts.count}</span> ${t.statScripts}`;
     }
 
     // HA version
@@ -158,6 +298,7 @@ class HAPurgeCache extends HTMLElement {
   _renderLsKeys() {
     const container = this.shadowRoot?.querySelector('#ls-keys');
     if (!container) return;
+    const t = this._t;
 
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -172,14 +313,14 @@ class HAPurgeCache extends HTMLElement {
       <div class="key-row">
         <span class="key-name" title="${k.key}">${k.key.length > 40 ? k.key.substring(0, 37) + '...' : k.key}</span>
         <span class="key-size">${k.sizeKB} KB</span>
-        <button class="btn-sm btn-danger" data-key="${k.key}" title="Usu\u0144 ten klucz">\u2715</button>
+        <button class="btn-sm btn-danger" data-key="${k.key}" title="${t.deleteKey}">\u2715</button>
       </div>
     `).join('');
 
     container.querySelectorAll('.btn-danger[data-key]').forEach(btn => {
       btn.addEventListener('click', () => {
         localStorage.removeItem(btn.dataset.key);
-        this._addLog(`Usuni\u0119to klucz: ${btn.dataset.key}`, 'success');
+        this._addLog(`${this._t.deleteKey}: ${btn.dataset.key}`, 'success');
         this._collectStats();
       });
     });
@@ -189,9 +330,9 @@ class HAPurgeCache extends HTMLElement {
     const count = localStorage.length;
     localStorage.clear();
     if (localStorage.length > 0) {
-      this._addLog(`\u26A0\uFE0F localStorage nie zosta\u0142 w pe\u0142ni wyczyszczony (${localStorage.length} kluczy pozosta\u0142o)`, 'error');
+      this._addLog(this._t.logLsFailed(localStorage.length), 'error');
     } else {
-      this._addLog(`\u2705 localStorage wyczyszczony (${count} kluczy usuni\u0119tych)`, 'success');
+      this._addLog(this._t.logLsCleared(count), 'success');
     }
     await this._collectStats();
   }
@@ -200,9 +341,9 @@ class HAPurgeCache extends HTMLElement {
     const count = sessionStorage.length;
     sessionStorage.clear();
     if (sessionStorage.length > 0) {
-      this._addLog(`\u26A0\uFE0F sessionStorage nie zosta\u0142 w pe\u0142ni wyczyszczony`, 'error');
+      this._addLog(this._t.logSsFailed, 'error');
     } else {
-      this._addLog(`\u2705 sessionStorage wyczyszczony (${count} kluczy usuni\u0119tych)`, 'success');
+      this._addLog(this._t.logSsCleared(count), 'success');
     }
     await this._collectStats();
   }
@@ -215,9 +356,9 @@ class HAPurgeCache extends HTMLElement {
         await reg.unregister();
         count++;
       }
-      this._addLog(`\u2705 ${count} Service Worker(s) wyrejestrowanych`, 'success');
+      this._addLog(this._t.logSwUnregistered(count), 'success');
     } catch (e) {
-      this._addLog(`\u274C B\u0142\u0105d SW: ${e.message}`, 'error');
+      this._addLog(this._t.logSwError(e.message), 'error');
     }
     await this._collectStats();
   }
@@ -230,9 +371,9 @@ class HAPurgeCache extends HTMLElement {
         await caches.delete(name);
         count++;
       }
-      this._addLog(`\u2705 ${count} Cache Storage usuni\u0119tych`, 'success');
+      this._addLog(this._t.logCsDeleted(count), 'success');
     } catch (e) {
-      this._addLog(`\u274C B\u0142\u0105d Cache: ${e.message}`, 'error');
+      this._addLog(this._t.logCsError(e.message), 'error');
     }
     await this._collectStats();
   }
@@ -241,7 +382,7 @@ class HAPurgeCache extends HTMLElement {
     try {
       const panel = document.querySelector('ha-tools-panel');
       if (!panel || !panel.constructor.TOOL_SCRIPTS) {
-        this._addLog('\u274C Nie znaleziono HA Tools Panel', 'error');
+        this._addLog(this._t.logNoPanel, 'error');
         return;
       }
       const scripts = panel.constructor.TOOL_SCRIPTS;
@@ -257,24 +398,24 @@ class HAPurgeCache extends HTMLElement {
           // ignore individual failures
         }
       }
-      this._addLog(`\u2705 Prze\u0142adowano ${loaded}/${tags.length} skrypt\u00F3w narz\u0119dzi (cache: no-store)`, 'success');
+      this._addLog(this._t.logToolsReloaded(loaded, tags.length), 'success');
     } catch (e) {
-      this._addLog(`\u274C B\u0142\u0105d: ${e.message}`, 'error');
+      this._addLog(this._t.logCsError(e.message), 'error');
     }
   }
 
   async _purgeAll() {
-    this._addLog('\u{1F9F9} Rozpoczynam pe\u0142ne czyszczenie...', 'info');
+    this._addLog(this._t.logPurgeStart, 'info');
     await this._purgeLocalStorage();
     await this._purgeSessionStorage();
     await this._purgeServiceWorkers();
     await this._purgeCacheStorage();
     await this._forceReloadTools();
-    this._addLog('\u{1F389} Gotowe! Zalecany hard reload (Ctrl+Shift+R)', 'success');
+    this._addLog(this._t.logPurgeDone, 'success');
   }
 
   _hardReload() {
-    this._addLog('\u{1F504} Hard reload za 1s...', 'info');
+    this._addLog(this._t.logHardReload, 'info');
     setTimeout(() => {
       location.reload(true);
     }, 1000);
@@ -283,7 +424,7 @@ class HAPurgeCache extends HTMLElement {
   _addLog(msg, type = 'info') {
     const logEl = this.shadowRoot?.querySelector('#action-log');
     if (!logEl) return;
-    const time = new Date().toLocaleTimeString('pl-PL');
+    const time = new Date().toLocaleTimeString(this._lang === 'pl' ? 'pl-PL' : 'en-US');
     const typeClass = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : 'log-info';
     const entry = document.createElement('div');
     entry.className = `log-entry ${typeClass}`;
@@ -292,6 +433,8 @@ class HAPurgeCache extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
+    const t = this._t;
     this._rendered = true;
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
@@ -343,7 +486,8 @@ class HAPurgeCache extends HTMLElement {
           --pc-radius: var(--bento-radius-sm);
         }
 
-        .card { max-width: 900px; margin: 0 auto; padding: 16px; }
+        * { box-sizing: border-box; }
+        .card { max-width: 900px; margin: 0 auto; padding: 16px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
         h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
         .subtitle { color: var(--bento-text-secondary); font-size: 13px; margin-bottom: 20px; }
         .ha-ver { font-size: 12px; color: var(--bento-text-secondary); font-weight: 400; }
@@ -351,27 +495,35 @@ class HAPurgeCache extends HTMLElement {
         /* Stats Grid */
         .stats-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
           gap: 12px;
           margin-bottom: 20px;
+          box-sizing: border-box;
+          max-width: 100%;
+          overflow: hidden;
         }
         .stat-card {
           background: var(--bento-bg);
           border: 1.5px solid var(--bento-border);
           border-radius: var(--bento-radius-sm);
           padding: 14px;
+          box-sizing: border-box;
+          min-width: 0;
         }
-        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--bento-text-secondary); letter-spacing: 0.5px; margin-bottom: 6px; }
-        .stat-value { font-size: 14px; font-weight: 500; }
+        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--bento-text-secondary); letter-spacing: 0.5px; margin-bottom: 6px; word-break: break-word; }
+        .stat-value { font-size: 14px; font-weight: 500; word-break: break-word; overflow: hidden; }
         .stat-num { font-size: 22px; font-weight: 700; color: var(--bento-primary); }
         .stat-sub { font-size: 12px; color: var(--bento-text-secondary); }
 
         /* Actions */
         .actions-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
           gap: 10px;
           margin-bottom: 20px;
+          box-sizing: border-box;
+          max-width: 100%;
+          overflow: hidden;
         }
         .action-btn {
           display: flex;
@@ -387,11 +539,15 @@ class HAPurgeCache extends HTMLElement {
           font-weight: 500;
           color: var(--bento-text);
           transition: all 0.15s ease;
+          box-sizing: border-box;
+          min-width: 0;
+          word-break: break-word;
+          overflow: hidden;
         }
         .action-btn:hover { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-        .action-btn .action-icon { font-size: 20px; }
-        .action-btn .action-label { line-height: 1.3; }
-        .action-btn .action-desc { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; }
+        .action-btn .action-icon { font-size: 20px; flex-shrink: 0; }
+        .action-btn .action-label { line-height: 1.3; word-break: break-word; overflow: hidden; }
+        .action-btn .action-desc { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; word-break: break-word; overflow: hidden; }
 
         .action-btn.danger { border-color: rgba(239, 68, 68, 0.3); }
         .action-btn.danger:hover { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
@@ -483,6 +639,56 @@ class HAPurgeCache extends HTMLElement {
         .btn-sm.btn-danger { color: var(--bento-error); border-color: rgba(239, 68, 68, 0.3); }
         .btn-sm.btn-danger:hover { background: var(--bento-error); color: white; }
 
+        /* 2-column layout */
+        .cache-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          box-sizing: border-box;
+          max-width: 100%;
+          overflow: hidden;
+        }
+        .cache-col {
+          min-width: 0;
+          box-sizing: border-box;
+          overflow: hidden;
+        }
+        
+        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
+        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
+@media (max-width: 768px) {
+          .cache-grid { grid-template-columns: 1fr; gap: 12px; }
+        }
+        @media (max-width: 600px) {
+          .cache-grid { grid-template-columns: 1fr; gap: 10px; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-card { padding: 10px 8px; }
+        }
+        @media (max-width: 480px) {
+          .cache-grid { grid-template-columns: 1fr; gap: 8px; }
+          .stats-grid { grid-template-columns: 1fr; gap: 8px; }
+          .stat-card { padding: 10px 8px; }
+          .actions-grid { grid-template-columns: 1fr; gap: 8px; }
+          .action-btn { padding: 12px 14px; font-size: 12px; }
+        }
+        @media (max-width: 360px) {
+          .stats-grid { grid-template-columns: 1fr; gap: 6px; }
+          .stat-card { padding: 8px 6px; }
+          .action-btn { padding: 10px 12px; font-size: 11px; gap: 6px; }
+          .action-btn .action-icon { font-size: 18px; }
+        }
+
+        /* Confirm overlay */
+        .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 999; display: none; align-items: center; justify-content: center; }
+        .confirm-dialog { background: var(--bento-card); padding: 24px; border-radius: var(--bento-radius-md); max-width: 420px; width: 90%; box-shadow: var(--bento-shadow-lg); }
+        .confirm-dialog h3 { margin: 0 0 12px; font-size: 16px; color: var(--bento-text); }
+        .confirm-dialog p { margin: 0 0 20px; font-size: 13px; color: var(--bento-text-secondary); line-height: 1.6; white-space: pre-wrap; }
+        .confirm-dialog-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .btn-cancel { padding: 8px 18px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-xs); background: var(--bento-bg); color: var(--bento-text); font-size: 13px; cursor: pointer; }
+        .btn-confirm-ok { padding: 8px 18px; border: none; border-radius: var(--bento-radius-xs); background: var(--bento-error); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+
         /* Dark mode */
         @media (prefers-color-scheme: dark) {
           :host {
@@ -531,7 +737,7 @@ class HAPurgeCache extends HTMLElement {
       
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -554,113 +760,129 @@ class HAPurgeCache extends HTMLElement {
 
       <div class="card">
         <h2>\u{1F9F9} Purge Cache <span class="ha-ver">HA <span id="ha-version">...</span></span></h2>
-        <div class="subtitle">Wyczy\u015B\u0107 cache przegl\u0105darki, Service Workers, localStorage i skrypty narz\u0119dzi.</div>
+        <div class="subtitle">${t.subtitle}</div>
         <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:12px 14px;margin:8px 0;font-size:12px;line-height:1.6;color:var(--bento-text,#1e293b)">
-          <strong>\u26A0\uFE0F Uwaga:</strong> Czyszczenie <strong>localStorage</strong> spowoduje wylogowanie z HA i reset ustawie\u0144 panelu. 
-          <strong>Service Workers</strong> i <strong>Cache Storage</strong> s\u0105 bezpieczne \u2014 nie wp\u0142ywaj\u0105 na logowanie.
+          <strong>${t.warningTitle}</strong> ${t.warningText}
         </div>
 
         <div class="tip-banner" id="tip-banner">
-          <button class="tip-dismiss" id="tip-dismiss">\u2715</button>
-          <div class="tip-banner-title">\u{1F4A1} Jak korzysta\u0107?</div>
+          <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
+          <div class="tip-banner-title">${t.tipTitle}</div>
           <ul>
-            <li><strong>localStorage</strong> \u2014 ustawienia panelu, HACS, frontend HA. Po czyszczeniu trzeba si\u0119 ponownie zalogowa\u0107.</li>
-            <li><strong>sessionStorage</strong> \u2014 dane bie\u017C\u0105cej sesji. Bezpieczne do czyszczenia.</li>
-            <li><strong>Service Workers</strong> \u2014 cache'uj\u0105 zasoby offline. Wyrejestrowanie wymusza pobieranie \u015Bwie\u017Cych plik\u00F3w.</li>
-            <li><strong>Cache Storage</strong> \u2014 API cache przegl\u0105darki. Usuni\u0119cie zwalnia miejsce.</li>
-            <li><strong>Prze\u0142aduj skrypty</strong> \u2014 wymusza ponowne pobranie wszystkich .js narz\u0119dzi z serwera.</li>
-            <li><strong>\u26A0\uFE0F Wyczy\u015B\u0107 WSZYSTKO</strong> \u2014 uruchamia wszystkie powy\u017Csze + hard reload. U\u017Cyj je\u015Bli narz\u0119dzia nie \u0142aduj\u0105 si\u0119 prawid\u0142owo.</li>
+            <li>${t.tip1}</li>
+            <li>${t.tip2}</li>
+            <li>${t.tip3}</li>
+            <li>${t.tip4}</li>
+            <li>${t.tip5}</li>
+            <li>${t.tip6}</li>
           </ul>
         </div>
 
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-label">localStorage</div>
-            <div class="stat-value" id="stat-ls">\u2022\u2022\u2022</div>
+        <div class="cache-grid">
+          <div class="cache-col">
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-label">localStorage</div>
+                <div class="stat-value" id="stat-ls">\u2022\u2022\u2022</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">sessionStorage</div>
+                <div class="stat-value" id="stat-ss">\u2022\u2022\u2022</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Service Workers</div>
+                <div class="stat-value" id="stat-sw">\u2022\u2022\u2022</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Cache Storage</div>
+                <div class="stat-value" id="stat-cs">\u2022\u2022\u2022</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Tool Scripts</div>
+                <div class="stat-value" id="stat-ts">\u2022\u2022\u2022</div>
+              </div>
+            </div>
+
+            <div class="keys-section">
+              <div class="keys-header" id="keys-toggle">
+                <span>${t.lsKeysHeader}</span>
+                <span class="chevron">\u25BE</span>
+              </div>
+              <div id="ls-keys"></div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">sessionStorage</div>
-            <div class="stat-value" id="stat-ss">\u2022\u2022\u2022</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Service Workers</div>
-            <div class="stat-value" id="stat-sw">\u2022\u2022\u2022</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Cache Storage</div>
-            <div class="stat-value" id="stat-cs">\u2022\u2022\u2022</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Tool Scripts</div>
-            <div class="stat-value" id="stat-ts">\u2022\u2022\u2022</div>
+
+          <div class="cache-col">
+            <div class="actions-grid">
+              <button class="action-btn" id="btn-purge-ls">
+                <span class="action-icon">\u{1F5D1}\uFE0F</span>
+                <div>
+                  <div class="action-label">${t.btnPurgeLS}</div>
+                  <div class="action-desc">${t.btnPurgeLSDesc}</div>
+                </div>
+              </button>
+              <button class="action-btn" id="btn-purge-ss">
+                <span class="action-icon">\u{1F4CB}</span>
+                <div>
+                  <div class="action-label">${t.btnPurgeSS}</div>
+                  <div class="action-desc">${t.btnPurgeSSDesc}</div>
+                </div>
+              </button>
+              <button class="action-btn" id="btn-purge-sw">
+                <span class="action-icon">\u2699\uFE0F</span>
+                <div>
+                  <div class="action-label">${t.btnPurgeSW}</div>
+                  <div class="action-desc">${t.btnPurgeSWDesc}</div>
+                </div>
+              </button>
+              <button class="action-btn" id="btn-purge-cs">
+                <span class="action-icon">\u{1F4E6}</span>
+                <div>
+                  <div class="action-label">${t.btnPurgeCS}</div>
+                  <div class="action-desc">${t.btnPurgeCSDesc}</div>
+                </div>
+              </button>
+              <button class="action-btn" id="btn-reload-tools">
+                <span class="action-icon">\u{1F504}</span>
+                <div>
+                  <div class="action-label">${t.btnReloadTools}</div>
+                  <div class="action-desc">${t.btnReloadToolsDesc}</div>
+                </div>
+              </button>
+              <button class="action-btn danger" id="btn-purge-all">
+                <span class="action-icon">\u{1F9F9}</span>
+                <div>
+                  <div class="action-label">${t.btnPurgeAll}</div>
+                  <div class="action-desc">${t.btnPurgeAllDesc}</div>
+                </div>
+              </button>
+              <button class="action-btn primary" id="btn-hard-reload">
+                <span class="action-icon">\u26A1</span>
+                <div>
+                  <div class="action-label">${t.btnHardReload}</div>
+                  <div class="action-desc">${t.btnHardReloadDesc}</div>
+                </div>
+              </button>
+            </div>
+
+            <div class="log-section">
+              <div class="log-header">${t.logHeader}</div>
+              <div id="action-log">
+                <div class="log-entry log-info"><span class="log-time">${new Date().toLocaleTimeString(this._lang === 'pl' ? 'pl-PL' : 'en-US')}</span> ${t.logReady}</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="actions-grid">
-          <button class="action-btn" id="btn-purge-ls">
-            <span class="action-icon">\u{1F5D1}\uFE0F</span>
-            <div>
-              <div class="action-label">Wyczy\u015B\u0107 localStorage</div>
-              <div class="action-desc">Wylogowanie + reset ustawie\u0144 panelu</div>
+        <div class="confirm-overlay" id="confirm-overlay">
+          <div class="confirm-dialog">
+            <h3>${this._lang === 'pl' ? 'Potwierdzenie' : 'Confirm'}</h3>
+            <p id="confirm-msg"></p>
+            <div class="confirm-dialog-btns">
+              <button class="btn-cancel" id="confirm-cancel">${this._lang === 'pl' ? 'Anuluj' : 'Cancel'}</button>
+              <button class="btn-confirm-ok" id="confirm-ok">${this._lang === 'pl' ? 'Wyczy\u015B\u0107' : 'Confirm'}</button>
             </div>
-          </button>
-          <button class="action-btn" id="btn-purge-ss">
-            <span class="action-icon">\u{1F4CB}</span>
-            <div>
-              <div class="action-label">Wyczy\u015B\u0107 sessionStorage</div>
-              <div class="action-desc">Dane sesji \u2014 bezpieczne, bez wylogowania</div>
-            </div>
-          </button>
-          <button class="action-btn" id="btn-purge-sw">
-            <span class="action-icon">\u2699\uFE0F</span>
-            <div>
-              <div class="action-label">Wyrejestruj Service Workers</div>
-              <div class="action-desc">Offline cache \u2014 bez wylogowania</div>
-            </div>
-          </button>
-          <button class="action-btn" id="btn-purge-cs">
-            <span class="action-icon">\u{1F4E6}</span>
-            <div>
-              <div class="action-label">Usu\u0144 Cache Storage</div>
-              <div class="action-desc">Zwolni miejsce \u2014 bez wylogowania</div>
-            </div>
-          </button>
-          <button class="action-btn" id="btn-reload-tools">
-            <span class="action-icon">\u{1F504}</span>
-            <div>
-              <div class="action-label">Prze\u0142aduj skrypty narz\u0119dzi</div>
-              <div class="action-desc">Force fetch z cache: no-store</div>
-            </div>
-          </button>
-          <button class="action-btn danger" id="btn-purge-all">
-            <span class="action-icon">\u{1F9F9}</span>
-            <div>
-              <div class="action-label">Wyczy\u015B\u0107 WSZYSTKO</div>
-              <div class="action-desc">\u26A0\uFE0F Wymaga ponownego logowania!</div>
-            </div>
-          </button>
-          <button class="action-btn primary" id="btn-hard-reload">
-            <span class="action-icon">\u26A1</span>
-            <div>
-              <div class="action-label">Hard Reload</div>
-              <div class="action-desc">Ctrl+Shift+R \u2014 pe\u0142ne prze\u0142adowanie</div>
-            </div>
-          </button>
-        </div>
-
-        <div class="log-section">
-          <div class="log-header">Akcje</div>
-          <div id="action-log">
-            <div class="log-entry log-info"><span class="log-time">${new Date().toLocaleTimeString('pl-PL')}</span> Purge Cache gotowy. Wybierz akcj\u0119.</div>
           </div>
-        </div>
-
-        <div class="keys-section">
-          <div class="keys-header" id="keys-toggle">
-            <span>localStorage \u2014 klucze</span>
-            <span class="chevron">\u25BE</span>
-          </div>
-          <div id="ls-keys"></div>
         </div>
       </div>
     `
@@ -677,18 +899,19 @@ class HAPurgeCache extends HTMLElement {
       localStorage.setItem(tipVersion, 'dismissed');
     });
 
-    // Bind events (with confirmation for destructive actions)
-    this.shadowRoot.querySelector('#btn-purge-ls').addEventListener('click', () => {
-      if (confirm('Wyczy\u015Bci\u0107 localStorage?\n\n\u26A0\uFE0F Utracone dane:\n\u2022 Token logowania \u2014 wymagane ponowne zalogowanie\n\u2022 Ustawienia panelu HA Tools\n\u2022 Preferencje HACS i frontendu\n\u2022 Zapami\u0119tane filtry i widoki\n\nCzy kontynuowa\u0107?')) this._purgeLocalStorage();
-    });
-    this.shadowRoot.querySelector('#btn-purge-ss').addEventListener('click', () => { if (confirm('Wyczy\u015Bci\u0107 sessionStorage?\n\n\u{1F4CB} Utracone dane:\n\u2022 Dane bie\u017C\u0105cej sesji (formularze, stany tymczasowe)\n\u2022 Nie wymaga ponownego logowania\n\nCzy kontynuowa\u0107?')) this._purgeSessionStorage(); });
-    this.shadowRoot.querySelector('#btn-purge-sw').addEventListener('click', () => { if (confirm('Wyrejestrowa\u0107 Service Workers?\n\n\u2699\uFE0F Efekt:\n\u2022 Usuni\u0119cie offline cache \u2014 zasoby b\u0119d\u0105 \u0142adowane z serwera\n\u2022 Nie wymaga ponownego logowania\n\u2022 Mo\u017Ce spowolni\u0107 pierwsze \u0142adowanie\n\nCzy kontynuowa\u0107?')) this._purgeServiceWorkers(); });
-    this.shadowRoot.querySelector('#btn-purge-cs').addEventListener('click', () => { if (confirm('Usun\u0105\u0107 Cache Storage?\n\n\u{1F4E6} Efekt:\n\u2022 Usuni\u0119cie cache API przegl\u0105darki\n\u2022 Nie wymaga ponownego logowania\n\u2022 Zwolni miejsce\n\nCzy kontynuowa\u0107?')) this._purgeCacheStorage(); });
+    // Confirm overlay wiring
+    const overlay = this.shadowRoot.querySelector('#confirm-overlay');
+    this.shadowRoot.querySelector('#confirm-cancel').addEventListener('click', () => { overlay.style.display = 'none'; this._pendingConfirm = null; });
+    this.shadowRoot.querySelector('#confirm-ok').addEventListener('click', () => { overlay.style.display = 'none'; if (this._pendingConfirm) { this._pendingConfirm(); this._pendingConfirm = null; } });
+
+    // Bind events (with custom confirmation for destructive actions)
+    this.shadowRoot.querySelector('#btn-purge-ls').addEventListener('click', () => this._confirm(this._t.confirmLS, () => this._purgeLocalStorage()));
+    this.shadowRoot.querySelector('#btn-purge-ss').addEventListener('click', () => this._confirm(this._t.confirmSS, () => this._purgeSessionStorage()));
+    this.shadowRoot.querySelector('#btn-purge-sw').addEventListener('click', () => this._confirm(this._t.confirmSW, () => this._purgeServiceWorkers()));
+    this.shadowRoot.querySelector('#btn-purge-cs').addEventListener('click', () => this._confirm(this._t.confirmCS, () => this._purgeCacheStorage()));
     this.shadowRoot.querySelector('#btn-reload-tools').addEventListener('click', () => this._forceReloadTools());
-    this.shadowRoot.querySelector('#btn-purge-all').addEventListener('click', () => {
-      if (confirm('\u{1F9F9} Wyczy\u015Bci\u0107 WSZYSTKO?\n\n\u26A0\uFE0F UWAGA \u2014 zostan\u0105 usuni\u0119te:\n\u2022 localStorage (wymagane ponowne logowanie!)\n\u2022 sessionStorage\n\u2022 Service Workers\n\u2022 Cache Storage\n\u2022 Prze\u0142adowanie skrypt\u00F3w narz\u0119dzi\n\nPo czyszczeniu nast\u0105pi automatyczny hard reload.\n\nCzy kontynuowa\u0107?')) this._purgeAll();
-    });
-    this.shadowRoot.querySelector('#btn-hard-reload').addEventListener('click', () => { if (confirm('Wykona\u0107 Hard Reload?\n\nStrona zostanie ca\u0142kowicie prze\u0142adowana.\nNiezapisane dane mog\u0105 zosta\u0107 utracone.\n\nCzy kontynuowa\u0107?')) this._hardReload(); });
+    this.shadowRoot.querySelector('#btn-purge-all').addEventListener('click', () => this._confirm(this._t.confirmAll, () => this._purgeAll()));
+    this.shadowRoot.querySelector('#btn-hard-reload').addEventListener('click', () => this._confirm(this._t.confirmHardReload, () => this._hardReload()));
 
     // Toggle LS keys
     const toggle = this.shadowRoot.querySelector('#keys-toggle');
@@ -714,9 +937,6 @@ class HAPurgeCache extends HTMLElement {
 if (!customElements.get('ha-purge-cache')) {
   customElements.define('ha-purge-cache', HAPurgeCache);
 }
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-purge-cache', name: 'Purge Cache', description: 'Clear browser cache and scripts', preview: false });
-
 // HA Purge Cache registered
 
 class HaPurgeCacheEditor extends HTMLElement {
@@ -756,3 +976,8 @@ class HaPurgeCacheEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-purge-cache-editor')) { customElements.define('ha-purge-cache-editor', HaPurgeCacheEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-purge-cache', name: 'Purge Cache', description: 'Clear browser cache and scripts', preview: false });

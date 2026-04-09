@@ -14,6 +14,12 @@
   }
 
   var BASE = '/local/community/ha-tools/';
+
+  // Load stack card early (needed before dashboard renders)
+  var stackScript = document.createElement('script');
+  stackScript.type = 'text/javascript';
+  stackScript.src = BASE + 'ha-tools-stack.js' + '?_=' + Date.now();
+  document.head.appendChild(stackScript);
   var bust = '?_=' + Date.now();
 
   function loadScript(file) {
@@ -65,3 +71,4 @@
   });
   }); // end bento.then
 })();
+

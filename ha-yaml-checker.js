@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -258,6 +260,70 @@ class HAYamlChecker extends HTMLElement {
     }
   }
 
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Sprawdzanie YAML',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'B\u0142\u0105d',
+        check: 'Sprawd\u017A',
+        scan: 'Skanuj',
+        valid: 'Poprawny',
+        invalid: 'Niepoprawny',
+        configCheck: 'Sprawdzanie konfiguracji',
+        pasteCheck: 'Wklej i sprawd\u017A',
+        entityCheck: 'Encja',
+        templateCheck: 'Szablon',
+        errors: 'B\u0142\u0119dy',
+        warnings: 'Ostrze\u017Cenia',
+        ok: 'OK',
+        configOk: 'Konfiguracja poprawna',
+        configError: 'Znaleziono b\u0142\u0119dy',
+        allOk: 'Wszystko w porz\u0105dku!',
+        areas: 'Obszar\u00F3w',
+        components: 'Komponent\u00F3w',
+        logErrors: 'B\u0142\u0119d\u00F3w w logu',
+        logWarnings: 'Ostrze\u017Ce\u0144 w logu',
+        entities: 'Encji',
+        devices: 'Urz\u0105dze\u0144',
+        configDirLabel: 'Katalog konfiguracji',
+        configFilesNote: 'Pliki konfiguracji (status nieznany \u2014 HA API nie udost\u0119pnia zawarto\u015Bci plik\u00F3w)',
+        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+      },
+      en: {
+        title: 'YAML Checker',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        check: 'Check',
+        scan: 'Scan',
+        valid: 'Valid',
+        invalid: 'Invalid',
+        configCheck: 'Config check',
+        pasteCheck: 'Paste & check',
+        entityCheck: 'Entity',
+        templateCheck: 'Template',
+        errors: 'Errors',
+        warnings: 'Warnings',
+        ok: 'OK',
+        configOk: 'Configuration valid',
+        configError: 'Errors found',
+        allOk: 'All good!',
+        areas: 'Areas',
+        components: 'Components',
+        logErrors: 'Log errors',
+        logWarnings: 'Log warnings',
+        entities: 'Entities',
+        devices: 'Devices',
+        configDirLabel: 'Config directory',
+        configFilesNote: 'Config files (status unknown \u2014 HA API does not expose file contents)',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
+
   setConfig(config) {
     this._config = config
     // Load persisted UI state
@@ -304,7 +370,7 @@ class HAYamlChecker extends HTMLElement {
         errors: parseMessages(rawErrors),
         warnings: parseMessages(rawWarnings),
         raw: result,
-        ts: new Date().toLocaleTimeString('pl-PL'),
+        ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')),
       };
     } catch (e) {
       try {
@@ -313,7 +379,7 @@ class HAYamlChecker extends HTMLElement {
           ok: true,
           errors: [],
           warnings: [],
-          ts: new Date().toLocaleTimeString('pl-PL'),
+          ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')),
           note: 'Sprawdzenie przez service (bez szczeg\u00F3\u0142\u00F3w b\u0142\u0119d\u00F3w)',
         };
       } catch (e2) {
@@ -321,7 +387,7 @@ class HAYamlChecker extends HTMLElement {
           ok: false,
           errors: [{ message: e.message || String(e) }],
           warnings: [],
-          ts: new Date().toLocaleTimeString('pl-PL'),
+          ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')),
           apiError: true,
         };
       }
@@ -512,10 +578,10 @@ class HAYamlChecker extends HTMLElement {
         sceneRefs,
         inputRefs,
         checkedCount: new Set(checked).size,
-        ts: new Date().toLocaleTimeString('pl-PL'),
+        ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')),
       };
     } catch (e) {
-      this._entityResult = { error: e.message || String(e), ts: new Date().toLocaleTimeString('pl-PL') };
+      this._entityResult = { error: e.message || String(e), ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     }
 
     this._entityLoading = false;
@@ -571,13 +637,13 @@ class HAYamlChecker extends HTMLElement {
         configDir: configInfo.config_dir || '?',
         components: configInfo.components ? configInfo.components.length : '?',
         unit: configInfo.unit_system ? configInfo.unit_system.length_unit || 'km' : '?',
-        ts: new Date().toLocaleTimeString('pl-PL'),
+        ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')),
         files: HAYamlChecker.KEY_FILES.map(f => ({ ...f, status: 'unknown' })),
       };
     } catch (e) {
       this._scanResult = {
         files: HAYamlChecker.KEY_FILES.map(f => ({ ...f, status: 'unknown' })),
-        ts: new Date().toLocaleTimeString('pl-PL'),
+        ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')),
         error: e.message,
       };
     }
@@ -597,9 +663,9 @@ class HAYamlChecker extends HTMLElement {
 
     try {
       const result = await this._hass.callApi('POST', 'template', { template });
-      this._templateResult = { ok: true, value: result, ts: new Date().toLocaleTimeString('pl-PL') };
+      this._templateResult = { ok: true, value: result, ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     } catch (e) {
-      this._templateResult = { ok: false, error: e.message || String(e), ts: new Date().toLocaleTimeString('pl-PL') };
+      this._templateResult = { ok: false, error: e.message || String(e), ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     }
 
     this._templateLoading = false;
@@ -612,11 +678,32 @@ class HAYamlChecker extends HTMLElement {
     const warnings = [];
     const lines = text.split('\n');
 
+    // Indentation consistency: detect mix of 2-space and 4-space
+    const indentLevels = { 2: 0, 4: 0 };
     lines.forEach((line, i) => {
       if (/^\t/.test(line)) {
-        errors.push({ line: i + 1, msg: 'Tab zamiast spacji — YAML nie obs\u0142uguje tab\u00F3w do wci\u0119cia', severity: 'error' });
+        errors.push({ line: i + 1, msg: 'Tab zamiast spacji \u2014 YAML nie obs\u0142uguje tab\u00F3w do wci\u0119cia', severity: 'error' });
+      }
+      // Trailing spaces
+      if (/\s+$/.test(line) && line.trim().length > 0) {
+        warnings.push({ line: i + 1, msg: 'Spacja na ko\u0144cu linii (trailing whitespace)', severity: 'info' });
+      }
+      // Empty value (key with no value)
+      const emptyVal = line.match(/^(\s*)([a-zA-Z_][a-zA-Z0-9_]*):\s*$/);
+      if (emptyVal && !line.trim().startsWith('#')) {
+        warnings.push({ line: i + 1, msg: `Pusta warto\u015B\u0107 dla klucza "${emptyVal[2]}" \u2014 sprawdz czy zamierzone`, severity: 'info' });
+      }
+      // Count indent styles
+      const leadMatch = line.match(/^( +)/);
+      if (leadMatch) {
+        const spaces = leadMatch[1].length;
+        if (spaces % 4 === 0) indentLevels[4]++;
+        else if (spaces % 2 === 0) indentLevels[2]++;
       }
     });
+    if (indentLevels[2] > 0 && indentLevels[4] > 0) {
+      warnings.push({ line: 0, msg: `Niespójne wci\u0119cia: mieszane 2-spacje (${indentLevels[2]}x) i 4-spacje (${indentLevels[4]}x). Zalecane: 2 spacje.`, severity: 'warning' });
+    }
 
     // Check duplicate root keys
     const rootKeys = {};
@@ -843,13 +930,14 @@ class HAYamlChecker extends HTMLElement {
 
   // ── Render ───────────────────────────────────────────────────────────────
   _render() {
+    if (!this._hass) return;
     this.shadowRoot.innerHTML = `<style>${window.HAToolsBentoCSS || ""}
 ${this._css()}
 /* === DARK MODE === */
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -930,7 +1018,7 @@ ${this._css()}
   _renderCheckResult(r) {
     const cls = r.ok ? 'success' : 'error';
     const icon = r.ok ? '✅' : '❌';
-    const label = r.ok ? 'Konfiguracja poprawna' : 'Znaleziono błędy';
+    const label = r.ok ? this._t.configOk : this._t.configError;
     return `
       <div class="result-header ${cls}">
         <span class="result-icon">${icon}</span>
@@ -939,13 +1027,13 @@ ${this._css()}
           <small>${r.ts}${r.note ? ' · ' + r.note : ''}</small>
         </div>
       </div>
-      ${r.errors.length ? `<div class="issue-section"><h3>Błędy (${r.errors.length})</h3>
+      ${r.errors.length ? `<div class="issue-section"><h3>${this._t.errors} (${r.errors.length})</h3>
         ${r.errors.map(e => `<div class="issue-item error"><span class="issue-icon">\u274C</span><div>${e.component ? '<strong>[' + e.component + ']</strong> ' : ''}${e.detail || e.message || JSON.stringify(e)}</div></div>`).join('')}
       </div>` : ''}
-      ${r.warnings.length ? `<div class="issue-section"><h3>Ostrzeżenia (${r.warnings.length})</h3>
+      ${r.warnings.length ? `<div class="issue-section"><h3>${this._t.warnings} (${r.warnings.length})</h3>
         ${r.warnings.map(w => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div>${w.message || JSON.stringify(w)}</div></div>`).join('')}
       </div>` : ''}
-      ${r.ok && !r.errors.length && !r.warnings.length ? '<div class="all-good">✅ Wszystko w porządku!</div>' : ''}
+      ${r.ok && !r.errors.length && !r.warnings.length ? `<div class="all-good">✅ ${this._t.allOk}</div>` : ''}
     `;
   }
 
@@ -1057,19 +1145,19 @@ ${this._css()}
       ${r.haVersion ? `
         <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
           <div class="stat-card"><div class="stat-value">${r.haVersion}</div><div class="stat-label">HA Version</div></div>
-          <div class="stat-card"><div class="stat-value">${r.entityCount}</div><div class="stat-label">Encji</div></div>
-          <div class="stat-card"><div class="stat-value">${r.deviceCount}</div><div class="stat-label">Urz\u0105dze\u0144</div></div>
-          <div class="stat-card"><div class="stat-value">${r.areaCount}</div><div class="stat-label">Obszar\u00F3w</div></div>
-          <div class="stat-card"><div class="stat-value">${r.components}</div><div class="stat-label">Komponent\u00F3w</div></div>
+          <div class="stat-card"><div class="stat-value">${r.entityCount}</div><div class="stat-label">${this._t.entities}</div></div>
+          <div class="stat-card"><div class="stat-value">${r.deviceCount}</div><div class="stat-label">${this._t.devices}</div></div>
+          <div class="stat-card"><div class="stat-value">${r.areaCount}</div><div class="stat-label">${this._t.areas}</div></div>
+          <div class="stat-card"><div class="stat-value">${r.components}</div><div class="stat-label">${this._t.components}</div></div>
           <div class="stat-card ${r.logErrors > 0 ? 'stat-error' : ''}">
             <div class="stat-value ${r.logErrors > 0 ? 'error-val' : ''}">${r.logErrors}</div>
-            <div class="stat-label">B\u0142\u0119d\u00F3w w logu</div>
+            <div class="stat-label">${this._t.logErrors}</div>
           </div>
         </div>
-        ${r.configDir ? `<div class="note-box">📁 Katalog konfiguracji: <code>${r.configDir}</code></div>` : ''}
-        ${r.logWarnings > 0 ? `<div class="note-box">⚠️ Ostrze\u017Ce\u0144 w logu: ${r.logWarnings}</div>` : ''}
+        ${r.configDir ? `<div class="note-box">📁 ${this._t.configDirLabel}: <code>${r.configDir}</code></div>` : ''}
+        ${r.logWarnings > 0 ? `<div class="note-box">⚠️ ${this._t.logWarnings}: ${r.logWarnings}</div>` : ''}
       ` : ''}
-      <div class="file-list-header" style="margin-top:12px;">Pliki konfiguracji (status nieznany — HA API nie udost\u0119pnia zawarto\u015Bci plik\u00F3w)</div>
+      <div class="file-list-header" style="margin-top:12px;">${this._t.configFilesNote}</div>
       <div class="file-list">
         ${r.files.map(f => `
           <div class="file-item">
@@ -1287,7 +1375,7 @@ ${this._css()}
         --radius: var(--bento-radius-sm);
         display: block;
       }
-      .card { background: var(--bg); border-radius: var(--radius); overflow: hidden; font-family: 'Inter', -apple-system, sans-serif; color: var(--text); }
+      .card { background: var(--bg); border-radius: var(--radius); overflow: visible; font-family: 'Inter', -apple-system, sans-serif; color: var(--text); }
       .card-header { display: flex; align-items: center; gap: 10px; padding: 16px 20px 12px; border-bottom: 1px solid var(--border); }
       .card-title-icon { font-size: 22px; }
       .card-header h2 { margin: 0; font-size: 16px; font-weight: 700; flex: 1; }
@@ -1381,13 +1469,14 @@ ${this._css()}
     s.onload = _inj;
     document.head.appendChild(s);
   }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
 }
 
-customElements.define('ha-yaml-checker', HAYamlChecker);
+if (!customElements.get('ha-yaml-checker')) customElements.define('ha-yaml-checker', HAYamlChecker);
 
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-yaml-checker', name: 'YAML Checker', description: 'YAML validator: config check, entities, templates', preview: false });
 
 class HaYamlCheckerEditor extends HTMLElement {
   constructor() {
@@ -1426,3 +1515,8 @@ class HaYamlCheckerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-yaml-checker-editor')) { customElements.define('ha-yaml-checker-editor', HaYamlCheckerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-yaml-checker', name: 'YAML Checker', description: 'YAML validator: config check, entities, templates', preview: false });

@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -144,9 +146,53 @@ class HASentenceManager extends HTMLElement {
     return this._hass;
   }
 
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Mened\u017Cer Zda\u0144',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'B\u0142\u0105d',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        delete: 'Usu\u0144',
+        edit: 'Edytuj',
+        add: 'Dodaj',
+        search: 'Szukaj...',
+        sentences: 'Zdania',
+        intents: 'Intencje',
+        responses: 'Odpowiedzi',
+        saved: 'Zapisano',
+        deleted: 'Usuni\u0119to',
+        confirmDelete: 'Czy na pewno chcesz usun\u0105\u0107?',
+      },
+      en: {
+        title: 'Sentence Manager',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        save: 'Save',
+        cancel: 'Cancel',
+        delete: 'Delete',
+        edit: 'Edit',
+        add: 'Add',
+        search: 'Search...',
+        sentences: 'Sentences',
+        intents: 'Intents',
+        responses: 'Responses',
+        saved: 'Saved',
+        deleted: 'Deleted',
+        confirmDelete: 'Are you sure you want to delete?',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
+
   static getConfigElement() {
     return document.createElement('ha-sentence-manager-editor');
   }
+
+  getCardSize() { return 6; }
 
   static getStubConfig() {
     return {
@@ -561,6 +607,7 @@ class HASentenceManager extends HTMLElement {
   }
 
   render() {
+    if (!this._hass) return;
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
       this.shadowRoot.innerHTML = this.getStyles();
@@ -589,7 +636,7 @@ class HASentenceManager extends HTMLElement {
       </div>
 
       <div class="tip-banner ${tipDismissed ? 'hidden' : ''}" id="tip-banner">
-        <button class="tip-dismiss" id="tip-dismiss">\u2715</button>
+        <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
         <div class="tip-banner-title">\u{1F4A1} Jak dzia\u0142aj\u0105 komendy g\u0142osowe?</div>
         <ul>
           <li><strong>Editor</strong> \u2014 tworzysz zdania (sentences), kt\u00F3re HA rozpoznaje jako komendy g\u0142osowe.</li>
@@ -1231,7 +1278,11 @@ class HASentenceManager extends HTMLElement {
   displayTestResults(results, input) {
     const container = this.shadowRoot.querySelector('#test-results');
     if (results.length === 0) {
-      container.innerHTML = `<div class="test-no-match">No matches found for: "${input}"</div>`;
+      const div = document.createElement('div');
+      div.className = 'test-no-match';
+      div.textContent = `No matches found for: "${input}"`;
+      container.innerHTML = '';
+      container.appendChild(div);
       return;
     }
 
@@ -1296,6 +1347,7 @@ class HASentenceManager extends HTMLElement {
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
   overflow: hidden;
+  position: relative;
   padding: 20px;
 }
 
@@ -1483,7 +1535,8 @@ canvas {
 .info-card h3 { margin-top: 0; }
 .file-path-info { margin-top: 8px; padding: 8px; background: var(--bento-card); border-radius: var(--bento-radius-xs); font-size: 13px; }
 .hint { font-size: 12px; color: var(--bento-text-muted); }
-.test-input-row { display: flex; gap: 8px; align-items: center; }
+.test-input-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.test-input-row input { flex: 1; min-width: 0; box-sizing: border-box; }
 .ha-test-result { padding: 12px; border-radius: var(--bento-radius-sm); margin-top: 12px; }
 .ha-test-result.test-match { background: var(--bento-success-light); border: 1px solid rgba(16, 185, 129, 0.3); }
 .ha-test-result.test-no-match { background: var(--bento-warning-light); border: 1px solid rgba(245, 158, 11, 0.3); }
@@ -1515,6 +1568,7 @@ canvas {
           border-radius: 4px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           overflow: hidden;
+          position: relative;
         }
 
         .card-header {
@@ -1532,6 +1586,8 @@ canvas {
           display: flex;
           border-bottom: 1px solid var(--border-color);
           background: var(--ha-card-background);
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
 
         .tab-btn {
@@ -1564,6 +1620,8 @@ canvas {
           display: none;
           padding: 20px;
           animation: fadeIn 0.3s ease;
+          overflow: hidden;
+          max-width: 100%;
         }
 
         .tab-panel.active {
@@ -1633,8 +1691,14 @@ canvas {
           align-items: center;
         }
 
+        .slot-item > * {
+          min-width: 0;
+        }
+
         .slot-item input {
           padding: 8px;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .remove-slot-btn {
@@ -1807,6 +1871,9 @@ canvas {
 
         .test-input {
           margin-bottom: 12px;
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
         }
 
         .test-results {
@@ -1891,6 +1958,7 @@ canvas {
           font-size: 12px;
           resize: vertical;
           margin-bottom: 12px;
+          box-sizing: border-box;
         }
 
         .notification {
@@ -1961,7 +2029,7 @@ canvas {
 .card-header h2 { font-size: 20px; font-weight: 700; color: var(--bento-text); margin: 0; letter-spacing: -0.01em; }
 .card-title, .title, .header-title, .pan-title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; padding-bottom: 0; }
+.tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; padding-bottom: 0; }
 .tab, .tab-btn, .tab-btn { padding: 8px 14px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
 .tab.active, .tab-btn.active, .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab:hover, .tab-btn:hover, .tab-btn:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -2260,7 +2328,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -2276,6 +2344,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+          .slot-item { grid-template-columns: 1fr; }
         }
 
 </style>
@@ -2301,23 +2370,25 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     // Built-in intents reference
     html += '<div class="section-title" style="margin-top:20px;">📋 Built-in HA Intents (reference)</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">';
+    html += '<div style="overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;border-radius:8px;border:1px solid var(--bento-border,#e2e8f0);">';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:0;">';
     html += '<thead><tr><th style="text-align:left;padding:8px;border-bottom:2px solid var(--bento-border,#e2e8f0);">Intent</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--bento-border,#e2e8f0);">Slots</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--bento-border,#e2e8f0);">Opis</th></tr></thead><tbody>';
     defaultActions.forEach(a => {
       html += `<tr><td style="padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);"><code>${a.intent}</code></td><td style="padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:12px;">${a.slots}</td><td style="padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:12px;color:var(--bento-text-secondary,#64748b);">${a.desc}</td></tr>`;
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
+    html += '<div style="margin-bottom:20px;"></div>';
 
     // Custom action builder
     html += '<div class="section-title" style="margin-top:24px;">🛠️ Create Custom Action</div>';
     html += '<div style="background:var(--bento-bg,#f8fafc);border:1.5px solid var(--bento-border,#e2e8f0);border-radius:12px;padding:16px;margin-bottom:16px;">';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">';
-    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">Trigger phrase (PL)</label><input type="text" id="action-trigger" placeholder="np. włącz tryb filmowy" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;"></div>';
-    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">Trigger phrase (EN)</label><input type="text" id="action-trigger-en" placeholder="e.g. turn on movie mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;"></div>';
+    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">Trigger phrase (PL)</label><input type="text" id="action-trigger" placeholder="np. włącz tryb filmowy" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;box-sizing:border-box;"></div>';
+    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">Trigger phrase (EN)</label><input type="text" id="action-trigger-en" placeholder="e.g. turn on movie mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;box-sizing:border-box;"></div>';
     html += '</div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">';
-    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">HA Service</label><input type="text" id="action-service" placeholder="np. scene.turn_on, script.movie_mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;"></div>';
-    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">Entity ID</label><input type="text" id="action-entity" placeholder="np. scene.movie_mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;"></div>';
+    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">HA Service</label><input type="text" id="action-service" placeholder="np. scene.turn_on, script.movie_mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;box-sizing:border-box;"></div>';
+    html += '<div><label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary,#64748b);display:block;margin-bottom:4px;">Entity ID</label><input type="text" id="action-entity" placeholder="np. scene.movie_mode" style="width:100%;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;box-sizing:border-box;"></div>';
     html += '</div>';
     html += '<button class="btn-primary" id="btn-generate-action" style="margin-top:8px;">📝 Generate YAML</button>';
     html += '</div>';
@@ -2340,11 +2411,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return html;
   }
 
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
+
 }
 
 if (!customElements.get('ha-sentence-manager')) { customElements.define('ha-sentence-manager', HASentenceManager); }
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-sentence-manager', name: 'Sentence Manager', description: 'Manage voice assistant sentences and intents', preview: false });
 ;
 
 class HASentenceManagerEditor extends HTMLElement {
@@ -2436,3 +2509,8 @@ class HASentenceManagerEditor extends HTMLElement {
 }
 
 if (!customElements.get('ha-sentence-manager-editor')) { customElements.define('ha-sentence-manager-editor', HASentenceManagerEditor); };
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-sentence-manager', name: 'Sentence Manager', description: 'Manage voice assistant sentences and intents', preview: false });

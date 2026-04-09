@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -94,6 +95,9 @@ class HAAutomationAnalyzer extends HTMLElement {
     this._sortBy = "lastTriggered";
     this._sortDir = "desc";
     this._timeRange = "all";
+    // Pagination for optimization tab
+    this._currentPage = {};
+    this._pageSize = 15;
   }
 
   setConfig(config) {
@@ -130,6 +134,44 @@ class HAAutomationAnalyzer extends HTMLElement {
   }
 
   get hass() { return this._hass; }
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Analizator Automatyzacji',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'B\u0142\u0105d',
+        refresh: 'Od\u015Bwie\u017C',
+        automations: 'Automatyzacje',
+        enabled: 'Aktywne',
+        disabled: 'Nieaktywne',
+        total: 'Razem',
+        triggers: 'Wyzwalacze',
+        actions: 'Akcje',
+        conditions: 'Warunki',
+        lastTriggered: 'Ostatnie uruchomienie',
+        never: 'Nigdy',
+      },
+      en: {
+        title: 'Automation Analyzer',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        automations: 'Automations',
+        enabled: 'Enabled',
+        disabled: 'Disabled',
+        total: 'Total',
+        triggers: 'Triggers',
+        actions: 'Actions',
+        conditions: 'Conditions',
+        lastTriggered: 'Last triggered',
+        never: 'Never',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
 
   _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
 
@@ -719,6 +761,7 @@ class HAAutomationAnalyzer extends HTMLElement {
   }
 
   render() {
+    if (!this._hass) return;
     const styles = `
       
 /* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
@@ -1055,6 +1098,36 @@ class HAAutomationAnalyzer extends HTMLElement {
       .auto-item-full .auto-state-dot.off { background: var(--bento-text-secondary); opacity: 0.4; }
       .auto-item-full .auto-state-dot.error { background: var(--aa-danger); }
       .filter-results-count { font-size: 11px; color: var(--bento-text-secondary); padding: 2px 0; }
+      /* === PAGINATION STYLES === */
+      .pagination {
+        display: flex; align-items: center; gap: 8px; margin-top: 12px;
+        padding: 12px; background: var(--bento-card); border: 1px solid var(--bento-border);
+        border-radius: var(--bento-radius-sm); flex-wrap: wrap;
+      }
+      .pagination-btn {
+        padding: 6px 12px; background: var(--bento-card); border: 1px solid var(--bento-border);
+        border-radius: var(--bento-radius-sm); color: var(--bento-primary); font-size: 12px;
+        cursor: pointer; transition: all var(--aa-anim); font-weight: 500;
+      }
+      .pagination-btn:hover:not([disabled]) { background: var(--bento-primary); color: white; }
+      .pagination-btn[disabled] { opacity: 0.5; cursor: not-allowed; color: var(--bento-text-secondary); }
+      .pagination-info {
+        font-size: 12px; color: var(--bento-text-secondary); font-weight: 500;
+        min-width: 120px; text-align: center;
+      }
+      .page-size-select {
+        padding: 6px 28px 6px 8px; border: 1px solid var(--bento-border);
+        border-radius: var(--bento-radius-sm); background: var(--bento-card); color: var(--bento-text);
+        font-size: 12px; cursor: pointer; appearance: none; -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 8px center;
+      }
+      .page-size-select:focus { border-color: var(--bento-primary); outline: none; }
+      /* === CHART RESPONSIVE FIX === */
+      .canvas-wrap {
+        position: relative; height: 250px; margin-bottom: var(--aa-space-4);
+        width: 100%; overflow: hidden;
+      }
     `;
 
     const totalActive = Array.from(this.automationStats.values()).filter(a => a.state === "on").length;
@@ -1228,8 +1301,14 @@ class HAAutomationAnalyzer extends HTMLElement {
     } else if (this.currentTab === 'optimization') {
       const optData = this.getOptimizationData();
 
-      const slowItems = optData.slow.length > 0
-        ? optData.slow.map(a => `
+      // Paginate each list
+      const slowPaginated = this._paginateItems(optData.slow, 'opt-slow');
+      const failedPaginated = this._paginateItems(optData.failed, 'opt-failed');
+      const disabledPaginated = this._paginateItems(optData.disabled, 'opt-disabled');
+      const stalePaginated = this._paginateItems(optData.stale, 'opt-stale');
+
+      const slowItems = slowPaginated.length > 0
+        ? slowPaginated.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
               <span class="badge badge-warn">${Math.round(a.avgExecutionTime)}ms</span>
@@ -1237,8 +1316,8 @@ class HAAutomationAnalyzer extends HTMLElement {
             </div>`).join("")
         : '<div class="empty-state">\u2705 Brak wolnych automatyzacji</div>';
 
-      const failedItems = optData.failed.length > 0
-        ? optData.failed.map(a => `
+      const failedItems = failedPaginated.length > 0
+        ? failedPaginated.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
               <span class="badge badge-error">${a.reason || "b\u0142\u0105d"}</span>
@@ -1246,8 +1325,8 @@ class HAAutomationAnalyzer extends HTMLElement {
             </div>`).join("")
         : '<div class="empty-state">\u2705 Brak nieudanych automatyzacji</div>';
 
-      const disabledItems = optData.disabled.length > 0
-        ? optData.disabled.map(a => `
+      const disabledItems = disabledPaginated.length > 0
+        ? disabledPaginated.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
               <span class="badge badge-info">wy\u0142\u0105czona</span>
@@ -1256,8 +1335,8 @@ class HAAutomationAnalyzer extends HTMLElement {
             </div>`).join("")
         : '<div class="empty-state">\u2705 Brak wy\u0142\u0105czonych automatyzacji</div>';
 
-      const staleItems = optData.stale.length > 0
-        ? optData.stale.map(a => `
+      const staleItems = stalePaginated.length > 0
+        ? stalePaginated.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
               <span class="badge badge-stale">${this._formatTimeSince(a.lastTriggered)}</span>
@@ -1287,18 +1366,22 @@ class HAAutomationAnalyzer extends HTMLElement {
         <div class="opt-section">
           <h2 class="card-title">\u26A0\uFE0F Wolne automatyzacje (&gt;800ms)</h2>
           <div class="auto-list">${slowItems}</div>
+          ${optData.slow.length > 0 ? this._renderPagination('opt-slow', optData.slow.length) : ''}
         </div>
         <div class="opt-section">
           <h2 class="card-title">\u274C Automatyzacje z b\u0142\u0119dami</h2>
           <div class="auto-list">${failedItems}</div>
+          ${optData.failed.length > 0 ? this._renderPagination('opt-failed', optData.failed.length) : ''}
         </div>
         <div class="opt-section">
           <h2 class="card-title">\u23F8\uFE0F Wy\u0142\u0105czone automatyzacje</h2>
           <div class="auto-list">${disabledItems}</div>
+          ${optData.disabled.length > 0 ? this._renderPagination('opt-disabled', optData.disabled.length) : ''}
         </div>
         <div class="opt-section">
           <h2 class="card-title">\uD83D\uDCA4 Nieaktywne automatyzacje (&gt;30 dni)</h2>
           <div class="auto-list">${staleItems}</div>
+          ${optData.stale.length > 0 ? this._renderPagination('opt-stale', optData.stale.length) : ''}
         </div>
       `;
     }
@@ -1342,7 +1425,7 @@ ${styles}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1352,12 +1435,22 @@ ${styles}
           .column { min-width: unset; }
           h2 { font-size: 18px; }
           h3 { font-size: 15px; }
+          .canvas-wrap { height: 280px; }
+          .auto-name { max-width: 180px; }
+          .pagination { gap: 6px; }
+          .pagination-info { min-width: 100px; font-size: 11px; }
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
           .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+          .canvas-wrap { height: 240px; }
+          .auto-name { max-width: 140px; font-size: 12px; }
+          .pagination { gap: 4px; padding: 8px; flex-direction: column; align-items: stretch; }
+          .pagination-btn { padding: 5px 8px; font-size: 11px; }
+          .pagination-info { min-width: 100%; text-align: center; font-size: 11px; }
+          .page-size-select { font-size: 11px; padding: 4px 24px 4px 6px; }
         }
 
 </style>
@@ -1381,7 +1474,7 @@ ${styles}
             Mo\u017cesz zwi\u0119kszy\u0107 limit w <a id="trace-viewer-link">Trace Viewer</a> (HA Tools \u2192 Ustawienia).
             <div class="detail">\u2139\uFE0F Aby zachowa\u0107 wi\u0119cej danych o wykonaniach, ustaw stored_traces w konfiguracji HA lub u\u017cyj sekcji ustawie\u0144 w Trace Viewer.</div>
           </div>
-          <button class="trace-notice-dismiss" id="dismiss-trace-notice" title="Zamknij">\u00d7</button>
+          <button class="trace-notice-dismiss" id="dismiss-trace-notice" title="Zamknij" aria-label="Zamknij">\u00d7</button>
         </div>
         ` : ""}
         <div class="tabs">
@@ -1394,9 +1487,55 @@ ${styles}
     `;
 
     this._setupEventListeners();
+    this._setupPaginationListeners();
     if (!this._isLoading) {
       this._drawCharts();
     }
+  }
+
+  _paginateItems(items, tabName) {
+    if (!this._currentPage[tabName]) this._currentPage[tabName] = 1;
+    const start = (this._currentPage[tabName] - 1) * this._pageSize;
+    return items.slice(start, start + this._pageSize);
+  }
+
+  _renderPagination(tabName, totalItems) {
+    if (!this._currentPage[tabName]) this._currentPage[tabName] = 1;
+    const pageSize = this._pageSize;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const page = Math.min(this._currentPage[tabName], totalPages);
+    this._currentPage[tabName] = page;
+    return `
+      <div class="pagination">
+        <button class="pagination-btn" data-page-tab="${tabName}" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>&#8249; Prev</button>
+        <span class="pagination-info">${page} / ${totalPages} (${totalItems})</span>
+        <button class="pagination-btn" data-page-tab="${tabName}" data-page="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>Next &#8250;</button>
+        <select class="page-size-select" data-page-tab="${tabName}" data-action="page-size">
+          ${[10,15,25,50].map(s => `<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}/page</option>`).join('')}
+        </select>
+      </div>`;
+  }
+
+  _setupPaginationListeners() {
+    if (!this.shadowRoot) return;
+    this.shadowRoot.querySelectorAll('.pagination-btn:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tab = e.target.dataset.pageTab;
+        const page = parseInt(e.target.dataset.page);
+        if (tab && page > 0) {
+          this._currentPage[tab] = page;
+          this.render();
+        }
+      });
+    });
+    this.shadowRoot.querySelectorAll('.page-size-select').forEach(sel => {
+      sel.addEventListener('change', (e) => {
+        this._pageSize = parseInt(e.target.value);
+        // Reset all pages to 1
+        Object.keys(this._currentPage).forEach(k => this._currentPage[k] = 1);
+        this.render();
+      });
+    });
   }
 
   _setupEventListeners() {
@@ -1758,12 +1897,13 @@ ${styles}
       show_disabled: true
     };
   }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
 }
 
-customElements.define("ha-automation-analyzer", HAAutomationAnalyzer);
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-automation-analyzer', name: 'Automation Analyzer', description: 'Analyze automation performance, find issues and optimize', preview: false });
+if (!customElements.get('ha-automation-analyzer')) customElements.define("ha-automation-analyzer", HAAutomationAnalyzer);
 
 class HaAutomationAnalyzerEditor extends HTMLElement {
   constructor() {
@@ -1810,3 +1950,8 @@ class HaAutomationAnalyzerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-automation-analyzer-editor')) { customElements.define('ha-automation-analyzer-editor', HaAutomationAnalyzerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-automation-analyzer', name: 'Automation Analyzer', description: 'Analyze automation performance, find issues and optimize', preview: false });

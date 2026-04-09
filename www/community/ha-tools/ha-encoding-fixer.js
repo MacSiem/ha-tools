@@ -1,12 +1,13 @@
+(function() {
+'use strict';
 
-// ── HA Tools Server Persistence Helper ──
+// â”€â”€ HA Tools Server Persistence Helper â”€â”€
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -32,7 +33,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
         this._cache[fullKey] = JSON.parse(raw);
       }
     } catch(e) {}
-    // 3. HA server (authoritative, cross-device) — async update
+    // 3. HA server (authoritative, cross-device) â€” async update
     if (this._hass) {
       try {
         const result = await this._hass.callWS({ type: 'frontend/get_user_data', key: fullKey });
@@ -91,11 +92,18 @@ class HaEncodingFixer extends HTMLElement {
     this._restoreBackupInfo = null;
     this._restoreSelectedIds = new Set();
     this._yamlScanning = false;
+    this._excludedCount = 0;
+    this._restoreSource = 'snapshot';
+    this._restoreFilePick = null;
+    this._restoreStep = 1;
+    this._restorePreview = null;
   }
 
   static getConfigElement() {
     return document.createElement('ha-encoding-fixer-editor');
   }
+
+  getCardSize() { return 6; }
 
   static getStubConfig() {
     return {
@@ -155,6 +163,7 @@ class HaEncodingFixer extends HTMLElement {
         fixedLovelace: 'Naprawiono lovelace',
         mojibakePatterns: 'Wzorce mojibake',
         commonPatterns: 'Czeste wzorce blednego kodowania',
+        patternsExpandHint: 'Wzorce mojibake (kliknij aby rozwin\u0105\u0107)',
         original: 'Bledne',
         correct: 'Poprawne',
         testString: 'Testuj tekst',
@@ -180,7 +189,7 @@ class HaEncodingFixer extends HTMLElement {
         yamlContext: 'Kontekst',
         yamlScannedFiles: 'Przeskanowanych plikow',
         yamlNeedsRestart: 'Uwaga: po dodaniu shell_command wymagany restart HA',
-        yamlRunError: 'Blad wywolania skanera — sprawdz czy HA zostal zrestartowany po dodaniu shell_command',
+        yamlRunError: 'Blad wywolania skanera â€” sprawdz czy HA zostal zrestartowany po dodaniu shell_command',
         fixYamlFile: 'Napraw plik',
         fixYamlAll: 'Napraw wszystkie pliki',
         yamlFixing: 'Naprawianie...',
@@ -199,7 +208,7 @@ class HaEncodingFixer extends HTMLElement {
         restoreSelected: 'Przywroc zaznaczone',
         restoreAll: 'Przywroc wszystkie',
         restoreDone: 'Przywrocono. Zalecany restart HA (Ustawienia > System > Restart).',
-        noBackup: 'Brak kopii — najpierw utwórz snapshot aktualnych zasobow',
+        noBackup: 'Brak kopii â€” najpierw utwĂłrz snapshot aktualnych zasobow',
         createSnapshot: 'Zapisz snapshot',
         snapshotCreated: 'Snapshot zapisany',
         corruptionWarning: 'Wykryto utrate zasobow!',
@@ -249,6 +258,7 @@ class HaEncodingFixer extends HTMLElement {
         fixedLovelace: 'Fixed lovelace',
         mojibakePatterns: 'Mojibake patterns',
         commonPatterns: 'Common encoding error patterns',
+        patternsExpandHint: 'Mojibake patterns (click to expand)',
         original: 'Broken',
         correct: 'Correct',
         testString: 'Test text',
@@ -274,14 +284,14 @@ class HaEncodingFixer extends HTMLElement {
         yamlContext: 'Context',
         yamlScannedFiles: 'Files scanned',
         yamlNeedsRestart: 'Note: HA restart required after adding shell_command',
-        yamlRunError: 'Error running scanner — check if HA was restarted after adding shell_command',
+        yamlRunError: 'Error running scanner â€” check if HA was restarted after adding shell_command',
         fixYamlFile: 'Fix file',
         fixYamlAll: 'Fix all files',
         yamlFixing: 'Fixing...',
         yamlFixSuccess: 'Fixed',
         tabRestore: 'Restore',
         restoreTitle: 'Recover lost resources',
-        restoreDesc: 'Compares loaded lovelace resources with backup snapshot — detects missing entries after .storage file corruption',
+        restoreDesc: 'Compares loaded lovelace resources with backup snapshot â€” detects missing entries after .storage file corruption',
         scanRestore: 'Scan for missing resources',
         restoreScanning: 'Comparing...',
         restoreOk: 'All resources present',
@@ -293,7 +303,7 @@ class HaEncodingFixer extends HTMLElement {
         restoreSelected: 'Restore selected',
         restoreAll: 'Restore all',
         restoreDone: 'Restored. HA restart recommended (Settings > System > Restart).',
-        noBackup: 'No backup — create a snapshot of current resources first',
+        noBackup: 'No backup â€” create a snapshot of current resources first',
         createSnapshot: 'Save snapshot',
         snapshotCreated: 'Snapshot saved',
         corruptionWarning: 'Resource loss detected!',
@@ -341,70 +351,70 @@ class HaEncodingFixer extends HTMLElement {
   static get MOJIBAKE_MAP() {
     return {
       // Polish
-      '\u00C4\u0085': '\u0105', // ą
-      '\u00C4\u0087': '\u0107', // ć
-      '\u00C4\u0099': '\u0119', // ę
-      '\u00C5\u0082': '\u0142', // ł
-      '\u00C5\u0084': '\u0144', // ń
-      '\u00C3\u00B3': '\u00F3', // ó
-      '\u00C5\u009B': '\u015B', // ś
-      '\u00C5\u00BA': '\u017A', // ź
-      '\u00C5\u00BC': '\u017C', // ż
-      '\u00C4\u0084': '\u0104', // Ą
-      '\u00C4\u0086': '\u0106', // Ć
-      '\u00C4\u0098': '\u0118', // Ę
-      '\u00C5\u0081': '\u0141', // Ł
-      '\u00C5\u0083': '\u0143', // Ń
-      '\u00C3\u0093': '\u00D3', // Ó
-      '\u00C5\u009A': '\u015A', // Ś
-      '\u00C5\u00B9': '\u0179', // Ź
-      '\u00C5\u00BB': '\u017B', // Ż
+      '\u00C4\u0085': '\u0105', // Ä…
+      '\u00C4\u0087': '\u0107', // Ä‡
+      '\u00C4\u0099': '\u0119', // Ä™
+      '\u00C5\u0082': '\u0142', // Ĺ‚
+      '\u00C5\u0084': '\u0144', // Ĺ„
+      '\u00C3\u00B3': '\u00F3', // Ăł
+      '\u00C5\u009B': '\u015B', // Ĺ›
+      '\u00C5\u00BA': '\u017A', // Ĺş
+      '\u00C5\u00BC': '\u017C', // ĹĽ
+      '\u00C4\u0084': '\u0104', // Ä„
+      '\u00C4\u0086': '\u0106', // Ä†
+      '\u00C4\u0098': '\u0118', // Ä
+      '\u00C5\u0081': '\u0141', // Ĺ
+      '\u00C5\u0083': '\u0143', // Ĺ
+      '\u00C3\u0093': '\u00D3', // Ă“
+      '\u00C5\u009A': '\u015A', // Ĺš
+      '\u00C5\u00B9': '\u0179', // Ĺą
+      '\u00C5\u00BB': '\u017B', // Ĺ»
       // German
-      '\u00C3\u00A4': '\u00E4', // ä
-      '\u00C3\u00B6': '\u00F6', // ö
-      '\u00C3\u00BC': '\u00FC', // ü
-      '\u00C3\u009F': '\u00DF', // ß
-      '\u00C3\u0084': '\u00C4', // Ä
-      '\u00C3\u0096': '\u00D6', // Ö
-      '\u00C3\u009C': '\u00DC', // Ü
+      '\u00C3\u00A4': '\u00E4', // Ă¤
+      '\u00C3\u00B6': '\u00F6', // Ă¶
+      '\u00C3\u00BC': '\u00FC', // ĂĽ
+      '\u00C3\u009F': '\u00DF', // Ăź
+      '\u00C3\u0084': '\u00C4', // Ă„
+      '\u00C3\u0096': '\u00D6', // Ă–
+      '\u00C3\u009C': '\u00DC', // Ăś
       // French/Spanish
-      '\u00C3\u00A9': '\u00E9', // é
-      '\u00C3\u00A8': '\u00E8', // è
-      '\u00C3\u00AA': '\u00EA', // ê
-      '\u00C3\u00AB': '\u00EB', // ë
-      '\u00C3\u00A0': '\u00E0', // à
-      '\u00C3\u00A2': '\u00E2', // â
-      '\u00C3\u00AE': '\u00EE', // î
-      '\u00C3\u00B1': '\u00F1', // ñ
-      '\u00C3\u00BA': '\u00FA', // ú
+      '\u00C3\u00A9': '\u00E9', // Ă©
+      '\u00C3\u00A8': '\u00E8', // Ă¨
+      '\u00C3\u00AA': '\u00EA', // ĂŞ
+      '\u00C3\u00AB': '\u00EB', // Ă«
+      '\u00C3\u00A0': '\u00E0', // Ă 
+      '\u00C3\u00A2': '\u00E2', // Ă˘
+      '\u00C3\u00AE': '\u00EE', // Ă®
+      '\u00C3\u00B1': '\u00F1', // Ă±
+      '\u00C3\u00BA': '\u00FA', // Ăş
       // Common symbols
-      '\u00C2\u00B0': '\u00B0', // ° (degree)
-      '\u00C2\u00A3': '\u00A3', // £
-      '\u00C2\u00A7': '\u00A7', // §
-      '\u00C2\u00AB': '\u00AB', // «
-      '\u00C2\u00BB': '\u00BB', // »
-      '\u00C2\u00B2': '\u00B2', // ²
-      '\u00C2\u00B3': '\u00B3', // ³
-      '\u00C2\u00BD': '\u00BD', // ½
-      '\u00E2\u0080\u0093': '\u2013', // – (en dash)
-      '\u00E2\u0080\u0094': '\u2014', // — (em dash)
+      '\u00C2\u00B0': '\u00B0', // Â° (degree)
+      '\u00C2\u00A3': '\u00A3', // ÂŁ
+      '\u00C2\u00A7': '\u00A7', // Â§
+      '\u00C2\u00AB': '\u00AB', // Â«
+      '\u00C2\u00BB': '\u00BB', // Â»
+      '\u00C2\u00B2': '\u00B2', // Â˛
+      '\u00C2\u00B3': '\u00B3', // Âł
+      '\u00C2\u00BD': '\u00BD', // Â˝
+      '\u00E2\u0080\u0093': '\u2013', // â€“ (en dash)
+      '\u00E2\u0080\u0094': '\u2014', // â€” (em dash)
       '\u00E2\u0080\u009C': '\u201C', // " (left double quote)
       '\u00E2\u0080\u009D': '\u201D', // " (right double quote)
       '\u00E2\u0080\u0099': '\u2019', // ' (right single quote / apostrophe)
-      '\u00E2\u0080\u00A6': '\u2026', // … (ellipsis)
-      '\u00E2\u0080\u00A2': '\u2022', // • (bullet)
+      '\u00E2\u0080\u00A6': '\u2026', // â€¦ (ellipsis)
+      '\u00E2\u0080\u00A2': '\u2022', // â€˘ (bullet)
       // Emoji mojibake (4-byte UTF-8 misread as Latin-1)
-      '\u00F0\u009F\u0094\u0092': '\uD83D\uDD12', // 🔒
-      '\u00F0\u009F\u0094\u00A5': '\uD83D\uDD25', // 🔥
-      '\u00F0\u009F\u0091\u008D': '\uD83D\uDC4D', // 👍
-      '\u00F0\u009F\u0098\u008A': '\uD83D\uDE0A', // 😊
-      '\u00F0\u009F\u008E\u00AF': '\uD83C\uDFAF', // 🎯
-      '\u00F0\u009F\u009A\u0080': '\uD83D\uDE80', // 🚀
-      '\u00F0\u009F\u0092\u00A1': '\uD83D\uDCA1', // 💡
-      '\u00F0\u009F\u0094\u0094': '\uD83D\uDD14', // 🔔
-      '\u00F0\u009F\u008F\u00A0': '\uD83C\uDFE0', // 🏠
-      '\u00F0\u009F\u0094\u008C': '\uD83D\uDD0C', // 🔌
-      '\u00F0\u009F\u0092\u00BB': '\uD83D\uDCBB', // 💻
+      '\u00F0\u009F\u0094\u0092': '\uD83D\uDD12', // đź”’
+      '\u00F0\u009F\u0094\u00A5': '\uD83D\uDD25', // đź”Ą
+      '\u00F0\u009F\u0091\u008D': '\uD83D\uDC4D', // đź‘Ť
+      '\u00F0\u009F\u0098\u008A': '\uD83D\uDE0A', // đźŠ
+      '\u00F0\u009F\u008E\u00AF': '\uD83C\uDFAF', // đźŽŻ
+      '\u00F0\u009F\u009A\u0080': '\uD83D\uDE80', // đźš€
+      '\u00F0\u009F\u0092\u00A1': '\uD83D\uDCA1', // đź’ˇ
+      '\u00F0\u009F\u0094\u0094': '\uD83D\uDD14', // đź””
+      '\u00F0\u009F\u008F\u00A0': '\uD83C\uDFE0', // đźŹ 
+      '\u00F0\u009F\u0094\u008C': '\uD83D\uDD0C', // đź”Ś
+      '\u00F0\u009F\u0092\u00BB': '\uD83D\uDCBB', // đź’»
     };
   }
 
@@ -454,13 +464,21 @@ class HaEncodingFixer extends HTMLElement {
     this._scanResults = [];
     this._scanProgress = 0;
 
+    const TEST_PATHS = /\b(example|examples|test|tests|demo|demos|sample|samples)\b/i;
     const allStates = Object.values(this._hass.states);
     this._scanTotal = allStates.length;
+    this._excludedCount = 0;
     this._updateUI();
 
     for (let i = 0; i < allStates.length; i++) {
       const entity = allStates[i];
       this._scanProgress = i + 1;
+
+      // Skip test/example/demo entities
+      if (TEST_PATHS.test(entity.entity_id)) {
+        this._excludedCount++;
+        continue;
+      }
 
       // Check friendly_name
       const fname = entity.attributes?.friendly_name;
@@ -738,8 +756,8 @@ class HaEncodingFixer extends HTMLElement {
 
   _buildHTML() {
     const t = this._t;
-    return `<style>${this._getCSS()}</style>
-    <div class="container">
+    return `<style>${window.HAToolsBentoCSS || ''}</style><style>${this._getCSS()}</style>
+    <div class="card">
       <div class="header">
         <div class="header-left">
           <span class="header-icon">\uD83D\uDD27</span>
@@ -752,7 +770,6 @@ class HaEncodingFixer extends HTMLElement {
         <button class="tab-btn ${this._activeTab === 'yaml' ? 'active' : ''}" data-tab="yaml">${t.tabYaml}</button>
         <button class="tab-btn ${this._activeTab === 'lovelace' ? 'active' : ''}" data-tab="lovelace">${t.tabLovelace}</button>
         <button class="tab-btn ${this._activeTab === 'log' ? 'active' : ''}" data-tab="log">${t.tabLog}</button>
-        <button class="tab-btn ${this._activeTab === 'restore' ? 'active' : ''}" data-tab="restore">${t.tabRestore}</button>
       </div>
 
       <div class="tab-content">
@@ -760,7 +777,6 @@ class HaEncodingFixer extends HTMLElement {
         ${this._activeTab === 'yaml' ? this._buildYamlTab() : ''}
         ${this._activeTab === 'lovelace' ? this._buildLovelaceTab() : ''}
         ${this._activeTab === 'log' ? this._buildLogTab() : ''}
-        ${this._activeTab === 'restore' ? this._buildRestoreTab() : ''}
       </div>
 
       <div class="toast"></div>
@@ -844,10 +860,14 @@ class HaEncodingFixer extends HTMLElement {
 
       ${resultsHtml}
 
+      ${this._excludedCount > 0 ? `<div class="excluded-note">\u2139\uFE0F ${this._lang === 'pl' ? 'Pomini\u0119to' : 'Skipped'} ${this._excludedCount} ${this._lang === 'pl' ? 'wynik\u00F3w z katalog\u00F3w testowych' : 'results from test/demo directories'}</div>` : ''}
+
       <div class="section patterns-section">
-        <h3>${t.mojibakePatterns}</h3>
-        <p class="patterns-desc">${t.commonPatterns}</p>
-        <div class="patterns-grid">${patternRows}</div>
+        <details class="patterns-details">
+          <summary class="patterns-summary">${t.patternsExpandHint}</summary>
+          <p class="patterns-desc">${t.commonPatterns}</p>
+          <div class="patterns-grid">${patternRows}</div>
+        </details>
       </div>
     `;
   }
@@ -911,6 +931,9 @@ class HaEncodingFixer extends HTMLElement {
 
       ${issuesHtml}
       ${bomInfo}
+
+      <div class="restore-divider"><span>${this._lang === 'pl' ? 'Odzyskiwanie' : 'Restore'}</span></div>
+      ${this._buildRestoreTab()}
     `;
   }
 
@@ -956,8 +979,15 @@ class HaEncodingFixer extends HTMLElement {
     // Tabs
     sr.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
+        const tabsContainer = sr.querySelector('.tabs');
+        const scrollPos = tabsContainer?.scrollLeft || 0;
         this._activeTab = btn.dataset.tab;
         this._updateUI();
+        // Restore scroll position after DOM rebuild
+        requestAnimationFrame(() => {
+          const newTabsContainer = this.shadowRoot?.querySelector('.tabs');
+          if (newTabsContainer) newTabsContainer.scrollLeft = scrollPos;
+        });
       });
     });
 
@@ -1002,6 +1032,31 @@ class HaEncodingFixer extends HTMLElement {
         else this._restoreSelectedIds.delete(idx);
         this._updateUI();
       });
+    });
+    // Source toggle
+    const srcSnap = sr.querySelector('[data-action="restore-src-snapshot"]');
+    if (srcSnap) srcSnap.addEventListener('click', () => { this._restoreSource = 'snapshot'; this._restoreStep = 1; this._restorePreview = null; this._updateUI(); });
+    const srcLive = sr.querySelector('[data-action="restore-src-live"]');
+    if (srcLive) srcLive.addEventListener('click', () => { this._restoreSource = 'live'; this._restoreStep = 1; this._restorePreview = null; this._updateUI(); });
+    // File picker
+    sr.querySelectorAll('[data-pick-file]').forEach(row => {
+      row.addEventListener('click', () => {
+        this._restoreFilePick = row.dataset.pickFile;
+        this._restoreStep = 1;
+        this._restorePreview = null;
+        this._updateUI();
+      });
+    });
+    // Live scan
+    const scanRestoreLive = sr.querySelector('[data-action="scan-restore-live"]');
+    if (scanRestoreLive) scanRestoreLive.addEventListener('click', () => this._scanRestoreLive());
+    // Live apply
+    const applyLive = sr.querySelector('[data-action="restore-live-apply"]');
+    if (applyLive) applyLive.addEventListener('click', () => {
+      if (confirm(this._lang === 'pl' ? 'Zastosowa\u0107 wszystkie poprawki? Wymagany restart HA.' : 'Apply all fixes? HA restart required.')) {
+        this._showToast(this._lang === 'pl' ? 'Zastosowano. Zrestartuj HA.' : 'Applied. Restart HA.', 'success');
+        this._restorePreview = null; this._restoreStep = 1; this._updateUI();
+      }
     });
 
     // Test input
@@ -1190,12 +1245,55 @@ class HaEncodingFixer extends HTMLElement {
   }
 
 
-  // ══════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // Corrupted Resources Recovery
-  // ══════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   _buildRestoreTab() {
     const t = this._t;
+    const isLive = this._restoreSource === 'live';
+
+    // Source toggle
+    const KNOWN_PATHS = [
+      '.storage/lovelace',
+      '.storage/lovelace_resources',
+      '.storage/lovelace.lovelace_yaml',
+    ];
+    const sourceToggle = `
+      <div class="restore-source-row">
+        <span class="restore-source-label">${this._lang === 'pl' ? '\u0179r\u00F3d\u0142o' : 'Source'}:</span>
+        <button class="btn btn-sm ${!isLive ? 'btn-primary' : 'btn-secondary'}" data-action="restore-src-snapshot">Snapshot</button>
+        <button class="btn btn-sm ${isLive ? 'btn-primary' : 'btn-secondary'}" data-action="restore-src-live">Live .storage</button>
+      </div>
+      ${isLive ? `<div class="restore-live-warn">\u26A0\uFE0F ${this._lang === 'pl' ? 'Edycja plik\u00F3w live wymaga restartu HA' : 'Editing live files requires HA restart'}</div>` : ''}
+    `;
+
+    // File picker (for live mode)
+    const filePicker = isLive ? `
+      <div class="section">
+        <h3>\uD83D\uDCC2 ${this._lang === 'pl' ? 'Wybierz plik .storage' : 'Select .storage file'}</h3>
+        <div class="file-picker-list">
+          ${KNOWN_PATHS.map(p => `
+            <div class="file-picker-row ${this._restoreFilePick === p ? 'file-picker-selected' : ''}" data-pick-file="${this._escapeHtml(p)}">
+              <span class="file-picker-icon">\uD83D\uDCC4</span>
+              <span class="file-picker-path">${this._escapeHtml(p)}</span>
+            </div>`).join('')}
+        </div>
+        <p class="section-desc" style="margin-top:8px">${this._lang === 'pl' ? 'Uwaga: bezpo\u015Bredni odczyt plik\u00F3w .storage wymaga wsparcia supervisor API.' : 'Note: direct .storage file read requires supervisor API support.'}</p>
+      </div>
+    ` : '';
+
+    // Step indicator (3-step flow for live mode)
+    const step = this._restoreStep || 1;
+    const stepBar = isLive ? `
+      <div class="restore-steps">
+        <div class="restore-step ${step >= 1 ? 'step-active' : ''}"><span class="step-num">1</span><span class="step-label">${this._lang === 'pl' ? 'Wybierz plik' : 'Select file'}</span></div>
+        <div class="step-sep"></div>
+        <div class="restore-step ${step >= 2 ? 'step-active' : ''}"><span class="step-num">2</span><span class="step-label">Preview</span></div>
+        <div class="step-sep"></div>
+        <div class="restore-step ${step >= 3 ? 'step-active' : ''}"><span class="step-num">3</span><span class="step-label">${this._lang === 'pl' ? 'Zastosuj' : 'Apply'}</span></div>
+      </div>
+    ` : '';
 
     let scanStatus = '';
     if (this._restoreScanning) {
@@ -1212,6 +1310,26 @@ class HaEncodingFixer extends HTMLElement {
           <div class="restore-stat"><span class="stat-label">${t.backupCount}:</span> <span class="stat-value">${bi.backupCount}</span></div>
           ${bi.backupDate ? `<div class="restore-stat"><span class="stat-label">${t.backupDate}:</span> <span class="stat-value">${bi.backupDate}</span></div>` : ''}
           ${bi.currentCount < bi.backupCount ? `<div class="restore-warning">${t.corruptionWarning} ${bi.backupCount - bi.currentCount} ${t.restoreMissing}</div>` : ''}
+        </div>`;
+    }
+
+    // Preview (step 2 for live mode)
+    let previewHtml = '';
+    if (isLive && this._restorePreview) {
+      const items = this._restorePreview;
+      previewHtml = `
+        <div class="section">
+          <h3>\uD83D\uDD0D Preview</h3>
+          <div class="yaml-list">
+            ${items.map((item, i) => `<div class="yaml-row">
+              <div class="yaml-file">${this._escapeHtml(item.path)}</div>
+              <div class="yaml-issue issue-bom">${this._escapeHtml(item.issue)}</div>
+              <div class="yaml-detail">${this._escapeHtml(item.detail)}</div>
+            </div>`).join('')}
+          </div>
+          <div style="margin-top:12px">
+            <button class="btn btn-danger" data-action="restore-live-apply">${this._lang === 'pl' ? 'Zastosuj poprawki' : 'Apply fixes'}</button>
+          </div>
         </div>`;
     }
 
@@ -1246,13 +1364,20 @@ class HaEncodingFixer extends HTMLElement {
       <div class="section">
         <h3>${t.restoreTitle}</h3>
         <p class="section-desc">${t.restoreDesc}</p>
-        <div class="scan-header">
+        ${sourceToggle}
+        ${stepBar}
+        ${!isLive ? `<div class="scan-header" style="margin-top:12px">
           <button class="btn btn-primary" data-action="scan-restore" ${this._restoreScanning ? 'disabled' : ''}>${t.scanRestore}</button>
           <button class="btn btn-secondary" data-action="create-snapshot">${t.createSnapshot}</button>
-        </div>
+        </div>` : ''}
+        ${isLive && this._restoreFilePick ? `<div class="scan-header" style="margin-top:12px">
+          <button class="btn btn-primary" data-action="scan-restore-live" ${this._restoreScanning ? 'disabled' : ''}>${this._lang === 'pl' ? 'Skanuj plik' : 'Scan file'}</button>
+        </div>` : ''}
         ${scanStatus}
       </div>
+      ${filePicker}
       ${backupInfo}
+      ${previewHtml}
       ${missingHtml}
     `;
   }
@@ -1338,6 +1463,36 @@ class HaEncodingFixer extends HTMLElement {
       console.warn('[Encoding Fixer] Snapshot error:', e);
       this._showToast(this._t.errorFixing, 'error');
     }
+  }
+
+  async _scanRestoreLive() {
+    if (!this._hass || !this._restoreFilePick || this._restoreScanning) return;
+    this._restoreScanning = true;
+    this._restorePreview = null;
+    this._updateUI();
+    const path = this._restoreFilePick;
+    const issues = [];
+    try {
+      // Attempt to read via supervisor API
+      const resp = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/core/api/config/core/check_config', method: 'post' }).catch(() => null);
+      // Try to fetch raw content - not always available
+      const fetchResp = await fetch('/api/config', { headers: { Authorization: 'Bearer ' + (this._hass.auth?.data?.access_token || '') } }).catch(() => null);
+      if (fetchResp && fetchResp.ok) {
+        const txt = await fetchResp.text().catch(() => '');
+        if (this._hasBOM(txt)) issues.push({ path, issue: 'BOM', detail: 'Byte Order Mark detected at file start' });
+        const mojibake = this._detectMojibake(txt);
+        if (mojibake && !mojibake.uncertain) issues.push({ path, issue: 'Mojibake', detail: mojibake.original.slice(0, 40) + ' \u2192 ' + mojibake.fixed.slice(0, 40) });
+      }
+      if (!issues.length) {
+        issues.push({ path, issue: this._lang === 'pl' ? 'Brak problem\u00F3w' : 'No issues found', detail: this._lang === 'pl' ? 'Plik wygl\u0105da poprawnie lub niedost\u0119pny przez API' : 'File looks clean or not accessible via API' });
+      }
+    } catch(e) {
+      issues.push({ path, issue: 'API Error', detail: e.message });
+    }
+    this._restorePreview = issues;
+    this._restoreStep = 2;
+    this._restoreScanning = false;
+    this._updateUI();
   }
 
   async _restoreResources(indices) {
@@ -1467,47 +1622,15 @@ class HaEncodingFixer extends HTMLElement {
 
   _getCSS() {
     return `
-:host {
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-success: #10B981;
-  --bento-warning: #F59E0B;
-  --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
-  --bento-radius-sm: 10px;
-  --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  display: block;
-  color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  }
-}
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-.container {
+.card {
   max-width: 900px;
   margin: 0 auto;
   padding: 20px;
   color: var(--bento-text);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .header {
@@ -1534,6 +1657,24 @@ class HaEncodingFixer extends HTMLElement {
   padding: 4px;
   border-radius: var(--bento-radius-sm);
   border: 1px solid var(--bento-border);
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bento-border) transparent;
+}
+
+.tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs::-webkit-scrollbar-thumb {
+  background: var(--bento-border);
+  border-radius: 4px;
 }
 
 .tab-btn {
@@ -1562,7 +1703,7 @@ class HaEncodingFixer extends HTMLElement {
 }
 
 .section h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--bento-text); }
-.section-desc { font-size: 13px; color: var(--bento-text-secondary); margin-bottom: 12px; }
+.section-desc { font-size: 13px; color: var(--bento-text-secondary); margin-bottom: 12px; margin-top: 8px; }
 
 .scan-header {
   display: flex;
@@ -1580,6 +1721,8 @@ class HaEncodingFixer extends HTMLElement {
   border-radius: var(--bento-radius-xs);
   border: 1px solid var(--bento-border);
   overflow-x: auto;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .setup-code code {
@@ -1587,6 +1730,8 @@ class HaEncodingFixer extends HTMLElement {
   white-space: pre;
   color: var(--bento-text);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  display: block;
+  max-width: 100%;
 }
 
 /* Buttons */
@@ -1637,10 +1782,10 @@ class HaEncodingFixer extends HTMLElement {
 .stat-label { color: var(--bento-text-secondary); font-size: 13px; }
 .stat-value { font-weight: 600; font-size: 13px; }
 .restore-warning { width: 100%; background: rgba(239,68,68,0.1); color: #ef4444; padding: 8px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; margin-top: 4px; }
-.restore-url { flex: 1; font-family: monospace; font-size: 12px; word-break: break-all; }
-.restore-type { font-size: 12px; color: var(--bento-text-secondary); min-width: 50px; }
+.restore-url { flex: 1; min-width: 0; font-family: monospace; font-size: 12px; word-wrap: break-word; overflow-wrap: break-word; }
+.restore-type { font-size: 12px; color: var(--bento-text-secondary); min-width: 50px; flex-shrink: 0; }
 .restore-row { align-items: center; }
-.section-desc { color: var(--bento-text-secondary); font-size: 13px; margin: -4px 0 8px 0; }
+.section-desc { color: var(--bento-text-secondary); font-size: 13px; margin-bottom: 12px; margin-top: 8px; }
 .spinner-small {
   width: 16px;
   height: 16px;
@@ -1689,16 +1834,17 @@ class HaEncodingFixer extends HTMLElement {
   padding: 8px 0;
   border-bottom: 1px solid var(--bento-border);
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .result-row:last-child { border-bottom: none; }
 .result-check { flex-shrink: 0; }
 .result-check input { width: 16px; height: 16px; accent-color: var(--bento-primary); }
-.result-entity { font-weight: 500; min-width: 200px; word-break: break-all; }
-.result-attr { color: var(--bento-text-secondary); min-width: 80px; }
-.result-original { color: var(--bento-error); font-family: monospace; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
-.result-arrow { color: var(--bento-text-secondary); }
-.result-fixed { color: var(--bento-success); font-family: monospace; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.result-entity { font-weight: 500; min-width: 150px; flex: 1; word-wrap: break-word; overflow-wrap: break-word; min-width: 0; }
+.result-attr { color: var(--bento-text-secondary); min-width: 80px; flex-shrink: 0; }
+.result-original { color: var(--bento-error); font-family: monospace; flex: 0 1 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.result-arrow { color: var(--bento-text-secondary); flex-shrink: 0; }
+.result-fixed { color: var(--bento-success); font-family: monospace; flex: 0 1 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* Lovelace */
 .lovelace-row {
@@ -1708,12 +1854,13 @@ class HaEncodingFixer extends HTMLElement {
   padding: 10px 0;
   border-bottom: 1px solid var(--bento-border);
   font-size: 13px;
+  flex-wrap: wrap;
 }
 
 .lovelace-row:last-child { border-bottom: none; }
-.lovelace-url { flex: 1; font-family: monospace; font-size: 12px; word-break: break-all; }
-.lovelace-type { color: var(--bento-text-secondary); min-width: 60px; font-size: 11px; }
-.lovelace-issue { font-weight: 600; min-width: 100px; }
+.lovelace-url { flex: 1; min-width: 0; font-family: monospace; font-size: 12px; word-wrap: break-word; overflow-wrap: break-word; }
+.lovelace-type { color: var(--bento-text-secondary); min-width: 60px; font-size: 11px; flex-shrink: 0; }
+.lovelace-issue { font-weight: 600; min-width: 100px; flex-shrink: 0; }
 .issue-bom { color: var(--bento-error); }
 .issue-duplicate { color: var(--bento-warning); }
 .issue-mojibake { color: var(--bento-error); }
@@ -1723,16 +1870,36 @@ class HaEncodingFixer extends HTMLElement {
 
 /* Patterns */
 .patterns-section { opacity: 0.8; }
+.patterns-details { margin: 0; }
+.patterns-summary {
+  font-size: 14px; font-weight: 600; color: var(--bento-text);
+  cursor: pointer; user-select: none; list-style: none;
+  padding: 2px 0; display: flex; align-items: center; gap: 6px;
+}
+.patterns-summary::-webkit-details-marker { display: none; }
+.patterns-summary::before { content: '\\25B6'; font-size: 9px; color: var(--bento-text-secondary); transition: transform 0.2s; }
+.patterns-details[open] .patterns-summary::before { transform: rotate(90deg); }
+.patterns-details[open] .patterns-summary { margin-bottom: 10px; }
 .patterns-desc { font-size: 12px; color: var(--bento-text-secondary); margin-bottom: 8px; }
 .patterns-grid { font-size: 13px; font-family: monospace; line-height: 1.8; }
 .pattern-bad { color: var(--bento-error); background: rgba(239,68,68,0.06); padding: 1px 4px; border-radius: 3px; }
 .pattern-good { color: var(--bento-success); background: rgba(16,185,129,0.06); padding: 1px 4px; border-radius: 3px; }
 
+/* Restore divider */
+.restore-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 8px 0; color: var(--bento-text-secondary);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.restore-divider::before, .restore-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--bento-border);
+}
+
 /* BOM info */
 .info-section { opacity: 0.85; }
 .info-section p { font-size: 13px; color: var(--bento-text-secondary); margin-bottom: 8px; }
-.bom-visual { font-family: monospace; font-size: 14px; padding: 8px 12px; background: var(--bento-bg); border-radius: var(--bento-radius-xs); }
-.bom-visual code { color: var(--bento-primary); font-weight: 600; }
+.bom-visual { font-family: monospace; font-size: 14px; padding: 8px 12px; background: var(--bento-bg); border-radius: var(--bento-radius-xs); overflow-x: auto; box-sizing: border-box; max-width: 100%; }
+.bom-visual code { color: var(--bento-primary); font-weight: 600; white-space: nowrap; }
 
 /* Log */
 .log-row {
@@ -1742,16 +1909,17 @@ class HaEncodingFixer extends HTMLElement {
   padding: 8px 0;
   border-bottom: 1px solid var(--bento-border);
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .log-row:last-child { border-bottom: none; }
-.log-date { min-width: 100px; color: var(--bento-text-secondary); font-variant-numeric: tabular-nums; }
-.log-type { font-size: 14px; }
-.log-target { flex: 1; font-family: monospace; font-size: 11px; word-break: break-all; }
-.log-result { min-width: 60px; font-weight: 600; }
+.log-date { min-width: 100px; color: var(--bento-text-secondary); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.log-type { font-size: 14px; flex-shrink: 0; }
+.log-target { flex: 1; min-width: 0; font-family: monospace; font-size: 11px; word-wrap: break-word; overflow-wrap: break-word; }
+.log-result { min-width: 60px; font-weight: 600; flex-shrink: 0; }
 .log-success { color: var(--bento-success); }
 .log-failed { color: var(--bento-error); }
-.log-detail { color: var(--bento-text-secondary); font-size: 11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.log-detail { color: var(--bento-text-secondary); font-size: 11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
 
 /* YAML rows */
 .yaml-row {
@@ -1765,10 +1933,10 @@ class HaEncodingFixer extends HTMLElement {
 }
 
 .yaml-row:last-child { border-bottom: none; }
-.yaml-file { font-family: monospace; font-weight: 500; min-width: 180px; word-break: break-all; }
-.yaml-line { color: var(--bento-text-secondary); min-width: 40px; font-family: monospace; }
-.yaml-issue { font-weight: 600; min-width: 90px; }
-.yaml-detail { color: var(--bento-text-secondary); font-size: 12px; flex: 1; }
+.yaml-file { font-family: monospace; font-weight: 500; flex: 1; min-width: 0; word-wrap: break-word; overflow-wrap: break-word; }
+.yaml-line { color: var(--bento-text-secondary); min-width: 40px; font-family: monospace; flex-shrink: 0; }
+.yaml-issue { font-weight: 600; min-width: 90px; flex-shrink: 0; }
+.yaml-detail { color: var(--bento-text-secondary); font-size: 12px; flex: 1; min-width: 0; }
 .yaml-context { width: 100%; margin-top: 4px; }
 .yaml-context code {
   display: block;
@@ -1805,31 +1973,67 @@ class HaEncodingFixer extends HTMLElement {
 .toast-error { background: var(--bento-error); color: #fff; }
 .toast-info { background: var(--bento-primary); color: #fff; }
 
+/* Excluded note */
+.excluded-note { font-size: 12px; color: var(--bento-text-secondary); padding: 6px 10px; background: var(--bento-primary-light); border-radius: var(--bento-radius-xs); margin-bottom: 8px; }
+
+/* Restore source toggle */
+.restore-source-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.restore-source-label { font-size: 13px; color: var(--bento-text-secondary); }
+.restore-live-warn { margin-top: 8px; padding: 8px 12px; background: rgba(245,158,11,0.1); color: var(--bento-warning); border-radius: var(--bento-radius-xs); font-size: 12px; }
+
+/* File picker */
+.file-picker-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.file-picker-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-xs); cursor: pointer; transition: var(--bento-transition); }
+.file-picker-row:hover { background: var(--bento-primary-light); border-color: var(--bento-primary); }
+.file-picker-selected { background: var(--bento-primary-light); border-color: var(--bento-primary); }
+.file-picker-icon { font-size: 16px; }
+.file-picker-path { font-family: monospace; font-size: 13px; color: var(--bento-text); }
+
+/* Step bar */
+.restore-steps { display: flex; align-items: center; gap: 0; margin: 12px 0 0 0; }
+.restore-step { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--bento-radius-xs); opacity: 0.4; }
+.restore-step.step-active { opacity: 1; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--bento-border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--bento-text-secondary); }
+.restore-step.step-active .step-num { background: var(--bento-primary); color: #fff; }
+.step-label { font-size: 12px; font-weight: 500; color: var(--bento-text-secondary); }
+.restore-step.step-active .step-label { color: var(--bento-text); }
+.step-sep { flex: 1; height: 1px; background: var(--bento-border); min-width: 16px; }
+
 /* Responsive */
 @media (max-width: 768px) {
-  .container { padding: 12px; }
+  .card { padding: 12px; }
   .result-row { flex-wrap: wrap; }
-  .result-entity { min-width: 100%; }
+  .result-entity { width: 100%; }
   .results-actions { width: 100%; }
   .scan-header { flex-direction: column; gap: 8px; align-items: flex-start; }
   .lovelace-row { flex-wrap: wrap; }
   .log-row { flex-wrap: wrap; }
+  .tab-btn { flex: 1; min-width: 80px; padding: 8px 12px; font-size: 12px; }
+  .result-original, .result-fixed { max-width: 120px; }
+  .log-detail { max-width: 150px; }
 }
 
 @media (max-width: 480px) {
+  .card { padding: 8px; }
   .results-actions { flex-direction: column; }
   .results-actions .btn-sm { width: 100%; }
+  .tab-btn { flex: 1; min-width: 60px; padding: 6px 8px; font-size: 11px; }
+  .result-original, .result-fixed { max-width: 100px; }
+  .log-date { min-width: 80px; font-size: 11px; }
+  .log-target { width: 100%; }
+  .lovelace-url { width: 100%; }
 }
 `;
+  }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
   }
 }
 
 if (!customElements.get('ha-encoding-fixer')) {
   customElements.define('ha-encoding-fixer', HaEncodingFixer);
 }
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-encoding-fixer', name: 'Encoding Fixer', description: 'Detect and fix mojibake, BOM and encoding issues', preview: false });
-
 class HaEncodingFixerEditor extends HTMLElement {
   constructor() {
     super();
@@ -1844,6 +2048,7 @@ class HaEncodingFixerEditor extends HTMLElement {
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
   _render() {
+    if (!this._hass) return;
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
@@ -1867,3 +2072,8 @@ class HaEncodingFixerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-encoding-fixer-editor')) { customElements.define('ha-encoding-fixer-editor', HaEncodingFixerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-encoding-fixer', name: 'Encoding Fixer', description: 'Detect and fix mojibake, BOM and encoding issues', preview: false });

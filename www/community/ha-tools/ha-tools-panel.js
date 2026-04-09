@@ -1110,7 +1110,7 @@ class HAToolsPanel extends HTMLElement {
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px;
 }
 
@@ -1288,7 +1288,7 @@ canvas {
 ${HAToolsPanel.CSS}
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1300,7 +1300,7 @@ ${HAToolsPanel.CSS}
           h3 { font-size: 15px; }
         }
         @media (max-width: 480px) {
-          .tabs { gap: 1px; }
+          .tabs { gap: 1px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
           .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
@@ -1314,6 +1314,7 @@ ${HAToolsPanel.CSS}
   padding: 0 4px !important;
   margin-bottom: 20px !important;
   overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
   flex-wrap: nowrap !important;
 }
 .tab, .tab-btn, .tab-button, .dtab {

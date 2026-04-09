@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -105,7 +107,7 @@ class HaNetworkMap extends HTMLElement {
         listTab: 'List', mapTab: 'Map',
         searchPlaceholder: 'Search devices...', deviceName: 'Device Name', category: 'Category',
         status: 'Status', ipAddress: 'IP Address', macAddress: 'MAC Address', lastSeen: 'Last Seen',
-        noDevicesFound: 'No devices found. Add device_tracker entities to Home Assistant.',
+        noDevicesFound: 'No network devices found. Install Nmap, Ping, Shelly, ESPHome, or other device integrations to discover devices.',
         phone: 'Phone', tablet: 'Tablet', computer: 'Computer', media: 'Media',
         smartHome: 'Smart Home', wearable: 'Wearable', other: 'Other',
         home: 'HOME', away: 'AWAY', unknown: 'UNKNOWN', offline: 'OFFLINE', zone: 'ZONE',
@@ -119,7 +121,7 @@ class HaNetworkMap extends HTMLElement {
         listTab: 'Lista', mapTab: 'Mapa',
         searchPlaceholder: 'Szukaj urz\u0105dze\u0144...', deviceName: 'Nazwa urz\u0105dzenia', category: 'Kategoria',
         status: 'Stan', ipAddress: 'Adres IP', macAddress: 'Adres MAC', lastSeen: 'Ostatnio widoczne',
-        noDevicesFound: 'Nie znaleziono urz\u0105dze\u0144. Dodaj encje device_tracker do Home Assistant.',
+        noDevicesFound: 'Brak urz\u0105dze\u0144 sieciowych. Zainstaluj integracje Nmap, Ping, Shelly, ESPHome lub inne do automatycznego odkrywania urz\u0105dze\u0144.',
         phone: 'Telefon', tablet: 'Tablet', computer: 'Komputer', media: 'Media',
         smartHome: 'Inteligentny dom', wearable: 'Urz\u0105dzenie noszone', other: 'Inne',
         home: 'W DOMU', away: 'POZA DOMEM', unknown: 'NIEZNANY', offline: 'NIEDOST\u0118PNY', zone: 'STREFA',
@@ -320,10 +322,11 @@ class HaNetworkMap extends HTMLElement {
     });
   }
   _doRender() {
+    if (!this._hass) return;
     const css = this._css();
     const content = this.activeTab === 'list' ? this._listTab() : this._mapTab();
-    const scanInfo = this._lastScanTime ? '<span style="font-size:11px;color:var(--bento-text-secondary);margin-left:auto;">Last scan: ' + new Date(this._lastScanTime).toLocaleTimeString() + '</span>' : '';
-    const html = css + '<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:12px;">\u{1F4E1} ' + this.title + scanInfo + '<button class="rb" id="rescanBtn">\u{1F504} ' + (this._lang === 'pl' ? 'Skanuj' : 'Rescan') + '</button></div><div class="tabs">' +
+    const scanInfo = this._lastScanTime ? '<span style="font-size:11px;color:var(--bento-text-secondary);">Last scan: ' + new Date(this._lastScanTime).toLocaleTimeString() + '</span>' : '';
+    const html = css + '<div class="card"><div class="card-header-wrapper"><div class="card-header">\u{1F4E1} ' + this.title + '</div><div class="header-footer">' + scanInfo + '<button class="rb" id="rescanBtn">\u{1F504} ' + (this._lang === 'pl' ? 'Skanuj' : 'Rescan') + '</button></div></div><div class="tabs">' +
       '<button class="tab-btn ' + (this.activeTab === 'list' ? 'active' : '') + '" data-tab="list">' + this._t('listTab') + '</button>' +
       '<button class="tab-btn ' + (this.activeTab === 'map' ? 'active' : '') + '" data-tab="map">' + this._t('mapTab') + '</button>' +
       '</div>' + content + '</div>';
@@ -333,13 +336,16 @@ class HaNetworkMap extends HTMLElement {
     this._bindEvents();
   }
   _css() { return '<style>' + (window.HAToolsBentoCSS || "") + '\n' +
+    '* { box-sizing: border-box; }' +
     ':host{--bp:var(--bento-primary);--bpl:var(--bento-primary-light);--bs:var(--bento-success);--bsl:var(--bento-success-light);--be:var(--bento-error);--bel:var(--bento-error-light);--bw:var(--bento-warning);--bwl:var(--bento-warning-light);' +
     '--bbg:var(--bento-bg);--bcard:var(--bento-card);--bbrd:var(--bento-border);' +
     '--btxt:var(--bento-text);--btxt2:var(--bento-text-secondary);--btxtm:var(--bento-text-muted);' +
     '--brxs:var(--bento-radius-xs);--brsm:var(--bento-radius-sm);--brmd:var(--bento-radius-md);--bshsm:var(--bento-shadow-sm);--bshmd:var(--bento-shadow-md);' +
     '--btr:var(--bento-transition);font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif}' +
     '.card{background:var(--bento-card);border:1px solid var(--bento-border);border-radius:var(--bento-radius-md);box-shadow:var(--bento-shadow-sm);padding:20px;color:var(--bento-text);font-family:Inter,-apple-system,sans-serif}' +
-    '.card-header{font-size:20px;font-weight:600;color:var(--bento-text);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--bento-border)}' +
+    '.card-header-wrapper{border-bottom:1px solid var(--bento-border);padding-bottom:12px;margin-bottom:16px}' +
+    '.card-header{font-size:20px;font-weight:600;color:var(--bento-text);margin-bottom:12px;}' +
+    '.header-footer{display:flex;gap:12px;align-items:center;flex-wrap:wrap}@media(max-width:480px){.header-footer{flex-direction:column;align-items:flex-start;width:100%}.rb{width:100%}}' +
     '.tabs{display:flex;gap:4px;border-bottom:2px solid var(--bento-border);margin-bottom:20px;overflow-x:auto}' +
     '.tab-btn{padding:10px 18px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;font-family:Inter,sans-serif;' +
     'color:var(--bento-text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;transition:var(--btr);white-space:nowrap;border-radius:0}' +
@@ -375,15 +381,29 @@ class HaNetworkMap extends HTMLElement {
     '.pb{padding:6px 12px;border:1.5px solid var(--bento-border);background:var(--bento-card);color:var(--bento-text);border-radius:var(--bento-radius-xs);cursor:pointer;font-size:12px;font-weight:500;font-family:Inter,sans-serif;transition:var(--btr)}' +
     '.pb:hover:not(:disabled){background:var(--bento-primary);color:#fff;border-color:var(--bento-primary)}.pb:disabled{opacity:.4;cursor:not-allowed}' +
     '.pi2{font-size:12px;color:var(--bento-text-secondary);font-weight:500}' +
-    '.mc{background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm);padding:16px;text-align:center;position:relative;overflow:hidden}' +
-    '.mc canvas{max-width:100%;display:block;margin:0 auto;border-radius:var(--bento-radius-xs)}' +
-    '.ml{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--bento-text-secondary)}' +
-    '.li{display:flex;align-items:center;gap:4px}.ld{width:10px;height:10px;border-radius:50%;display:inline-block}' +
+    '.tree-view{margin:0}' +
+    '.tree-group{margin-bottom:8px;border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm);overflow:hidden}' +
+    '.tree-group-header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bento-bg);cursor:pointer;user-select:none;transition:var(--btr)}' +
+    '.tree-group-header:hover{background:rgba(59,130,246,.04)}' +
+    '.tree-toggle{display:inline-block;width:16px;text-align:center;font-size:12px;color:var(--bento-text-secondary);transition:transform .2s}' +
+    '.tree-toggle.collapsed{transform:rotate(-90deg)}' +
+    '.tree-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}' +
+    '.tree-status-label{font-weight:500;color:var(--bento-text);flex:1;font-size:13px}' +
+    '.tree-group-items{display:flex;flex-direction:column;border-top:1px solid var(--bento-border);max-height:none;overflow:hidden;transition:max-height .3s}' +
+    '.tree-group-items.collapsed{max-height:0;border-top:none}' +
+    '.tree-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bento-border);cursor:pointer;transition:var(--btr);font-size:12px}' +
+    '.tree-item:last-child{border-bottom:none}' +
+    '.tree-item:hover{background:rgba(59,130,246,.05)}' +
+    '.tree-item-icon{font-size:16px;min-width:20px;text-align:center}' +
+    '.tree-item-name{font-weight:500;color:var(--bento-text);min-width:120px;flex:1}' +
+    '.tree-item-ip{color:var(--bento-text-secondary);font-family:"SF Mono","Cascadia Code",monospace;font-size:11px;min-width:100px;text-align:right}' +
+    '.tree-item-mfg{color:var(--bento-text-muted);font-size:10px;min-width:80px;text-align:right}' +
+    '@media(max-width:600px){.tree-item{flex-wrap:wrap;gap:4px;padding:8px}.tree-item-name{min-width:100%}.tree-item-ip{min-width:100%;text-align:left}.tree-item-mfg{min-width:100%;text-align:left}}' +
     '.es{text-align:center;padding:40px 16px;color:var(--bento-text-secondary);font-size:14px}' +
     '::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bento-border);border-radius:3px}' +
     '@media(max-width:600px){.card{padding:12px}.stats-bar{grid-template-columns:repeat(2,1fr);gap:6px}.stat-mini{padding:8px}' +
     '.stat-mini .sv{font-size:20px}.toolbar{flex-direction:column}.si{width:100%}table{min-width:500px}td,th{padding:8px 6px;font-size:12px}}' +
-    '/* === DARK MODE === */ @media (prefers-color-scheme: dark) { /* ===== BENTO DESIGN SYSTEM (local fallback) ===== */  :host { --bento-primary: #3B82F6; --bento-primary-hover: #2563EB; --bento-primary-light: rgba(59, 130, 246, 0.08); --bento-success: #10B981; --bento-success-light: rgba(16, 185, 129, 0.08); --bento-error: #EF4444; --bento-error-light: rgba(239, 68, 68, 0.08); --bento-warning: #F59E0B; --bento-warning-light: rgba(245, 158, 11, 0.08); --bento-bg: var(--primary-background-color, #F8FAFC); --bento-card: var(--card-background-color, #FFFFFF); --bento-border: var(--divider-color, #E2E8F0); --bento-text: var(--primary-text-color, #1E293B); --bento-text-secondary: var(--secondary-text-color, #64748B); --bento-text-muted: var(--disabled-text-color, #94A3B8); --bento-radius-xs: 6px; --bento-radius-sm: 10px; --bento-radius-md: 16px; --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04); --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04); --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }  :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-border: var(--divider-color, #2a2a4a); --bento-text: var(--primary-text-color, #e0e0e0); --bento-text-secondary: var(--secondary-text-color, #a0a0b0); --bento-text-muted: var(--disabled-text-color, #6a6a7a); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4); --bento-primary-light: rgba(59,130,246,0.15); --bento-success-light: rgba(16,185,129,0.15); --bento-error-light: rgba(239,68,68,0.15); --bento-warning-light: rgba(245,158,11,0.15); color-scheme: dark !important; } .card, .card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card { background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important; } input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); } .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); } .tab-content, .section { color: var(--bento-text); } table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); } table td { color: var(--bento-text); border-color: var(--bento-border); } tr:hover td { background: rgba(59,130,246,0.08); } .empty-state, .no-data { color: var(--bento-text-secondary); } .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); } .addon-list, .content-item { background: rgba(255,255,255,0.05); } .chart-container { background: var(--bento-bg); border-color: var(--bento-border); } pre, code { background: #1e293b !important; color: #e2e8f0 !important; } } /* === MOBILE FIX */ @media(max-width:768px){.tabs{flex-wrap:wrap;overflow-x:visible;gap:2px}.tab,.tab-button,.tab-btn{padding:6px 10px;font-size:12px;white-space:nowrap}.card,.card{padding:14px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:repeat(2,1fr);gap:8px}.stat-val,.kpi-val,.metric-val{font-size:18px}.stat-lbl,.kpi-lbl,.metric-lbl{font-size:10px}.panels,.board{flex-direction:column}.column{min-width:unset}h2{font-size:18px}h3{font-size:15px}}@media(max-width:480px){.tabs{gap:1px}.tab,.tab-button,.tab-btn{padding:5px 8px;font-size:11px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:1fr 1fr}.stat-val,.kpi-val,.metric-val{font-size:16px}}' +
+    '/* === DARK MODE === */ @media (prefers-color-scheme: dark) { /* ===== BENTO DESIGN SYSTEM (local fallback) ===== */  :host { --bento-primary: #3B82F6; --bento-primary-hover: #2563EB; --bento-primary-light: rgba(59, 130, 246, 0.08); --bento-success: #10B981; --bento-success-light: rgba(16, 185, 129, 0.08); --bento-error: #EF4444; --bento-error-light: rgba(239, 68, 68, 0.08); --bento-warning: #F59E0B; --bento-warning-light: rgba(245, 158, 11, 0.08); --bento-bg: var(--primary-background-color, #F8FAFC); --bento-card: var(--card-background-color, #FFFFFF); --bento-border: var(--divider-color, #E2E8F0); --bento-text: var(--primary-text-color, #1E293B); --bento-text-secondary: var(--secondary-text-color, #64748B); --bento-text-muted: var(--disabled-text-color, #94A3B8); --bento-radius-xs: 6px; --bento-radius-sm: 10px; --bento-radius-md: 16px; --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04); --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04); --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }  :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-border: var(--divider-color, #2a2a4a); --bento-text: var(--primary-text-color, #e0e0e0); --bento-text-secondary: var(--secondary-text-color, #a0a0b0); --bento-text-muted: var(--disabled-text-color, #6a6a7a); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4); --bento-primary-light: rgba(59,130,246,0.15); --bento-success-light: rgba(16,185,129,0.15); --bento-error-light: rgba(239,68,68,0.15); --bento-warning-light: rgba(245,158,11,0.15); color-scheme: dark !important; } .card, .card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card { background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important; } input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); } .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); } .tab-content, .section { color: var(--bento-text); } table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); } table td { color: var(--bento-text); border-color: var(--bento-border); } tr:hover td { background: rgba(59,130,246,0.08); } .empty-state, .no-data { color: var(--bento-text-secondary); } .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); } .addon-list, .content-item { background: rgba(255,255,255,0.05); } .chart-container { background: var(--bento-bg); border-color: var(--bento-border); } pre, code { background: #1e293b !important; color: #e2e8f0 !important; } } /* === MOBILE FIX */ @media(max-width:768px){.tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:2px}.tab,.tab-button,.tab-btn{padding:6px 10px;font-size:12px;white-space:nowrap}.card,.card{padding:14px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:repeat(2,1fr);gap:8px}.stat-val,.kpi-val,.metric-val{font-size:18px}.stat-lbl,.kpi-lbl,.metric-lbl{font-size:10px}.panels,.board{flex-direction:column}.column{min-width:unset}h2{font-size:18px}h3{font-size:15px}}@media(max-width:480px){.tabs{gap:1px}.tab,.tab-button,.tab-btn{padding:5px 8px;font-size:11px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:1fr 1fr}.stat-val,.kpi-val,.metric-val{font-size:16px}}' +
     '/* BENTO TAB OVERRIDE */.tabs,.tab-bar,.tab-nav,.tab-header{display:flex!important;gap:4px!important;border-bottom:2px solid var(--bento-border,var(--divider-color,#334155))!important;padding:0 4px!important;margin-bottom:20px!important;overflow-x:auto!important;flex-wrap:nowrap!important}.tab,.tab-btn,.tab-button,.dtab{padding:10px 18px!important;border:none!important;background:transparent!important;cursor:pointer!important;font-size:13px!important;font-weight:500!important;font-family:Inter,sans-serif!important;color:var(--bento-text-secondary,var(--secondary-text-color,#94A3B8))!important;border-bottom:2px solid transparent!important;margin-bottom:-2px!important;transition:all .2s cubic-bezier(.4,0,.2,1)!important;white-space:nowrap!important;border-radius:0!important;flex:none!important}.tab:hover,.tab-btn:hover,.tab-button:hover,.dtab:hover{color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.08)!important}.tab.active,.tab-btn.active,.tab-button.active,.dtab.active{color:var(--bento-primary,#3B82F6)!important;border-bottom-color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.04)!important;font-weight:600!important}.stat-card,.stat-item,.metric-card,.kpi-card{background:var(--bento-card,var(--card-background-color,#1E293B))!important;border:1px solid var(--bento-border,var(--divider-color,#334155))!important;border-radius:var(--bento-radius-sm,10px)!important;padding:16px!important;text-align:center!important}' +
     '.chart-container { max-height: 300px; overflow: hidden; position: relative; } .chart-container canvas { max-height: 250px; width: 100%; } canvas { max-height: 300px; } ' +
     '.rb{padding:6px 14px;border:1.5px solid var(--bento-border);border-radius:var(--bento-radius-xs);background:var(--bento-card);color:var(--bento-text-secondary);font-size:12px;font-weight:500;font-family:Inter,sans-serif;cursor:pointer;transition:var(--btr);white-space:nowrap}' +
@@ -458,159 +478,38 @@ class HaNetworkMap extends HTMLElement {
   }
   _mapTab() {
     if (!this.devices.length) return '<div class="es">' + this._t('noDevicesFound') + '</div>';
-    return '<div class="mc"><canvas id="nC" width="800" height="800"></canvas>' +
-      '<div class="ml">' +
-      '<span class="li"><span class="ld" style="background:#10B981"></span> ' + this._t('home') + '</span>' +
-      '<span class="li"><span class="ld" style="background:#3B82F6"></span> ' + this._t('zone') + '</span>' +
-      '<span class="li"><span class="ld" style="background:#F59E0B"></span> ' + this._t('away') + '</span>' +
-      '<span class="li"><span class="ld" style="background:#EF4444"></span> ' + this._t('offline') + '</span>' +
-      '<span class="li"><span class="ld" style="background:#94A3B8"></span> ' + this._t('unknown') + '</span>' +
-      '</div></div><div id="mDD"></div>';
-  }
-  _drawMap(canvas) {
-    const ctr = canvas.parentElement;
-    const cw = ctr ? ctr.clientWidth - 32 : 700;
-    const dpr = window.devicePixelRatio || 1;
-    const cm = { home:'#10B981', zone:'#3B82F6', away:'#F59E0B', offline:'#EF4444', unknown:'#94A3B8' };
-    const statusOrder = ['home', 'zone', 'away', 'unknown', 'offline'];
-    const groups = {};
-    statusOrder.forEach(s => { groups[s] = this.devices.filter(d => d.status === s); });
-    const activeGroups = statusOrder.filter(s => groups[s].length > 0);
-    const totalDevs = this.devices.length;
-
-    // Calculate dynamic height based on device count
-    const maxPerRow = Math.min(Math.floor((cw - 80) / 70), 12);
-    let totalRows = 0;
-    activeGroups.forEach(s => { totalRows += Math.ceil(Math.min(groups[s].length, 30) / maxPerRow); });
-    const rowH = 54;
-    const headerH = 100; // gateway + router
-    const groupHeaderH = 22;
-    const calcH = headerH + activeGroups.length * groupHeaderH + totalRows * rowH + 40;
-    const sz = Math.min(cw, 700);
-    const h = Math.max(Math.min(calcH, 1200), 300);
-
-    canvas.width = sz * dpr; canvas.height = h * dpr;
-    canvas.style.width = sz + 'px'; canvas.style.height = h + 'px';
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-
-    const hs = getComputedStyle(this);
-    const isDark = (hs.getPropertyValue('--bbg').trim() || '').includes('1e') || this._hass?.themes?.darkMode;
-    const bg = isDark ? '#1a1c2e' : '#F8FAFC';
-    const cbg = isDark ? '#232540' : '#FFFFFF';
-    const tc = isDark ? '#e2e8f0' : '#1E293B';
-    const tc2 = isDark ? '#94a3b8' : '#64748B';
-    const borderC = isDark ? '#334155' : '#e2e8f0';
-
-    ctx.clearRect(0, 0, sz, h);
-    // Subtle gradient background
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, bg);
-    grad.addColorStop(1, isDark ? '#141627' : '#EFF6FF');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, sz, h);
-
-    const cx = sz / 2;
-    this._cDevs = [];
-
-    // === ROUTER NODE (combined gateway + router) ===
-    const rtY = 44;
-    // Router glow
-    ctx.shadowColor = '#3B82F6'; ctx.shadowBlur = 16;
-    ctx.fillStyle = '#3B82F6';
-    ctx.beginPath(); ctx.arc(cx, rtY, 20, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    // Router inner ring
-    ctx.strokeStyle = '#60A5FA'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, rtY, 20, 0, Math.PI * 2); ctx.stroke();
-    // Router icon
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('\u{1F310}', cx, rtY);
-    // Router label
-    ctx.fillStyle = tc; ctx.font = 'bold 11px Inter,sans-serif'; ctx.textBaseline = 'top';
-    ctx.fillText('Router', cx, rtY + 24);
-    ctx.fillStyle = tc2; ctx.font = '10px monospace';
-    ctx.fillText(this.routerIp || this.gatewayIp || '192.168.1.1', cx, rtY + 37);
-
-    // === DEVICE GROUPS ===
-    let bandY = rtY + 58;
-    const nodeR = 6;
-
-    activeGroups.forEach((status) => {
-      const allDevs = groups[status];
-      const devs = allDevs.slice(0, 30);
-      const clr = cm[status] || '#94A3B8';
-      const cols = Math.min(devs.length, maxPerRow);
-      const rows = Math.ceil(devs.length / cols);
-      const cellW = Math.max((sz - 80) / cols, 60);
-      const bandH = groupHeaderH + rows * rowH + 8;
-
-      // Group background - rounded rect
-      const gx = 12, gy = bandY - 4, gw = sz - 24, gh = bandH;
-      ctx.fillStyle = clr + '0a';
-      ctx.beginPath();
-      ctx.roundRect(gx, gy, gw, gh, 8);
-      ctx.fill();
-      ctx.strokeStyle = clr + '25'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 8); ctx.stroke();
-
-      // Group label
-      ctx.fillStyle = clr; ctx.font = 'bold 10px Inter,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      const statusNames = { home: 'Online', zone: 'Zone', away: 'Away', unknown: 'Unknown', offline: 'Offline' };
-      ctx.fillText((statusNames[status] || status) + ' (' + allDevs.length + ')', 22, bandY);
-
-      devs.forEach((d, i) => {
-        const col = i % cols; const row = Math.floor(i / cols);
-        const startX = 40 + (sz - 80 - cols * cellW) / 2;
-        const x = startX + col * cellW + cellW / 2;
-        const y = bandY + groupHeaderH + row * rowH + 16;
-
-        // Connection line to router - subtle curve
-        ctx.strokeStyle = clr + '15'; ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, rtY + 20);
-        const midY = rtY + (y - rtY) * 0.3;
-        ctx.quadraticCurveTo(cx, midY, x, y);
-        ctx.stroke();
-
-        // Device circle with subtle shadow
-        ctx.shadowColor = clr + '40'; ctx.shadowBlur = 4;
-        ctx.fillStyle = clr;
-        ctx.beginPath(); ctx.arc(x, y, nodeR, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // White border
-        ctx.strokeStyle = cbg; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(x, y, nodeR, 0, Math.PI * 2); ctx.stroke();
-
-        // Name below
-        ctx.fillStyle = tc; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        const lb = d.name.length > 12 ? d.name.substring(0, 10) + '\u2026' : d.name;
-        ctx.fillText(lb, x, y + nodeR + 3);
-
-        // IP or category below name
-        if (d.ip) {
-          ctx.fillStyle = tc2; ctx.font = '8px monospace';
-          ctx.fillText(d.ip, x, y + nodeR + 14);
-        }
-
-        this._cDevs.push({ d, x, y, r: nodeR + 6 });
-      });
-
-      bandY += bandH + 6;
+    // Group devices by status
+    const groups = { home: [], zone: [], away: [], offline: [], unknown: [] };
+    this.devices.forEach(d => {
+      const status = d.status || 'unknown';
+      if (groups[status]) groups[status].push(d);
+      else groups[status] = [d];
     });
-
-    // Total counter at bottom
-    ctx.fillStyle = tc2; ctx.font = '10px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText(totalDevs + (this._lang === 'pl' ? ' urz\u0105dze\u0144' : ' devices'), cx, h - 8);
-  }
-  _mapClick(e) {
-    const c = e.target; const r = c.getBoundingClientRect();
-    const sx = c.width / r.width; const sy = c.height / r.height;
-    const x = (e.clientX - r.left) * sx; const y = (e.clientY - r.top) * sy;
-    if (!this._cDevs) return;
-    for (const it of this._cDevs) {
-      if (Math.sqrt((x - it.x) ** 2 + (y - it.y) ** 2) <= it.r + 5) { this._showMapDetail(it.d); return; }
-    }
+    const statusOrder = ['home', 'zone', 'away', 'offline', 'unknown'];
+    const cm = { home:'#10B981', zone:'#3B82F6', away:'#F59E0B', offline:'#EF4444', unknown:'#94A3B8' };
+    let html = '<div class="tree-view">';
+    statusOrder.forEach(status => {
+      if (!groups[status] || !groups[status].length) return;
+      const label = this._t(status);
+      const color = cm[status];
+      html += '<div class="tree-group"><div class="tree-group-header" style="border-left: 3px solid ' + color + '">' +
+        '<span class="tree-toggle" data-status="' + status + '">▼</span>' +
+        '<span class="tree-status-dot" style="background:' + color + '"></span>' +
+        '<span class="tree-status-label">' + label + ' (' + groups[status].length + ')</span></div>' +
+        '<div class="tree-group-items" data-status="' + status + '">';
+      groups[status].forEach(d => {
+        const ipD = d.ip || '—';
+        const mfg = d.manufacturer ? ' • ' + d.manufacturer : '';
+        html += '<div class="tree-item" data-device-id="' + d.id + '">' +
+          '<span class="tree-item-icon">' + d.icon + '</span>' +
+          '<span class="tree-item-name">' + d.name + '</span>' +
+          '<span class="tree-item-ip">' + ipD + '</span>' +
+          '<span class="tree-item-mfg">' + mfg + '</span></div>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div><div id="mDD"></div>';
+    return html;
   }
   _showMapDetail(d) {
     const el = this.shadowRoot.querySelector('#mDD'); if (!el) return;
@@ -623,7 +522,7 @@ class HaNetworkMap extends HTMLElement {
     if (d.connType) rows.push([this._t('connection'), d.connType]);
     const rh = rows.map(r => '<div class="dr"><span class="dl">' + r[0] + '</span><span class="dv">' + r[1] + '</span></div>').join('');
     el.innerHTML = '<div class="dd"><button class="dc" id="cMD">\u2715</button><div style="clear:both"></div>' + rh + '</div>';
-    const cb = this.shadowRoot.querySelector('#cMD'); if (cb) cb.addEventListener('click', () => { el.innerHTML = ''; });
+    const cb = this.shadowRoot.querySelector('#cMD'); if (cb) { cb.setAttribute('aria-label', 'Close'); cb.addEventListener('click', () => { el.innerHTML = ''; }); }
   }
   _bindEvents() {
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { this.activeTab = b.dataset.tab; this._doRender(); }));
@@ -658,20 +557,33 @@ class HaNetworkMap extends HTMLElement {
     this.shadowRoot.querySelectorAll('.pb:not([disabled])').forEach(b => b.addEventListener('click', () => {
       const p = parseInt(b.dataset.p); if (p > 0) { this._currentPage['l'] = p; this._doRender(); }
     }));
-    if (this.activeTab === 'map') {
-      setTimeout(() => {
-        const cv = this.shadowRoot.querySelector('#nC');
-        if (cv) { this._drawMap(cv); cv.addEventListener('click', e => this._mapClick(e)); }
-      }, 50);
-    }
+    // Tree view events (map tab)
+    this.shadowRoot.querySelectorAll('.tree-group-header').forEach(h => h.addEventListener('click', () => {
+      const status = h.querySelector('.tree-toggle').dataset.status;
+      const toggle = h.querySelector('.tree-toggle');
+      const items = this.shadowRoot.querySelector('.tree-group-items[data-status="' + status + '"]');
+      if (items) {
+        items.classList.toggle('collapsed');
+        toggle.classList.toggle('collapsed');
+      }
+    }));
+    this.shadowRoot.querySelectorAll('.tree-item').forEach(item => item.addEventListener('click', e => {
+      e.stopPropagation();
+      const devId = item.dataset.deviceId;
+      const dev = this.devices.find(d => d.id === devId);
+      if (dev) this._showMapDetail(dev);
+    }));
   }
   static getConfigElement() { return document.createElement('ha-network-map-editor'); }
-  static getStubConfig() { return { type: 'custom:ha-network-map', title: 'Network Map', router_ip: '192.168.1.1', gateway_ip: '192.168.0.1' }; }
-}
-customElements.define('ha-network-map', HaNetworkMap);
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-network-map', name: 'Network Map', description: 'Network device list and topology map' });
+  getCardSize() { return 8; }
 
+  static getStubConfig() { return { type: 'custom:ha-network-map', title: 'Network Map', router_ip: '192.168.1.1', gateway_ip: '192.168.0.1' }; }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
+}
+if (!customElements.get('ha-network-map')) customElements.define('ha-network-map', HaNetworkMap);
 class HaNetworkMapEditor extends HTMLElement {
   constructor() {
     super();
@@ -686,6 +598,7 @@ class HaNetworkMapEditor extends HTMLElement {
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
   _render() {
+    if (!this._hass) return;
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
@@ -719,3 +632,8 @@ class HaNetworkMapEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-network-map-editor')) { customElements.define('ha-network-map-editor', HaNetworkMapEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-network-map', name: 'Network Map', description: 'Network device list and topology map' });

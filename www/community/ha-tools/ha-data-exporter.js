@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -214,6 +215,33 @@ class HADataExporter extends HTMLElement {
     this._lastRenderTime = now;
   }
 
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Eksporter Danych',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+      },
+      en: {
+        title: 'Data Exporter',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
+
   setConfig(config) {
     this._config = {
       title: config.title || 'Data Exporter',
@@ -298,10 +326,13 @@ class HADataExporter extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
     const L = this._lang === 'pl';
     const format = this._config.default_format;
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
+
+        * { box-sizing: border-box; }
 
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
@@ -332,14 +363,14 @@ class HADataExporter extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px !important;
 }
 
@@ -521,13 +552,13 @@ canvas {
           --hover-bg: var(--bento-primary-light);
           --accent: var(--bento-primary);
         }
-        .exporter-card {
+        .card {
           background: var(--bg-color);
           border-radius: 12px;
           padding: 16px;
           font-family: var(--ha-card-header-font-family, inherit);
           color: var(--text-color);
-          overflow: hidden;
+          overflow: visible;
           min-width: 0;
         }
         .card-header {
@@ -635,7 +666,23 @@ canvas {
           cursor: pointer;
           width: 16px;
           height: 16px;
-          accent-color: var(--primary-color);
+          accent-color: var(--bento-primary);
+        }
+        .attrs-toggle-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          cursor: pointer;
+          white-space: nowrap;
+          font-size: 13px;
+          font-weight: 400;
+          color: var(--bento-text, #1e293b);
+          padding: 5px 0;
+        }
+        .attrs-toggle-input {
+          margin: 0;
+          accent-color: var(--bento-primary);
+          cursor: pointer;
         }
         .expand-cell {
           width: 30px;
@@ -854,7 +901,7 @@ canvas {
 
         /* RESPONSIVE */
         @media (max-width: 768px) {
-          .exporter-card { padding: 12px; }
+          .card { padding: 12px; }
           .card-header { flex-direction: column; gap: 8px; }
           .card-header h2 { font-size: 16px; }
           .entity-grid { grid-template-columns: 1fr !important; }
@@ -884,7 +931,7 @@ canvas {
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -903,8 +950,8 @@ canvas {
         }
 
 </style>
-      <ha-card>
-        <div class="exporter-card">
+      
+        <div class="card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
             <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">⚙️ Ustawienia</button></div>
@@ -923,7 +970,7 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:400;background:var(--bento-border,#e2e8f0);color:var(--bento-text,#1e293b);padding:5px 10px;border-radius:6px"><input type="checkbox" id="includeAttrs" checked style="margin:0;accent-color:var(--primary-color)" /> Atrybuty</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" checked class="attrs-toggle-input" /> Atrybuty</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
@@ -944,8 +991,8 @@ canvas {
               <option value="200" ${this._snapshotSettings.maxSnapshots === 200 ? 'selected' : ''}>200 snap.</option>
             </select>
             <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} zapisanych</span>
-            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="Zr\u00F3b snapshot teraz">\u{1F4F8}</button>
-            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="Wyczy\u015B\u0107 snapshoty">\u{1F5D1}</button>
+            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="Zr\u00F3b snapshot teraz" aria-label="Zr\u00F3b snapshot teraz">\u{1F4F8}</button>
+            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="Wyczy\u015B\u0107 snapshoty" aria-label="Wyczy\u015B\u0107 snapshoty">\u{1F5D1}</button>
           </div>
           <div class="table-container">
             <table class="entity-table">
@@ -965,7 +1012,7 @@ canvas {
           </div>
           <div class="pagination" id="pagination"></div>
         </div>
-      </ha-card>
+      
     `
     this._attachEvents();
   }
@@ -1135,7 +1182,7 @@ canvas {
         const attrCount = attrKeys.length;
         tr.innerHTML = `
           <td class="checkbox-cell"><input type="checkbox" data-entity="${ent.entity_id}" ${checked} /></td>
-          <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes">▶</button></td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes" aria-label="Show attributes">▶</button></td>
           <td class="entity-id" title="${ent.entity_id}">${ent.entity_id}</td>
           <td title="${ent.name}">${ent.name}</td>
           <td class="state-val" title="${ent.state}">${ent.state}</td>
@@ -1435,7 +1482,7 @@ canvas {
     let html = '';
     changes.forEach((ch, i) => {
       const d = new Date(ch.time);
-      const timeStr = d.toLocaleString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
+      const timeStr = d.toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
       const isCurrent = i === changes.length - 1;
       html += '<div class="history-item' + (isCurrent ? '' : '') + '">';
       html += '<span class="history-time">' + timeStr + '</span>';
@@ -1471,14 +1518,6 @@ canvas {
 }
 
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'ha-data-exporter',
-  name: 'Data Exporter',
-  description: 'Export HA entities, states, and attributes to CSV/JSON/YAML',
-  preview: true
-});
 
 console.info(
   '%c  HA-DATA-EXPORTER  %c v1.0.0 ',
@@ -1523,3 +1562,13 @@ class HaDataExporterEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-data-exporter-editor')) { customElements.define('ha-data-exporter-editor', HaDataExporterEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'ha-data-exporter',
+  name: 'Data Exporter',
+  description: 'Export HA entities, states, and attributes to CSV/JSON/YAML',
+  preview: true
+});

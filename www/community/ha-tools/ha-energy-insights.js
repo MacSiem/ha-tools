@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -491,6 +492,7 @@ class HAEnergyInsights extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
     if (this._domBuilt) {
       this._updateContent();
       return;
@@ -515,6 +517,8 @@ ${this._getStyles()}
   _getStyles() {
     return `
       <style>${window.HAToolsBentoCSS || ""}
+
+        * { box-sizing: border-box; }
 
         
 /* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
@@ -545,14 +549,6 @@ ${this._getStyles()}
 }
 
 :host {
-          --pr: var(--bento-primary); --pr-l: var(--bento-primary-light);
-          --ok: var(--bento-success); --ok-l: var(--bento-success-light);
-          --er: var(--bento-error); --er-l: var(--bento-error-light);
-          --wa: var(--bento-warning); --wa-l: var(--bento-warning-light);
-          --bg: var(--bento-bg); --ca: var(--bento-card); --bo: var(--bento-border);
-          --tx: var(--bento-text); --t2: var(--bento-text-secondary); --t3: var(--bento-text-muted);
-          --r1: var(--bento-radius-xs); --r2: var(--bento-radius-sm); --r3: var(--bento-radius-md);
-          --sh: var(--bento-shadow-sm);
           font-family: 'Inter', sans-serif;
           display: block;
           background: var(--bento-bg);
@@ -563,72 +559,76 @@ ${this._getStyles()}
         }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .panel-root { display: flex; flex-direction: column; height: 100%; background: var(--bento-bg); }
-        .panel-header { padding: 24px 24px 16px; border-bottom: 1px solid var(--bo); background: var(--bento-card); }
+        .panel-root { display: flex; flex-direction: column; height: 100%; background: var(--bento-bg); border-radius: var(--bento-radius-md); overflow: hidden; }
+        .panel-header { padding: 24px 24px 16px; border-bottom: 1px solid var(--bento-border); background: var(--bento-card); border-radius: var(--bento-radius-md) var(--bento-radius-md) 0 0; }
         .panel-title { font-size: 17px; font-weight: 700; color: var(--bento-text); margin: 0; display: flex; align-items: center; gap: 10px; }
         .panel-title-icon { font-size: 24px; }
-        .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--bo); padding: 0 24px; background: var(--bento-card); overflow-x: auto; scrollbar-width: none; }
-        .tab-bar::-webkit-scrollbar { display: none; }
+        .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); padding: 0 24px; background: var(--bento-card); overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--bento-border) transparent; }
+        .tabs::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 4px; }
         .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--bento-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; font-family: 'Inter', sans-serif; border-radius: 0; }
-        .tab-btn:hover { color: var(--bento-primary); background: var(--pr-l); }
+        .tab-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
         .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); font-weight: 600; }
         .panel-body { flex: 1; overflow-y: auto; padding: 20px; animation: fadeSlideIn 0.3s ease-out; }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
-        .stat-card { background: var(--bento-bg); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; text-align: center; min-width: 0; overflow: hidden; }
+        .stat-card { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; min-width: 0; overflow: hidden; }
         .stat-card:hover { box-shadow: var(--bento-shadow-md); }
         .stat-label { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
         .stat-value { font-size: 24px; font-weight: 700; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
         .stat-value.highlight { color: var(--bento-primary); }
-        .stat-sub { font-size: 11px; color: var(--t3); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .recommendation { background: var(--pr-l); border: 1px solid rgba(59,130,246,.2); border-radius: var(--r2); padding: 14px 16px; font-size: 13px; color: var(--bento-text); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
+        .stat-sub { font-size: 11px; color: var(--bento-text-muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .recommendation { background: var(--bento-primary-light); border: 1px solid rgba(59,130,246,.2); border-radius: var(--bento-radius-sm); padding: 14px 16px; font-size: 13px; color: var(--bento-text); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
         .recommendation-icon { font-size: 18px; flex-shrink: 0; }
         .trend-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-        .trend-up { background: var(--er-l); color: var(--bento-error); }
-        .trend-down { background: var(--ok-l); color: var(--bento-success); }
+        .trend-up { background: var(--bento-error-light); color: var(--bento-error); }
+        .trend-down { background: var(--bento-success-light); color: var(--bento-success); }
         .trend-neutral { background: rgba(158,158,158,.15); color: #9e9e9e; }
         .section-title { font-size: 13px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
         .device-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
-        .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r1); transition: background .15s; }
-        .device-row:hover { background: var(--pr-l); }
+        .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--bento-radius-xs); transition: background .15s; }
+        .device-row:hover { background: var(--bento-primary-light); }
         .device-rank { font-size: 11px; font-weight: 700; color: var(--bento-primary); width: 24px; flex-shrink: 0; text-align: center; }
         .device-name { font-size: 13px; font-weight: 500; flex: 1; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .device-bar-wrap { width: 70px; height: 6px; background: var(--bo); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+        .device-bar-wrap { width: 70px; height: 6px; background: var(--bento-border); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
         .device-bar { height: 100%; background: var(--bento-primary); border-radius: 4px; transition: width .4s; }
         .device-value { font-size: 12px; font-weight: 600; color: var(--bento-primary); flex-shrink: 0; min-width: 70px; text-align: right; }
-        .chart-container { position: relative; height: 240px; margin-bottom: 12px; background: var(--bento-card); border: 1px solid var(--bo); border-radius: var(--r2); padding: 16px; box-shadow: var(--bento-shadow-md); }
+        .chart-container { position: relative; height: 240px; margin-bottom: 12px; background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 16px; box-shadow: var(--bento-shadow-md); }
         canvas { max-width: 100%; display: block; }
         .chart-label { text-align: center; font-size: 12px; color: var(--bento-text-secondary); margin-top: 8px; }
         .tips-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 16px; }
-        .tip-card { background: var(--bento-card); border: 1px solid var(--bo); border-radius: var(--r2); padding: 14px; font-size: 13px; color: var(--bento-text); box-shadow: var(--bento-shadow-md); }
+        .tip-card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; font-size: 13px; color: var(--bento-text); box-shadow: var(--bento-shadow-md); }
         .tip-card strong { color: var(--bento-primary); display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; }
         .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; gap: 16px; color: var(--bento-text-secondary); font-size: 14px; }
-        .spinner { width: 32px; height: 32px; border: 3px solid var(--bo); border-top-color: var(--bento-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
-        .error-msg { padding: 16px; background: var(--er-l); border-left: 4px solid var(--bento-error); border-radius: var(--r1); font-size: 13px; color: var(--bento-error); }
+        .spinner { width: 32px; height: 32px; border: 3px solid var(--bento-border); border-top-color: var(--bento-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .error-msg { padding: 16px; background: var(--bento-error-light); border-left: 4px solid var(--bento-error); border-radius: var(--bento-radius-xs); font-size: 13px; color: var(--bento-error); }
         .no-sensors { padding: 40px 24px; text-align: center; color: var(--bento-text-secondary); font-size: 13px; }
-        button { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; border-radius: var(--r1); transition: all .2s; cursor: pointer; border: none; padding: 8px 14px; background: var(--bento-primary); color: white; }
+        button { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; border-radius: var(--bento-radius-xs); transition: all .2s; cursor: pointer; border: none; padding: 8px 14px; background: var(--bento-primary); color: white; }
         button:hover { background: #2563EB; }
         .refresh-btn { background: transparent; color: var(--bento-text-secondary); padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
-        .refresh-btn:hover { color: var(--bento-primary); background: var(--pr-l); }
+        .refresh-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
         .refresh-btn svg { width: 18px; height: 18px; }
-        .tools-banner { background: var(--bento-card); border-top: 1px solid var(--bo); padding: 12px 24px; text-align: center; font-size: 12px; color: var(--bento-text-secondary); }
+        .tools-banner { background: var(--bento-card); border-top: 1px solid var(--bento-border); padding: 12px 24px; text-align: center; font-size: 12px; color: var(--bento-text-secondary); }
         .tools-banner a { color: var(--bento-primary); text-decoration: none; font-weight: 600; }
         .tools-banner a:hover { text-decoration: underline; }
         @media (max-width: 768px) {
           .panel-header { padding: 16px; }
-          .stats-grid { grid-template-columns: 1fr !important; }
-          .tab-bar { flex-wrap: wrap; gap: 4px; padding: 0 16px; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .tabs { flex-wrap: wrap; gap: 4px; padding: 0 16px; }
           .tab-btn { min-width: auto; font-size: 12px; padding: 6px 10px; }
           .device-list { overflow-x: auto; }
           .chart-container canvas { max-height: 200px; }
           .tip-card { padding: 12px; }
         }
         @media (max-width: 480px) {
-          .tab-bar { gap: 1px; }
+          .tabs { gap: 1px; }
           .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stat-value { font-size: 18px; }
         }
+        @media (max-width: 360px) {
+          .stats-grid { grid-template-columns: 1fr !important; }
+        }
       
-
 </style>
     `;
   }
@@ -654,7 +654,7 @@ ${this._getStyles()}
     ];
 
     return `
-      <div class="tab-bar">
+      <div class="tabs">
         ${tabs.map(tab => `
           <button class="tab-btn${this._activeTab === tab.id ? ' active' : ''}" data-tab="${tab.id}">
             ${tab.label}
@@ -798,12 +798,7 @@ ${this._getStyles()}
   }
 
   _renderToolsBanner() {
-    return `
-      <div class="tools-banner">
-        <span>${this._t('partOfHATools')}</span> |
-        <a href="/local/community/ha-tools-panel/ha-tools-panel.js">${this._t('openToolsPanel')}</a>
-      </div>
-    `;
+    return '';
   }
 
   // ===== CHARTS =====
@@ -913,10 +908,11 @@ ${this._getStyles()}
   }
 }
 
-customElements.define('ha-energy-insights', HAEnergyInsights);
+if (!customElements.get('ha-energy-insights')) {
+  customElements.define('ha-energy-insights', HAEnergyInsights);
+}
 
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-energy-insights', name: 'Energy Insights', description: 'Energy dashboard: usage, costs, top devices, trends', preview: false });
+
 
 class HaEnergyInsightsEditor extends HTMLElement {
   constructor() {
@@ -965,3 +961,8 @@ class HaEnergyInsightsEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-energy-insights-editor')) { customElements.define('ha-energy-insights-editor', HaEnergyInsightsEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-energy-insights', name: 'Energy Insights', description: 'Energy dashboard: usage, costs, top devices, trends', preview: false });

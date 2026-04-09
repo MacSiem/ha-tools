@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -63,6 +64,35 @@ window._haToolsPersistence = window._haToolsPersistence || {
 };
 
 class HaBabyTracker extends HTMLElement {
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Dziennik Niemowlęcia',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        remove: 'Usu\u0144',
+        locale: 'pl-PL',
+      },
+      en: {
+        title: 'Baby Tracker',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        remove: 'Remove',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
+
   setConfig(config) {
     this.config = config;
     this.babies = this._loadChildren();
@@ -119,6 +149,7 @@ class HaBabyTracker extends HTMLElement {
     this._currentPage = {};
     this._pageSize = 15;
     this.feedingData = new Map();
+    this.lactationData = new Map();
     this.diapersData = new Map();
     this.sleepData = new Map();
     this.growthData = new Map();
@@ -136,11 +167,13 @@ class HaBabyTracker extends HTMLElement {
     try {
       const data = {
         feeding: {},
+        lactation: {},
         diapers: {},
         sleep: {},
         growth: {}
       };
       this.feedingData.forEach((v, k) => { data.feeding[k] = v; });
+      this.lactationData.forEach((v, k) => { data.lactation[k] = v; });
       this.diapersData.forEach((v, k) => { data.diapers[k] = v; });
       this.sleepData.forEach((v, k) => { data.sleep[k] = v; });
       this.growthData.forEach((v, k) => { data.growth[k] = v; });
@@ -154,6 +187,7 @@ class HaBabyTracker extends HTMLElement {
       if (!raw) return;
       const data = JSON.parse(raw);
       if (data.feeding) Object.entries(data.feeding).forEach(([k, v]) => { this.feedingData.set(k, v); });
+      if (data.lactation) Object.entries(data.lactation).forEach(([k, v]) => { this.lactationData.set(k, v); });
       if (data.diapers) Object.entries(data.diapers).forEach(([k, v]) => { this.diapersData.set(k, v); });
       if (data.sleep) Object.entries(data.sleep).forEach(([k, v]) => { this.sleepData.set(k, v); });
       if (data.growth) Object.entries(data.growth).forEach(([k, v]) => { this.growthData.set(k, v); });
@@ -220,7 +254,15 @@ class HaBabyTracker extends HTMLElement {
   }
 
   renderCard() {
-    const title = this.config.title || 'Baby Tracker';
+    if (!this._hass) return;
+    if (!this.config) return;
+    if (!this.selectedTab) this.selectedTab = 'feeding';
+    if (!this.babies || this.babies.length === 0) {
+      this.babies = [{ name: 'Baby 1' }];
+    }
+    if (this.selectedBaby >= this.babies.length) this.selectedBaby = 0;
+    if (!this.selectedTab) this.selectedTab = 'feeding';
+    const title = this.config.title || 'Baby & Mom Tracker';
     const currentBaby = this.babies[this.selectedBaby].name;
 
     const html = `
@@ -262,7 +304,7 @@ class HaBabyTracker extends HTMLElement {
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px;
 }
 
@@ -286,7 +328,7 @@ class HaBabyTracker extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-button {
+.tab, .tab-btn, .tab-btn {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -301,11 +343,11 @@ class HaBabyTracker extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-button:hover {
+.tab:hover, .tab-btn:hover, .tab-btn:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-button.active {
+.tab.active, .tab-btn.active, .tab-btn.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -451,6 +493,8 @@ canvas {
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           color: var(--bento-text);
+          overflow: hidden;
+          position: relative;
         }
 
         .card-header {
@@ -505,7 +549,7 @@ canvas {
           overflow-x: auto;
         }
 
-        .tab-button {
+        .tab-btn {
           padding: 12px 16px;
           background: transparent;
           border: none;
@@ -519,11 +563,11 @@ canvas {
           white-space: nowrap;
         }
 
-        .tab-button:hover {
+        .tab-btn:hover {
           color: var(--bento-text);
         }
 
-        .tab-button.active {
+        .tab-btn.active {
           color: var(--bento-primary);
           border-bottom-color: var(--bento-primary);
         }
@@ -554,6 +598,10 @@ canvas {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 12px;
+        }
+
+        .form-row > * {
+          min-width: 0;
         }
 
         .form-row.full {
@@ -589,6 +637,10 @@ canvas {
           grid-template-columns: 1fr 1fr;
           gap: 12px;
           margin-top: 16px;
+        }
+
+        .button-group > * {
+          min-width: 0;
         }
 
         .button-group.full {
@@ -799,9 +851,9 @@ canvas {
 .card-title, .title, .header-title, .pan-title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; overflow-x: auto; padding-bottom: 0; }
-.tab, .tab-btn, .tab-button { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
-.tab.active, .tab-btn.active, .tab-button.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-.tab:hover, .tab-btn:hover, .tab-button:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab, .tab-btn, .tab-btn { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
+.tab.active, .tab-btn.active, .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab:hover, .tab-btn:hover, .tab-btn:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab-icon { margin-right: 6px; }
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeSlideIn 0.3s ease-out; }
@@ -1083,8 +1135,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -1096,7 +1148,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
@@ -1115,7 +1167,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
 
         <div class="tip-banner" id="tip-banner">
-          <button class="tip-dismiss" id="tip-dismiss">\u2715</button>
+          <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
           <div class="tip-banner-title">\u{1F4A1} Jak zacz\u0105\u0107?</div>
           <ul>
             <li><strong>Encje HA:</strong> tool automatycznie tworzy 15 encji <code>input_*</code> (input_number, input_datetime, input_select) przy pierwszym uruchomieniu.</li>
@@ -1138,6 +1190,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>` : ``}
           <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding">
             🍼 Feeding
+          </button>
+          <button class="tab-button ${this.selectedTab === 'lactation' ? 'active' : ''}" data-tab="lactation">
+            🤱 Lactation
           </button>
           <button class="tab-button ${this.selectedTab === 'diapers' ? 'active' : ''}" data-tab="diapers">
             🩷 Diapers
@@ -1162,7 +1217,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <div style="display:flex;align-items:center;gap:8px">
               <input type="text" value="${b.name}" data-child-idx="${i}" class="child-name-input" 
                 style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card,#fff);color:var(--bento-text,#333)">
-              ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="Usuń">🗑</button>` : ''}
+              ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="${this._t.remove}">🗑</button>` : ''}
             </div>
           `).join('')}
         </div>
@@ -1205,6 +1260,73 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div style="margin-top: 20px;">
             <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Recent Feedings</h3>
             <div id="feedingList"></div>
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- Lactation Tab -->
+        ${this.selectedTab === 'lactation' ? `
+        <div class="tab-content active">
+          <h3 style="margin:0 0 16px;font-size:15px;font-weight:600">🤱 ${this._lang === 'pl' ? 'Śledzenie laktacji' : 'Lactation Tracking'}</h3>
+
+          <div class="form-group">
+            <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
+            <select id="lactationType">
+              <option value="pump">${this._lang === 'pl' ? 'Odciąganie' : 'Pumping'}</option>
+              <option value="manual">${this._lang === 'pl' ? 'Ręczne odciąganie' : 'Hand Expression'}</option>
+              <option value="supplement">${this._lang === 'pl' ? 'Suplementacja' : 'Supplementation'}</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">${this._lang === 'pl' ? 'Czas' : 'Time'}</label>
+              <input type="time" id="lactationTime">
+            </div>
+            <div class="form-group">
+              <label class="form-label">${this._lang === 'pl' ? 'Strona' : 'Side'}</label>
+              <select id="lactationSide">
+                <option value="left">${this._lang === 'pl' ? 'Lewa' : 'Left'}</option>
+                <option value="right">${this._lang === 'pl' ? 'Prawa' : 'Right'}</option>
+                <option value="both">${this._lang === 'pl' ? 'Obie' : 'Both'}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">${this._lang === 'pl' ? 'Czas trwania (min)' : 'Duration (min)'}</label>
+              <input type="number" id="lactationDuration" placeholder="e.g., 15" min="1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">${this._lang === 'pl' ? 'Ilość (ml)' : 'Amount (ml)'}</label>
+              <input type="number" id="lactationAmount" placeholder="e.g., 80" min="0">
+            </div>
+          </div>
+
+          <div class="form-group full">
+            <label class="form-label">${this._lang === 'pl' ? 'Notatki' : 'Notes'}</label>
+            <textarea id="lactationNotes" placeholder="${this._lang === 'pl' ? 'Opcjonalne notatki...' : 'Optional notes...'}"></textarea>
+          </div>
+
+          <div class="button-group">
+            <button class="btn-primary" id="addLactationBtn">${this._lang === 'pl' ? 'Dodaj wpis' : 'Add Entry'}</button>
+            <button class="btn-secondary" id="clearLactationBtn">${this._lang === 'pl' ? 'Wyczyść' : 'Clear'}</button>
+          </div>
+
+          <div style="margin-top:20px">
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-value" id="lactationTotalMl">0</div>
+                <div class="stat-label">${this._lang === 'pl' ? 'ml dziś' : 'ml today'}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value" id="lactationSessionCount">0</div>
+                <div class="stat-label">${this._lang === 'pl' ? 'Sesje dziś' : 'Sessions today'}</div>
+              </div>
+            </div>
+            <h3 style="margin:20px 0 12px;font-size:16px;font-weight:600">${this._lang === 'pl' ? 'Ostatnie wpisy' : 'Recent Entries'}</h3>
+            <div id="lactationList"></div>
           </div>
         </div>
         ` : ''}
@@ -1421,7 +1543,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     if (this._lastHtml === html) return;
     this._lastHtml = html;
+    const tabsEl = this.shadowRoot.querySelector('.tabs');
+    const tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
     this.shadowRoot.innerHTML = html;
+    requestAnimationFrame(() => {
+      const newTabsEl = this.shadowRoot.querySelector('.tabs');
+      if (newTabsEl) newTabsEl.scrollLeft = tabsScrollLeft;
+    });
 
     this.attachEventListeners();
     this.setDefaultTimes();
@@ -1454,7 +1582,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
 
-    shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
+    shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         this.selectedTab = e.target.dataset.tab;
         this.renderCard();
@@ -1463,6 +1591,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     shadowRoot.getElementById('addFeedingBtn')?.addEventListener('click', () => this.addFeeding());
     shadowRoot.getElementById('clearFeedingBtn')?.addEventListener('click', () => this.clearFeedingForm());
+    shadowRoot.getElementById('addLactationBtn')?.addEventListener('click', () => this.addLactation());
+    shadowRoot.getElementById('clearLactationBtn')?.addEventListener('click', () => this.clearLactationForm());
     shadowRoot.getElementById('addDiapersBtn')?.addEventListener('click', () => this.addDiapers());
     shadowRoot.getElementById('clearDiapersBtn')?.addEventListener('click', () => this.clearDiapersForm());
     shadowRoot.getElementById('startSleepBtn')?.addEventListener('click', () => this.startSleepTimer());
@@ -1685,6 +1815,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   updateAllDisplays() {
     this.updateFeedingList();
+    this.updateLactationDisplay();
     this.updateDiapersList();
     this.updateSleepList();
     this.updateGrowthChart();
@@ -2062,6 +2193,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     return document.createElement('ha-baby-tracker-editor');
   }
 
+  getCardSize() { return 8; }
+
   static getStubConfig() {
     return {
       type: 'custom:ha-baby-tracker',
@@ -2122,6 +2255,66 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         });
       });
   }
+  addLactation() {
+    const type = this.shadowRoot.getElementById('lactationType')?.value || 'pump';
+    const time = this.shadowRoot.getElementById('lactationTime')?.value || new Date().toTimeString().slice(0,5);
+    const side = this.shadowRoot.getElementById('lactationSide')?.value || 'both';
+    const duration = parseInt(this.shadowRoot.getElementById('lactationDuration')?.value) || 0;
+    const amount = parseInt(this.shadowRoot.getElementById('lactationAmount')?.value) || 0;
+    const notes = this.shadowRoot.getElementById('lactationNotes')?.value || '';
+
+    const currentBaby = this.getCurrentBaby();
+    if (!this.lactationData.has(currentBaby)) this.lactationData.set(currentBaby, []);
+
+    const entry = { type, time, side, duration, amount, notes, date: new Date().toISOString().slice(0,10), ts: Date.now() };
+    this.lactationData.get(currentBaby).unshift(entry);
+
+    this._saveData();
+    this.clearLactationForm();
+    this.updateLactationDisplay();
+  }
+
+  clearLactationForm() {
+    const sr = this.shadowRoot;
+    if (sr.getElementById('lactationDuration')) sr.getElementById('lactationDuration').value = '';
+    if (sr.getElementById('lactationAmount')) sr.getElementById('lactationAmount').value = '';
+    if (sr.getElementById('lactationNotes')) sr.getElementById('lactationNotes').value = '';
+  }
+
+  updateLactationDisplay() {
+    const currentBaby = this.getCurrentBaby();
+    const entries = this.lactationData.get(currentBaby) || [];
+    const today = new Date().toISOString().slice(0,10);
+    const todayEntries = entries.filter(e => e.date === today);
+
+    const totalMl = todayEntries.reduce((s, e) => s + (e.amount || 0), 0);
+    const sessionCount = todayEntries.length;
+
+    const totalEl = this.shadowRoot.getElementById('lactationTotalMl');
+    if (totalEl) totalEl.textContent = totalMl;
+    const countEl = this.shadowRoot.getElementById('lactationSessionCount');
+    if (countEl) countEl.textContent = sessionCount;
+
+    const listEl = this.shadowRoot.getElementById('lactationList');
+    if (!listEl) return;
+
+    const L = this._lang === 'pl';
+    const sideLabels = { left: L ? 'Lewa' : 'Left', right: L ? 'Prawa' : 'Right', both: L ? 'Obie' : 'Both' };
+    const typeLabels = { pump: L ? 'Odciąganie' : 'Pumping', manual: L ? 'Ręczne' : 'Hand Expr.', supplement: L ? 'Suplement' : 'Supplement' };
+
+    listEl.innerHTML = entries.slice(0, 20).map(e => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
+        <div>
+          <strong>${typeLabels[e.type] || e.type}</strong> — ${sideLabels[e.side] || e.side}
+          ${e.duration ? ` • ${e.duration} min` : ''}
+          ${e.amount ? ` • ${e.amount} ml` : ''}
+          <div style="font-size:11px;color:var(--bento-text-secondary,#64748b)">${e.notes || ''}</div>
+        </div>
+        <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${e.time} ${e.date !== today ? e.date : ''}</div>
+      </div>
+    `).join('') || `<div style="text-align:center;padding:20px;color:var(--bento-text-secondary)">${L ? 'Brak wpisów' : 'No entries yet'}</div>`;
+  }
+
   // --- Canvas size fix for Bento CSS ---
   _fixCanvasSize(canvas) {
     const rect = canvas.getBoundingClientRect();
@@ -2134,8 +2327,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 }
 
 if (!customElements.get('ha-baby-tracker')) { customElements.define('ha-baby-tracker', HaBabyTracker); }
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-baby-tracker', name: 'Baby Tracker', description: 'Track baby activities: feeding, sleep, diapers', preview: false });
 ;
 
 class HaBabyTrackerEditor extends HTMLElement {
@@ -2175,3 +2366,8 @@ class HaBabyTrackerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-baby-tracker-editor')) { customElements.define('ha-baby-tracker-editor', HaBabyTrackerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-baby-tracker', name: 'Baby & Mom Tracker', description: 'Track baby activities: feeding, lactation, sleep, diapers', preview: false });

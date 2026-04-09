@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -67,6 +69,8 @@ window._haToolsPersistence = window._haToolsPersistence || {
  */
 class HASecurityCheck extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-security-check-editor'); }
+  getCardSize() { return 8; }
+
   static getStubConfig() { return { type: 'custom:ha-security-check', title: 'Security Check' }; }
   constructor() {
     super();
@@ -129,6 +133,33 @@ class HASecurityCheck extends HTMLElement {
       return;
     }
     this._lastRenderTime = now;
+  }
+
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Sprawdzanie Bezpieczeństwa',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        locale: 'pl-PL',
+      },
+      en: {
+        title: 'Security Check',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -628,6 +659,7 @@ class HASecurityCheck extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
     const html = `
       <style>${window.HAToolsBentoCSS || ""}
 
@@ -679,14 +711,14 @@ class HASecurityCheck extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .exporter-card, .card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px !important;
 }
 
@@ -710,7 +742,7 @@ class HASecurityCheck extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-button {
+.tab, .tab-btn, .tab-btn {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -725,11 +757,11 @@ class HASecurityCheck extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-button:hover {
+.tab:hover, .tab-btn:hover, .tab-btn:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-button.active {
+.tab.active, .tab-btn.active, .tab-btn.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -893,9 +925,9 @@ canvas {
 .card-title, .title, .header-title, .pan-title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; overflow-x: auto; padding-bottom: 0; }
-.tab, .tab-btn, .tab-button { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
-.tab.active, .tab-btn.active, .tab-button.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-.tab:hover, .tab-btn:hover, .tab-button:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab, .tab-btn, .tab-btn { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
+.tab.active, .tab-btn.active, .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab:hover, .tab-btn:hover, .tab-btn:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab-icon { margin-right: 6px; }
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeSlideIn 0.3s ease-out; }
@@ -1145,6 +1177,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .panels { flex-direction: column; }
   .board { flex-direction: column; }
   .column { min-width: unset; }
+  .score-section { gap: 16px; flex-wrap: wrap; }
+  .score-ring { width: 100px; height: 100px; }
+  .score-ring svg { width: 100px; height: 100px; }
+  .score-num { font-size: 22px; }
+  .score-summary h3 { font-size: 13px; }
 }
 
 /* ===== SECURITY CHECK SPECIFIC ===== */
@@ -1198,8 +1235,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -1211,15 +1248,20 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+          .score-section { flex-direction: column; align-items: center; text-align: center; }
+          .score-ring { width: 90px; height: 90px; }
+          .score-ring svg { width: 90px; height: 90px; }
+          .score-num { font-size: 20px; }
+          .summary-row { justify-content: center; }
         }
       
 
 </style>
-      <ha-card>
-        <div class="security-card">
+      
+        <div class="card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
             <!-- Refresh handled by panel toolbar -->
@@ -1234,21 +1276,35 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>
           <div id="content"></div>
         </div>
-      </ha-card>
+      
     `;
     if (this._lastHtml === html) return;
     this._lastHtml = html;
     this.shadowRoot.innerHTML = html;
 
-    this.shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.shadowRoot.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this._activeTab = btn.dataset.tab;
         this._updateContent();
       });
     });
+
+    // Score explainer toggle listener
+    const toggle = this.shadowRoot.querySelector('.score-explainer-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const body = this.shadowRoot.querySelector('.score-explainer-body');
+        const arrow = this.shadowRoot.querySelector('.score-explainer-arrow');
+        if (body) {
+          const isHidden = body.style.display === 'none';
+          body.style.display = isHidden ? 'block' : 'none';
+          if (arrow) arrow.style.transform = isHidden ? 'rotate(180deg)' : '';
+        }
+      });
+    }
 
     // Refresh now handled by panel toolbar (removed internal Re-scan button)
   }
@@ -1276,22 +1332,30 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const grade = sc >= 90 ? 'A' : sc >= 80 ? 'B' : sc >= 70 ? 'C' : sc >= 60 ? 'D' : 'F';
     const gradeMsg = sc >= 90 ? 'Excellent security posture' : sc >= 80 ? 'Good, minor improvements possible' : sc >= 60 ? 'Fair, several issues to address' : 'Needs attention \u2014 critical issues found';
     let html = `<div class="score-section"><div class="score-ring"><svg viewBox="0 0 100 100"><circle class="score-bg" cx="50" cy="50" r="42" /><circle class="score-fill" cx="50" cy="50" r="42" style="stroke:${scoreColor};stroke-dasharray:${(sc/100)*circ} ${circ}" /></svg><div class="score-text"><div class="score-num" style="color:${scoreColor}">${sc}</div><div class="score-label">Score</div></div></div><div class="score-summary"><h3>Grade: ${grade} \u2014 ${gradeMsg}</h3><div class="summary-row"><div class="summary-dot" style="background:#f44336"></div><span class="summary-count">${d.critCount}</span> Critical</div><div class="summary-row"><div class="summary-dot" style="background:#ff9800"></div><span class="summary-count">${d.warnCount}</span> Warnings</div><div class="summary-row"><div class="summary-dot" style="background:#03a9f4"></div><span class="summary-count">${d.infoCount}</span> Info</div><div class="summary-row"><div class="summary-dot" style="background:#4caf50"></div><span class="summary-count">${d.passCount}</span> Passed</div></div></div>`;
-    html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px"><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.addons.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Addons installed</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.users.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">User accounts</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.entities}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Entities</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.totalChecks}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Checks run</div></div></div>`;
+    const noSupervisor = d.findings?.info?.some(f => f.id === 'no_supervisor');
+    const addonsDisplay = noSupervisor && d.addons.length === 0 ? 'N/A' : String(d.addons.length);
+    const integrationsDisplay = d.integrations?.length || 0;
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px"><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${addonsDisplay}</div><div style="font-size:11px;color:var(--bento-text-secondary)">${noSupervisor && d.addons.length === 0 ? 'Addons (HA OS only)' : 'Addons installed'}</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${integrationsDisplay}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Integrations</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.users.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">User accounts</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.entities}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Entities</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.totalChecks}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Checks run</div></div></div>`;
     if (d.critCount > 0) { html += '<div class="section-title">\u{1F6A8} Critical Issues</div>'; d.findings.critical.forEach(f => { html += this._renderFinding(f, 'critical'); }); }
     if (d.warnCount > 0) { html += '<div class="section-title">\u26A0\uFE0F Warnings</div>'; d.findings.warning.forEach(f => { html += this._renderFinding(f, 'warning'); }); }
-    // Scoring methodology explanation
+    // Scoring methodology explanation - collapsible
     const scoringL = this._lang === 'pl';
     html += `<div style="margin-top:16px;padding:14px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm);">
-      <div style="font-size:13px;font-weight:600;color:var(--bento-text);margin-bottom:8px;">${scoringL ? '\u{1F4CA} Jak obliczany jest wynik?' : '\u{1F4CA} How is the score calculated?'}</div>
-      <div style="font-size:12px;color:var(--bento-text-secondary);line-height:1.6;">
-        ${scoringL ? 'Wynik startowy: <b>100 punkt\u00F3w</b>' : 'Starting score: <b>100 points</b>'}<br>
-        \u{1F6A8} ${scoringL ? 'Krytyczne' : 'Critical'}: <b>-15 ${scoringL ? 'pkt za ka\u017Cdy' : 'pts each'}</b> (${scoringL ? 'np. brak SSL, wy\u0142\u0105czona ochrona addon' : 'e.g. no SSL, disabled addon protection'})<br>
-        \u26A0\uFE0F ${scoringL ? 'Ostrze\u017Cenia' : 'Warnings'}: <b>-5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. nieaktualne addony, wiele kont Owner' : 'e.g. outdated addons, multiple owner accounts'})<br>
-        \u2139\uFE0F Info: <b>-0.5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. shell commands, MQTT' : 'e.g. shell commands, MQTT broker'})<br>
-        \u2705 ${scoringL ? 'Spe\u0142nione' : 'Passed'}: ${scoringL ? 'bez kary' : 'no penalty'}
+      <div class="score-explainer-toggle" style="font-size:13px;font-weight:600;color:var(--bento-text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+        <span>${scoringL ? '\u{1F4CA} Jak obliczany jest wynik?' : '\u{1F4CA} How is the score calculated?'}</span>
+        <span class="score-explainer-arrow" style="transition:transform 0.2s;font-size:12px;">\u25BC</span>
       </div>
-      <div style="font-size:12px;color:var(--bento-text-secondary);margin-top:8px;">
-        ${scoringL ? '<b>Sprawdzane:</b> aktualizacje Core/OS/Supervisor, SSL/HTTPS, ochrona addon\u00F3w, auto-update, host networking, u\u017Cytkownicy i uprawnienia, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS' : '<b>Checks:</b> Core/OS/Supervisor updates, SSL/HTTPS, addon protection, auto-update, host networking, users & permissions, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS'}
+      <div class="score-explainer-body" style="display:none;margin-top:8px;">
+        <div style="font-size:12px;color:var(--bento-text-secondary);line-height:1.6;">
+          ${scoringL ? 'Wynik startowy: <b>100 punkt\u00F3w</b>' : 'Starting score: <b>100 points</b>'}<br>
+          \u{1F6A8} ${scoringL ? 'Krytyczne' : 'Critical'}: <b>-15 ${scoringL ? 'pkt za ka\u017Cdy' : 'pts each'}</b> (${scoringL ? 'np. brak SSL, wy\u0142\u0105czona ochrona addon' : 'e.g. no SSL, disabled addon protection'})<br>
+          \u26A0\uFE0F ${scoringL ? 'Ostrze\u017Cenia' : 'Warnings'}: <b>-5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. nieaktualne addony, wiele kont Owner' : 'e.g. outdated addons, multiple owner accounts'})<br>
+          \u2139\uFE0F Info: <b>-0.5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. shell commands, MQTT' : 'e.g. shell commands, MQTT broker'})<br>
+          \u2705 ${scoringL ? 'Spe\u0142nione' : 'Passed'}: ${scoringL ? 'bez kary' : 'no penalty'}
+        </div>
+        <div style="font-size:12px;color:var(--bento-text-secondary);margin-top:8px;">
+          ${scoringL ? '<b>Sprawdzane:</b> aktualizacje Core/OS/Supervisor, SSL/HTTPS, ochrona addon\u00F3w, auto-update, host networking, u\u017Cytkownicy i uprawnienia, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS' : '<b>Checks:</b> Core/OS/Supervisor updates, SSL/HTTPS, addon protection, auto-update, host networking, users & permissions, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS'}
+        </div>
       </div>
     </div>`;
     if (this._lastScan) { html += `<div class="scan-info">Last scan: ${this._lastScan.toLocaleString()}</div>`; }
@@ -1324,7 +1388,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   _renderAddonsSection(d) {
-    if (!d.addons.length) return '<div class="empty-msg">No addons installed</div>';
+    if (!d.addons.length) {
+      const noSupervisor = d.findings?.info?.some(f => f.id === 'no_supervisor');
+      if (noSupervisor) return `<div class="empty-msg">\u2139\uFE0F ${this._lang === 'pl' ? 'Addony wymagaj\u0105 HA OS lub Supervised. Brak Supervisor API na tej instalacji.' : 'Addons require HA OS or Supervised. No Supervisor API detected on this installation.'}</div>`;
+      return '<div class="empty-msg">No addons installed</div>';
+    }
     return `<div class="table-container"><table class="entity-table"><thead><tr><th>Addon</th><th>Version</th><th>State</th><th>Protection</th><th>Auto-update</th><th>Host Network</th></tr></thead><tbody>${d.addons.map(a => { const prot = a.protected !== false; const autoUp = a.auto_update !== false; const hostNet = a.host_network === true; const updateAvail = a.update_available; return `<tr><td>${this._sanitize(a.name || a.slug)}${updateAvail ? ' \u2B06\uFE0F' : ''}</td><td>${a.version || '-'}${updateAvail ? ` \u2192 ${a.version_latest}` : ''}</td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td><td style="color:${prot ? '#4caf50' : '#f44336'}">${prot ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${autoUp ? '#4caf50' : '#ff9800'}">${autoUp ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${hostNet ? '#ff9800' : 'var(--bento-text-secondary)'}">${hostNet ? '\u26A0 Yes' : 'No'}</td></tr>`; }).join('')}</tbody></table></div>`;
   }
 
@@ -1376,8 +1444,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (hi.operating_system) html += `<span style="font-weight:600;color:var(--bento-text-secondary)">OS</span><span>${hi.operating_system}</span>`;
     if (hi.supervisor) html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Supervisor</span><span>${hi.supervisor}</span>`;
     html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Time zone</span><span>${haConfig.time_zone || 'N/A'}</span>`;
-    const integrationCount = (haConfig.components || []).length;
-    html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Integrations</span><span>${integrationCount} loaded</span>`;
+    const integrationCount = d.integrations?.length || (haConfig.components || []).length;
+    const componentCount = (haConfig.components || []).length;
+    html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Integrations</span><span>${integrationCount > 0 ? integrationCount + ' entries' : componentCount > 0 ? componentCount + ' components' : 'N/A'}</span>`;
     html += '</div></div></div>';
 
     // Network Interfaces from Supervisor
@@ -1535,14 +1604,15 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
   }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
 }
 
 if (!customElements.get('ha-security-check')) {
   customElements.define('ha-security-check', HASecurityCheck);
 }
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-security-check', name: 'Security Check', description: 'Security audit tool for Home Assistant', preview: true });
 
 console.info(
   '%c  HA-SECURITY-CHECK  %c v1.0.0 ',
@@ -1587,3 +1657,8 @@ class HaSecurityCheckEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-security-check-editor')) { customElements.define('ha-security-check-editor', HaSecurityCheckEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-security-check', name: 'Security Check', description: 'Security audit tool for Home Assistant', preview: true });

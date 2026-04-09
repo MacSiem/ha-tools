@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -85,12 +87,18 @@ class HADeviceHealth extends HTMLElement {
     this._batteryPageSize = 15;
     this._networkPage = 1;
     this._networkPageSize = 15;
+    this._alertsPage = 1;
+    this._alertsPageSize = 15;
     // Throttle control
     this._renderScheduled = false;
     this._firstRender = true;
     this._throttleMs = 5000;
     this._lastRenderTime = 0;
     this._cachedStateHash = '';
+    // DOM optimization
+    this._domBuilt = false;
+    this._scrollPosition = 0;
+    this._tabsScroll = 0;
   }
 
   static get _translations() {
@@ -227,13 +235,21 @@ class HADeviceHealth extends HTMLElement {
         setTimeout(() => {
           this._renderScheduled = false;
           this._generateAlerts();
-          this._render();
+          if (this._domBuilt) {
+            this._updateContent();
+          } else {
+            this._render();
+          }
         }, this._throttleMs - (now - this._lastRenderTime));
       }
       return;
     }
     this._generateAlerts();
-    this._render();
+    if (this._domBuilt) {
+      this._updateContent();
+    } else {
+      this._render();
+    }
   }
 
   _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
@@ -397,6 +413,29 @@ class HADeviceHealth extends HTMLElement {
       }
     });
 
+    // Method 4: Include ALL device_tracker entities (they represent network devices)
+    Object.entries(states).forEach(([entityId, state]) => {
+      if (entityId.startsWith('device_tracker.')) {
+        const a = state.attributes || {};
+        const protocol = a.source_type === 'router' ? 'WiFi' :
+                         a.source_type === 'bluetooth' ? 'Bluetooth' :
+                         a.source_type === 'bluetooth_le' ? 'BLE' : 'Network';
+        if (!networks[protocol]) networks[protocol] = [];
+        if (!networks[protocol].find(d => d.id === entityId)) {
+          networks[protocol].push({
+            id: entityId,
+            name: this._sanitize(a.friendly_name || this._formatEntityName(entityId)),
+            rssi: typeof a.rssi === 'number' ? a.rssi : null,
+            device: this._sanitize(a.friendly_name || this._extractDeviceName(entityId)),
+            mac: a.mac || a.mac_address || '',
+            ip: a.ip || a.ip_address || '',
+            ssid: a.essid || a.ssid || '',
+            connectionType: a.source_type || ''
+          });
+        }
+      }
+    });
+
     return Object.keys(networks).length > 0 ? networks : this._getDemoNetworks();
   }
 
@@ -525,7 +564,17 @@ class HADeviceHealth extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
     this._lastRenderTime = Date.now();
+    // Save scroll positions before rebuild
+    const oldList = this.shadowRoot.querySelector('[data-device-list]');
+    if (oldList) {
+      this._scrollPosition = oldList.scrollTop || 0;
+    }
+    const oldTabs = this.shadowRoot.querySelector('.tabs');
+    if (oldTabs) {
+      this._tabsScroll = oldTabs.scrollLeft || 0;
+    }
     const style = `
       
 /* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
@@ -587,7 +636,7 @@ class HADeviceHealth extends HTMLElement {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         min-height: 500px;
         color: var(--tc);
-        overflow: hidden;
+        overflow: visible;
         min-width: 0;
       }
 
@@ -603,9 +652,11 @@ class HADeviceHealth extends HTMLElement {
         gap: 4px;
         border-bottom: 2px solid var(--dc);
         margin-bottom: 16px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
-      .tab {
+      .tab-btn {
         padding: 10px 16px;
         cursor: pointer;
         color: var(--ts);
@@ -619,13 +670,13 @@ class HADeviceHealth extends HTMLElement {
         transition: var(--tr);
       }
 
-      .tab.active {
+      .tab-btn.active {
         color: var(--pc) !important;
         background: var(--cbg) !important;
         border-bottom-color: var(--pc);
       }
 
-      .tab:hover {
+      .tab-btn:hover {
         color: var(--tc);
         background: var(--hov);
         border-radius: var(--radius-xs) var(--radius-xs) 0 0;
@@ -651,6 +702,7 @@ class HADeviceHealth extends HTMLElement {
         display: flex;
         gap: 8px;
         align-items: center;
+        flex-wrap: wrap;
       }
 
       input[type="text"], select {
@@ -663,6 +715,12 @@ class HADeviceHealth extends HTMLElement {
         color: var(--tc);
         transition: var(--tr);
         outline: none;
+        box-sizing: border-box;
+      }
+
+      select {
+        width: auto;
+        max-width: 100%;
       }
 
       input[type="text"]:focus, select:focus {
@@ -765,19 +823,22 @@ class HADeviceHealth extends HTMLElement {
       }
 
       .battery-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
         margin-bottom: 0;
       }
 
       .battery-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         border: 1.5px solid var(--dc);
         border-radius: var(--radius-sm);
-        padding: 14px;
-        text-align: center;
+        padding: 8px 12px;
         transition: var(--tr);
         background: var(--cbg);
+        min-height: 50px;
       }
 
       .battery-card:hover {
@@ -785,25 +846,65 @@ class HADeviceHealth extends HTMLElement {
         border-color: var(--pc);
       }
 
-      .battery-bar {
-        width: 100%;
-        height: 8px;
-        background: var(--dc);
-        border-radius: 4px;
-        overflow: hidden;
-        margin: 8px 0;
+      .battery-icon {
+        font-size: 20px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
       }
 
-      .battery-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: var(--tr);
+      .battery-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .battery-name {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--tc);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .battery-label {
         font-size: 11px;
         color: var(--ts);
-        margin-top: 6px;
+      }
+
+      .battery-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .battery-bar {
+        width: 60px;
+        height: 6px;
+        background: var(--dc);
+        border-radius: 3px;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .battery-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: var(--tr);
+      }
+
+      .battery-percent {
+        font-size: 13px;
+        font-weight: 600;
+        min-width: 35px;
+        text-align: right;
       }
 
       .network-stats {
@@ -991,6 +1092,8 @@ class HADeviceHealth extends HTMLElement {
         color: var(--tc);
         cursor: pointer;
         transition: var(--tr);
+        width: auto;
+        max-width: 200px;
       }
 
       .page-size-selector:hover {
@@ -1004,8 +1107,15 @@ class HADeviceHealth extends HTMLElement {
         margin: 20px 0 10px;
       }
 
-      @media (max-width: 768px) {
-        .device-grid, .battery-grid { grid-template-columns: 1fr !important; }
+      
+        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
+        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
+@media (max-width: 768px) {
+        .device-grid { grid-template-columns: 1fr !important; }
+        .battery-card { min-height: 55px; }
+        .battery-right { flex-wrap: wrap; gap: 6px; }
         .device-table { font-size: 11px; }
         .device-table td, .device-table th { padding: 6px 4px; font-size: 11px; }
         .device-table th:nth-child(2), .device-table td:nth-child(2) { display: none; }
@@ -1028,10 +1138,10 @@ class HADeviceHealth extends HTMLElement {
       <div class="card">
         <div class="card-header">${this._config.title}</div>
         <div class="tabs">
-          <button class="tab ${this._activeTab === "devices" ? "active" : ""}" data-tab="devices">${this._t('devices')}</button>
-          <button class="tab ${this._activeTab === "batteries" ? "active" : ""}" data-tab="batteries">${this._t('batteries')}</button>
-          <button class="tab ${this._activeTab === "network" ? "active" : ""}" data-tab="network">${this._t('network')}</button>
-          <button class="tab ${this._activeTab === "alerts" ? "active" : ""}" data-tab="alerts">${this._t('alerts')}</button>
+          <button class="tab-btn ${this._activeTab === "devices" ? "active" : ""}" data-tab="devices">${this._t('devices')}</button>
+          <button class="tab-btn ${this._activeTab === "batteries" ? "active" : ""}" data-tab="batteries">${this._t('batteries')}</button>
+          <button class="tab-btn ${this._activeTab === "network" ? "active" : ""}" data-tab="network">${this._t('network')}</button>
+          <button class="tab-btn ${this._activeTab === "alerts" ? "active" : ""}" data-tab="alerts">${this._t('alerts')}</button>
         </div>
     `;
 
@@ -1132,7 +1242,7 @@ class HADeviceHealth extends HTMLElement {
         <div class="tab-content active">
           <div class="controls">
             <div class="control-group">
-              <select class="battery-sort" style="margin-right:4px;">
+              <select class="battery-sort" style="width: auto; max-width: 200px; margin-right: 4px;">
                 <option value="level" ${this._batterySortBy === 'level' ? 'selected' : ''}>${this._t('levelWorstFirst')}</option>
                 <option value="name" ${this._batterySortBy === 'name' ? 'selected' : ''}>${this._t('name')}</option>
               </select>
@@ -1154,13 +1264,17 @@ class HADeviceHealth extends HTMLElement {
                   const color = this._getBatteryColor(battery.level);
                   return `
                     <div class="battery-card">
-                      <div style="font-size: 20px; margin-bottom: 6px;">🔋</div>
-                      <div style="font-size: 13px; font-weight: 600; color: var(--tc);">${battery.name}</div>
-                      <div class="battery-bar">
-                        <div class="battery-fill" style="width: ${battery.level}%; background: ${color};"></div>
+                      <div class="battery-icon">🔋</div>
+                      <div class="battery-info">
+                        <div class="battery-name">${battery.name}</div>
+                        <div class="battery-label">${this._t('lastChanged')}: ${new Date(battery.lastChanged).toLocaleDateString()}</div>
                       </div>
-                      <div style="font-size: 16px; font-weight: 700; color: ${color};">${battery.level}%</div>
-                      <div class="battery-label">${this._t('lastChanged')}: ${new Date(battery.lastChanged).toLocaleDateString()}</div>
+                      <div class="battery-right">
+                        <div class="battery-bar">
+                          <div class="battery-fill" style="width: 100%; background: ${color};"></div>
+                        </div>
+                        <div class="battery-percent" style="color: ${color};">${battery.level}%</div>
+                      </div>
                     </div>
                   `;
                 }
@@ -1267,8 +1381,24 @@ class HADeviceHealth extends HTMLElement {
 
     // Alerts Tab
     if (this._activeTab === "alerts") {
+      const alertStart = (this._alertsPage - 1) * this._alertsPageSize;
+      const alertEnd = alertStart + this._alertsPageSize;
+      const paginatedAlerts = this._alerts.slice(alertStart, alertEnd);
+      const alertTotalPages = Math.ceil(this._alerts.length / this._alertsPageSize) || 1;
+
       html += `
         <div class="tab-content active">
+          <div class="controls">
+            <div class="control-group">
+              <span style="font-size: 13px; color: var(--ts);">${this._t('pageSize')}:</span>
+              <select class="page-size-selector" data-tab="alerts">
+                <option value="10" ${this._alertsPageSize === 10 ? 'selected' : ''}>10</option>
+                <option value="15" ${this._alertsPageSize === 15 ? 'selected' : ''}>15</option>
+                <option value="20" ${this._alertsPageSize === 20 ? 'selected' : ''}>20</option>
+                <option value="30" ${this._alertsPageSize === 30 ? 'selected' : ''}>30</option>
+              </select>
+            </div>
+          </div>
           <div class="stats">
             ${this._t('activeAlerts')}: ${this._alerts.length}
           </div>
@@ -1277,7 +1407,7 @@ class HADeviceHealth extends HTMLElement {
       if (this._alerts.length === 0) {
         html += `<div class="empty-state">${this._t('noActiveAlerts')}</div>`;
       } else {
-        this._alerts.forEach((alert) => {
+        paginatedAlerts.forEach((alert) => {
           const alertId = `${alert.type}_${alert.id}`;
           html += `
             <div class="alert-item alert-${alert.severity}">
@@ -1292,6 +1422,16 @@ class HADeviceHealth extends HTMLElement {
             </div>
           `;
         });
+
+        if (this._alerts.length > this._alertsPageSize) {
+          html += `
+            <div class="pagination">
+              <button class="pagination-btn alert-prev" ${this._alertsPage === 1 ? 'disabled' : ''}>${this._t('previous')}</button>
+              <span class="pagination-info">${this._t('page')} ${this._alertsPage} ${this._t('of')} ${alertTotalPages}</span>
+              <button class="pagination-btn alert-next" ${this._alertsPage === alertTotalPages ? 'disabled' : ''}>${this._t('next')}</button>
+            </div>
+          `;
+        }
       }
 
       html += `
@@ -1311,14 +1451,16 @@ class HADeviceHealth extends HTMLElement {
       `;
     }
 
+    // Mark DOM as built after content is set
+    const restoreScroll = !this._domBuilt;
     this.shadowRoot.innerHTML = `<style>${window.HAToolsBentoCSS || ""}
 ${style}
 /* === DARK MODE === */
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab-btn, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -1330,7 +1472,7 @@ ${style}
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab-btn, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
@@ -1338,10 +1480,60 @@ ${style}
 </style>${html}`
     this._attachEventListeners();
     this._drawSignalChart();
+
+    // Restore scroll positions after DOM rebuild
+    requestAnimationFrame(() => {
+      const list = this.shadowRoot.querySelector('[data-device-list]');
+      if (list && this._scrollPosition) list.scrollTop = this._scrollPosition;
+      const tabs = this.shadowRoot.querySelector('.tabs');
+      if (tabs && this._tabsScroll) tabs.scrollLeft = this._tabsScroll;
+    });
+
+    // Mark DOM as built and restore scroll position
+    this._domBuilt = true;
+    if (restoreScroll && this._scrollPosition > 0) {
+      const list = this.shadowRoot.querySelector('[data-device-list]');
+      if (list) {
+        setTimeout(() => { list.scrollTop = this._scrollPosition; }, 0);
+      }
+    }
+  }
+
+  _updateContent() {
+    // Incremental update: refresh data without rebuilding entire DOM
+    // This preserves scroll position and tab state
+    if (!this._hass || !this._domBuilt) return;
+    this._lastRenderTime = Date.now();
+
+    // Update alert count if visible
+    const alertCount = this.shadowRoot.querySelector('[data-alert-count]');
+    if (alertCount) {
+      alertCount.textContent = this._alerts.length;
+    }
+
+    // Update device count if visible
+    const deviceCount = this.shadowRoot.querySelector('[data-device-count]');
+    if (deviceCount) {
+      const devices = Object.values(this._hass.states).filter(s => s.entity_id.includes('device_tracker'));
+      deviceCount.textContent = devices.length;
+    }
+
+    // For now, if active tab content changes significantly, re-render
+    // This is a safe fallback - in production, you'd implement per-tab update methods
+    const tabContent = this.shadowRoot.querySelector('[data-tab-content]');
+    if (tabContent && this._activeTab === 'devices') {
+      // Light update: just refresh the device list without full re-render
+      // TODO: implement incremental device list updates
+      return;
+    }
+
+    // If updates are significant, fall back to full render to avoid bugs
+    // But with throttling in place, this won't happen often
+    this._render();
   }
 
   _attachEventListeners() {
-    const tabs = this.shadowRoot.querySelectorAll(".tab");
+    const tabs = this.shadowRoot.querySelectorAll(".tab-btn");
     tabs.forEach((tab) => {
       tab.addEventListener("click", (e) => {
         this._activeTab = e.target.dataset.tab;
@@ -1412,6 +1604,7 @@ ${style}
         if (tab === 'devices') { this._pageSize = val; this._currentPage = 1; }
         else if (tab === 'batteries') { this._batteryPageSize = val; this._batteryPage = 1; }
         else if (tab === 'network') { this._networkPageSize = val; this._networkPage = 1; }
+        else if (tab === 'alerts') { this._alertsPageSize = val; this._alertsPage = 1; }
         this._render();
       });
     });
@@ -1467,6 +1660,21 @@ ${style}
         Object.values(networks).forEach(arr => total += arr.length);
         const tp = Math.ceil(total / this._networkPageSize) || 1;
         if (this._networkPage < tp) { this._networkPage++; this._render(); }
+      });
+    }
+
+    // Alerts pagination
+    const alertPrev = this.shadowRoot.querySelector(".alert-prev");
+    if (alertPrev) {
+      alertPrev.addEventListener("click", () => {
+        if (this._alertsPage > 1) { this._alertsPage--; this._render(); }
+      });
+    }
+    const alertNext = this.shadowRoot.querySelector(".alert-next");
+    if (alertNext) {
+      alertNext.addEventListener("click", () => {
+        const tp = Math.ceil(this._alerts.length / this._alertsPageSize) || 1;
+        if (this._alertsPage < tp) { this._alertsPage++; this._render(); }
       });
     }
   }
@@ -1552,6 +1760,8 @@ ${style}
     return element;
   }
 
+  getCardSize() { return 6; }
+
   static getStubConfig() {
     return {
       type: "custom:ha-device-health",
@@ -1561,13 +1771,15 @@ ${style}
       offline_alert_minutes: 60,
     };
   }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
 }
 
-customElements.define("ha-device-health", HADeviceHealth);
+if (!customElements.get('ha-device-health')) customElements.define("ha-device-health", HADeviceHealth);
 
 
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-device-health', name: 'Device Health', description: 'Monitor device health, battery levels and connectivity', preview: false });
 // Auto-load HA Tools Panel (if not already registered)
 if (!customElements.get('ha-tools-panel')) {
   const _currentScript = document.currentScript?.src || '';
@@ -1636,3 +1848,8 @@ class HaDeviceHealthEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-device-health-editor')) { customElements.define('ha-device-health-editor', HaDeviceHealthEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-device-health', name: 'Device Health', description: 'Monitor device health, battery levels and connectivity', preview: false });

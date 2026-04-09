@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -527,6 +528,48 @@ class HAVacuumWaterMonitor extends HTMLElement {
     this._lastRenderTime = now;
   }
 
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Monitor Odkurzacza i Wody',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'B\u0142\u0105d',
+        water: 'Woda',
+        vacuum: 'Odkurzacz',
+        maintenance: 'Konserwacja',
+        status: 'Status',
+        lastRun: 'Ostatnie uruchomienie',
+        nextRun: 'Nast\u0119pne uruchomienie',
+        fillLevel: 'Poziom nape\u0142nienia',
+        tankEmpty: 'Zbiornik pusty',
+        tankFull: 'Zbiornik pe\u0142ny',
+        refill: 'Nape\u0142nij',
+        clean: 'Wyczy\u015B\u0107',
+        history: 'Historia',
+      },
+      en: {
+        title: 'Vacuum & Water Monitor',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        water: 'Water',
+        vacuum: 'Vacuum',
+        maintenance: 'Maintenance',
+        status: 'Status',
+        lastRun: 'Last run',
+        nextRun: 'Next run',
+        fillLevel: 'Fill level',
+        tankEmpty: 'Tank empty',
+        tankFull: 'Tank full',
+        refill: 'Refill',
+        clean: 'Clean',
+        history: 'History',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
+
   setConfig(config) {
     if (!config) throw new Error('Configuration required');
 
@@ -555,7 +598,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     };
 
     this._activeTab = this._config.default_tab || 'water';
-    try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+    try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
     this._loadMaintenanceItems();
     this._loadUserDevices();
     this._loadRefillConfig();
@@ -1748,6 +1791,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
   // ── MAIN RENDER ───────────────────────────────────────────────────────────
 
   _render() {
+    if (!this._hass) return;
    try {
     const devices = this._getDevices();
     const device = devices[this._activeDeviceIdx] || devices[0] || {};
@@ -1788,6 +1832,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
     const _newHtml = `
       <style>${window.HAToolsBentoCSS || ""}
+
+        * { box-sizing: border-box; }
 
         
 /* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
@@ -1947,7 +1993,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
       <div class="card">
         <div class="card-title">${this._config.title}</div>
         <div class="tip-banner" id="tip-banner">
-          <button class="tip-dismiss" id="tip-dismiss">\u2715</button>
+          <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
           <div class="tip-banner-title">\u{1F4A1} Konfiguracja</div>
           <ul>
             <li><strong>Brand Profile</strong> \u2014 wybierz profil (Roborock, Dreame, iRobot, Ecovacs) aby automatycznie wype\u0142ni\u0107 nazwy sensor\u00F3w.</li>
@@ -1986,8 +2032,13 @@ class HAVacuumWaterMonitor extends HTMLElement {
       
 /* === DARK MODE === */
 /* === MOBILE FIX === */
-        @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+        
+        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
+        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
+@media (max-width: 768px) {
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -2086,6 +2137,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     sr.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
+        try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
         this._render();
       });
     });
@@ -2094,6 +2146,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     sr.querySelectorAll('.dtab').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeDeviceIdx = parseInt(btn.dataset.didx) || 0;
+        try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
         this._render();
       });
     });
@@ -2313,7 +2366,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
   }
 }
 
-customElements.define('ha-vacuum-water-monitor', HAVacuumWaterMonitor);
+if (!customElements.get('ha-vacuum-water-monitor')) customElements.define('ha-vacuum-water-monitor', HAVacuumWaterMonitor);
 window.customCards = window.customCards || [];
 if (!window.customCards.find(c => c.type === 'ha-vacuum-water-monitor')) {
   window.customCards.push({
@@ -2338,6 +2391,7 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
+        if (_s._activeDeviceIdx !== undefined) this._activeDeviceIdx = _s._activeDeviceIdx;
       }
     } catch(e) {}
     this._render();
@@ -2369,3 +2423,5 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-vacuum-water-monitor-editor')) { customElements.define('ha-vacuum-water-monitor-editor', HaVacuumWaterMonitorEditor); }
+
+})();

@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -96,6 +98,8 @@ class HaFrigatePrivacy extends HTMLElement {
   static getConfigElement() {
     return document.createElement('ha-frigate-privacy-editor');
   }
+
+  getCardSize() { return 6; }
 
   static getStubConfig() {
     return {
@@ -266,10 +270,13 @@ class HaFrigatePrivacy extends HTMLElement {
     this._hass = hass;
     if (!hass) return;
     const now = Date.now();
+    // Update camera detection and status on EVERY hass update (not just once)
+    // This ensures camera friendly_name changes are reflected, and status is always current
+    this._detectCameras();
+    this._updateFrigateStatus();
+
     if (!this._firstHassRender) {
       this._firstHassRender = true;
-      this._detectCameras();
-      this._updateFrigateStatus();
       // Check HA timer entity — authoritative server-side state
       const timerState = hass.states['timer.frigate_privacy'];
       if (timerState) {
@@ -319,7 +326,6 @@ class HaFrigatePrivacy extends HTMLElement {
         this._renderScheduled = true;
         setTimeout(() => {
           this._renderScheduled = false;
-          this._updateFrigateStatus();
           // Check if privacy timer expired (handles case where user navigated away and back)
           if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime && !this._privacyTimerInterval) {
             this._privacyActive = false;
@@ -338,7 +344,6 @@ class HaFrigatePrivacy extends HTMLElement {
       return;
     }
     this._lastRenderTime = now;
-    this._updateFrigateStatus();
     this._updateUI();
   }
 
@@ -825,8 +830,8 @@ class HaFrigatePrivacy extends HTMLElement {
 
   _buildHTML() {
     const t = this._t;
-    return `<style>${this._getCSS()}</style>
-    <div class="container">
+    return `<style>${window.HAToolsBentoCSS || ''}</style><style>${this._getCSS()}</style>
+    <div class="card">
       <div class="header">
         <div class="header-left">
           <span class="header-icon">\uD83D\uDD12</span>
@@ -967,11 +972,11 @@ class HaFrigatePrivacy extends HTMLElement {
             <div class="schedule-days">${dayLabels}</div>
           </div>
           <div class="schedule-actions">
-            <button class="btn-icon" data-schedule-toggle="${i}" title="${s.enabled ? t.enabled : t.disabled}">
+            <button class="btn-icon" data-schedule-toggle="${i}" title="${s.enabled ? t.enabled : t.disabled}" aria-label="${s.enabled ? t.enabled : t.disabled}">
               ${s.enabled ? '\uD83D\uDFE2' : '\u26AA'}
             </button>
-            <button class="btn-icon" data-schedule-edit="${i}" title="${t.editSchedule}">\u270F\uFE0F</button>
-            <button class="btn-icon btn-icon-danger" data-schedule-delete="${i}" title="${t.deleteSchedule}">\uD83D\uDDD1\uFE0F</button>
+            <button class="btn-icon" data-schedule-edit="${i}" title="${t.editSchedule}" aria-label="${t.editSchedule}">\u270F\uFE0F</button>
+            <button class="btn-icon btn-icon-danger" data-schedule-delete="${i}" title="${t.deleteSchedule}" aria-label="${t.deleteSchedule}">\uD83D\uDDD1\uFE0F</button>
           </div>
         </div>`;
       }).join('');
@@ -1147,6 +1152,22 @@ tap_action:
   navigation_path: /ha-tools-panel
 # ${this._lang === 'pl' ? 'Lub uzyj input_boolean do sterowania:' : 'Or use input_boolean for control:'}
 # entity: input_boolean.frigate_privacy_mode</pre>
+        </div>
+
+        <div class="code-block" style="margin-top:12px;">
+          <div class="code-label">\uD83D\uDDA5\uFE0F ${this._lang === 'pl' ? 'Dodawanie przez UI (edytor wizualny)' : 'Adding via UI (visual editor)'}</div>
+          <div style="padding:10px 12px;background:var(--bento-bg);border-radius:6px;font-size:0.9em;line-height:1.8;color:var(--bento-text);">
+            <ol style="margin:0;padding-left:18px;">
+              <li>${this._lang === 'pl' ? 'Otw\u00F3rz dashboard \u2192 kliknij \u22EE \u2192 <strong>Edytuj</strong>' : 'Open your dashboard \u2192 click \u22EE \u2192 <strong>Edit dashboard</strong>'}</li>
+              <li>${this._lang === 'pl' ? 'Kliknij <strong>+</strong> (dodaj kart\u0119)' : 'Click <strong>+</strong> (add card)'}</li>
+              <li>${this._lang === 'pl' ? 'Wyszukaj <strong>Frigate Privacy</strong> na li\u015Bcie kart' : 'Search for <strong>Frigate Privacy</strong> in the card list'}</li>
+              <li>${this._lang === 'pl' ? 'Wybierz kamer\u0119 z dropdown w edytorze' : 'Select cameras from the dropdown in the editor'}</li>
+              <li>${this._lang === 'pl' ? 'Kliknij <strong>Zapisz</strong>' : 'Click <strong>Save</strong>'}</li>
+            </ol>
+            <p style="margin:8px 0 0 0;font-size:0.85em;color:var(--bento-text-secondary);">
+              \uD83D\uDCA1 ${this._lang === 'pl' ? 'Je\u015Bli karta nie widoczna na li\u015Bcie \u2014 upewnij si\u0119 \u017Ce zas\u00F3b <code>ha-frigate-privacy.js</code> jest zaladowany (HACS lub r\u0119cznie).' : 'If the card is not listed \u2014 make sure the <code>ha-frigate-privacy.js</code> resource is loaded (HACS or manual).'}
+            </p>
+          </div>
         </div>
 
         <div class="code-block" style="margin-top:12px;">
@@ -1330,43 +1351,9 @@ tap_action:
 
   _getCSS() {
     return `
-:host {
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-success: #10B981;
-  --bento-warning: #F59E0B;
-  --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
-  --bento-radius-sm: 10px;
-  --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  display: block;
-  color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  }
-}
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-.container {
+.card {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
@@ -1432,6 +1419,9 @@ tap_action:
   padding: 4px;
   border-radius: var(--bento-radius-sm);
   border: 1px solid var(--bento-border);
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab-btn {
@@ -1914,8 +1904,13 @@ tap_action:
 .toast-info { background: var(--bento-primary); color: #fff; }
 
 /* Responsive */
+
+        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
+        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
 @media (max-width: 768px) {
-  .container { padding: 12px; }
+  .card { padding: 12px; }
   .camera-grid { grid-template-columns: 1fr 1fr; }
   .time-row { flex-direction: column; gap: 8px; }
   .header { flex-direction: column; gap: 10px; align-items: flex-start; }
@@ -1940,9 +1935,6 @@ tap_action:
 if (!customElements.get('ha-frigate-privacy')) {
   customElements.define('ha-frigate-privacy', HaFrigatePrivacy);
 }
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-frigate-privacy', name: 'Frigate Privacy', description: 'Pause Frigate cameras with timer and privacy schedule', preview: false });
-
 class HaFrigatePrivacyEditor extends HTMLElement {
   constructor() {
     super();
@@ -1957,6 +1949,7 @@ class HaFrigatePrivacyEditor extends HTMLElement {
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
   _render() {
+    if (!this._hass) return;
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
@@ -1990,3 +1983,8 @@ class HaFrigatePrivacyEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-frigate-privacy-editor')) { customElements.define('ha-frigate-privacy-editor', HaFrigatePrivacyEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-frigate-privacy', name: 'Frigate Privacy', description: 'Pause Frigate cameras with timer and privacy schedule', preview: false });

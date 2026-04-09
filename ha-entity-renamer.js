@@ -1,14 +1,20 @@
+(function() {
+'use strict';
+
 /**
- * HA Entity Renamer — Device & Entity Rename Tool
+ * HA Entity Renamer – Device & Entity Rename Tool
  * Renames devices/entities and propagates changes across dashboards, automations, scripts, config.
  * Part of HA Tools suite.
  */
 class HAEntityRenamer extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-entity-renamer-editor'); }
+  getCardSize() { return 8; }
+
   static getStubConfig() { return { type: 'custom:ha-entity-renamer', title: 'Entity Renamer' }; }
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._lang = 'en';
     this._hass = null;
     this._devices = [];
     this._entities = [];
@@ -23,19 +29,117 @@ class HAEntityRenamer extends HTMLElement {
     this._activeTab = 'devices'; // devices | queue | log
     this._renameLog = [];
     this._expandedDevices = new Set();
-    this._yamlScanResults = null;
-    this._yamlPropagateFiles = null;
-    this._yamlPropagateResults = null;
-    this._needsRestart = false;
+    this._loadHistoryFromStorage();
+  }
+
+  _loadHistoryFromStorage() {
+    try {
+      const stored = window._haToolsPersistence?.load('entity-renamer-history');
+      if (Array.isArray(stored)) {
+        this._renameLog = stored;
+      }
+    } catch (e) {
+      // Fallback: localStorage as backup
+      try {
+        const stored = localStorage.getItem('ha-entity-renamer-history');
+        if (stored) this._renameLog = JSON.parse(stored);
+      } catch (e2) {}
+    }
+  }
+
+  _saveHistoryToStorage() {
+    try {
+      if (window._haToolsPersistence?.save) {
+        window._haToolsPersistence.save('entity-renamer-history', this._renameLog);
+      } else {
+        localStorage.setItem('ha-entity-renamer-history', JSON.stringify(this._renameLog));
+      }
+    } catch (e) {}
+  }
+
+  get _t() {
+    const T = {
+      pl: {
+        deviceEntityRenamer: 'Device & Entity Renamer',
+        devices: 'Urządzenia',
+        entities: 'Encje',
+        queue: 'Kolejka',
+        log: 'Historia',
+        inQueue: 'W kolejce',
+        noResults: 'Brak wyników',
+        searchPlaceholder: 'Szukaj urządzeń lub encji...',
+        newDeviceName: 'Nowa nazwa urządzenia',
+        changeName: 'Zmień nazwę',
+        prefixChange: 'Zmiana prefiksu entity_id dla wszystkich encji',
+        oldPrefix: 'Stary prefiks',
+        newPrefix: 'Nowy prefiks',
+        apply: 'Zastosuj',
+        queueEmpty: 'Kolejka jest pusta.\nDodaj encje z zakładki Urządzenia.',
+        devicesToRename: 'Urządzenia do zmiany nazwy:',
+        clear: 'Wyczyść',
+        analyzeImpact: 'Analizuj wpływ',
+        executeRenames: 'Wykonaj zmiany',
+        errorLoadingData: 'Błąd ładowania danych: ',
+        analyzing: 'Analizuję wpływ zmian...',
+        analyzing2: 'Analizuję wpływ i zmieniam nazwy...',
+        renameSuccess: 'Zmieniono {ok} encji{devCount}{fail}{impact}. Zrestartuj HA.',
+        newEntity: 'Nowy entity_id (object_id) – zostaw bez zmian jeśli chcesz zmienić tylko friendly name:',
+        newFriendly: 'Nowy friendly name (zostaw puste = bez zmian):',
+        confirmRename: 'Czy na pewno chcesz zmienić nazwy {count} encji? Ta operacja jest nieodwracalna.',
+        noHistory: 'Brak historii zmian.\nWykonaj zmiany z zakładki Kolejka.',
+        usedIn: 'Używane w:',
+        notUsed: 'Nieużywane w automatyzacjach, skryptach ani dashboardach',
+        deviceAdded: 'Nazwa urządzenia "{name}" dodana do kolejki.',
+      },
+      en: {
+        deviceEntityRenamer: 'Device & Entity Renamer',
+        devices: 'Devices',
+        entities: 'Entities',
+        queue: 'Queue',
+        log: 'Log',
+        inQueue: 'In Queue',
+        noResults: 'No results',
+        searchPlaceholder: 'Search devices or entities...',
+        newDeviceName: 'New device name',
+        changeName: 'Rename',
+        prefixChange: 'Change entity_id prefix for all entities',
+        oldPrefix: 'Old prefix',
+        newPrefix: 'New prefix',
+        apply: 'Apply',
+        queueEmpty: 'Queue is empty.\nAdd entities from the Devices tab.',
+        devicesToRename: 'Devices to rename:',
+        clear: 'Clear',
+        analyzeImpact: 'Analyze Impact',
+        executeRenames: 'Apply Changes',
+        errorLoadingData: 'Error loading data: ',
+        analyzing: 'Analyzing impact...',
+        analyzing2: 'Analyzing impact and changing names...',
+        renameSuccess: 'Renamed {ok} entities{devCount}{fail}{impact}. Restart HA.',
+        newEntity: 'New entity_id (object_id) – leave unchanged if you only want to change the friendly name:',
+        newFriendly: 'New friendly name (leave empty = no change):',
+        confirmRename: 'Are you sure you want to rename {count} entities? This operation is irreversible.',
+        noHistory: 'No rename history.\nMake changes from the Queue tab.',
+        usedIn: 'Used in:',
+        notUsed: 'Not used in automations, scripts, or dashboards',
+        deviceAdded: 'Device name "{name}" added to queue.',
+      }
+    };
+    return T[this._lang] || T.en;
+  }
+
+  connectedCallback() {
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
   }
 
   _sanitize(str) {
     if (!str) return str;
     try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
   }
+
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     if (first) this._init();
   }
 
@@ -70,7 +174,7 @@ class HAEntityRenamer extends HTMLElement {
         this._deviceEntities[did].sort((a, b) => a.entity_id.localeCompare(b.entity_id));
       }
     } catch (e) {
-      this._message = { type: 'error', text: 'Błąd ładowania danych: ' + e.message };
+      this._message = { type: 'error', text: this._t.errorLoadingData + e.message };
     }
     this._loading = false;
   }
@@ -118,6 +222,7 @@ class HAEntityRenamer extends HTMLElement {
 
 
   _addToQueue(oldId, newId, newName) {
+    // Allow adding if EITHER entity_id changed OR friendly_name/alias changed
     if (oldId === newId && !newName) return;
     if (this._renameQueue.some(r => r.oldId === oldId)) {
       this._renameQueue = this._renameQueue.map(r => r.oldId === oldId ? { ...r, newId, ...(newName !== undefined ? { newName } : {}) } : r);
@@ -136,9 +241,6 @@ class HAEntityRenamer extends HTMLElement {
   _clearQueue() {
     this._renameQueue = [];
     this._impactResults = null;
-    this._yamlScanResults = null;
-    this._yamlPropagateFiles = null;
-    this._yamlPropagateResults = null;
     this.render();
   }
 
@@ -158,92 +260,10 @@ class HAEntityRenamer extends HTMLElement {
   }
 
 
-  _hasYamlSupport() {
-    try {
-      const svc = this._hass && this._hass.services && this._hass.services.shell_command;
-      return !!(svc && svc.entity_renamer_scan);
-    } catch (e) { return false; }
-  }
-
-  _detectPrefixChanges() {
-    const changes = new Map();
-    for (const r of this._renameQueue) {
-      if (r.oldId === r.newId) continue;
-      const oldObj = r.oldId.split('.')[1] || '';
-      const newObj = r.newId.split('.')[1] || '';
-      const oldParts = oldObj.split('_');
-      const newParts = newObj.split('_');
-      let suffixLen = 0;
-      while (suffixLen < oldParts.length && suffixLen < newParts.length) {
-        if (oldParts[oldParts.length - 1 - suffixLen] === newParts[newParts.length - 1 - suffixLen]) {
-          suffixLen++;
-        } else { break; }
-      }
-      if (suffixLen === 0) continue;
-      const oldPrefix = oldParts.slice(0, oldParts.length - suffixLen).join('_');
-      const newPrefix = newParts.slice(0, newParts.length - suffixLen).join('_');
-      if (oldPrefix && newPrefix && oldPrefix !== newPrefix && !changes.has(oldPrefix)) {
-        changes.set(oldPrefix, newPrefix);
-      }
-    }
-    return [...changes.entries()].map(([oldPrefix, newPrefix]) => ({ oldPrefix, newPrefix }));
-  }
-
-  async _scanYamlFiles() {
-    const prefixChanges = this._detectPrefixChanges();
-    if (!prefixChanges.length) return null;
-    const terms = prefixChanges.map(p => p.oldPrefix).join(',');
-    try {
-      await this._hass.callService('shell_command', 'entity_renamer_clear', {});
-      await new Promise(r => setTimeout(r, 500));
-      await this._hass.callService('shell_command', 'entity_renamer_scan', { terms });
-      await new Promise(r => setTimeout(r, 2500));
-      const resp = await fetch('/local/entity_renamer_scan.json?t=' + Date.now());
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data && data.files) {
-          this._yamlPropagateFiles = new Set(Object.keys(data.files));
-        }
-        return data;
-      }
-    } catch (e) {
-      console.error('YAML scan error:', e);
-    }
-    return null;
-  }
-
-  async _propagateYaml() {
-    if (!this._yamlPropagateFiles || !this._yamlPropagateFiles.size) return [];
-    const prefixChanges = this._detectPrefixChanges();
-    if (!prefixChanges.length) return [];
-    const results = [];
-    const ts = new Date().toLocaleTimeString();
-    for (const file of this._yamlPropagateFiles) {
-      for (const { oldPrefix, newPrefix } of prefixChanges) {
-        try {
-          await this._hass.callService('shell_command', 'entity_renamer_replace', {
-            file_path: file, old_id: oldPrefix, new_id: newPrefix
-          });
-          results.push({ file, oldPrefix, newPrefix, status: 'ok' });
-          this._renameLog.unshift({ time: ts, oldId: '\uD83D\uDCC4 ' + file + ': ' + oldPrefix, newId: '\uD83D\uDCC4 ' + newPrefix, status: 'ok', impact: null });
-        } catch (e) {
-          results.push({ file, oldPrefix, newPrefix, status: 'error', error: e.message });
-          this._renameLog.unshift({ time: ts, oldId: '\uD83D\uDCC4 ' + file, newId: '\uD83D\uDCC4 b\u0142\u0105d', status: 'error', error: e.message, impact: null });
-        }
-      }
-    }
-    await new Promise(r => setTimeout(r, 1500));
-    try {
-      const resp = await fetch('/local/entity_renamer_result.json?t=' + Date.now());
-      if (resp.ok) { this._yamlPropagateResults = await resp.json(); }
-    } catch (e) {}
-    return results;
-  }
-
   async _analyzeImpact() {
     if (!this._renameQueue.length) return;
     this._loading = true;
-    this._message = { type: 'info', text: 'Analizuję wpływ zmian...' };
+    this._message = { type: 'info', text: this._t.analyzing };
     this.render();
 
     const impact = {};
@@ -296,18 +316,6 @@ class HAEntityRenamer extends HTMLElement {
     } catch(e) {}
 
     this._impactResults = impact;
-
-    // YAML file scan (only if shell_command services are configured)
-    if (this._hasYamlSupport()) {
-      this._message = { type: 'info', text: 'Skanuję pliki YAML...' };
-      this.render();
-      try {
-        this._yamlScanResults = await this._scanYamlFiles();
-      } catch (e) {
-        console.error('YAML scan failed:', e);
-      }
-    }
-
     this._loading = false;
     this._message = null;
     this._activeTab = 'queue';
@@ -338,7 +346,7 @@ class HAEntityRenamer extends HTMLElement {
   async _executeRenames() {
     if (!this._renameQueue.length && !Object.keys(this._deviceRenameQueue).length) return;
     this._loading = true;
-    this._message = { type: 'info', text: 'Analizuję wpływ i zmieniam nazwy...' };
+    this._message = { type: 'info', text: this._t.analyzing2 };
     this.render();
 
     // Auto-run impact analysis before execution using search/related
@@ -423,51 +431,32 @@ class HAEntityRenamer extends HTMLElement {
     const fail = results.filter(r => r.status === 'error').length;
     const devCount = Object.keys(this._deviceRenameQueue).length;
     const totalImpact = Object.values(impact).reduce((a, i) => a + i.automations.length + i.scripts.length + i.dashboards.length, 0);
+    
+    let msg = this._t.renameSuccess.replace('{ok}', ok);
+    msg = msg.replace('{devCount}', devCount ? ', ' + devCount + ' ' + (this._lang === 'pl' ? 'urządzeń' : 'devices') : '');
+    msg = msg.replace('{fail}', fail > 0 ? `, ${fail} ${this._lang === 'pl' ? 'błędów' : 'errors'}` : '');
+    msg = msg.replace('{impact}', totalImpact > 0 ? ` ⚠️ ${totalImpact} ${this._lang === 'pl' ? 'miejsc wymaga aktualizacji (szczegóły w historii).' : 'places require update (details in history).'}` : '');
+    
     this._message = {
       type: fail > 0 ? 'warning' : 'success',
-      text: `Zmieniono ${ok} encji${devCount ? ', ' + devCount + ' urządzeń' : ''}${fail > 0 ? `, ${fail} błędów` : ''}. ${totalImpact > 0 ? `⚠️ ${totalImpact} miejsc wymaga aktualizacji (szczegóły w historii).` : ''} Zrestartuj HA.`,
+      text: msg,
     };
-    // Propagate to YAML files
-    if (this._hasYamlSupport() && this._yamlPropagateFiles && this._yamlPropagateFiles.size > 0) {
-      this._message = { type: 'info', text: 'Aktualizuj\u0119 pliki YAML...' };
-      this.render();
-      try {
-        const yamlResults = await this._propagateYaml();
-        const yamlOk = yamlResults.filter(r => r.status === 'ok').length;
-        const yamlFail = yamlResults.filter(r => r.status === 'error').length;
-        if (yamlOk > 0 || yamlFail > 0) {
-          this._message = { type: yamlFail > 0 ? 'warning' : 'success', text: 'YAML: ' + yamlOk + ' zmian OK' + (yamlFail > 0 ? ', ' + yamlFail + ' b\u0142\u0119d\u00F3w' : '') };
-        }
-        if (yamlOk > 0) {
-          this._needsRestart = true;
-          try {
-            await this._hass.callService('persistent_notification', 'create', {
-              title: 'Entity Renamer \u2014 wymagany restart',
-              message: 'Pliki YAML zosta\u0142y zaktualizowane. Zrestartuj Home Assistant, aby za\u0142adowa\u0107 now\u0105 konfiguracj\u0119.',
-              notification_id: 'entity_renamer_restart'
-            });
-          } catch (e) { console.warn('Could not create HA notification:', e); }
-        }
-      } catch (e) {
-        console.error('YAML propagation error:', e);
-      }
-    }
-
     this._renameQueue = [];
     this._deviceRenameQueue = {};
     this._impactResults = null;
-    this._yamlScanResults = null;
-    this._yamlPropagateFiles = null;
     this._loading = false;
     this._activeTab = 'log';
+    this._saveHistoryToStorage();
     await this._loadData();
     this.render();
   }
 
 
   render() {
+    if (!this._hass) return;
     const devices = this._getFilteredDevices();
     const queueCount = this._renameQueue.length + Object.keys(this._deviceRenameQueue).length;
+    const t = this._t;
 
     this.shadowRoot.innerHTML = `
     <style>${window.HAToolsBentoCSS || ""}
@@ -507,6 +496,7 @@ class HAEntityRenamer extends HTMLElement {
         border: 1px solid var(--bento-border, var(--divider-color, #334155));
         border-radius: var(--bento-radius-sm, 14px);
         padding: 24px; color: var(--bento-text, var(--primary-text-color, #E2E8F0));
+        box-sizing: border-box; max-width: 100%; overflow: hidden;
       }
       h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; }
       .subtitle { color: var(--bento-text-secondary, var(--secondary-text-color, #94A3B8)); font-size: 13px; margin-bottom: 16px; }
@@ -518,16 +508,17 @@ class HAEntityRenamer extends HTMLElement {
 
       
 
-      .search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+      .search-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
       .search-bar input {
-        flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+        flex: 1; min-width: 140px; padding: 10px 14px; border-radius: 8px; font-size: 13px;
         border: 1px solid var(--bento-border, #334155);
         background: var(--bento-bg, var(--primary-background-color, #0F172A));
         color: var(--bento-text, #E2E8F0); outline: none;
+        box-sizing: border-box; width: 100%; max-width: 100%;
       }
       .search-bar input:focus { border-color: var(--bento-primary, #3B82F6); }
 
-      .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+      .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 12px; margin-bottom: 20px; }
       .stat-card .num { font-size: 26px; font-weight: 700; }
       .stat-card .label { font-size: 11px; text-transform: uppercase; color: var(--bento-text-secondary, #94A3B8); margin-top: 4px; }
 
@@ -542,8 +533,8 @@ class HAEntityRenamer extends HTMLElement {
         cursor: pointer; user-select: none;
       }
       .device-header:hover { background: rgba(59,130,246,0.05); }
-      .device-name { flex: 1; font-weight: 600; font-size: 14px; }
-      .device-meta { font-size: 11px; color: var(--bento-text-secondary, #94A3B8); }
+      .device-name { flex: 1; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .device-meta { font-size: 11px; color: var(--bento-text-secondary, #94A3B8); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .device-expand { font-size: 12px; transition: transform 0.2s; }
       .device-expand.open { transform: rotate(90deg); }
       .entity-list { padding: 0 16px 12px; }
@@ -619,17 +610,45 @@ class HAEntityRenamer extends HTMLElement {
             --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
           }
         }
+
+        
+        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
+        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
+        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
+@media (max-width: 600px) {
+          .card { padding: 16px; }
+          h1 { font-size: 18px; }
+          .stats-row { grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px; }
+          .stat-card .num { font-size: 20px; }
+          .stat-card .label { font-size: 10px; }
+          .device-header { padding: 10px 12px; gap: 8px; }
+          .device-name { font-size: 13px; }
+          .device-meta { font-size: 10px; }
+          .entity-row { gap: 4px; padding: 4px 0; font-size: 11px; }
+          .entity-id { min-width: 0; }
+          .entity-name { min-width: 80px; font-size: 11px; }
+          .btn { padding: 6px 12px; font-size: 11px; }
+          .btn-sm { padding: 3px 8px; font-size: 10px; }
+          .prefix-row { gap: 6px; }
+          .prefix-row input { width: 100%; max-width: 140px; padding: 5px 8px; font-size: 12px; }
+          .queue-table { font-size: 11px; }
+          .queue-table th { padding: 6px; font-size: 10px; }
+          .queue-table td { padding: 6px; }
+          .queue-actions { flex-wrap: wrap; justify-content: center; }
+          .log-entry { font-size: 11px; padding: 4px 0; }
+        }
         </style>
     <div class="card">
-      <h1>🏷️ Device & Entity Renamer</h1>
-      <div class="subtitle">${this._devices.length} urządzeń • ${this._entities.length} encji</div>
+      <h1>📱️ ${t.deviceEntityRenamer}</h1>
+      <div class="subtitle">${this._devices.length} ${t.devices.toLowerCase()} • ${this._entities.length} ${t.entities.toLowerCase()}</div>
 
       ${this._message ? `<div class="msg ${this._message.type}">${this._loading ? '<span class="spinner"></span> ' : ''}${this._message.text}</div>` : ''}
 
       <div class="tabs">
-        <button class="tab-button ${this._activeTab === 'devices' ? 'active' : ''}" data-tab="devices">📱 Urządzenia</button>
-        <button class="tab-button ${this._activeTab === 'queue' ? 'active' : ''}" data-tab="queue">📋 Kolejka${queueCount > 0 ? ` (${queueCount})` : ''}</button>
-        <button class="tab-button ${this._activeTab === 'log' ? 'active' : ''}" data-tab="log">📜 Historia</button>
+        <button class="tab-button ${this._activeTab === 'devices' ? 'active' : ''}" data-tab="devices">📱 ${t.devices}</button>
+        <button class="tab-button ${this._activeTab === 'queue' ? 'active' : ''}" data-tab="queue">📋 ${t.queue}${queueCount > 0 ? ` (${queueCount})` : ''}</button>
+        <button class="tab-button ${this._activeTab === 'log' ? 'active' : ''}" data-tab="log">📜 ${t.log}</button>
       </div>
 
       ${this._activeTab === 'devices' ? this._renderDevicesTab(devices) : ''}
@@ -643,17 +662,18 @@ class HAEntityRenamer extends HTMLElement {
 
 
   _renderDevicesTab(devices) {
+    const t = this._t;
     return `
       <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="🔍 Szukaj urządzeń lub encji..." value="${this._searchQuery}">
+        <input type="text" id="searchInput" placeholder="🔍 ${t.searchPlaceholder}" value="${this._searchQuery}">
       </div>
       <div class="stats-row">
-        <div class="stat-card"><div class="num">${this._devices.length}</div><div class="label">Urządzenia</div></div>
-        <div class="stat-card"><div class="num">${this._entities.length}</div><div class="label">Encje</div></div>
-        <div class="stat-card"><div class="num">${this._renameQueue.length}</div><div class="label">W kolejce</div></div>
+        <div class="stat-card"><div class="num">${this._devices.length}</div><div class="label">${t.devices}</div></div>
+        <div class="stat-card"><div class="num">${this._entities.length}</div><div class="label">${t.entities}</div></div>
+        <div class="stat-card"><div class="num">${this._renameQueue.length}</div><div class="label">${t.inQueue}</div></div>
       </div>
       <div class="device-list">
-        ${devices.length === 0 ? '<div class="empty-state"><div class="icon">🔍</div>Brak wyników</div>' :
+        ${devices.length === 0 ? `<div class="empty-state"><div class="icon">🔍</div>${t.noResults}</div>` :
           devices.map(d => {
             const ents = this._deviceEntities[d.id] || [];
             const isExpanded = this._expandedDevices.has(d.id);
@@ -663,7 +683,7 @@ class HAEntityRenamer extends HTMLElement {
               <div class="device-header" data-device-id="${d.id}">
                 <span class="device-expand ${isExpanded ? 'open' : ''}">▶</span>
                 <span class="device-name">${this._getDeviceName(d)}</span>
-                <span class="device-meta">${ents.length} encji</span>
+                <span class="device-meta">${ents.length} ${t.entities.toLowerCase()}</span>
               </div>
               ${isExpanded ? `
               <div class="entity-list">
@@ -676,24 +696,25 @@ class HAEntityRenamer extends HTMLElement {
                     <span class="entity-id">${e.entity_id}</span>
                     <span class="entity-name">${e.name || e.original_name || ''}</span>
                     ${inQueue
-                      ? '<button class="btn btn-sm btn-danger" data-remove-queue="' + e.entity_id + '">✕</button>'
-                      : '<button class="btn btn-sm btn-outline" data-add-single="' + e.entity_id + '">+ Kolejka</button>'}
+                      ? '<button class="btn btn-sm btn-danger" data-remove-queue="' + e.entity_id + '" aria-label="Remove">✕</button>'
+                      : '<button class="btn btn-sm btn-outline" data-add-single="' + e.entity_id + '">+ ${t.queue}</button>'
+                    }
                   </div>`;
                 }).join('')}
               </div>
               ${isSelected ? `
               <div class="prefix-section">
-                <h3>📱 Nazwa urządzenia</h3>
+                <h3>📱 ${t.newDeviceName}</h3>
                 <div class="prefix-row" style="margin-bottom:12px">
-                  <input type="text" id="deviceName" value="${this._deviceRenameQueue[d.id] || this._getDeviceName(d)}" placeholder="Nowa nazwa urządzenia" style="width:300px;font-family:inherit">
-                  <button class="btn btn-primary btn-sm" id="applyDeviceName" data-device-id="${d.id}">Zmień nazwę</button>
+                  <input type="text" id="deviceName" value="${this._deviceRenameQueue[d.id] || this._getDeviceName(d)}" placeholder="${t.newDeviceName}" style="width:300px;font-family:inherit">
+                  <button class="btn btn-primary btn-sm" id="applyDeviceName" data-device-id="${d.id}">${t.changeName}</button>
                 </div>
-                <h3>🔄 Zmiana prefiksu entity_id dla wszystkich encji</h3>
+                <h3>📄 ${t.prefixChange}</h3>
                 <div class="prefix-row">
-                  <input type="text" id="prefixOld" value="${this._prefixOld || ''}" placeholder="Stary prefiks">
+                  <input type="text" id="prefixOld" value="${this._prefixOld || ''}" placeholder="${t.oldPrefix}">
                   <span class="arrow">→</span>
-                  <input type="text" id="prefixNew" value="${this._prefixNew || ''}" placeholder="Nowy prefiks">
-                  <button class="btn btn-primary btn-sm" id="applyPrefix">Zastosuj</button>
+                  <input type="text" id="prefixNew" value="${this._prefixNew || ''}" placeholder="${t.newPrefix}">
+                  <button class="btn btn-primary btn-sm" id="applyPrefix">${t.apply}</button>
                 </div>
               </div>` : ''}
               ` : ''}
@@ -703,16 +724,17 @@ class HAEntityRenamer extends HTMLElement {
   }
 
   _renderQueueTab() {
+    const t = this._t;
     if (!this._renameQueue.length) {
-      return '<div class="empty-state"><div class="icon">📋</div>Kolejka jest pusta.<br>Dodaj encje z zakładki Urządzenia.</div>';
+      return `<div class="empty-state"><div class="icon">📋</div>${t.queueEmpty}</div>`;
     }
     const devEntries = Object.entries(this._deviceRenameQueue);
     return `
       ${devEntries.length ? `<div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);">
-        <strong style="font-size:12px;">📱 Urządzenia do zmiany nazwy:</strong>
+        <strong style="font-size:12px;">📱 ${t.devicesToRename}</strong>
         ${devEntries.map(([did, name]) => {
           const dev = this._devices.find(d => d.id === did);
-          return `<div style="font-size:12px;margin-top:4px;"><span class="old">${dev ? this._getDeviceName(dev) : did}</span> → <span class="new">${name}</span> <button class="btn btn-sm btn-danger" data-remove-dev-queue="${did}">✕</button></div>`;
+          return `<div style="font-size:12px;margin-top:4px;"><span class="old">${dev ? this._getDeviceName(dev) : did}</span> → <span class="new">${name}</span> <button class="btn btn-sm btn-danger" data-remove-dev-queue="${did}" aria-label="Remove">✕</button></div>`;
         }).join('')}
       </div>` : ''}
       <div class="queue-list">
@@ -722,50 +744,36 @@ class HAEntityRenamer extends HTMLElement {
             return `<div style="border:1px solid var(--bento-border,#334155);border-radius:8px;padding:12px;margin-bottom:8px;">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                 <span class="old" style="flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;">${r.oldId}</span>
-                <button class="btn btn-sm btn-danger" data-remove-queue="${r.oldId}">✕</button>
+                <button class="btn btn-sm btn-danger" data-remove-queue="${r.oldId}" aria-label="Remove">✕</button>
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="color:var(--bento-text-secondary,#94A3B8);">→</span>
-                <span class="new" style="font-family:'JetBrains Mono',monospace;font-size:11px;">${r.newId !== r.oldId ? r.newId : '<span style="opacity:0.4">bez zmian entity_id</span>'}</span>
+                <span class="new" style="font-family:'JetBrains Mono',monospace;font-size:11px;">${r.newId !== r.oldId ? r.newId : '<span style="opacity:0.4">no entity_id change</span>'}</span>
                 ${r.newName ? '<span style="font-size:11px;color:#93C5FD;">📝 ' + r.newName + '</span>' : ''}
               </div>
               ${hasImpact ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);">
-                <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ Używane w:</span>
+                <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ ${t.usedIn}</span>
                 ${imp.automations.map(a => '<span class="impact-badge automation">⚙ ' + a + '</span>').join('')}
                 ${imp.scripts.map(s => '<span class="impact-badge script">📜 ' + s + '</span>').join('')}
                 ${imp.dashboards.map(d => '<span class="impact-badge dashboard">📊 ' + d + '</span>').join('')}
                 ${(imp.scenes||[]).map(s => '<span class="impact-badge scene">🎬 ' + s + '</span>').join('')}
-              </div>` : (imp ? '<div style="margin-top:4px;font-size:10px;color:var(--bento-text-secondary,#94A3B8);">✓ Nie używane w automatyzacjach, skryptach ani dashboardach</div>' : '')}
+              </div>` : (imp ? `<div style="margin-top:4px;font-size:10px;color:var(--bento-text-secondary,#94A3B8);">✓ ${t.notUsed}</div>` : '')}
             </div>`;
           }).join('')}
       </div>
-      ${this._yamlScanResults && this._yamlScanResults.total_matches > 0 ? `
-      <div style="margin:12px 0;padding:12px;background:var(--card-background-color,#1a1a2e);border-radius:8px;border:1px solid rgba(96,165,250,0.3);">
-        <div style="font-weight:600;margin-bottom:8px;color:#60a5fa;">&#128196; Pliki YAML do aktualizacji (${this._yamlScanResults.total_files} plik&#243;w, ${this._yamlScanResults.total_matches} wyst&#261;pie&#324;)</div>
-        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">Zaznaczone pliki zostan&#261; zaktualizowane przy wykonaniu zmian:</div>
-        ${Object.entries(this._yamlScanResults.files).map(([file, matches]) => {
-          const checked = this._yamlPropagateFiles && this._yamlPropagateFiles.has(file);
-          const matchCount = Object.values(matches).reduce((s,m) => s + m.count, 0);
-          return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer;">
-            <input type="checkbox" data-yaml-file="${file}" ${checked ? 'checked' : ''} style="accent-color:#60a5fa;">
-            <span style="font-family:'JetBrains Mono',monospace;color:#e2e8f0;">${file}</span>
-            <span style="color:#60a5fa;font-size:11px;">(${matchCount}x)</span>
-          </label>`;
-        }).join('')}
-      </div>` : ''}
       <div class="queue-actions">
-        <button class="btn btn-outline" id="clearQueue">🗑️ Wyczyść</button>
-        <button class="btn btn-outline" id="analyzeImpact" ${this._loading ? 'disabled' : ''}>🔍 Analizuj wpływ</button>
-        <button class="btn btn-danger" id="executeRenames" ${this._loading ? 'disabled' : ''}>🚀 Wykonaj zmiany (${this._renameQueue.length})</button>
+        <button class="btn btn-outline" id="clearQueue">🗑️ ${t.clear}</button>
+        <button class="btn btn-outline" id="analyzeImpact" ${this._loading ? 'disabled' : ''}>🔍 ${t.analyzeImpact}</button>
+        <button class="btn btn-danger" id="executeRenames" ${this._loading ? 'disabled' : ''}>🚀 ${t.executeRenames} (${this._renameQueue.length})</button>
       </div>`;
   }
 
   _renderLogTab() {
+    const t = this._t;
     if (!this._renameLog.length) {
-      return '<div class="empty-state"><div class="icon">📜</div>Brak historii zmian.<br>Wykonaj zmiany z zakładki Kolejka.</div>';
+      return `<div class="empty-state"><div class="icon">📜</div>${t.noHistory}</div>`;
     }
     return `
-      ${this._needsRestart ? `<div style="margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.1));border:1px solid rgba(251,191,36,0.4);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;"><div><div style="font-weight:600;color:#fbbf24;margin-bottom:4px;">⚠️ Wymagany restart Home Assistant</div><div style="font-size:12px;color:#d1d5db;">Pliki YAML zostały zaktualizowane. Zrestartuj HA, aby załadować nową konfigurację.</div></div><button id="restartHA" class="btn btn-outline" style="border-color:rgba(251,191,36,0.5);color:#fbbf24;white-space:nowrap;flex-shrink:0;">🔄 Restartuj HA</button></div>` : ''}
       <div>
         ${this._renameLog.map(l => {
           const imp = l.impact;
@@ -778,7 +786,7 @@ class HAEntityRenamer extends HTMLElement {
             </span>
             ${l.error ? `<br><small style="color:#FCA5A5">${l.error}</small>` : ''}
             ${hasImpact ? `<div style="margin-top:4px;padding-left:24px;">
-              <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ Używane w:</span>
+              <span style="font-size:10px;color:var(--bento-text-secondary,#94A3B8);">⚠️ ${t.usedIn}</span>
               ${imp.automations.map(a => '<span class="impact-badge automation">⚙ ' + a + '</span>').join('')}
               ${imp.scripts.map(s => '<span class="impact-badge script">📜 ' + s + '</span>').join('')}
               ${imp.dashboards.map(d => '<span class="impact-badge dashboard">📊 ' + d + '</span>').join('')}
@@ -791,9 +799,10 @@ class HAEntityRenamer extends HTMLElement {
 
   _attachEvents() {
     const root = this.shadowRoot;
+    const t = this._t;
 
     // Tab switching
-    root.querySelectorAll('.tab-button').forEach(btn => {
+    root.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
         this.render();
@@ -812,7 +821,7 @@ class HAEntityRenamer extends HTMLElement {
       });
     }
 
-    // Device headers — toggle expand + select
+    // Device headers – toggle expand + select
     root.querySelectorAll('.device-header').forEach(hdr => {
       hdr.addEventListener('click', () => {
         const did = hdr.dataset.deviceId;
@@ -836,7 +845,7 @@ class HAEntityRenamer extends HTMLElement {
         const newName = (root.getElementById('deviceName') || {}).value || '';
         if (newName) {
           this._deviceRenameQueue[devId] = newName;
-          this._message = { type: 'info', text: `Nazwa urządzenia "${newName}" dodana do kolejki.` };
+          this._message = { type: 'info', text: t.deviceAdded.replace('{name}', newName) };
           this.render();
         }
       });
@@ -851,9 +860,9 @@ class HAEntityRenamer extends HTMLElement {
         const objId = oldId.split('.')[1] || '';
         const ent = this._entities.find(en => en.entity_id === oldId);
         const currentName = ent ? (ent.name || ent.original_name || '') : '';
-        const newObjId = prompt('Nowy entity_id (object_id) — zostaw bez zmian jeśli chcesz zmienić tylko friendly name:', objId);
+        const newObjId = prompt(t.newEntity, objId);
         if (newObjId === null) return; // cancelled
-        const newFriendly = prompt('Nowy friendly name (zostaw puste = bez zmian):', currentName);
+        const newFriendly = prompt(t.newFriendly, currentName);
         if (newFriendly === null) return; // cancelled
         const newId = domain + '.' + (newObjId || objId);
         const nameToSet = (newFriendly && newFriendly !== currentName) ? newFriendly : null;
@@ -897,53 +906,22 @@ class HAEntityRenamer extends HTMLElement {
     const analyzeImpact = root.getElementById('analyzeImpact');
     if (analyzeImpact) analyzeImpact.addEventListener('click', () => this._analyzeImpact());
 
-    // Restart HA button
-    const restartBtn = root.getElementById('restartHA');
-    if (restartBtn) {
-      restartBtn.addEventListener('click', async () => {
-        if (confirm('Czy na pewno chcesz zrestartowa\u0107 Home Assistant?')) {
-          restartBtn.disabled = true;
-          restartBtn.textContent = '\u23F3 Restartowanie...';
-          try {
-            await this._hass.callService('homeassistant', 'restart', {});
-            this._needsRestart = false;
-          } catch (e) {
-            alert('B\u0142\u0105d restartu: ' + e.message);
-            restartBtn.disabled = false;
-            restartBtn.textContent = '\uD83D\uDD04 Restartuj HA';
-          }
-        }
-      });
-    }
-
-
-    // YAML file checkboxes
-    root.querySelectorAll('[data-yaml-file]').forEach(cb => {
-      cb.addEventListener('change', (e) => {
-        const file = cb.dataset.yamlFile;
-        if (e.target.checked) {
-          this._yamlPropagateFiles.add(file);
-        } else {
-          this._yamlPropagateFiles.delete(file);
-        }
-      });
-    });
-
     const executeRenames = root.getElementById('executeRenames');
     if (executeRenames) {
       executeRenames.addEventListener('click', () => {
-        if (confirm(`Czy na pewno chcesz zmienić nazwy ${this._renameQueue.length} encji? Ta operacja jest nieodwracalna.`)) {
+        if (confirm(t.confirmRename.replace('{count}', this._renameQueue.length))) {
           this._executeRenames();
         }
       });
     }
   }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
 }
 
-customElements.define('ha-entity-renamer', HAEntityRenamer);
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-entity-renamer', name: 'Entity Renamer', description: 'Rename entities and devices with propagation to dashboards and automations', preview: false });
+if (!customElements.get('ha-entity-renamer')) customElements.define('ha-entity-renamer', HAEntityRenamer);
 
 class HaEntityRenamerEditor extends HTMLElement {
   constructor() {
@@ -982,3 +960,8 @@ class HaEntityRenamerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-entity-renamer-editor')) { customElements.define('ha-entity-renamer-editor', HaEntityRenamerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-entity-renamer', name: 'Entity Renamer', description: 'Rename entities and devices with propagation to dashboards and automations', preview: false });

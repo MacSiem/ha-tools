@@ -131,7 +131,7 @@ window.HAToolsBentoCSS = `
   border-bottom: 2px solid var(--bento-border, var(--divider-color, #334155)) !important;
   padding: 0 4px !important;
   margin-bottom: 20px !important;
-  overflow: hidden !important;
+  overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch !important;
   flex-wrap: nowrap !important;
 }
 .tab, .tab-btn, .tab-button, .dtab {
@@ -462,7 +462,7 @@ pre {
 /* ── Mobile — 768 px ─────────────────────────── */
 @media (max-width: 768px) {
   .content { padding: 12px; }
-  .tabs { flex-wrap: wrap !important; overflow-x: visible !important; gap: 2px !important; }
+  .tabs { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; gap: 2px !important; }
   .tab, .tab-button, .tab-btn { padding: 6px 10px !important; font-size: 12px !important; white-space: nowrap !important; }
   .overview-grid, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .stat-value, .stat-val, .kpi-val, .metric-val { font-size: 18px !important; }

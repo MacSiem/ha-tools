@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -67,6 +69,8 @@ window._haToolsPersistence = window._haToolsPersistence || {
  */
 class HAStorageMonitor extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-storage-monitor-editor'); }
+  getCardSize() { return 6; }
+
   static getStubConfig() { return { type: 'custom:ha-storage-monitor', title: 'Storage Monitor' }; }
   constructor() {
     super();
@@ -117,6 +121,33 @@ class HAStorageMonitor extends HTMLElement {
       return; // Skip render entirely — no need to re-render static storage info
     }
     this._lastRenderTime = now;
+  }
+
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Monitor Dysku',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        locale: 'pl-PL',
+      },
+      en: {
+        title: 'Storage Monitor',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -201,40 +232,49 @@ class HAStorageMonitor extends HTMLElement {
       // Build storage breakdown
       // Addons: filter by state (started/stopped = installed), list API has no size
       const addonSizes = addons.filter(a => a.state && a.state !== 'unknown').map(a => {
-        // disk_usage from supervisor can be in bytes or MB depending on version
-        let sizeMB = 0.5; // default for unknown
-        if (a.disk_usage !== null && a.disk_usage !== undefined) {
-          sizeMB = a.disk_usage > 100000 ? a.disk_usage / (1024 * 1024) : a.disk_usage; // If > 100000, likely bytes; else likely MB
+        // disk_usage from supervisor is in bytes, default 0.5 MB for unknown
+        let sizeMB = 0.5;
+        if (a.disk_usage !== null && a.disk_usage !== undefined && a.disk_usage > 0) {
+          // Convert bytes to MB
+          sizeMB = a.disk_usage / (1024 * 1024);
         }
         return {
-        name: a.name || a.slug,
-        slug: a.slug,
-        size: sizeMB, // in MB
-        icon: a.icon ? `/api/hassio/addons/${a.slug}/icon` : null,
-        state: a.state,
-        version: a.version
-      };
+          name: a.name || a.slug,
+          slug: a.slug,
+          size: sizeMB, // in MB
+          icon: a.icon ? `/api/hassio/addons/${a.slug}/icon` : null,
+          state: a.state,
+          version: a.version
+        };
       });
 
-      // Backups: supervisor /backups returns size in MB and size_bytes
-      const backupSizes = backups.map(b => ({
-        name: b.name || b.slug,
-        slug: b.slug,
-        size: b.size || (b.size_bytes ? b.size_bytes / (1024 * 1024) : 0), // size is in MB from supervisor
-        date: b.date,
-        type: b.type,
-        compressed: b.compressed
-      })).sort((a, b) => b.size - a.size);
+      // Backups: supervisor /backups returns size in bytes (prefer size_bytes for clarity)
+      const backupSizes = backups.map(b => {
+        // Use size_bytes if available (explicit), fallback to size, then 0
+        // Both should be in bytes from supervisor API
+        const sizeBytes = b.size_bytes !== undefined ? b.size_bytes : (b.size || 0);
+        const sizeMB = (sizeBytes > 0) ? (sizeBytes / (1024 * 1024)) : 0;
+        return {
+          name: b.name || b.slug,
+          slug: b.slug,
+          size: sizeMB, // in MB
+          date: b.date,
+          type: b.type,
+          compressed: b.compressed
+        };
+      }).sort((a, b) => b.size - a.size);
 
-      const totalBackupsMB = backupSizes.reduce((s, b) => s + b.size, 0);
-      const dbSizeMB = dbSize / (1024 * 1024); // from bytes to MB (if available)
-      const usedMB = diskUsed * 1024; // diskUsed is in GB from host/info
+      // All size calculations use MB as the standard unit
+      const totalBackupsMB = backupSizes.reduce((s, b) => s + b.size, 0); // sum of backup sizes (all in MB)
+      const dbSizeMB = dbSize > 0 ? (dbSize / (1024 * 1024)) : 0; // from bytes to MB (if available)
+      const usedMB = diskUsed * 1024; // diskUsed is in GB from host/info, convert to MB
       
       // Fetch integrations for storage estimation
       let integrations = [];
       try {
         const cfgEntries = await this._hass.callWS({ type: 'config_entries/list' });
-        integrations = cfgEntries?.config_entries || cfgEntries?.data?.config_entries || [];
+        // API returns flat array directly, not wrapped object
+        integrations = Array.isArray(cfgEntries) ? cfgEntries : (cfgEntries?.config_entries || cfgEntries?.data?.config_entries || []);
       } catch(e) { console.warn('[Storage] Could not fetch integrations:', e); }
       const intCount = integrations.length;
       const integrationEstimate = intCount * 0.1; // ~100KB per integration config storage estimate
@@ -242,20 +282,27 @@ class HAStorageMonitor extends HTMLElement {
       // Estimate HA Core + addons as used minus backups and DB
       const systemMB = Math.max(0, usedMB - totalBackupsMB - dbSizeMB);
 
+      // All category sizes are in MB for consistent formatting and calculations
+      const totalAddonsMB = addonSizes.reduce((s, a) => s + a.size, 0);
+      const displayDbSizeMB = dbSizeMB > 0 ? dbSizeMB : Math.min(systemMB * 0.2, 2048);
+      const displaySystemMB = Math.max(systemMB - integrationEstimate, 100);
+
       this._storageData = {
         diskTotal, diskUsed, diskFree,
         usedPercent: Math.round((diskUsed / diskTotal) * 100),
         categories: [
           { name: 'Backups', size: totalBackupsMB, color: '#9c27b0', icon: '\u{1F4BE}', items: backupSizes },
-          { name: 'Database (Recorder)', size: dbSizeMB || Math.min(systemMB * 0.2, 2048), color: '#ff9800', icon: '\u{1F5C4}\uFE0F' },
-          { name: 'Add-ons', size: addonSizes.reduce((s, a) => s + a.size, 0), color: '#4caf50', icon: '\u{1F9E9}', items: addonSizes },
+          { name: 'Database (Recorder)', size: displayDbSizeMB, color: '#ff9800', icon: '\u{1F5C4}\uFE0F' },
+          { name: 'Add-ons', size: totalAddonsMB, color: '#4caf50', icon: '\u{1F9E9}', items: addonSizes },
           { name: 'Integrations', size: integrationEstimate, color: '#2196f3', icon: '\u{1F50C}', intCount: intCount },
-          { name: 'System & Other', size: Math.max(systemMB - integrationEstimate, 100), color: '#607d8b', icon: '\u{1F5A5}' },
+          { name: 'System & Other', size: displaySystemMB, color: '#607d8b', icon: '\u{1F5A5}' },
         ],
         addons: addonSizes,
         backups: backupSizes,
         integrations: integrations,
         dbSizeMB,
+        totalAddonsMB,
+        totalBackupsMB,
         addonCount: addonSizes.length,
         intCount: intCount,
         osVersion: osInfo?.version || osInfo?.data?.version || 'N/A',
@@ -289,12 +336,20 @@ class HAStorageMonitor extends HTMLElement {
   }
 
   _fmtSize(mb) {
+    // Unified size formatter - always takes input in MB and outputs consistent format
     if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
     if (mb >= 1) return `${mb.toFixed(1)} MB`;
     return `${(mb * 1024).toFixed(0)} KB`;
   }
 
+  _formatSizeFromBytes(bytes) {
+    // Helper to convert bytes to MB and format in one step
+    const mb = (bytes || 0) / (1024 * 1024);
+    return this._fmtSize(mb);
+  }
+
   _render() {
+    if (!this._hass) return;
     const html = `
       <style>${window.HAToolsBentoCSS || ""}
 
@@ -327,14 +382,14 @@ class HAStorageMonitor extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px;
 }
 
@@ -358,7 +413,7 @@ class HAStorageMonitor extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-button {
+.tab, .tab-btn, .tab-btn {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -373,11 +428,11 @@ class HAStorageMonitor extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-button:hover {
+.tab:hover, .tab-btn:hover, .tab-btn:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-button.active {
+.tab.active, .tab-btn.active, .tab-btn.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -539,9 +594,9 @@ canvas {
 .card-title, .title, .header-title, .pan-title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; overflow-x: auto; padding-bottom: 0; }
-.tab, .tab-btn, .tab-button { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
-.tab.active, .tab-btn.active, .tab-button.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-.tab:hover, .tab-btn:hover, .tab-button:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab, .tab-btn, .tab-btn { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
+.tab.active, .tab-btn.active, .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab:hover, .tab-btn:hover, .tab-btn:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab-icon { margin-right: 6px; }
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeSlideIn 0.3s ease-out; }
@@ -805,7 +860,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .gauge-info { flex: 1; }
 .gi-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--bento-border); font-size: 13px; color: var(--bento-text-secondary); }
 .gi-row:last-child { border-bottom: none; }
-.gi-val { font-weight: 600; color: var(--bento-text); }
+.gi-row span:first-child { min-width: 50px; }
+.gi-val { font-weight: 600; color: var(--bento-text); white-space: nowrap; }
 
 .treemap { display: flex; height: 32px; border-radius: var(--bento-radius-xs); overflow: hidden; margin-bottom: 16px; gap: 2px; }
 .treemap-cell { display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3); min-width: 4px; border-radius: 3px; padding: 0 4px; white-space: nowrap; overflow: hidden; }
@@ -836,8 +892,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -846,17 +902,25 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           .column { min-width: unset; }
           h2 { font-size: 18px; }
           h3 { font-size: 15px; }
+          .disk-gauge { gap: 16px; }
+          .gauge-ring { width: 100px; height: 100px; }
+          .gauge-ring svg { width: 100px; height: 100px; }
+          .gi-row { font-size: 12px; }
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 6px; font-size: 10px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+          .disk-gauge { flex-direction: column; gap: 12px; text-align: center; }
+          .gauge-ring { width: 100px; height: 100px; }
+          .gauge-ring svg { width: 100px; height: 100px; }
+          .gauge-pct { font-size: 20px; }
         }
 
 </style>
-      <ha-card>
-        <div class="storage-card">
+      
+        <div class="card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
             <button class="refresh-btn" id="refreshBtn">\u{1F504} Refresh</button>
@@ -870,16 +934,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>
           <div id="content"></div>
         </div>
-      </ha-card>
+      
     `;
     if (this._lastHtml === html) return;
     this._lastHtml = html;
     this.shadowRoot.innerHTML = html;
 
     // Tab handlers
-    this.shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        this.shadowRoot.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this._activeTab = btn.dataset.tab;
         this._updateContent();
@@ -1155,8 +1219,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <button class="sort-btn" data-sort="name" style="padding:4px 10px;font-size:11px;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;background:${sortKey === 'name' ? 'var(--bento-primary-light,rgba(59,130,246,0.08))' : 'transparent'};color:var(--bento-text-secondary,#64748b);cursor:pointer;">${L ? 'Nazwa' : 'Name'} ${sortKey === 'name' ? (sortAsc ? '\u2191' : '\u2193') : ''}</button>
       </div>
       <div style="padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--bento-text-secondary,#64748b);">
-        \u{1F4CA} ${L ? 'Szacowany rozk\u0142ad plik\u00F3w i folder\u00F3w. Rzeczywiste rozmiary mog\u0105 si\u0119 r\u00F3\u017Cni\u0107.' : 'Estimated file/folder breakdown. Actual sizes may vary.'}
-        ${L ? 'Dysk:' : 'Disk:'} ${d.diskUsed.toFixed(1)} / ${d.diskTotal.toFixed(1)} GB (${d.usedPercent}%)
+        \u{1F4CA} ${L ? 'Dane ograniczone do dost\u0119pnego API / Data limited to available API' : 'Data limited to available API'} &mdash;
+        ${L ? 'Szacowany rozk\u0142ad. Rzeczywiste rozmiary mog\u0105 si\u0119 r\u00F3\u017Cni\u0107 od warto\u015Bci supervisor API.' : 'Estimated breakdown. Actual sizes may differ from supervisor API values.'}
+        ${L ? 'Dysk:' : 'Disk:'} <strong>${d.diskUsed?.toFixed(1) || '?'} / ${d.diskTotal?.toFixed(1) || '?'} GB (${d.usedPercent || '?'}%)</strong>
+        &bull; ${(d.integrations || []).length} ${L ? 'integracji wykrytych' : 'integrations detected'}
+        &bull; ${(d.addons || []).length} ${L ? 'addon\u00F3w' : 'addons'}
       </div>
       <div class="table-container">
         <table class="entity-table">
@@ -1276,17 +1343,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
   }
+
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
 }
 
-customElements.define('ha-storage-monitor', HAStorageMonitor);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'ha-storage-monitor',
-  name: 'Storage Monitor',
-  description: 'WinDirStat-like storage visualization for Home Assistant',
-  preview: true
-});
+if (!customElements.get('ha-storage-monitor')) customElements.define('ha-storage-monitor', HAStorageMonitor);
 
 console.info(
   '%c  HA-STORAGE-MONITOR  %c v1.0.0 ',
@@ -1331,3 +1394,13 @@ class HaStorageMonitorEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-storage-monitor-editor')) { customElements.define('ha-storage-monitor-editor', HaStorageMonitorEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'ha-storage-monitor',
+  name: 'Storage Monitor',
+  description: 'WinDirStat-like storage visualization for Home Assistant',
+  preview: true
+});

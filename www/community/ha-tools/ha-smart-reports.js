@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -116,6 +117,33 @@ class HASmartReports extends HTMLElement {
     this._lastRenderTime = now;
   }
 
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Raporty Inteligentne',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+      },
+      en: {
+        title: 'Smart Reports',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
+  }
+
   setConfig(config) {
     this._config = {
       title: config.title || 'Smart Reports',
@@ -150,6 +178,7 @@ class HASmartReports extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
     const tabs = [];
     if (this._config.show_energy) tabs.push({ id: 'energy', label: 'Energy', icon: '⚡' });
     if (this._config.show_automations) tabs.push({ id: 'automations', label: 'Automations', icon: '🤖' });
@@ -157,6 +186,8 @@ class HASmartReports extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
+
+        * { box-sizing: border-box; }
 
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
@@ -206,14 +237,14 @@ class HASmartReports extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px !important;
 }
 
@@ -237,7 +268,7 @@ class HASmartReports extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-button {
+.tab-btn, .tab-btn, .tab-button {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -252,11 +283,11 @@ class HASmartReports extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-button:hover {
+.tab-btn:hover, .tab-btn:hover, .tab-button:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-button.active {
+.tab-btn.active, .tab-btn.active, .tab-button.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -394,7 +425,7 @@ canvas {
           --hover: var(--table-row-alternative-background-color, #f5f5f5);
           --green: #4caf50; --red: #f44336; --orange: #ff9800; --blue: #2196f3;
         }
-        .reports-card {
+        .card {
           background: var(--bento-bg); border-radius: 12px; padding: 16px;
           font-family: var(--ha-card-header-font-family, inherit); color: var(--bento-text);
         }
@@ -409,14 +440,16 @@ canvas {
         .tabs {
           display: flex; gap: 4px; margin-bottom: 16px;
           border-bottom: 1px solid var(--bento-border); padding-bottom: 8px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
-        .tab {
+        .tab-btn {
           padding: 6px 14px; border: none; border-radius: 6px 6px 0 0;
           background: transparent; color: var(--bento-text-secondary); cursor: pointer;
           font-size: 13px; font-weight: 500; transition: all 0.2s;
         }
-        .tab:hover { background: var(--bento-primary-light); }
-        .tab.active { background: var(--bento-primary); color: #fff; }
+        .tab-btn:hover { background: var(--bento-primary-light); }
+        .tab-btn.active { background: var(--bento-primary); color: #fff; }
         .tab-icon { margin-right: 4px; }
         .section { margin-bottom: 16px; }
         .section-title {
@@ -424,12 +457,12 @@ canvas {
           display: flex; align-items: center; gap: 6px;
         }
         .stats-grid {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-          gap: 10px; margin-bottom: 16px;
+          display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 12px; margin-bottom: 16px;
         }
         .stat-card {
           background: var(--bento-primary-light); border-radius: 8px; padding: 12px;
-          text-align: center;
+          text-align: center; min-width: 0;
         }
         .stat-value { font-size: 22px; font-weight: 700; }
         .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
@@ -482,7 +515,7 @@ canvas {
 
         /* RESPONSIVE */
         @media (max-width: 768px) {
-          .reports-card { padding: 12px; }
+          .card { padding: 12px; }
           .card-header { flex-direction: column; gap: 8px; }
           .card-header h2 { font-size: 16px; }
           .report-grid { grid-template-columns: 1fr !important; }
@@ -490,22 +523,27 @@ canvas {
           table { font-size: 12px; }
           td, th { padding: 6px 8px; }
           .tab-bar { flex-wrap: wrap; }
-          .tab { font-size: 12px; padding: 6px 10px; }
+          .tab-btn { font-size: 12px; padding: 6px 10px; }
           .chart-container { height: 200px !important; }
         }
         @media (max-width: 480px) {
-          .tab { font-size: 11px; padding: 5px 8px; }
+          .tab-btn { font-size: 11px; padding: 5px 8px; }
           .report-grid { gap: 8px; }
         }
       
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab-btn, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
-          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stats, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
           .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+        }
+        @media (max-width: 360px) {
+          .stats-grid { grid-template-columns: 1fr; gap: 8px; }
+        }
           .panels, .board { flex-direction: column; }
           .column { min-width: unset; }
           h2 { font-size: 18px; }
@@ -513,15 +551,15 @@ canvas {
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab-btn, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
       
 
 </style>
-      <ha-card>
-        <div class="reports-card">
+      
+        <div class="card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
             <select class="period-select" id="periodSelect">
@@ -532,7 +570,7 @@ canvas {
           </div>
           <div class="tabs" id="tabsContainer">
             ${tabs.map(t => `
-              <button class="tab ${t.id === this._activeTab ? 'active' : ''}" data-tab="${t.id}">
+              <button class="tab-btn ${t.id === this._activeTab ? 'active' : ''}" data-tab="${t.id}">
                 <span class="tab-icon">${t.icon}</span>${t.label}
               </button>
             `).join('')}
@@ -543,18 +581,18 @@ canvas {
             <button class="btn-export primary" id="exportJsonBtn">Export JSON</button>
           </div>
         </div>
-      </ha-card>
+      
     `;
     this._attachEvents();
     this._updateData();
   }
 
   _attachEvents() {
-    this.shadowRoot.querySelectorAll('.tab').forEach(tab => {
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(tab => {
       tab.addEventListener('click', () => {
         this._activeTab = tab.dataset.tab;
         try { localStorage.setItem('ha-smart-reports-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
-        this.shadowRoot.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        this.shadowRoot.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this._updateData();
       });
@@ -900,17 +938,13 @@ canvas {
     });
   }
 
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
+
 }
 
 if (!customElements.get('ha-smart-reports')) { customElements.define('ha-smart-reports', HASmartReports); };
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'ha-smart-reports',
-  name: 'Smart Reports',
-  description: 'Energy reports, automation statistics, and system health overview',
-  preview: true
-});
 
 console.info(
   '%c  HA-SMART-REPORTS  %c v1.0.0 ',
@@ -965,3 +999,13 @@ class HaSmartReportsEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-smart-reports-editor')) { customElements.define('ha-smart-reports-editor', HaSmartReportsEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'ha-smart-reports',
+  name: 'Smart Reports',
+  description: 'Energy reports, automation statistics, and system health overview',
+  preview: true
+});

@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -5,8 +7,7 @@
 window._haToolsPersistence = window._haToolsPersistence || {
   _cache: {},
   _hass: null,
-  setHass(hass) { this._hass = hass;
-    if (window._haToolsPersistence) window._haToolsPersistence.setHass(hass); },
+  setHass(hass) { this._hass = hass; },
 
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
@@ -66,6 +67,8 @@ class HaChoreTracker extends HTMLElement {
   static getConfigElement() {
     return document.createElement('ha-chore-tracker-editor');
   }
+
+  getCardSize() { return 6; }
 
   static getStubConfig() {
     return {
@@ -139,6 +142,35 @@ class HaChoreTracker extends HTMLElement {
       }
     } catch(e) { /* parse error */ }
     this._dataLoaded = true;
+  }
+
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Tracker Obowiązków',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        delete: 'Usu\u0144',
+        locale: 'pl-PL',
+      },
+      en: {
+        title: 'Chore Tracker',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        delete: 'Delete',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -254,6 +286,8 @@ class HaChoreTracker extends HTMLElement {
   }
 
   render() {
+    if (!this._hass) return;
+    if (!this.activeTab) this.activeTab = 'board';
     this._checkRecurringReset();
     const L = this._lang === 'pl';
     const html = `
@@ -295,7 +329,7 @@ class HaChoreTracker extends HTMLElement {
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px;
 }
 
@@ -509,6 +543,8 @@ canvas {
           gap: 8px;
           margin-bottom: 16px;
           border-bottom: 1px solid var(--border-color);
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
 
         .tab-btn {
@@ -543,7 +579,7 @@ canvas {
         /* Board View */
         .board {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
           gap: 16px;
         }
 
@@ -551,7 +587,7 @@ canvas {
           background: var(--ha-card-background, #f5f5f5);
           border-radius: 8px;
           padding: 12px;
-          min-height: 400px;
+          min-height: 80px;
         }
 
         .column-header {
@@ -661,6 +697,10 @@ canvas {
           margin-bottom: 12px;
         }
 
+        @media (max-width: 360px) {
+          .form-group { grid-template-columns: 1fr; }
+        }
+
         .form-group.full {
           grid-column: 1 / -1;
         }
@@ -677,6 +717,7 @@ canvas {
         input[type="number"],
         select {
           width: 100%;
+          box-sizing: border-box;
           padding: 8px;
           border: 1px solid var(--border-color);
           border-radius: 4px;
@@ -1119,7 +1160,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1253,6 +1294,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>
         </div>
         ` : ''}
+
+        <!-- Settings Tab -->
+        ${this.activeTab === 'settings' ? `
+        <div class="tab-content active" id="settings-tab">
+          <div style="padding:20px;">
+            <h3 style="margin:0 0 16px;font-size:16px;color:var(--bento-text,#333);">⚙️ ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</h3>
+            <div class="empty-state">
+              <div class="empty-icon">🔧</div>
+              <p style="margin:8px 0;color:var(--bento-text-secondary,#64748b);">${this._lang === 'pl' ? 'Ustawienia będą dostępne wkrótce' : 'Settings coming soon'}</p>
+            </div>
+          </div>
+        </div>
+        ` : ''}
       </div>
     `;
 
@@ -1270,8 +1324,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
     });
 
-    // Add chore
-    this.shadowRoot.getElementById('add-btn').addEventListener('click', () => this.addChore());
+    // Add chore (only exists on board tab)
+    this.shadowRoot.getElementById('add-btn')?.addEventListener('click', () => this.addChore());
 
     // Board column clicks
     this.shadowRoot.querySelectorAll('.column').forEach(col => {
@@ -1288,15 +1342,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   switchTab(tabName) {
+    if (!tabName) return;
     this.activeTab = tabName;
-    this.shadowRoot.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-
-    this.shadowRoot.getElementById(`${tabName}-tab`).classList.add('active');
-    this.shadowRoot.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
-    if (tabName === 'schedule') this.updateSchedule();
-    if (tabName === 'stats') this.updateStats();
+    this._domBuilt = false;
+    this._lastHtml = '';
+    this._render();
   }
 
   addChore() {
@@ -1375,7 +1425,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="chore-actions">
             ${status !== 'done' ? `<button class="btn-small" data-action="next">Next →</button>` : ''}
             ${status !== 'todo' ? `<button class="btn-small" data-action="prev">← Back</button>` : ''}
-            <button class="btn-small" data-action="delete">🗑️</button>
+            <button class="btn-small" data-action="delete" aria-label="${this._t.delete}">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -1568,10 +1618,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
 }
 
-customElements.define('ha-chore-tracker', HaChoreTracker);
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-chore-tracker', name: 'Chore Tracker', description: 'Track household chores and responsibilities', preview: false });
+if (!customElements.get('ha-chore-tracker')) customElements.define('ha-chore-tracker', HaChoreTracker);
 
 class HaChoreTrackerEditor extends HTMLElement {
   constructor() {
@@ -1610,3 +1657,8 @@ class HaChoreTrackerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-chore-tracker-editor')) { customElements.define('ha-chore-tracker-editor', HaChoreTrackerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-chore-tracker', name: 'Chore Tracker', description: 'Track household chores and responsibilities', preview: false });

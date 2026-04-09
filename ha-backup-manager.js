@@ -1,3 +1,5 @@
+(function() {
+'use strict';
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -128,6 +130,8 @@ class HaBackupManager extends HTMLElement {
     return document.createElement('ha-backup-manager-editor');
   }
 
+  getCardSize() { return 6; }
+
   static getStubConfig() {
     return {
       title: 'Backup Manager',
@@ -144,6 +148,33 @@ class HaBackupManager extends HTMLElement {
       script.onload = () => resolve(window.Chart);
       document.head.appendChild(script);
     });
+  }
+
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Menedżer Kopią Zapasowych',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'Błąd',
+        refresh: 'Odśwież',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        locale: 'pl-PL',
+      },
+      en: {
+        title: 'Backup Manager',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -359,6 +390,32 @@ class HaBackupManager extends HTMLElement {
     try { return decodeURIComponent(escape(name)); } catch(e) { return name; }
   }
 
+  _getBackupLocation(backup) {
+    // Determine backup location/storage from backup object
+    // Checks for agent_ids, location field, or installed integrations/addons
+    const L = this._lang === 'pl';
+
+    // If location field exists, use it
+    if (backup.location) {
+      if (backup.location === 'addon') return '📦 Addon';
+      if (backup.location === 'cloud') return '☁️ Cloud';
+      if (backup.location === 'local') return '💾 Local';
+    }
+
+    // Check for agent_ids (indicates cloud/remote backup agent)
+    if (backup.agent_ids && backup.agent_ids.length > 0) {
+      // Find which backup agent is installed
+      const agentId = backup.agent_ids[0];
+      if (this._installedAddons['google_drive'] || this._installedIntegrations['google_drive']) return '☁️ Google Drive';
+      if (this._installedAddons['samba'] || this._installedIntegrations['samba']) return '🌐 Samba';
+      if (this._installedAddons['remote_backup']) return '🔗 Remote';
+      return '☁️ Cloud';
+    }
+
+    // Default to local storage
+    return '💾 ' + (L ? 'Lokalny' : 'Local');
+  }
+
   _selectBackup(backup) {
     this._selectedBackup = this._selectedBackup?.slug === backup.slug ? null : backup;
     this._updateUI();
@@ -384,6 +441,7 @@ class HaBackupManager extends HTMLElement {
           <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-xs,6px);text-align:center;">
             <div style="font-size:18px;font-weight:700;color:var(--bento-primary,#3b82f6);line-height:1.2;">${totalSize > 0 ? this._formatBytes(totalSize) : '?'}</div>
             <div style="font-size:10px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;">${L ? 'Rozmiar' : 'Total Size'}</div>
+            <div style="font-size:8px;color:var(--bento-text-muted,#94a3b8);margin-top:3px;">${L ? '(skompresowany)' : '(compressed)'}</div>
           </div>
           <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid ${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-border,#e2e8f0)'};border-radius:var(--bento-radius-xs,6px);text-align:center;">
             <div style="font-size:18px;font-weight:700;color:${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-text,#1e293b)'};line-height:1.2;">${daysSince !== null ? daysSince + 'd' : '-'}</div>
@@ -405,46 +463,37 @@ class HaBackupManager extends HTMLElement {
         <div class="backups-list">
           ${this._backups.length === 0
             ? '<div class="empty-state">No backups available</div>'
-            : this._backups.map((backup) => `
-              <div class="backup-item ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
-                   data-slug="${backup.slug}">
-                <div class="backup-header">
-                  <div class="backup-info">
-                    <h3>${this._sanitizeName(backup.name)}</h3>
-                    <span class="backup-type ${backup.type}">${backup.type}</span>
-                    ${backup.is_protected ? '<span class="badge protected">🔒 Protected</span>' : ''}
-                  
-                    ${backup.location ? `<span class="badge method">${backup.location === 'addon' ? 'Addon' : (backup.location === 'cloud' ? 'Cloud' : 'Local')}</span>` : ''}</div>
-                  <div class="backup-meta">
-                    <span class="date">${this._formatDate(backup.date)}</span>
-                    <span class="size">${backup.size_bytes ? this._formatBytes(backup.size_bytes) : (backup.size ? this._formatMB(backup.size) : '?')}</span>
-                  </div>
-                </div>
-                ${this._selectedBackup?.slug === backup.slug ? `
-                  <div class="backup-details">
-                    <h4>Backup Contents:</h4>
-                    <div class="contents-grid">
-                      ${(backup.includes?.homeassistant || backup.homeassistant_included || backup.content?.homeassistant) ? '<span class="content-item">\u{1F4CB} Home Assistant Config</span>' : ''}
-                      ${(backup.includes?.database || backup.database_included) ? '<span class="content-item">\u{1F4BE} Database</span>' : ''}
-                      ${(backup.includes?.addons?.length > 0 || backup.addons?.length > 0) ? `<span class="content-item">\u{1F9E9} ${(backup.includes?.addons || backup.addons || []).length} Add-ons</span>` : ''}
-                      ${(backup.includes?.folders?.length > 0 || backup.folders?.length > 0) ? `<span class="content-item">\u{1F4C1} ${(backup.includes?.folders || backup.folders || []).length} Folders</span>` : ''}
-                    </div>
-                    ${backup.includes?.addons?.length > 0 ? `
-                      <div class="addon-list">
-                        <strong>Add-ons:</strong>
-                        ${backup.includes.addons.map(a => `<span>${a}</span>`).join('')}
-                      </div>
-                    ` : ''}
-                  </div>
-                ` : ''}
-              </div>
-            `).join('')}
+            : `<table class="compact-backup-table">
+                  <thead><tr>
+                    <th>${L ? 'Data' : 'Date'}</th>
+                    <th>${L ? 'Nazwa' : 'Name'}</th>
+                    <th>${L ? 'Typ' : 'Type'}</th>
+                    <th>${L ? 'Lokalizacja' : 'Location'}</th>
+                    <th title="${L ? 'Rozmiar skompresowanego pliku kopii (na dysku)' : 'Compressed backup file size (on disk)'}">${L ? 'Rozmiar' : 'Size'} <span style="font-size:8px;color:var(--bento-text-muted,#94a3b8);">${L ? '(spakowany)' : '(zipped)'}</span></th>
+                  </tr></thead>
+                  <tbody>
+                    ${this._backups.map((backup) => `
+                      <tr class="compact-backup-row ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
+                          data-slug="${backup.slug}">
+                        <td class="compact-date">${this._formatDate(backup.date)}</td>
+                        <td class="compact-name" title="${this._sanitizeName(backup.name)}${backup.is_protected ? ' 🔒' : ''}">
+                          ${this._sanitizeName(backup.name)}
+                          ${backup.is_protected ? ' \uD83D\uDD12' : ''}
+                        </td>
+                        <td><span class="backup-type ${backup.type}">${backup.type}</span></td>
+                        <td class="compact-location">${this._getBackupLocation(backup)}</td>
+                        <td class="compact-size">${backup.size_bytes ? this._formatBytes(backup.size_bytes) : (backup.size ? this._formatMB(backup.size) : '?')}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>`}
         </div>
       </div>
     `;
   }
 
   _renderHealthTab() {
+    const L = this._lang === 'pl';
     const timeSince = this._getTimeSinceBackup();
     const warnDays = this._config.warn_after_days || 3;
     const daysStatus = !timeSince ? 'error' : timeSince.days > warnDays ? 'warning' : 'good';
@@ -469,7 +518,8 @@ class HaBackupManager extends HTMLElement {
           <div class="health-card">
             <h3>Storage Used</h3>
             <div class="health-value">${this._formatBytes(this._healthData.totalSize)}</div>
-            <p class="health-label">Compressed backups</p>
+            <p class="health-label">${L ? 'Suma rozmiarów skompresowanych kopii' : 'Total of all compressed backups'}</p>
+            <p style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:4px;">${L ? 'Nie obejmuje rozpakowania' : 'Does not include uncompressed'}</p>
           </div>
 
           <div class="health-card">
@@ -589,7 +639,7 @@ class HaBackupManager extends HTMLElement {
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px;
 }
 
@@ -792,6 +842,8 @@ canvas {
           border-bottom: 1px solid var(--border-color);
           margin: 0 -16px 16px -16px;
           padding: 0 16px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
 
         .tab-btn {
@@ -877,6 +929,57 @@ canvas {
           font-size: 12px;
         }
 
+        .compact-backup-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+          table-layout: fixed;
+        }
+        .compact-backup-table th {
+          text-align: left;
+          padding: 8px 10px;
+          border-bottom: 2px solid var(--bento-border, #e2e8f0);
+          color: var(--bento-text-secondary, #64748b);
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          font-size: 11px;
+        }
+        .compact-backup-row {
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .compact-backup-row td {
+          padding: 8px 10px;
+          border-bottom: 1px solid var(--bento-border, #e2e8f0);
+          color: var(--bento-text, #1e293b);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .compact-backup-row:hover td { background: rgba(59,130,246,0.04); }
+        .compact-backup-row.selected td { background: rgba(59,130,246,0.08); }
+        .compact-date { color: var(--bento-text-secondary, #64748b); font-size: 11px; width: 120px; }
+        .compact-name {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+          flex: 1;
+          min-width: 180px;
+        }
+        .compact-location {
+          color: var(--bento-text-secondary, #64748b);
+          font-size: 11px;
+          white-space: nowrap;
+          width: 110px;
+        }
+        .compact-size {
+          color: var(--bento-text-secondary, #64748b);
+          font-size: 11px;
+          text-align: right;
+          width: 80px;
+        }
         .backups-list {
           display: flex;
           flex-direction: column;
@@ -1451,7 +1554,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1579,6 +1682,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
         if (backup) this._selectBackup(backup);
       });
     });
+    // Compact row click
+    this.shadowRoot?.querySelectorAll('.compact-backup-row[data-slug]').forEach(row => {
+      row.addEventListener('click', () => {
+        const slug = row.getAttribute('data-slug');
+        const backup = this._backups.find(b => b.slug === slug);
+        if (backup) this._selectBackup(backup);
+      });
+    });
     // Create backup buttons
     this.shadowRoot?.querySelectorAll('.create-btn[data-backup-type]').forEach(btn => {
       btn.addEventListener('click', () => this._createBackup(btn.getAttribute('data-backup-type') === 'full'));
@@ -1632,11 +1743,13 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
     });
   }
 
+  disconnectedCallback() {
+    // Cleanup any active event listeners or timers
+  }
+
 }
 
 if (!customElements.get('ha-backup-manager')) { customElements.define('ha-backup-manager', HaBackupManager); }
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-backup-manager', name: 'Backup Manager', description: 'Manage Home Assistant backups with monitoring', preview: false });
 ;
 
 class HaBackupManagerEditor extends HTMLElement {
@@ -1653,6 +1766,7 @@ class HaBackupManagerEditor extends HTMLElement {
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
   _render() {
+    if (!this._hass) return;
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
@@ -1696,3 +1810,8 @@ class HaBackupManagerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-backup-manager-editor')) { customElements.define('ha-backup-manager-editor', HaBackupManagerEditor); }
+
+})();
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-backup-manager', name: 'Backup Manager', description: 'Manage Home Assistant backups with monitoring', preview: false });
