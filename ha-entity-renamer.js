@@ -802,7 +802,7 @@ class HAEntityRenamer extends HTMLElement {
     const t = this._t;
 
     // Tab switching
-    root.querySelectorAll('.tab-btn').forEach(btn => {
+    root.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
         this.render();
@@ -939,10 +939,10 @@ class HaEntityRenamerEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        :host { display:block; padding:16px; }
+        h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
         input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
+        input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
       </style>
       <h3>Entity Renamer</h3>
             <div style="margin-bottom:12px;">

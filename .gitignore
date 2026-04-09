@@ -36,6 +36,8 @@ sources.md
 # Build/deploy scripts
 cache_bust.py
 deploy_*.py
+deploy.ps1
+verify-sync.ps1
 find_card*.py
 run_test.py
 cleanup_*.py

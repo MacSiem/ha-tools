@@ -1182,7 +1182,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           ${this.babies.length > 1 ? `
           <div style="display:flex;gap:4px;margin-bottom:12px;padding:0 4px">
             ${this.babies.map((b, i) => `
-              <button class="tab-btn" data-baby="${i}" 
+              <button class="baby-btn" data-baby="${i}" 
                 style="padding:6px 14px;border:1.5px solid ${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-border,#e2e8f0)'};border-radius:20px;background:${this.selectedBaby === i ? 'rgba(59,130,246,0.1)' : 'transparent'};color:${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-text-secondary,#64748B)'};font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">
                 👶 ${b.name}
               </button>
@@ -1575,16 +1575,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     }
     const shadowRoot = this.shadowRoot;
 
-    shadowRoot.querySelectorAll('.baby-button').forEach(btn => {
+    shadowRoot.querySelectorAll('.baby-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.selectedBaby = parseInt(e.target.dataset.index);
+        this.selectedBaby = parseInt(e.target.closest('[data-baby]').dataset.baby);
         this.renderCard();
       });
     });
 
-    shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
+    shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.selectedTab = e.target.dataset.tab;
+        this.selectedTab = e.target.closest('[data-tab]').dataset.tab;
         this.renderCard();
       });
     });
@@ -2345,11 +2345,11 @@ class HaBabyTrackerEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
-        input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
-      </style>
+            :host { display:block; padding:16px; }
+            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
+            input { outline:none; transition:border-color .2s; }
+            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
+        </style>
       <h3>Baby Tracker</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>

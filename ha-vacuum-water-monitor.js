@@ -2020,53 +2020,15 @@ class HAVacuumWaterMonitor extends HTMLElement {
     // Show error with tip banner
     const _newHtml = `
       <style>
-        :host { display: block; font-family: 'Inter', sans-serif; color: var(--primary-text-color, #1a1a2e); }
+        :host { display: block; }
         .err-container { max-width: 700px; margin: 30px auto; padding: 20px; }
-        .err-card { background: rgba(239,68,68,0.05); border: 1.5px solid rgba(239,68,68,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; }
+        .err-card { background: var(--bento-error-light, rgba(239,68,68,0.05)); border: 1.5px solid rgba(239,68,68,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; }
         .err-icon { font-size: 48px; margin-bottom: 10px; }
-        .err-msg { font-size: 13px; color: #888; margin-top: 8px; font-family: monospace; }
+        .err-msg { font-size: 13px; color: var(--bento-text-muted, #888); margin-top: 8px; font-family: monospace; }
         .tip-banner { background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03)); border: 1.5px solid rgba(59,130,246,0.2); border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.6; }
-        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #3B82F6; }
+        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--bento-primary, #3B82F6); }
         .tip-banner ul { margin: 6px 0 0 16px; padding: 0; }
         .tip-banner li { margin-bottom: 3px; }
-      
-/* === DARK MODE === */
-/* === MOBILE FIX === */
-        
-        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
-        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
-        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
-        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
-@media (max-width: 768px) {
-          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
-          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
-          .card, .card-container { padding: 14px; }
-          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
-          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
-          .panels, .board { flex-direction: column; }
-          .column { min-width: unset; }
-          h2 { font-size: 18px; }
-          h3 { font-size: 15px; }
-        }
-        @media (max-width: 480px) {
-          .tabs { gap: 1px; }
-          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
-          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
-          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
-        }
-      
-        @media (prefers-color-scheme: dark) {
-          :host {
-            --bento-bg: var(--primary-background-color, #1a1a2e);
-            --bento-card: var(--card-background-color, #16213e);
-            --bento-text: var(--primary-text-color, #e2e8f0);
-            --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-            --bento-border: var(--divider-color, #334155);
-            --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-            --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-          }
-        }
         </style>
       <div class="err-container">
         <div class="err-card">
@@ -2402,11 +2364,11 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
-        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
-        input { outline:none; transition:border-color .2s; }
-        input:focus { border-color:var(--primary-color,#3b82f6); }
-      </style>
+            :host { display:block; padding:16px; }
+            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
+            input { outline:none; transition:border-color .2s; }
+            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
+        </style>
       <h3>Vacuum Water Monitor</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
