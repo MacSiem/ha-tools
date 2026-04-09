@@ -1,26 +1,53 @@
+# === HACS-only repo — track only files needed for Home Assistant ===
+
+# Deployment copies (Samba sync target, not needed in git)
+www/
+
+# HA internal storage
+.storage/
+
+# Backups
 *.bak
-www/community/ha-tools/bak_*/
-www/community/ha-tools/cry_analyzer_log.json
+*.backup
 
 # Private / secrets — never commit
 CLAUDE.md
 tg_notify.js
 monitor-claude.ps1
+
+# Dev tools & scripts
+test-tools.js
+verify-layout.js
+test-results.json
+fix-encoding.js
+
+# Task & audit files
 TASK*.md
-*.log
-*.backup
-b64_task.txt
-decode-task.js
-delegate-task.cmd
-run-*.cmd
-run-*.ps1
-claude-*.cmd
-claude-*.log
-cache_bust.py
-deploy_*.py
-find_card*.py
+AUDIT*.html
+AUDIT*.md
 audit_*.py
 audit_*.json
 audit_*.md
+audit-*.md
+*-backlog.md
+HACS_READY_CHECKLIST.md
 sources.md
-test-results.json
+
+# Build/deploy scripts
+cache_bust.py
+deploy_*.py
+find_card*.py
+run_test.py
+cleanup_*.py
+
+# Claude/automation scripts
+run-*.cmd
+run-*.ps1
+run_*.py
+claude-*.cmd
+claude-*.log
+delegate-task.cmd
+b64_task.txt
+decode-task.js
+commit_msg.txt
+*.log
