@@ -199,7 +199,7 @@ class HAToolsPanel extends HTMLElement {
         if (this._activeView === 'home') this._showHome();
       }
       attempts++;
-      if (newCount >= HAToolsPanel.TOOLS.length || attempts >= maxAttempts) {
+      if (newCount >= HAToolsPanel.TOOLS.filter(t=>t.tag).length || attempts >= maxAttempts) {
         this._loading = false;
         this._updateLoadingStatus();
         this._updateSidebar();
@@ -223,7 +223,7 @@ class HAToolsPanel extends HTMLElement {
   _updateLoadingStatus() {
     const bar = this.shadowRoot?.querySelector('.loading-bar');
     if (!bar) return;
-    const total = HAToolsPanel.TOOLS.length;
+    const total = HAToolsPanel.TOOLS.filter(t=>t.tag).length;
     if (this._loading) {
       bar.style.display = 'flex';
       bar.innerHTML = `
