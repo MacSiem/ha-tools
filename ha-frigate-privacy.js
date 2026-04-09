@@ -622,23 +622,42 @@ class HaFrigatePrivacy extends HTMLElement {
     this._saveHistory();
   }
 
+  // --- Camera stream control helper ---
+  async _setCameraStreams(camIds, turnOn) {
+    if (!this._hass) return;
+    const action = turnOn ? 'turn_on' : 'turn_off';
+    const svcDomain = this._hass.services?.camera;
+    const hasCameraSvc = svcDomain && svcDomain[action];
+    for (const camId of camIds) {
+      const camName = camId.replace('camera.', '');
+      // Turn camera stream on/off (if camera integration supports it)
+      if (hasCameraSvc) {
+        try {
+          await this._hass.callService('camera', action, { entity_id: camId });
+        } catch(e) {
+          console.warn('[Frigate Privacy] camera.' + action + ' failed for ' + camId + ':', e.message || e);
+        }
+      }
+      // Toggle Frigate switches
+      const switchAction = turnOn ? 'turn_on' : 'turn_off';
+      for (const suffix of ['_detect', '_recordings', '_snapshots', '_motion']) {
+        const switchId = 'switch.' + camName + suffix;
+        if (this._hass.states[switchId]) {
+          try { await this._hass.callService('switch', switchAction, { entity_id: switchId }); } catch(e) {}
+        }
+      }
+    }
+  }
+
   // --- Actions ---
   async _pauseFrigate(minutes) {
     const t = this._t;
     if (!this._hass) return;
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
     try {
-      // Pause selected cameras by turning off their Frigate switches
+      // Pause selected cameras
       const selectedCams = this._selectedCameras.size > 0 ? [...this._selectedCameras] : this._cameras.map(c => c.entity_id);
-      for (const camId of selectedCams) {
-        const camName = camId.replace('camera.', '');
-        for (const suffix of ['_detect', '_recordings', '_snapshots', '_motion']) {
-          const switchId = 'switch.' + camName + suffix;
-          if (this._hass.states[switchId]) {
-            try { await this._hass.callService('switch', 'turn_off', { entity_id: switchId }); } catch(e) {}
-          }
-        }
-      }
+      await this._setCameraStreams(selectedCams, false);
       this._privacyActive = true;
       this._privacyEndTime = Date.now() + (parseInt(minutes) * 60 * 1000);
       this._privacyCameras = selectedCams.join(', ');
@@ -671,19 +690,11 @@ class HaFrigatePrivacy extends HTMLElement {
     if (!this._hass) return;
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
     try {
-      // Resume cameras by turning on their Frigate switches
+      // Resume cameras
       const camsToResume = this._privacyCameras && this._privacyCameras !== 'all'
         ? this._privacyCameras.split(', ')
         : this._cameras.map(c => c.entity_id);
-      for (const camId of camsToResume) {
-        const camName = camId.replace('camera.', '');
-        for (const suffix of ['_detect', '_recordings', '_snapshots', '_motion']) {
-          const switchId = 'switch.' + camName + suffix;
-          if (this._hass.states[switchId]) {
-            try { await this._hass.callService('switch', 'turn_on', { entity_id: switchId }); } catch(e) {}
-          }
-        }
-      }
+      await this._setCameraStreams(camsToResume, true);
       this._privacyActive = false;
       this._privacyEndTime = null;
       if (this._privacyTimerInterval) {
@@ -717,13 +728,14 @@ class HaFrigatePrivacy extends HTMLElement {
         clearInterval(this._privacyTimerInterval);
         this._privacyTimerInterval = null;
         this._warningSent = false;
-        // Auto-start addon when timer expires
+        // Auto-resume cameras: turn streams + switches back ON
         if (this._hass) {
-          const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
-          this._hass.callService('hassio', 'addon_start', { addon: addonId }).catch(e => {
-            console.warn('[Frigate Privacy] Error auto-starting addon on timer expiry:', e);
-          });
+          const camsToResume = this._privacyCameras && this._privacyCameras !== 'all'
+            ? this._privacyCameras.split(', ')
+            : this._cameras.map(c => c.entity_id);
+          this._setCameraStreams(camsToResume, true);
           const t = this._t;
+          this._addHistoryEntry('resumed', 0);
           this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed, t.forCameras + ': ' + this._getCameraLabel());
         }
       } else {
