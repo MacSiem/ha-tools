@@ -396,7 +396,7 @@ class HAToolsPanel extends HTMLElement {
       { id: 'energy-email', group: 'smart-reports', name: 'Energy Email', icon: '\uD83D\uDCE7', tag: 'ha-energy-email', desc: 'Dzienne/tygodniowe/miesi\u0119czne raporty energii emailem', repo: 'MacSiem/ha-energy-email', category: 'reports' },
       { id: 'vacuum-water-monitor', group: 'home-family', name: 'Vacuum Water Monitor', icon: '\uD83E\uDDF9', tag: 'ha-vacuum-water-monitor', desc: 'Monitor poziomu wody i serwisu dla odkurzaczy (Roborock, Dreame)', repo: 'MacSiem/ha-vacuum-water-monitor', category: 'monitor' },
       { id: 'entity-renamer', group: 'advanced-tools', name: 'Entity Renamer', icon: '\uD83C\uDFF7\uFE0F', tag: 'ha-entity-renamer', desc: 'Zmiana nazw encji i urządzeń z propagacją do dashboardów, automatyzacji i skryptów', repo: 'MacSiem/ha-entity-renamer', category: 'system' },
-      { id: 'frigate-privacy', group: 'device-health', name: 'Frigate Privacy', icon: '🔒', tag: 'ha-frigate-privacy', desc: 'Pauza kamer Frigate z timerem i harmonogramem prywatności', repo: 'MacSiem/ha-tools-panel', category: 'system' },
+      { id: 'frigate-privacy', group: 'home-family', name: 'Frigate Privacy', icon: '🔒', tag: 'ha-frigate-privacy', desc: 'Pauza kamer Frigate z timerem i harmonogramem prywatności', repo: 'MacSiem/ha-tools-panel', category: 'system' },
       { id: 'encoding-fixer', group: 'advanced-tools', name: 'Encoding Fixer', icon: '🔧', tag: 'ha-encoding-fixer', desc: 'Wykrywanie i naprawa mojibake, BOM i problemów z kodowaniem', repo: 'MacSiem/ha-tools-panel', category: 'debug' },
     ];
   }

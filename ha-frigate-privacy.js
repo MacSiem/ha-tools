@@ -356,44 +356,14 @@ class HaFrigatePrivacy extends HTMLElement {
 
   _updateFrigateStatus() {
     if (!this._hass) return;
-    // 1. Check configured entity first
-    const entity = this._config.frigate_running_entity || 'binary_sensor.frigate_running';
-    const state = this._hass.states[entity];
-    if (state) {
-      this._frigateRunning = state.state === 'on';
-      return;
-    }
-    // 2. Fallback: check common Frigate entity patterns
-    const fallbacks = [
-      'binary_sensor.frigate_running',
-      'binary_sensor.frigate',
-      'sensor.frigate_status'
-    ];
-    for (const fb of fallbacks) {
-      const fbState = this._hass.states[fb];
-      if (fbState) {
-        this._frigateRunning = fbState.state === 'on' || fbState.state === 'running';
-        return;
-      }
-    }
-    // 3. Fallback: check if any Frigate cameras exist (by name, client_id attribute, or entity_picture)
-    const hasFrigateCameras = Object.keys(this._hass.states).some(id => {
-      if (!id.startsWith('camera.')) return false;
-      const camState = this._hass.states[id];
-      const attrs = camState.attributes || {};
-      return (
-        id.includes('frigate') ||
-        (attrs.client_id || '').toLowerCase() === 'frigate' ||
-        (attrs.entity_picture || '').includes('frigate')
-      );
-    });
-    if (hasFrigateCameras) {
+    // Check if Frigate is running by looking for detect switches or update entities
+    const detectSwitches = Object.keys(this._hass.states).filter(id => id.startsWith('switch.') && id.endsWith('_detect'));
+    if (detectSwitches.length > 0) {
       this._frigateRunning = true;
-      return;
+    } else {
+      const frigateUpdate = this._hass.states['update.frigate_server'] || this._hass.states['update.frigate_update'] || this._hass.states['update.frigate_update_2'];
+      this._frigateRunning = frigateUpdate ? true : null;
     }
-    // 4. Fallback: check addon state via supervisor API
-    this._frigateRunning = null;
-    this._checkAddonState();
   }
 
   async _checkAddonState() {
@@ -430,7 +400,23 @@ class HaFrigatePrivacy extends HTMLElement {
       });
       return;
     }
-    // Auto-detect Frigate cameras
+    // Auto-detect: find cameras that have Frigate detect switches
+    const allSwitches = Object.keys(this._hass.states).filter(id => id.startsWith('switch.') && id.endsWith('_detect'));
+    const frigateCameraIds = [];
+    Object.keys(this._hass.states).filter(id => id.startsWith('camera.')).forEach(camId => {
+      const camName = camId.replace('camera.', '');
+      if (allSwitches.some(sw => sw === 'switch.' + camName + '_detect')) {
+        frigateCameraIds.push(camId);
+      }
+    });
+    if (frigateCameraIds.length > 0) {
+      this._cameras = frigateCameraIds.map(id => ({
+        entity_id: id,
+        name: this._hass.states[id].attributes.friendly_name || id
+      }));
+      return;
+    }
+    // Fallback: entity_id or entity_picture containing 'frigate'
     this._cameras = Object.keys(this._hass.states)
       .filter(id => id.startsWith('camera.') && (
         id.includes('frigate') ||
@@ -440,12 +426,14 @@ class HaFrigatePrivacy extends HTMLElement {
         entity_id: id,
         name: this._hass.states[id].attributes.friendly_name || id
       }));
-    // Fallback: known cameras from config
+    // Last resort: all cameras
     if (this._cameras.length === 0) {
-      this._cameras = [
-        { entity_id: 'camera.cam_pt2_mainstream', name: 'Cam PT2 Mainstream' },
-        { entity_id: 'camera.cam_pt2_mainstream_2', name: 'Cam PT2 Mainstream 2' }
-      ];
+      this._cameras = Object.keys(this._hass.states)
+        .filter(id => id.startsWith('camera.'))
+        .map(id => ({
+          entity_id: id,
+          name: this._hass.states[id].attributes.friendly_name || id
+        }));
     }
   }
 
@@ -640,14 +628,20 @@ class HaFrigatePrivacy extends HTMLElement {
     if (!this._hass) return;
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
     try {
-      // Stop Frigate addon directly
-      await this._hass.callService('hassio', 'addon_stop', { addon: addonId });
+      // Pause selected cameras by turning off their Frigate switches
+      const selectedCams = this._selectedCameras.size > 0 ? [...this._selectedCameras] : this._cameras.map(c => c.entity_id);
+      for (const camId of selectedCams) {
+        const camName = camId.replace('camera.', '');
+        for (const suffix of ['_detect', '_recordings', '_snapshots', '_motion']) {
+          const switchId = 'switch.' + camName + suffix;
+          if (this._hass.states[switchId]) {
+            try { await this._hass.callService('switch', 'turn_off', { entity_id: switchId }); } catch(e) {}
+          }
+        }
+      }
       this._privacyActive = true;
       this._privacyEndTime = Date.now() + (parseInt(minutes) * 60 * 1000);
-      this._privacyCameras = this._selectedCameras.size > 0 ? [...this._selectedCameras].map(id => {
-        const cam = this._cameras.find(c => c.entity_id === id);
-        return cam ? cam.name : id;
-      }).join(', ') : 'all';
+      this._privacyCameras = selectedCams.join(', ');
       this._privacyStartedMin = parseInt(minutes);
       this._warningSent = false;
       this._addHistoryEntry('manual', minutes, this._privacyCameras);
@@ -677,8 +671,19 @@ class HaFrigatePrivacy extends HTMLElement {
     if (!this._hass) return;
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
     try {
-      // Start Frigate addon directly
-      await this._hass.callService('hassio', 'addon_start', { addon: addonId });
+      // Resume cameras by turning on their Frigate switches
+      const camsToResume = this._privacyCameras && this._privacyCameras !== 'all'
+        ? this._privacyCameras.split(', ')
+        : this._cameras.map(c => c.entity_id);
+      for (const camId of camsToResume) {
+        const camName = camId.replace('camera.', '');
+        for (const suffix of ['_detect', '_recordings', '_snapshots', '_motion']) {
+          const switchId = 'switch.' + camName + suffix;
+          if (this._hass.states[switchId]) {
+            try { await this._hass.callService('switch', 'turn_on', { entity_id: switchId }); } catch(e) {}
+          }
+        }
+      }
       this._privacyActive = false;
       this._privacyEndTime = null;
       if (this._privacyTimerInterval) {

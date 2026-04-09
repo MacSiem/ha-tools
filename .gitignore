@@ -40,6 +40,12 @@ find_card*.py
 run_test.py
 cleanup_*.py
 
+# Temporary/experimental files
+ha-tools-common.js
+ha-entity-renamer-temp.js
+cowork-delegation-prompt.md
+cleanup.bat
+
 # Claude/automation scripts
 run-*.cmd
 run-*.ps1
