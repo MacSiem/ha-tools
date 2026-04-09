@@ -1,3 +1,26 @@
 *.bak
 www/community/ha-tools/bak_*/
 www/community/ha-tools/cry_analyzer_log.json
+
+# Private / secrets — never commit
+CLAUDE.md
+tg_notify.js
+monitor-claude.ps1
+TASK*.md
+*.log
+*.backup
+b64_task.txt
+decode-task.js
+delegate-task.cmd
+run-*.cmd
+run-*.ps1
+claude-*.cmd
+claude-*.log
+cache_bust.py
+deploy_*.py
+find_card*.py
+audit_*.py
+audit_*.json
+audit_*.md
+sources.md
+test-results.json
