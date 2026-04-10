@@ -212,7 +212,7 @@ class HaBabyTracker extends HTMLElement {
       this.sleepData.forEach((v, k) => { data.sleep[k] = v; });
       this.growthData.forEach((v, k) => { data.growth[k] = v; });
       localStorage.setItem(this._storageKey(), JSON.stringify(data));
-    } catch (e) { console.warn('Baby Tracker: save failed', e); }
+    } catch (e) { console.warn('Baby and Lactation Tracker: save failed', e); }
   }
 
   _loadData() {
@@ -226,7 +226,7 @@ class HaBabyTracker extends HTMLElement {
       if (data.sleep) Object.entries(data.sleep).forEach(([k, v]) => { this.sleepData.set(k, v); });
       if (data.growth) Object.entries(data.growth).forEach(([k, v]) => { this.growthData.set(k, v); });
       if (data.breastfeeding) this._bfSessions = data.breastfeeding;
-    } catch (e) { console.warn('Baby Tracker: load failed', e); }
+    } catch (e) { console.warn('Baby and Lactation Tracker: load failed', e); }
   }
 
   _childrenKey() { return 'ha-baby-tracker-children'; }
@@ -1532,8 +1532,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">Custom Sentences</h3>
             <p style="font-size:13px;color:var(--bento-text-secondary,#64748B);margin:0 0 16px">
               ${this._lang === 'pl'
-                ? 'Wygeneruj plik YAML z komendami g\u0142osowymi do sterowania Baby Trackerem przez Assist. Skopiuj wygenerowany YAML i wklej do <code>custom_sentences/</code> w folderze konfiguracji HA.'
-                : 'Generate a YAML file with voice commands to control Baby Tracker via Assist. Copy the generated YAML and paste into <code>custom_sentences/</code> in your HA config folder.'}
+                ? 'Wygeneruj plik YAML z komendami g\u0142osowymi do sterowania Baby and Lactation Trackerem przez Assist. Skopiuj wygenerowany YAML i wklej do <code>custom_sentences/</code> w folderze konfiguracji HA.'
+                : 'Generate a YAML file with voice commands to control Baby and Lactation Tracker via Assist. Copy the generated YAML and paste into <code>custom_sentences/</code> in your HA config folder.'}
             </p>
 
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
@@ -1596,8 +1596,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <div style="font-size:12px;line-height:1.8;color:var(--bento-text-secondary,#64748B)">
               <div><strong>${this._lang === 'pl' ? 'Karta Lovelace:' : 'Lovelace Card:'}</strong>
                 ${this._lang === 'pl'
-                  ? 'Baby Tracker jest \u0142adowany automatycznie przez ha-tools-panel. Mo\u017Cesz te\u017C doda\u0107 go jako osobn\u0105 kart\u0119:'
-                  : 'Baby Tracker is loaded automatically by ha-tools-panel. You can also add it as a standalone card:'}
+                  ? 'Baby and Lactation Tracker jest \u0142adowany automatycznie przez ha-tools-panel. Mo\u017Cesz te\u017C doda\u0107 go jako osobn\u0105 kart\u0119:'
+                  : 'Baby and Lactation Tracker is loaded automatically by ha-tools-panel. You can also add it as a standalone card:'}
               </div>
               <pre style="background:#1e293b;color:#e2e8f0;padding:8px;border-radius:6px;font-size:11px;margin:4px 0">type: custom:ha-baby-tracker</pre>
               <div><strong>Entity:</strong>
@@ -2453,7 +2453,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   static getStubConfig() {
     return {
       type: 'custom:ha-baby-tracker',
-      title: 'Baby Tracker',
+      title: 'Baby and Lactation Tracker',
       babies: [{ name: 'Baby 1' }]
     };
   }
@@ -2624,10 +2624,10 @@ class HaBabyTrackerEditor extends HTMLElement {
             input { outline:none; transition:border-color .2s; }
             input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
         </style>
-      <h3>Baby Tracker</h3>
+      <h3>Baby and Lactation Tracker</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Baby Tracker'}"
+              <input type="text" id="cf_title" value="${this._config?.title || 'Baby and Lactation Tracker'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

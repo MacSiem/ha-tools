@@ -202,6 +202,28 @@ class HaEnergyOptimizer extends HTMLElement {
     return sum / 168;
   }
 
+  _getTimeRangeDates() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    switch (this._timeRange) {
+      case 'yesterday': {
+        const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+        return { start: yest, end: today };
+      }
+      case '7days': {
+        const s = new Date(today); s.setDate(s.getDate() - 7);
+        return { start: s, end: tomorrow };
+      }
+      case '30days': {
+        const s = new Date(today); s.setDate(s.getDate() - 30);
+        return { start: s, end: tomorrow };
+      }
+      default: // 'today'
+        return { start: today, end: tomorrow };
+    }
+  }
+
   _getTariffLabel() {
     const c = this._config;
     const mode = c.energy_tariff_mode || 'flat';
@@ -277,19 +299,23 @@ class HaEnergyOptimizer extends HTMLElement {
 
       this._energySensorIds = kwhIds;
 
-      // Step 2: Fetch 7 days of hourly statistics
+      // Step 2: Determine date range based on _timeRange
       const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 3600000);
+      const { start: rangeStart, end: rangeEnd } = this._getTimeRangeDates();
+      // Always fetch at least 7 days for weekly data and comparison
+      const fetchStart = new Date(Math.min(rangeStart.getTime(), now.getTime() - 7 * 24 * 3600000));
+
       const stats = await this._hass.callWS({
         type: 'recorder/statistics_during_period',
-        start_time: weekAgo.toISOString(),
+        start_time: fetchStart.toISOString(),
         end_time: now.toISOString(),
         statistic_ids: kwhIds,
         period: 'hour',
         types: ['change']
       });
 
-      // Step 3: Aggregate all sensors into hourly totals for today (24h)
+      // Step 3: Aggregate all sensors into hourly totals for selected time range
+      const hourlySelected = {};
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const hourlyToday = new Array(24).fill(0);
 
@@ -306,6 +332,13 @@ class HaEnergyOptimizer extends HTMLElement {
           if (isWh) change /= 1000; // Wh → kWh
           const entryDate = new Date(entry.start);
           const hour = entryDate.getHours();
+          const dateKey = `${entryDate.getFullYear()}-${String(entryDate.getMonth()+1).padStart(2,'0')}-${String(entryDate.getDate()).padStart(2,'0')}`;
+
+          // Selected time range data (for display)
+          if (entryDate >= rangeStart && entryDate < rangeEnd) {
+            if (!hourlySelected[dateKey]) hourlySelected[dateKey] = new Array(24).fill(0);
+            hourlySelected[dateKey][hour] += change;
+          }
 
           // Today's data
           if (entryDate >= todayStart) {
@@ -321,7 +354,24 @@ class HaEnergyOptimizer extends HTMLElement {
         });
       });
 
-      this._energyData = hourlyToday;
+      // For display, use either today's data or aggregated range data depending on _timeRange
+      if (this._timeRange === 'today') {
+        this._energyData = hourlyToday;
+      } else {
+        // Aggregate all hourly data from selected range into one 24-hour view
+        const aggregated = new Array(24).fill(0);
+        const daysInRange = Object.values(hourlySelected);
+        daysInRange.forEach(dayData => {
+          dayData.forEach((kwh, hour) => {
+            aggregated[hour] += kwh;
+          });
+        });
+        if (daysInRange.length > 0) {
+          this._energyData = aggregated.map(h => h / daysInRange.length); // Average per hour
+        } else {
+          this._energyData = hourlyToday; // Fallback to today
+        }
+      }
       this._weeklyData = weeklyHourly;
       this._hasRealData = true;
 
@@ -1066,8 +1116,13 @@ class HaEnergyOptimizer extends HTMLElement {
         sr.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         this._timeRange = e.target.dataset.timeRange;
-        // Re-render dashboard with new time range
-        this._showTab('dashboard');
+        // Reload data with new time range and re-render dashboard
+        this._lastStatsFetch = 0; // Force data reload
+        this._fetchEnergyStats().then(() => {
+          this._showTab('dashboard');
+        }).catch(() => {
+          this._showTab('dashboard');
+        });
       });
     });
     // Comparison mode buttons (use delegation since body is rebuilt)
@@ -1612,7 +1667,12 @@ async _drawComparisonChart() {
   }
 
   _calculateTodayCost() {
-    const dow = new Date().getDay();
+    // For today or when displaying single-day data, use current day
+    // For ranges, average across typical week pattern
+    let dow = new Date().getDay();
+    if (this._timeRange !== 'today') {
+      dow = 2; // Use Wednesday as typical day for range calculations
+    }
     let cost = 0;
     this._energyData.forEach((kwh, hour) => {
       cost += kwh * this._getRate(hour, dow);
@@ -1623,7 +1683,10 @@ async _drawComparisonChart() {
   _calculatePotentialSavings() {
     const mode = this._config.energy_tariff_mode || 'flat';
     if (mode === 'flat') return 0;
-    const dow = new Date().getDay();
+    let dow = new Date().getDay();
+    if (this._timeRange !== 'today') {
+      dow = 2; // Use Wednesday as typical day for range calculations
+    }
     const nightStart = this._config.energy_night_hour_start || 22;
     const dayStart = this._config.energy_day_hour_start || 6;
     let savings = 0;

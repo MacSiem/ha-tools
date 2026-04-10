@@ -385,7 +385,7 @@ class HAToolsPanel extends HTMLElement {
       { id: 'sentence-manager', group: 'advanced-tools', name: 'Sentence Manager', icon: '\u{1F5E3}\uFE0F', tag: 'ha-sentence-manager', desc: 'Zarządzaj zdaniami głosowymi', repo: 'MacSiem/ha-sentence-manager', category: 'system' },
       { id: 'home-family', name: 'Home & Family', icon: '\u{1F3E1}', tag: null, desc: 'Dom i rodzina', category: 'life' },
       { id: 'chore-tracker', group: 'home-family', name: 'Chore Tracker', icon: '\u{1F3E0}', tag: 'ha-chore-tracker', desc: 'Śledzenie obowiązków domowych', repo: 'MacSiem/ha-chore-tracker', category: 'life' },
-      { id: 'baby-tracker', group: 'home-family', name: 'Baby Tracker', icon: '\u{1F37C}', tag: 'ha-baby-tracker', desc: 'Śledzenie aktywności dziecka', repo: 'MacSiem/ha-baby-tracker', category: 'life' },
+      { id: 'baby-tracker', group: 'home-family', name: 'Baby and Lactation Tracker', icon: '\u{1F37C}', tag: 'ha-baby-tracker', desc: 'Śledzenie aktywności dziecka i laktacji', repo: 'MacSiem/ha-baby-tracker', category: 'life' },
       { id: 'data-exporter', group: 'advanced-tools', name: 'Data Exporter', icon: '\u{1F4E4}', tag: 'ha-data-exporter', desc: 'Eksportuj dane z Home Assistant', repo: 'MacSiem/ha-data-exporter', category: 'system' },
       { id: 'storage-monitor', group: 'device-health', name: 'Storage Monitor', icon: '\u{1F4BD}', tag: 'ha-storage-monitor', desc: 'Wizualizacja użycia dysku w stylu WinDirStat', repo: 'MacSiem/ha-storage-monitor', category: 'system' },
       { id: 'security-check', group: 'device-health', name: 'Security Check', icon: '\u{1F6E1}\uFE0F', tag: 'ha-security-check', desc: 'Audyt bezpieczeństwa Home Assistant', repo: 'MacSiem/ha-security-check', category: 'system' },
@@ -1668,7 +1668,7 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="tip-card">
               <div class="tip-icon">\u{1F476}</div>
-              <div class="tip-text"><strong>Baby Tracker</strong><br>\u015Aledź karmienie, sen i pieluchy \u2014 statystyki i wykresy aktywno\u015Bci dziecka.</div>
+              <div class="tip-text"><strong>Baby and Lactation Tracker</strong><br>\u015Aledź karmienie, laktację, sen i pieluchy \u2014 statystyki i wykresy aktywności dziecka.</div>
             </div>
           </div>
         </div>

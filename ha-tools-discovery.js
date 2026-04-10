@@ -24,7 +24,7 @@
     { id: 'energy-optimizer',    name: 'Energy Optimizer',    icon: '\u26A1',    tag: 'ha-energy-optimizer',    repo: 'MacSiem/ha-energy-optimizer',    category: 'monitor', desc: 'Optymalizuj zu\u017cycie energii', standalone: true },
     { id: 'sentence-manager',    name: 'Sentence Manager',    icon: '\u{1F5E3}\uFE0F', tag: 'ha-sentence-manager', repo: 'MacSiem/ha-sentence-manager', category: 'system',  desc: 'Zdania g\u0142osowe HA' },
     { id: 'chore-tracker',       name: 'Chore Tracker',       icon: '\u{1F3E0}', tag: 'ha-chore-tracker',       repo: 'MacSiem/ha-chore-tracker',       category: 'life',    desc: '\u015bledzenie obowi\u0105zk\u00f3w domowych' },
-    { id: 'baby-tracker',        name: 'Baby Tracker',        icon: '\u{1F37C}', tag: 'ha-baby-tracker',        repo: 'MacSiem/ha-baby-tracker',        category: 'life',    desc: 'Aktywno\u015b\u0107 dziecka' },
+    { id: 'baby-tracker',        name: 'Baby and Lactation Tracker', icon: '\u{1F37C}', tag: 'ha-baby-tracker',        repo: 'MacSiem/ha-baby-tracker',        category: 'life',    desc: 'Aktywno\u015b\u0107 dziecka i laktacja' },
     { id: 'cry-analyzer',        name: 'Cry Analyzer',        icon: '\u{1F476}', tag: 'ha-cry-analyzer',        repo: 'MacSiem/ha-cry-analyzer',        category: 'life',    desc: 'Analiza p\u0142aczu AI' },
     { id: 'data-exporter',       name: 'Data Exporter',       icon: '\u{1F4E4}', tag: 'ha-data-exporter',       repo: 'MacSiem/ha-data-exporter',       category: 'system',  desc: 'Eksportuj dane HA' },
     { id: 'storage-monitor',     name: 'Storage Monitor',     icon: '\u{1F4BD}', tag: 'ha-storage-monitor',     repo: 'MacSiem/ha-storage-monitor',     category: 'system',  desc: 'Wizualizacja u\u017cycia dysku' },
