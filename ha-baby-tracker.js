@@ -1209,7 +1209,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
 
         <!-- Feeding Tab -->
-        ${this.selectedTab === 'feeding' ? `
+        <div class="tab-pane" id="feeding-tab" style="display:${this.selectedTab === 'feeding' ? 'block' : 'none'}">
         <div class="section-block" style="margin-bottom:16px">
         <h3 style="margin:0 0 12px;font-size:15px">👶 Dzieci</h3>
         <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
@@ -1262,16 +1262,18 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <div id="feedingList"></div>
           </div>
         </div>
-        ` : ''}
+        </div>
+        
 
         <!-- Lactation Tab -->
-        ${this.selectedTab === 'lactation' ? `
+        <div class="tab-pane" id="lactation-tab" style="display:${this.selectedTab === 'lactation' ? 'block' : 'none'}">
         <div class="tab-content active">
           <h3 style="margin:0 0 16px;font-size:15px;font-weight:600">🤱 ${this._lang === 'pl' ? 'Śledzenie laktacji' : 'Lactation Tracking'}</h3>
 
           <div class="form-group">
             <label class="form-label">${this._lang === 'pl' ? 'Typ' : 'Type'}</label>
             <select id="lactationType">
+              <option value="breastfeed">${this._lang === 'pl' ? 'Karmienie piersi\u0105' : 'Breastfeeding'}</option>
               <option value="pump">${this._lang === 'pl' ? 'Odciąganie' : 'Pumping'}</option>
               <option value="manual">${this._lang === 'pl' ? 'Ręczne odciąganie' : 'Hand Expression'}</option>
               <option value="supplement">${this._lang === 'pl' ? 'Suplementacja' : 'Supplementation'}</option>
@@ -1329,10 +1331,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <div id="lactationList"></div>
           </div>
         </div>
-        ` : ''}
+        </div>
+        
 
         <!-- Diapers Tab -->
-        ${this.selectedTab === 'diapers' ? `
+        <div class="tab-pane" id="diapers-tab" style="display:${this.selectedTab === 'diapers' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="form-group">
             <label class="form-label">Type</label>
@@ -1373,10 +1376,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <div id="diapersLis"></div>
           </div>
         </div>
-        ` : ''}
+        </div>
+        
 
         <!-- Sleep Tab -->
-        ${this.selectedTab === 'sleep' ? `
+        <div class="tab-pane" id="sleep-tab" style="display:${this.selectedTab === 'sleep' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="timer-display">
             <div class="timer-value" id="timerDisplay">00:00</div>
@@ -1412,10 +1416,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <div id="sleepList"></div>
           </div>
         </div>
-        ` : ''}
+        </div>
+        
 
         <!-- Growth Tab -->
-        ${this.selectedTab === 'growth' ? `
+        <div class="tab-pane" id="growth-tab" style="display:${this.selectedTab === 'growth' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="form-row">
             <div class="form-group">
@@ -1447,10 +1452,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: 600;">Measurements</h3>
           <div id="growthList"></div>
         </div>
-        ` : ''}
+        </div>
+        
 
         <!-- Config Tab -->
-        ${this.selectedTab === 'config' ? `
+        <div class="tab-pane" id="config-tab" style="display:${this.selectedTab === 'config' ? 'block' : 'none'}">
         <div class="tab-content active">
           <div class="config-section">
             <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">Custom Sentences</h3>
@@ -1533,7 +1539,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             </div>
           </div>
         </div>
-        ` : ''}
+        </div>
+        
 
         <div class="export-section">
           <button class="btn-secondary" id="exportBtn">📥 Export Data (JSON)</button>
@@ -1585,7 +1592,17 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
         this.selectedTab = e.target.closest('[data-tab]').dataset.tab;
-        this.renderCard();
+        // Toggle button active states
+        shadowRoot.querySelectorAll('.tab-button').forEach(b => {
+          b.classList.toggle('active', b.dataset.tab === this.selectedTab);
+        });
+        // Toggle tab pane visibility
+        ['feeding', 'lactation', 'diapers', 'sleep', 'growth', 'config'].forEach(t => {
+          const el = shadowRoot.getElementById(t + '-tab');
+          if (el) el.style.display = t === this.selectedTab ? 'block' : 'none';
+        });
+        // Refresh data for visible tab
+        this._updateTabData(this.selectedTab);
       });
     });
 
@@ -1681,7 +1698,31 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     }
 
     const baby = this.getCurrentBaby();
-    const feeding = { type, time, amount, notes, timestamp: Date.now() };
+    const ts = Date.now();
+    const feeding = { type, time, amount, notes, timestamp: ts };
+
+    // Auto-link breast feeding to lactation
+    if (type === 'breast') {
+      const linkId = 'link_' + ts;
+      feeding.linkedId = linkId;
+      // Parse duration from amount field (e.g. "15 min" -> 15)
+      const durMatch = amount.match(/(\d+)\s*min/i);
+      const duration = durMatch ? parseInt(durMatch[1]) : parseInt(amount) || 0;
+      const lactEntry = {
+        type: 'breastfeed',
+        time,
+        side: 'both',
+        duration,
+        amount: 0,
+        notes: (this._lang === 'pl' ? 'Auto z karmienia' : 'Auto from feeding') + (notes ? ' — ' + notes : ''),
+        date: new Date().toISOString().slice(0,10),
+        ts,
+        linkedId: linkId
+      };
+      if (!this.lactationData.has(baby)) this.lactationData.set(baby, []);
+      this.lactationData.get(baby).unshift(lactEntry);
+    }
+
     this.feedingData.get(baby).push(feeding);
     this._saveData();
 
@@ -1837,7 +1878,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${f.time}</div>
-          <div class="list-item-title">${icons[f.type]} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)}</div>
+          <div class="list-item-title">${icons[f.type]} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)}${f.linkedId ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${f.amount}${f.notes ? ' • ' + f.notes : ''}</div>
         </div>
       </div>
@@ -2266,12 +2307,31 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const currentBaby = this.getCurrentBaby();
     if (!this.lactationData.has(currentBaby)) this.lactationData.set(currentBaby, []);
 
-    const entry = { type, time, side, duration, amount, notes, date: new Date().toISOString().slice(0,10), ts: Date.now() };
+    const ts = Date.now();
+    const entry = { type, time, side, duration, amount, notes, date: new Date().toISOString().slice(0,10), ts };
+
+    // Auto-link breastfeed to feeding tab
+    if (type === 'breastfeed') {
+      const linkId = 'link_' + ts;
+      entry.linkedId = linkId;
+      if (!this.feedingData.has(currentBaby)) this.feedingData.set(currentBaby, []);
+      const feedEntry = {
+        type: 'breast',
+        time,
+        amount: duration ? duration + ' min' : '',
+        notes: (this._lang === 'pl' ? 'Auto z laktacji' : 'Auto from lactation') + (notes ? ' \u2014 ' + notes : ''),
+        timestamp: ts,
+        linkedId: linkId
+      };
+      this.feedingData.get(currentBaby).push(feedEntry);
+    }
+
     this.lactationData.get(currentBaby).unshift(entry);
 
     this._saveData();
     this.clearLactationForm();
     this.updateLactationDisplay();
+    if (type === 'breastfeed') this.updateAllDisplays();
   }
 
   clearLactationForm() {
@@ -2300,14 +2360,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     const L = this._lang === 'pl';
     const sideLabels = { left: L ? 'Lewa' : 'Left', right: L ? 'Prawa' : 'Right', both: L ? 'Obie' : 'Both' };
-    const typeLabels = { pump: L ? 'Odciąganie' : 'Pumping', manual: L ? 'Ręczne' : 'Hand Expr.', supplement: L ? 'Suplement' : 'Supplement' };
+    const typeLabels = { breastfeed: L ? 'Karmienie piersi\u0105' : 'Breastfeeding', pump: L ? 'Odci\u0105ganie' : 'Pumping', manual: L ? 'R\u0119czne' : 'Hand Expr.', supplement: L ? 'Suplement' : 'Supplement' };
 
     listEl.innerHTML = entries.slice(0, 20).map(e => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
         <div>
-          <strong>${typeLabels[e.type] || e.type}</strong> — ${sideLabels[e.side] || e.side}
-          ${e.duration ? ` • ${e.duration} min` : ''}
-          ${e.amount ? ` • ${e.amount} ml` : ''}
+          <strong>${typeLabels[e.type] || e.type}</strong>${e.linkedId ? ' \uD83D\uDD17' : ''} — ${sideLabels[e.side] || e.side}
+          ${e.duration ? ` \u2022 ${e.duration} min` : ''}
+          ${e.amount ? ` \u2022 ${e.amount} ml` : ''}
           <div style="font-size:11px;color:var(--bento-text-secondary,#64748b)">${e.notes || ''}</div>
         </div>
         <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${e.time} ${e.date !== today ? e.date : ''}</div>
