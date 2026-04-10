@@ -1631,6 +1631,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
   }
 
+  disconnectedCallback() {
+    // Clear render scheduling flag to prevent orphaned setTimeout calls
+    this._renderScheduled = false;
+  }
+
 }
 
 if (!customElements.get('ha-chore-tracker')) customElements.define('ha-chore-tracker', HaChoreTracker);

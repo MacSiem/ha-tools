@@ -2336,6 +2336,11 @@ class HAVacuumWaterMonitor extends HTMLElement {
     s.async = true; s.onload = _inj;
     document.head.appendChild(s);
   }
+
+  disconnectedCallback() {
+    // Clear render scheduling flag to prevent orphaned setTimeout calls
+    this._renderScheduled = false;
+  }
 }
 
 if (!customElements.get('ha-vacuum-water-monitor')) customElements.define('ha-vacuum-water-monitor', HAVacuumWaterMonitor);

@@ -1257,6 +1257,10 @@ class HaEnergyOptimizer extends HTMLElement {
   async _drawDashboardChart() {
     try {
       await this._loadChartJS();
+      if (!window.Chart) {
+        console.warn('ha-energy-optimizer: Chart.js not loaded');
+        return;
+      }
       const canvas = this.shadowRoot.getElementById('dashboard-chart');
       if (!canvas) return;
 
@@ -1414,6 +1418,10 @@ _drawHeatmap() {
   async _drawTrendChart() {
     try {
       await this._loadChartJS();
+      if (!window.Chart) {
+        console.warn('ha-energy-optimizer: Chart.js not loaded');
+        return;
+      }
       const canvas = this.shadowRoot.getElementById('trend-chart');
       if (!canvas) return;
 
@@ -1484,6 +1492,10 @@ _drawHeatmap() {
 async _drawWeekdayChart() {
     try {
       await this._loadChartJS();
+      if (!window.Chart) {
+        console.warn('ha-energy-optimizer: Chart.js not loaded');
+        return;
+      }
       const canvas = this.shadowRoot.getElementById('weekday-chart');
       if (!canvas) return;
 
@@ -1565,6 +1577,10 @@ async _drawWeekdayChart() {
 async _drawComparisonChart() {
     try {
       await this._loadChartJS();
+      if (!window.Chart) {
+        console.warn('ha-energy-optimizer: Chart.js not loaded');
+        return;
+      }
       const canvas = this.shadowRoot.getElementById('comparison-chart');
       if (!canvas) return;
       this._destroyChart('comparison');
@@ -1612,6 +1628,10 @@ async _drawComparisonChart() {
   async _drawTrendBarChart() {
     try {
       await this._loadChartJS();
+      if (!window.Chart) {
+        console.warn('ha-energy-optimizer: Chart.js not loaded');
+        return;
+      }
       const canvas = this.shadowRoot.getElementById('trend-bar-chart');
       if (!canvas) return;
       this._destroyChart('trendBar');

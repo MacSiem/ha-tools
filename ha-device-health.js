@@ -1773,7 +1773,8 @@ ${style}
   }
 
   disconnectedCallback() {
-    // Cleanup any active event listeners or timers
+    // Clear render scheduling flag to prevent orphaned setTimeout calls
+    this._renderScheduled = false;
   }
 }
 

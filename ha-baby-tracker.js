@@ -2598,6 +2598,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     }
   }
 
+  disconnectedCallback() {
+    if (this._bfTimer) { clearInterval(this._bfTimer); this._bfTimer = null; }
+    if (this.sleepTimer) { clearInterval(this.sleepTimer); this.sleepTimer = null; }
+  }
+
 }
 
 if (!customElements.get('ha-baby-tracker')) { customElements.define('ha-baby-tracker', HaBabyTracker); }

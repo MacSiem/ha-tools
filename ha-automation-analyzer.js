@@ -1899,7 +1899,19 @@ ${styles}
   }
 
   disconnectedCallback() {
-    // Cleanup any active event listeners or timers
+    // Clear all Map objects to prevent memory leaks
+    this.automationStats.clear();
+    this.automationHistory.clear();
+    this.automationTraces.clear();
+    this.triggerTypes.clear();
+    this.failedAutomations.clear();
+    this._apiCache.clear();
+    this._cacheTimestamps.clear();
+    // Destroy Chart.js instances
+    Object.values(this._charts).forEach(chart => {
+      if (chart && typeof chart.destroy === 'function') chart.destroy();
+    });
+    this._charts = {};
   }
 }
 

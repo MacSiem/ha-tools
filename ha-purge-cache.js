@@ -932,6 +932,11 @@ class HAPurgeCache extends HTMLElement {
       this.dispatchEvent(ev);
     } catch (e) { /* ignore */ }
   }
+
+  disconnectedCallback() {
+    // Clear pending confirmation to prevent orphaned callbacks
+    this._pendingConfirm = null;
+  }
 }
 
 if (!customElements.get('ha-purge-cache')) {
