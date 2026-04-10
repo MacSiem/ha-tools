@@ -1193,8 +1193,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
 
         <!-- Board Tab -->
-        ${this.activeTab === 'board' ? `
-        <div class="tab-content active" id="board-tab">
+        <div class="tab-content${this.activeTab === 'board' ? ' active' : ''}" id="board-tab" style="display:${this.activeTab === 'board' ? 'block' : 'none'}">
           <div class="add-form">
             <div class="form-group full">
               <label>Chore Name</label>
@@ -1250,29 +1249,32 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="board" id="board">
             <div class="column" data-status="todo">
               <div class="column-header">
-                <span>📝 To Do</span>
+                <span>\uD83D\uDCDD To Do</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="in-progress">
               <div class="column-header">
-                <span>⏳ In Progress</span>
+                <span>\u23F3 In Progress</span>
                 <div class="column-count">0</div>
               </div>
             </div>
             <div class="column" data-status="done">
               <div class="column-header">
-                <span>✅ Done</span>
+                <span>\u2705 Done</span>
                 <div class="column-count">0</div>
               </div>
             </div>
           </div>
+          <div id="empty-board" class="empty-state" style="display:none;">
+            <div class="empty-icon">\uD83D\uDCCB</div>
+            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">${L ? 'Brak zada\u0144' : 'No chores yet'}</h3>
+            <p style="margin:0 0 16px;max-width:280px;">${L ? 'Dodaj pierwsze zadanie u\u017Cywaj\u0105c formularza powy\u017Cej.' : 'Add your first chore using the form above.'}</p>
+          </div>
         </div>
-        ` : ''}
 
         <!-- Schedule Tab -->
-        ${this.activeTab === 'schedule' ? `
-        <div class="tab-content active" id="schedule-tab">
+        <div class="tab-content${this.activeTab === 'schedule' ? ' active' : ''}" id="schedule-tab" style="display:${this.activeTab === 'schedule' ? 'block' : 'none'}">
           <div class="schedule" id="schedule"></div>
           <div id="empty-schedule" class="empty-state" style="display:none;">
             <div class="empty-icon">📅</div>
@@ -1280,11 +1282,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <p style="margin:0 0 16px;max-width:280px;">Add chores with assigned days to see your weekly schedule here.</p>
           </div>
         </div>
-        ` : ''}
 
         <!-- Stats Tab -->
-        ${this.activeTab === 'stats' ? `
-        <div class="tab-content active" id="stats-tab">
+        <div class="tab-content${this.activeTab === 'stats' ? ' active' : ''}" id="stats-tab" style="display:${this.activeTab === 'stats' ? 'block' : 'none'}">
           <div class="stats-container" id="stats-container"></div>
           <div class="leaderboard" id="leaderboard"></div>
           <div id="empty-stats" class="empty-state" style="display:none;">
@@ -1293,11 +1293,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <p style="margin:0 0 16px;max-width:280px;">Complete some chores and check back — your productivity stats will appear here.</p>
           </div>
         </div>
-        ` : ''}
 
         <!-- Settings Tab -->
-        ${this.activeTab === 'settings' ? `
-        <div class="tab-content active" id="settings-tab">
+        <div class="tab-content${this.activeTab === 'settings' ? ' active' : ''}" id="settings-tab" style="display:${this.activeTab === 'settings' ? 'block' : 'none'}">
           <div style="padding:20px;">
             <h3 style="margin:0 0 16px;font-size:16px;color:var(--bento-text,#333);">⚙️ ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</h3>
             <div class="empty-state">
@@ -1306,7 +1304,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             </div>
           </div>
         </div>
-        ` : ''}
       </div>
     `;
 
@@ -1344,9 +1341,22 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   switchTab(tabName) {
     if (!tabName) return;
     this.activeTab = tabName;
-    this._domBuilt = false;
-    this._lastHtml = '';
-    this._render();
+    // Toggle tab buttons
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    // Toggle tab content visibility
+    ['board', 'schedule', 'stats', 'settings'].forEach(t => {
+      const el = this.shadowRoot.getElementById(t + '-tab');
+      if (el) {
+        el.style.display = t === tabName ? 'block' : 'none';
+        el.classList.toggle('active', t === tabName);
+      }
+    });
+    // Refresh data for visible tab
+    if (tabName === 'board') this.updateBoard();
+    if (tabName === 'schedule') this.updateSchedule();
+    if (tabName === 'stats') this.updateStats();
   }
 
   addChore() {
@@ -1438,6 +1448,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       column.insertAdjacentHTML('beforeend', cardsHtml);
     });
+    // Toggle empty state
+    const emptyBoard = this.shadowRoot.getElementById('empty-board');
+    const boardEl = this.shadowRoot.getElementById('board');
+    if (emptyBoard) emptyBoard.style.display = this.chores.length === 0 ? 'block' : 'none';
+    if (boardEl) boardEl.style.display = this.chores.length === 0 ? 'none' : 'grid';
   }
 
   updateSchedule() {
