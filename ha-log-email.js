@@ -442,7 +442,15 @@ class HALogEmail extends HTMLElement {
       }
       if (errors.length === 0 && warnings.length === 0) body += '<p style="color:#10b981">System czysty.</p>';
       body += '<hr><p style="font-size:11px;color:#999">HA Tools Log Email</p>';
-      await this._hass.callService('notify', smtp.defaultService, { title: subject, message: body, data: { html: body } });
+      const svcData = { title: subject, message: body, data: { html: body } };
+      // Parse comma-separated recipients from config
+      if (this._config.email_recipient) {
+        const recipients = this._config.email_recipient.split(',').map(r => r.trim()).filter(r => r && r.includes('@'));
+        if (recipients.length > 0) {
+          svcData.target = recipients;
+        }
+      }
+      await this._hass.callService('notify', smtp.defaultService, svcData);
       this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     } catch (err) {
       this._sendStatus = { status: 'error', period, error: (err.message || 'Unknown error') + ' — Sprawdz konfiguracje SMTP w configuration.yaml i przetestuj usluge notify w Narzedzia deweloperskie > Uslugi.' };

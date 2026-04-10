@@ -517,9 +517,9 @@ class HAPurgeCache extends HTMLElement {
 
         /* Actions */
         .actions-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-          gap: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
           margin-bottom: 20px;
           box-sizing: border-box;
           max-width: 100%;

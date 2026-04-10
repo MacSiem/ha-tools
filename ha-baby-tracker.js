@@ -68,7 +68,7 @@ class HaBabyTracker extends HTMLElement {
   get _t() {
     const T = {
       pl: {
-        title: 'Dziennik Niemowlęcia',
+        title: 'Dziennik Niemowlęcia i Laktacji',
         loading: 'Wczytywanie...',
         noData: 'Brak danych',
         error: 'Błąd',
@@ -77,9 +77,23 @@ class HaBabyTracker extends HTMLElement {
         cancel: 'Anuluj',
         remove: 'Usu\u0144',
         locale: 'pl-PL',
+        breastfeeding: 'Karmienie piersi\u0105',
+        leftBreast: 'Lewa pierś',
+        rightBreast: 'Prawa pierś',
+        startTimer: 'Start',
+        stopTimer: 'Stop',
+        switchBreast: 'Zmień pierś',
+        duration: 'Czas trwania',
+        sleepFrom: 'Sen od',
+        sleepTo: 'Sen do',
+        startSleep: 'Zacznij sen',
+        endSleep: 'Koniec snu',
+        sleepDuration: 'Czas snu',
+        addChild: 'Dodaj dziecko',
+        saveNames: 'Zapisz nazwy',
       },
       en: {
-        title: 'Baby Tracker',
+        title: 'Baby and Lactation Tracker',
         loading: 'Loading...',
         noData: 'No data',
         error: 'Error',
@@ -88,6 +102,20 @@ class HaBabyTracker extends HTMLElement {
         cancel: 'Cancel',
         remove: 'Remove',
         locale: 'en-US',
+        breastfeeding: 'Breastfeeding',
+        leftBreast: 'Left Breast',
+        rightBreast: 'Right Breast',
+        startTimer: 'Start',
+        stopTimer: 'Stop',
+        switchBreast: 'Switch',
+        duration: 'Duration',
+        sleepFrom: 'Sleep From',
+        sleepTo: 'Sleep To',
+        startSleep: 'Start Sleep',
+        endSleep: 'End Sleep',
+        sleepDuration: 'Sleep Duration',
+        addChild: 'Add Child',
+        saveNames: 'Save Names',
       },
     };
     return T[this._lang] || T.en;
@@ -155,6 +183,11 @@ class HaBabyTracker extends HTMLElement {
     this.growthData = new Map();
     this.sleepTimer = null;
     this.sleepStartTime = null;
+    // Breastfeeding timer state
+    this._bfTimer = null;
+    this._bfCurrentSide = null;
+    this._bfStartTime = null;
+    this._bfSessions = [];
     this.babies = this._loadChildren();
     this.selectedBaby = 0;
     this.initializeDataStructures();
@@ -170,7 +203,8 @@ class HaBabyTracker extends HTMLElement {
         lactation: {},
         diapers: {},
         sleep: {},
-        growth: {}
+        growth: {},
+        breastfeeding: this._bfSessions || []
       };
       this.feedingData.forEach((v, k) => { data.feeding[k] = v; });
       this.lactationData.forEach((v, k) => { data.lactation[k] = v; });
@@ -191,6 +225,7 @@ class HaBabyTracker extends HTMLElement {
       if (data.diapers) Object.entries(data.diapers).forEach(([k, v]) => { this.diapersData.set(k, v); });
       if (data.sleep) Object.entries(data.sleep).forEach(([k, v]) => { this.sleepData.set(k, v); });
       if (data.growth) Object.entries(data.growth).forEach(([k, v]) => { this.growthData.set(k, v); });
+      if (data.breastfeeding) this._bfSessions = data.breastfeeding;
     } catch (e) { console.warn('Baby Tracker: load failed', e); }
   }
 
@@ -240,6 +275,9 @@ class HaBabyTracker extends HTMLElement {
       if (!this.feedingData.has(babyName)) {
         this.feedingData.set(babyName, []);
       }
+      if (!this.lactationData.has(babyName)) {
+        this.lactationData.set(babyName, []);
+      }
       if (!this.diapersData.has(babyName)) {
         this.diapersData.set(babyName, []);
       }
@@ -251,6 +289,7 @@ class HaBabyTracker extends HTMLElement {
       }
     });
     this._loadData();
+    if (!this._bfSessions) this._bfSessions = [];
   }
 
   renderCard() {
@@ -262,7 +301,7 @@ class HaBabyTracker extends HTMLElement {
     }
     if (this.selectedBaby >= this.babies.length) this.selectedBaby = 0;
     if (!this.selectedTab) this.selectedTab = 'feeding';
-    const title = this.config.title || 'Baby & Mom Tracker';
+    const title = this.config.title || this._t.title;
     const currentBaby = this.babies[this.selectedBaby].name;
 
     const html = `
@@ -1226,6 +1265,28 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 Zapisz nazwy</button>
         </div>
       </div>
+
+      <!-- Breastfeeding Timer Section -->
+      <div class="section-block" style="margin-bottom:16px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:8px;padding:16px">
+        <h3 style="margin:0 0 16px;font-size:15px;font-weight:600">\u{1F4CA} ${this._lang === 'pl' ? 'Karmienie piersi\u0105' : 'Breastfeeding'}</h3>
+
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="bf-breast-btn" data-side="left" style="flex:1;padding:12px 16px;border:2px solid var(--bento-border);background:var(--bento-card);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px" title="${this._t.leftBreast}">
+            \u{1F452} ${this._lang === 'pl' ? 'Lewa' : 'Left'}
+          </button>
+          <button class="bf-breast-btn" data-side="right" style="flex:1;padding:12px 16px;border:2px solid var(--bento-border);background:var(--bento-card);border-radius:8px;font-weight:600;cursor:pointer;font-size:14px" title="${this._t.rightBreast}">
+            \u{1F452} ${this._lang === 'pl' ? 'Prawa' : 'Right'}
+          </button>
+        </div>
+
+        <div class="bf-timer-display" style="background:var(--bento-bg);border:2px solid var(--bento-border);border-radius:8px;padding:16px;text-align:center;margin-bottom:16px">
+          <div style="font-size:32px;font-weight:700;font-family:monospace;letter-spacing:2px;color:var(--bento-primary);margin-bottom:8px" id="bfTimerDisplay">00:00</div>
+          <div style="font-size:12px;color:var(--bento-text-secondary);font-weight:600;text-transform:uppercase" id="bfTimerLabel">Ready</div>
+        </div>
+
+        <div id="bfSessionsList" style="margin-top:12px;font-size:12px"></div>
+      </div>
+
       <div class="tab-content active">
           <div class="form-group">
             <label class="form-label">Type</label>
@@ -1382,37 +1443,46 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <!-- Sleep Tab -->
         <div class="tab-pane" id="sleep-tab" style="display:${this.selectedTab === 'sleep' ? 'block' : 'none'}">
         <div class="tab-content active">
-          <div class="timer-display">
-            <div class="timer-value" id="timerDisplay">00:00</div>
-            <div class="timer-label" id="timerLabel">Sleep Timer</div>
+          <h3 style="margin:0 0 16px;font-size:15px;font-weight:600">\ud83d\ude34 ${this._lang === 'pl' ? 'Sen niemowlęcia' : 'Baby Sleep'}</h3>
+
+          <!-- Sleep Timer Section -->
+          <div class="section-block" style="margin-bottom:16px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:8px;padding:16px">
+            <h4 style="margin:0 0 12px;font-size:13px;font-weight:600;text-transform:uppercase;color:var(--bento-text-secondary)">${this._lang === 'pl' ? 'Aktywny sen' : 'Active Sleep'}</h4>
+            <div class="sleep-timer-display" style="background:var(--bento-bg);border:2px solid var(--bento-primary);border-radius:8px;padding:16px;text-align:center;margin-bottom:16px">
+              <div style="font-size:36px;font-weight:700;font-family:monospace;letter-spacing:2px;color:var(--bento-primary);margin-bottom:8px" id="sleepTimerDisplay">00:00:00</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary);font-weight:600" id="sleepTimerStatus">${this._lang === 'pl' ? 'Sen nie jest aktywny' : 'Sleep not active'}</div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="btn-primary" id="startSleepBtn" style="flex:1">${this._lang === 'pl' ? '\u2705 Zacznij sen' : '\u2705 Start Sleep'}</button>
+              <button class="btn-danger" id="stopSleepBtn" style="flex:1;display:none">${this._lang === 'pl' ? '\u274c Koniec snu' : '\u274c End Sleep'}</button>
+            </div>
+            <div id="sleepTimerLastSession" style="font-size:12px;color:var(--bento-text-secondary);text-align:center"></div>
           </div>
 
-          <div class="button-group">
-            <button class="btn-primary" id="startSleepBtn">Start Timer</button>
-            <button class="btn-danger" id="stopSleepBtn">Stop & Log</button>
-          </div>
-
-          <div style="margin-top: 20px;">
-            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Manual Entry</h3>
+          <!-- Manual Entry Section -->
+          <div style="margin-bottom:16px">
+            <h4 style="margin:0 0 12px;font-size:13px;font-weight:600;text-transform:uppercase;color:var(--bento-text-secondary)">${this._lang === 'pl' ? 'Wpis ręczny' : 'Manual Entry'}</h4>
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Duration (minutes)</label>
-                <input type="number" id="sleepDuration" placeholder="e.g., 45" min="1">
+                <label class="form-label">${this._lang === 'pl' ? 'Sen od' : 'Sleep From'}</label>
+                <input type="datetime-local" id="sleepFromTime">
               </div>
               <div class="form-group">
-                <label class="form-label">Date</label>
-                <input type="date" id="sleepDate">
+                <label class="form-label">${this._lang === 'pl' ? 'Sen do' : 'Sleep To'}</label>
+                <input type="datetime-local" id="sleepToTime">
               </div>
             </div>
-            <button class="btn-primary" id="addSleepBtn">Log Sleep</button>
+            <button class="btn-primary" id="addSleepBtn" style="width:100%">${this._lang === 'pl' ? 'Dodaj sen' : 'Log Sleep'}</button>
           </div>
 
-          <div style="margin-top: 20px;">
-            <div class="stat-card" style="grid-column: 1 / -1;">
+          <!-- Sleep Summary -->
+          <div style="margin-top:20px">
+            <div class="stat-card" style="grid-column:1/-1;margin-bottom:16px">
               <div class="stat-value" id="totalSleep">0h 0m</div>
-              <div class="stat-label">Total Sleep Today</div>
+              <div class="stat-label">${this._lang === 'pl' ? 'Całkowity sen dzisiaj' : 'Total Sleep Today'}</div>
             </div>
-            <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: 600;">Sleep Log</h3>
+            <h3 style="margin:0 0 12px;font-size:16px;font-weight:600">${this._lang === 'pl' ? 'Historia snu' : 'Sleep Log'}</h3>
             <div id="sleepList"></div>
           </div>
         </div>
@@ -1608,6 +1678,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
     shadowRoot.getElementById('addFeedingBtn')?.addEventListener('click', () => this.addFeeding());
     shadowRoot.getElementById('clearFeedingBtn')?.addEventListener('click', () => this.clearFeedingForm());
+
+    // Breastfeeding timers
+    shadowRoot.querySelectorAll('.bf-breast-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => this.toggleBreastfeedingTimer(e.target.closest('[data-side]').dataset.side));
+    });
+
     shadowRoot.getElementById('addLactationBtn')?.addEventListener('click', () => this.addLactation());
     shadowRoot.getElementById('clearLactationBtn')?.addEventListener('click', () => this.clearLactationForm());
     shadowRoot.getElementById('addDiapersBtn')?.addEventListener('click', () => this.addDiapers());
@@ -1671,15 +1747,24 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const now = new Date();
     const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const dateString = now.toISOString().split('T')[0];
+    const dateTimeString = now.toISOString().slice(0, 16);
 
     const ft = this.shadowRoot.getElementById('feedingTime');
     const dt = this.shadowRoot.getElementById('diapersTime');
     const sd = this.shadowRoot.getElementById('sleepDate');
     const gd = this.shadowRoot.getElementById('growthDate');
+    const sft = this.shadowRoot.getElementById('sleepFromTime');
+    const stt = this.shadowRoot.getElementById('sleepToTime');
+
     if (ft) ft.value = timeString;
     if (dt) dt.value = timeString;
     if (sd) sd.value = dateString;
     if (gd) gd.value = dateString;
+    if (sft && !sft.value) sft.value = dateTimeString;
+    if (stt && !stt.value) {
+      const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+      stt.value = oneHourLater.toISOString().slice(0, 16);
+    }
   }
 
   getCurrentBaby() {
@@ -1770,21 +1855,28 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   startSleepTimer() {
     if (this.sleepTimer) return;
     this.sleepStartTime = Date.now();
-    this.sleepTimer = setInterval(() => this.updateTimerDisplay(), 100);
+    this.sleepTimer = setInterval(() => this.updateSleepTimerDisplay(), 100);
+    const _ssb = this.shadowRoot.getElementById('startSleepBtn');
+    const _stb = this.shadowRoot.getElementById('stopSleepBtn');
+    if (_ssb) _ssb.style.display = 'none';
+    if (_stb) _stb.style.display = 'block';
+    this.updateSleepTimerDisplay();
   }
 
   stopSleepTimer() {
     if (!this.sleepTimer) return;
     clearInterval(this.sleepTimer);
-    const duration = Math.round((Date.now() - this.sleepStartTime) / 60000);
+    const sleepEndTime = Date.now();
+    const durationMinutes = Math.round((sleepEndTime - this.sleepStartTime) / 60000);
     this.sleepTimer = null;
-    this.sleepStartTime = null;
 
-    if (duration > 0) {
+    if (durationMinutes > 0) {
       const baby = this.getCurrentBaby();
       const now = new Date();
       const sleep = {
-        duration,
+        startTime: this.sleepStartTime,
+        endTime: sleepEndTime,
+        duration: durationMinutes,
         date: now.toISOString().split('T')[0],
         timestamp: Date.now()
       };
@@ -1792,25 +1884,47 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       this._saveData();
       this.updateAllDisplays();
     }
-    this.updateTimerDisplay();
+    this.sleepStartTime = null;
+    const _ssb = this.shadowRoot.getElementById('startSleepBtn');
+    const _stb = this.shadowRoot.getElementById('stopSleepBtn');
+    if (_ssb) _ssb.style.display = 'block';
+    if (_stb) _stb.style.display = 'none';
+    this.updateSleepTimerDisplay();
   }
 
   addManualSleep() {
-    const duration = parseInt(this.shadowRoot.getElementById('sleepDuration').value);
-    const date = this.shadowRoot.getElementById('sleepDate').value;
+    const sleepFromStr = this.shadowRoot.getElementById('sleepFromTime').value;
+    const sleepToStr = this.shadowRoot.getElementById('sleepToTime').value;
 
-    if (!duration || !date) {
-      alert('Please fill in duration and date');
+    if (!sleepFromStr || !sleepToStr) {
+      alert(this._lang === 'pl' ? 'Podaj oba czasy' : 'Please fill in both times');
+      return;
+    }
+
+    const startTime = new Date(sleepFromStr).getTime();
+    const endTime = new Date(sleepToStr).getTime();
+
+    if (startTime >= endTime) {
+      alert(this._lang === 'pl' ? 'Czas końca musi być po czasie startu' : 'End time must be after start time');
       return;
     }
 
     const baby = this.getCurrentBaby();
-    const sleep = { duration, date, timestamp: Date.now() };
+    const durationMinutes = Math.round((endTime - startTime) / 60000);
+    const sleep = {
+      startTime,
+      endTime,
+      duration: durationMinutes,
+      date: new Date(startTime).toISOString().split('T')[0],
+      timestamp: Date.now()
+    };
     this.sleepData.get(baby).push(sleep);
     this._saveData();
 
-    const _sd2 = this.shadowRoot.getElementById('sleepDuration');
-    if (_sd2) _sd2.value = '';
+    const _sft = this.shadowRoot.getElementById('sleepFromTime');
+    const _stt = this.shadowRoot.getElementById('sleepToTime');
+    if (_sft) _sft.value = '';
+    if (_stt) _stt.value = '';
     this.updateAllDisplays();
   }
 
@@ -1839,19 +1953,119 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.setDefaultTimes();
   }
 
-  updateTimerDisplay() {
+  updateSleepTimerDisplay() {
     if (!this.sleepTimer || !this.sleepStartTime) {
-      const _td = this.shadowRoot.getElementById('timerDisplay');
-    if (_td) _td.textContent = '00:00';
+      const _std = this.shadowRoot.getElementById('sleepTimerDisplay');
+      const _sts = this.shadowRoot.getElementById('sleepTimerStatus');
+      if (_std) _std.textContent = '00:00:00';
+      if (_sts) _sts.textContent = this._lang === 'pl' ? 'Sen nie jest aktywny' : 'Sleep not active';
       return;
     }
 
     const elapsed = Math.floor((Date.now() - this.sleepStartTime) / 1000);
+    const hours = Math.floor(elapsed / 3600);
+    const minutes = Math.floor((elapsed % 3600) / 60);
+    const seconds = elapsed % 60;
+    const display = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    const _std2 = this.shadowRoot.getElementById('sleepTimerDisplay');
+    if (_std2) _std2.textContent = display;
+    const _sts2 = this.shadowRoot.getElementById('sleepTimerStatus');
+    if (_sts2) _sts2.textContent = this._lang === 'pl' ? 'Sen w toku...' : 'Sleep in progress...';
+  }
+
+  toggleBreastfeedingTimer(side) {
+    if (this._bfCurrentSide === side && this._bfTimer) {
+      // Stop timer on the same side
+      this._stopBreastfeedingTimer();
+    } else {
+      // Switch to the other side or start if not running
+      if (this._bfTimer) {
+        this._stopBreastfeedingTimer();
+      }
+      this._startBreastfeedingTimer(side);
+    }
+    this.updateBreastfeedingDisplay();
+  }
+
+  _startBreastfeedingTimer(side) {
+    this._bfCurrentSide = side;
+    this._bfStartTime = Date.now();
+    this._bfTimer = setInterval(() => this.updateBreastfeedingDisplay(), 100);
+  }
+
+  _stopBreastfeedingTimer() {
+    if (!this._bfTimer) return;
+    clearInterval(this._bfTimer);
+    const durationSeconds = Math.round((Date.now() - this._bfStartTime) / 1000);
+    if (durationSeconds > 0) {
+      this._bfSessions.push({
+        side: this._bfCurrentSide,
+        duration: durationSeconds,
+        timestamp: Date.now()
+      });
+    }
+    this._bfTimer = null;
+    this._bfCurrentSide = null;
+    this._bfStartTime = null;
+    this._saveData();
+  }
+
+  updateBreastfeedingDisplay() {
+    const _btd = this.shadowRoot.getElementById('bfTimerDisplay');
+    const _btl = this.shadowRoot.getElementById('bfTimerLabel');
+
+    if (!this._bfTimer || !this._bfStartTime) {
+      if (_btd) _btd.textContent = '00:00';
+      if (_btl) _btl.textContent = this._lang === 'pl' ? 'Gotowe' : 'Ready';
+      this.updateBreastfeedingSessionsList();
+      return;
+    }
+
+    const elapsed = Math.floor((Date.now() - this._bfStartTime) / 1000);
     const minutes = Math.floor(elapsed / 60);
     const seconds = elapsed % 60;
     const display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    const _td2 = this.shadowRoot.getElementById('timerDisplay');
-    if (_td2) _td2.textContent = display;
+    if (_btd) _btd.textContent = display;
+
+    const sideLabel = this._bfCurrentSide === 'left'
+      ? (this._lang === 'pl' ? 'Lewa pierś' : 'Left Breast')
+      : (this._lang === 'pl' ? 'Prawa pierś' : 'Right Breast');
+    if (_btl) _btl.textContent = sideLabel;
+
+    this.updateBreastfeedingSessionsList();
+  }
+
+  updateBreastfeedingSessionsList() {
+    const _bsl = this.shadowRoot.getElementById('bfSessionsList');
+    if (!_bsl) return;
+
+    // Update button styling
+    const leftBtn = this.shadowRoot.querySelector('.bf-breast-btn[data-side="left"]');
+    const rightBtn = this.shadowRoot.querySelector('.bf-breast-btn[data-side="right"]');
+    if (leftBtn) {
+      leftBtn.style.borderColor = this._bfCurrentSide === 'left' ? 'var(--bento-primary)' : 'var(--bento-border)';
+      leftBtn.style.background = this._bfCurrentSide === 'left' ? 'rgba(59, 130, 246, 0.1)' : 'var(--bento-card)';
+    }
+    if (rightBtn) {
+      rightBtn.style.borderColor = this._bfCurrentSide === 'right' ? 'var(--bento-primary)' : 'var(--bento-border)';
+      rightBtn.style.background = this._bfCurrentSide === 'right' ? 'rgba(59, 130, 246, 0.1)' : 'var(--bento-card)';
+    }
+
+    if (!this._bfSessions || this._bfSessions.length === 0) {
+      _bsl.innerHTML = '';
+      return;
+    }
+    const recentSessions = this._bfSessions.slice(-3).reverse();
+    _bsl.innerHTML = recentSessions.map(s => {
+      const mins = Math.floor(s.duration / 60);
+      const secs = s.duration % 60;
+      const sideLabel = s.side === 'left'
+        ? (this._lang === 'pl' ? 'Lewa' : 'Left')
+        : (this._lang === 'pl' ? 'Prawa' : 'Right');
+      return `<div style="padding:6px 0;border-top:1px solid var(--bento-border);font-size:11px">
+        <strong>${sideLabel}</strong>: ${mins}m ${secs}s
+      </div>`;
+    }).join('');
   }
 
   updateAllDisplays() {
@@ -2430,4 +2644,4 @@ if (!customElements.get('ha-baby-tracker-editor')) { customElements.define('ha-b
 })();
 
 window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-baby-tracker', name: 'Baby & Mom Tracker', description: 'Track baby activities: feeding, lactation, sleep, diapers', preview: false });
+window.customCards.push({ type: 'ha-baby-tracker', name: 'Baby and Lactation Tracker', description: 'Track baby activities: feeding, lactation, sleep, diapers', preview: false });

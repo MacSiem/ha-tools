@@ -78,6 +78,7 @@ class HaEnergyOptimizer extends HTMLElement {
     this._hass = null;
     this._config = null;
     this._currentTab = 'dashboard';
+    this._timeRange = 'today'; // 'today' | 'yesterday' | '7days' | '30days' | 'custom'
     this._energyData = [];
     this._weeklyData = [];
     this._recommendations = [];
@@ -763,17 +764,17 @@ class HaEnergyOptimizer extends HTMLElement {
         .power-draw { text-align: center; padding: 14px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); margin-bottom: 16px; }
         .power-draw-value { font-size: 28px; font-weight: 700; color: var(--bento-primary); }
         .power-draw-unit { font-size: 11px; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; }
-        .chart-container { position: relative; height: 280px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 16px; overflow: hidden; }
-        .chart-title { font-size: 13px; font-weight: 600; color: var(--bento-text); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .chart-container { position: relative; height: 300px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 16px; overflow: visible; display: flex; flex-direction: column; }
+        .chart-title { font-size: 13px; font-weight: 600; color: var(--bento-text); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .chart-title span:last-child { font-size: 11px; color: var(--bento-text-secondary); font-weight: 400; }
-        canvas { max-width: 100% !important; border: none !important; display: block !important; }
+        canvas { max-width: 100% !important; border: none !important; display: block !important; flex: 1; min-height: 0; }
         .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
         .stat-item { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; }
         .stat-label { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
         .stat-value { font-size: 18px; font-weight: 700; color: var(--bento-text); }
-        .heatmap-legend { display: flex; gap: 16px; justify-content: center; margin-top: 10px; }
-        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--bento-text-secondary); }
-        .legend-color { width: 14px; height: 14px; border-radius: 3px; }
+        .heatmap-legend { display: flex; gap: 16px; justify-content: center; margin-top: 12px; flex-wrap: wrap; overflow: visible; min-height: 24px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--bento-text-secondary); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .legend-color { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
         .compare-mode-bar { display: flex; gap: 4px; margin-bottom: 16px; background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 4px; }
         .compare-mode-btn { flex: 1; padding: 8px 10px; border: none; background: transparent; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--bento-text-secondary); border-radius: 8px; transition: all .2s; font-family: 'Inter', sans-serif; white-space: nowrap; }
         .compare-mode-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
@@ -811,6 +812,10 @@ class HaEnergyOptimizer extends HTMLElement {
         .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
         .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
         .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
+        .time-range-selector { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+        .time-range-btn { padding: 6px 12px; border: 1px solid var(--bento-border); background: var(--bento-bg); color: var(--bento-text-secondary); border-radius: var(--bento-radius-xs); cursor: pointer; font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif; transition: all .2s; }
+        .time-range-btn:hover { color: var(--bento-primary); border-color: var(--bento-primary); background: var(--bento-primary-light); }
+        .time-range-btn.active { background: var(--bento-primary); color: #fff; border-color: var(--bento-primary); font-weight: 600; }
 @media (max-width: 768px) {
           .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
           .tab-btn { padding: 6px 10px; font-size: 12px; }
@@ -876,6 +881,12 @@ class HaEnergyOptimizer extends HTMLElement {
         </div>
 
         <div id="dashboard" class="tab-content active">
+          <div class="time-range-selector">
+            <button class="time-range-btn${this._timeRange === 'today' ? ' active' : ''}" data-time-range="today">${this._lang === 'pl' ? 'Dzisiaj' : 'Today'}</button>
+            <button class="time-range-btn${this._timeRange === 'yesterday' ? ' active' : ''}" data-time-range="yesterday">${this._lang === 'pl' ? 'Wczoraj' : 'Yesterday'}</button>
+            <button class="time-range-btn${this._timeRange === '7days' ? ' active' : ''}" data-time-range="7days">${this._lang === 'pl' ? 'Ostatnie 7 dni' : 'Last 7 days'}</button>
+            <button class="time-range-btn${this._timeRange === '30days' ? ' active' : ''}" data-time-range="30days">${this._lang === 'pl' ? 'Ostatnie 30 dni' : 'Last 30 days'}</button>
+          </div>
           <div class="grid">
             <div class="summary-card">
               <span class="summary-label">Today's Usage</span>
@@ -1047,6 +1058,16 @@ class HaEnergyOptimizer extends HTMLElement {
         e.target.classList.add('active');
         this._currentTab = e.target.dataset.tab;
         this._showTab(e.target.dataset.tab);
+      });
+    });
+    // Time range selector (only on dashboard tab, not on compare)
+    sr.querySelectorAll('.time-range-btn').forEach(button => {
+      button.addEventListener('click', (e) => {
+        sr.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        this._timeRange = e.target.dataset.timeRange;
+        // Re-render dashboard with new time range
+        this._showTab('dashboard');
       });
     });
     // Comparison mode buttons (use delegation since body is rebuilt)

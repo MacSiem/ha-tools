@@ -841,11 +841,26 @@ class HaEncodingFixer extends HTMLElement {
       resultsHtml = `<div class="section"><div class="empty-state">\u2705 ${t.noIssuesFound}</div></div>`;
     }
 
-    // Common patterns reference
-    const patterns = Object.entries(HaEncodingFixer.MOJIBAKE_MAP).slice(0, 9);
-    const patternRows = patterns.map(([bad, good]) =>
-      `<span class="pattern-bad">${this._escapeHtml(bad)}</span> \u2192 <span class="pattern-good">${good}</span>`
-    ).join('<br>');
+    // Common patterns reference with more examples
+    const patternExamples = [
+      { broken: 'Ä…', fixed: 'ą', cause: 'UTF-8 read as Latin-1' },
+      { broken: 'Ã³', fixed: 'ó', cause: 'UTF-8 read as Latin-1' },
+      { broken: 'â€™', fixed: "'", cause: "Windows-1252 in UTF-8" },
+      { broken: 'Å¼', fixed: 'ż', cause: 'UTF-8 read as Latin-1' },
+      { broken: 'â€œ', fixed: '"', cause: "Windows-1252 in UTF-8" },
+      { broken: 'â€\u0093', fixed: '"', cause: "Windows-1252 in UTF-8" },
+      { broken: 'Ä™', fixed: 'ę', cause: 'UTF-8 read as Latin-1' },
+      { broken: 'Å›', fixed: 'ś', cause: 'UTF-8 read as Latin-1' },
+      { broken: 'Ã©', fixed: 'é', cause: 'UTF-8 read as Latin-1' },
+      { broken: 'Ã¼', fixed: 'ü', cause: 'UTF-8 read as Latin-1' },
+    ];
+    const patternTableRows = patternExamples.map(ex => `
+      <tr>
+        <td class="pattern-cell broken"><code>${this._escapeHtml(ex.broken)}</code></td>
+        <td class="pattern-cell fixed"><code>${this._escapeHtml(ex.fixed)}</code></td>
+        <td class="pattern-cell cause">${ex.cause}</td>
+      </tr>
+    `).join('');
 
     return `
       ${testSection}
@@ -866,7 +881,18 @@ class HaEncodingFixer extends HTMLElement {
         <details class="patterns-details">
           <summary class="patterns-summary">${t.patternsExpandHint}</summary>
           <p class="patterns-desc">${t.commonPatterns}</p>
-          <div class="patterns-grid">${patternRows}</div>
+          <table class="patterns-table">
+            <thead>
+              <tr>
+                <th>Broken</th>
+                <th>Fixed</th>
+                <th>Cause</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${patternTableRows}
+            </tbody>
+          </table>
         </details>
       </div>
     `;
@@ -1884,6 +1910,16 @@ class HaEncodingFixer extends HTMLElement {
 .patterns-grid { font-size: 13px; font-family: monospace; line-height: 1.8; }
 .pattern-bad { color: var(--bento-error); background: rgba(239,68,68,0.06); padding: 1px 4px; border-radius: 3px; }
 .pattern-good { color: var(--bento-success); background: rgba(16,185,129,0.06); padding: 1px 4px; border-radius: 3px; }
+
+.patterns-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.patterns-table thead { background: var(--bento-bg); }
+.patterns-table th { padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--bento-border); color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; }
+.patterns-table td { padding: 10px 12px; border-bottom: 1px solid var(--bento-border); }
+.patterns-table tbody tr:hover { background: rgba(59,130,246,0.03); }
+.pattern-cell { font-family: 'Courier New', monospace; }
+.pattern-cell.broken { color: var(--bento-error); }
+.pattern-cell.fixed { color: var(--bento-success); font-weight: 500; }
+.pattern-cell.cause { color: var(--bento-text-secondary); font-size: 12px; }
 
 /* Restore divider */
 .restore-divider {

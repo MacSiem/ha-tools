@@ -1756,7 +1756,13 @@ class HAEnergyEmail extends HTMLElement {
       const title = `\u26A1 ${typeName} ${L ? 'raport energii' : 'Energy Report'} \u2013 ${dateStr}`;
       const plainText = `${typeName} ${L ? 'raport energii' : 'Energy Report'} - ${dateStr}\n${L ? 'Łącznie' : 'Total'}: ${totalKwh.toFixed(2)} kWh / ${totalCost.toFixed(2)} ${currency}\n${devices.map(d => `${d.name}: ${(d.month||0).toFixed(2)} kWh`).join('\n')}`;
       const svcData = { title, message: plainText, data: { html: html } };
-      if (recipient) svcData.target = recipient;
+      if (recipient) {
+        // Parse comma-separated recipients and send to each
+        const recipients = recipient.split(',').map(r => r.trim()).filter(r => r && r.includes('@'));
+        if (recipients.length > 0) {
+          svcData.target = recipients;
+        }
+      }
       await this._hass.callService('notify', svc, svcData);
       this._lastSent[type] = nowStr;
       this._showToast(`\u2705 ${typeName} ${L ? 'wys\u0142any!' : 'sent!'}`);

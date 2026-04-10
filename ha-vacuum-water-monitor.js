@@ -667,7 +667,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     this._userDevices.push({
       vacuum_entity: entityId,
       name: profile.label || name,
-      icon: profile.icon || '\uD83E\uDDA4',
+      icon: profile.icon || '\uD83E\uDD16',
       ...profile,
     });
     this._saveUserDevices();
@@ -838,8 +838,9 @@ class HAVacuumWaterMonitor extends HTMLElement {
   // Auto-discover vacuum entities from HA states
   _autoDiscoverVacuums() {
     if (!this._hass) return [];
+    const EXCLUDE_IDS = ['vacuum.robotic_vacuum_cleaner'];
     return Object.values(this._hass.states)
-      .filter(s => s.entity_id.startsWith('vacuum.'))
+      .filter(s => s.entity_id.startsWith('vacuum.') && !EXCLUDE_IDS.includes(s.entity_id))
       .map(s => ({
         entity_id: s.entity_id,
         name: (s.attributes && s.attributes.friendly_name) || s.entity_id,
@@ -849,7 +850,10 @@ class HAVacuumWaterMonitor extends HTMLElement {
   }
 
   _calcDeviceData(device) {
-    const totalMl = device.water_total_ml || 0;
+    // Derive total water capacity: explicit config > calibration data > 0
+    const profileKey = device.brand_profile;
+    const calib = profileKey ? (CALIBRATION_DATA[profileKey] || null) : null;
+    const totalMl = device.water_total_ml || (calib ? calib.tank_ml : 0);
     let remainingL = null, percentRemaining = null, usedMl = null;
 
     if (totalMl > 0) {
@@ -920,7 +924,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
   }
 
   _getStatus(data, cfg) {
-    if (data.totalMl === 0) return { label: 'No Water', color: '#6b7280', icon: '\uD83E\uDDA4' };
+    if (data.totalMl === 0) return { label: 'No Water', color: '#6b7280', icon: '\uD83D\uDCA7' };
     if (data.waterEmpty || data.waterShortage) return { label: 'EMPTY', color: '#ef4444', icon: '\u26A0\uFE0F' };
     if (data.percentRemaining === null) return { label: 'Unknown', color: '#6b7280', icon: '\u2753' };
     if (data.percentRemaining <= (cfg.critical_threshold || 10)) return { label: 'Critical', color: '#ef4444', icon: '\uD83D\uDEA8' };
@@ -1055,12 +1059,18 @@ class HAVacuumWaterMonitor extends HTMLElement {
     }
 
 
-    const noWaterMode = !data.totalMl;
+    // Only show "doesn't track water" if no water tracking capability at all:
+    // No explicit water_total_ml AND no brand_profile match AND no water sensors
+    const noWaterTracking = !device.water_total_ml &&
+      !data.totalMl &&  // No calibration data either
+      !device.water_sensor &&
+      !device.water_used_input &&
+      !device.water_used_sensor;
 
     return `
       <div class="tab-content">
         ${alertBanner}
-        ${noWaterMode ? `<div class="no-water-note">\uD83D\uDCCC This device doesn't track water levels</div>` : `
+        ${noWaterTracking ? `<div class="no-water-note">\uD83D\uDCCC This device doesn't track water levels</div>` : `
         <div class="device-body">
           <div class="gauge-wrap">
             ${gaugeSvg}
@@ -1073,7 +1083,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
           </div>
         </div>
         ${refillBtn ? `<div class="refill-wrap">${refillBtn}</div>` : ''}`}
-        ${noWaterMode && data.charge !== null ? `<div class="details">${this._buildBatteryBar(data.charge)}</div>` : ''}
+        ${noWaterTracking && data.charge !== null ? `<div class="details">${this._buildBatteryBar(data.charge)}</div>` : ''}
         ${dockHtml}
         ${calibHtml}
       </div>`;
@@ -1283,18 +1293,18 @@ class HAVacuumWaterMonitor extends HTMLElement {
             </div>
             <div style="margin-top:10px">
               <div style="font-size:11px;color:var(--bento-text-secondary);margin-bottom:6px">Tryby mopowania \u2014 nazwa trybu i zu\u017Cycie ml/m\u00B2:</div>
-              <div id="vwm-custom-modes" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-                <div style="display:flex;gap:4px;align-items:center">
-                  <input type="text" placeholder="np. low" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+              <div id="vwm-custom-modes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">
+                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-width:0">
+                  <input type="text" placeholder="np. low" style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:70px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
                 </div>
-                <div style="display:flex;gap:4px;align-items:center">
-                  <input type="text" placeholder="np. medium" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-width:0">
+                  <input type="text" placeholder="np. medium" style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:70px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
                 </div>
-                <div style="display:flex;gap:4px;align-items:center">
-                  <input type="text" placeholder="np. high" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-width:0">
+                  <input type="text" placeholder="np. high" style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:70px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
                 </div>
               </div>
               <div style="margin-top:6px;text-align:right">
@@ -1311,7 +1321,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
           <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:8px">
             Brakuje Twojego robota lub masz dok\u0142adniejsze dane?
           </div>
-          <a href="https://github.com/MacSiem/ha-vacuum-water-monitor/issues/new?title=Calibration+data+for+[MODEL]&body=Model:%0ATank+ml:%0AWater+per+m2:%0AMop+wash+ml:%0ASource:%0A" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:8px;background:#24292e;color:white;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
+          <a href="https://github.com/madmax/ha-tools/issues/new?title=Calibration+data+for+[MODEL]&body=Model:%0ATank+ml:%0AWater+per+m2:%0AMop+wash+ml:%0ASource:%0A" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:8px;background:#24292e;color:white;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
             Zg\u0142o\u015B dane lub korekt\u0119 na GitHub
           </a>
