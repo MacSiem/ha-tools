@@ -1,4 +1,7 @@
 
+// XSS protection helper
+const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
@@ -1587,7 +1590,7 @@ ${HAToolsPanel.CSS}
         <!-- System Overview -->
         <div class="home-hero">
           <div class="hero-greeting">
-            <div class="hero-title">\u{1F3E0} ${haLocation}</div>
+            <div class="hero-title">\u{1F3E0} ${_esc(haLocation)}</div>
             <div class="hero-subtitle">Home Assistant ${haVersion} \u2022 ${entityCount} encji \u2022 ${autoCount} automatyzacji \u2022 ${sensorCount} sensorów</div>
           </div>
           
@@ -2353,7 +2356,7 @@ ${HAToolsPanel.CSS}
         content.appendChild(card);
         this._cardInstance = card;
       } catch (e) {
-        content.innerHTML = `<div class="empty"><div class="big">\u26A0\uFE0F</div><div>Błąd: ${e.message}</div></div>`;
+        content.innerHTML = `<div class="empty"><div class="big">\u26A0\uFE0F</div><div>B\u0142\u0105d: ${_esc(e.message)}</div></div>`;
       }
     }, 150);
   }

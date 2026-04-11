@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// XSS protection helper
+const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
@@ -2139,7 +2142,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="list-item-content">
           <div class="list-item-time">${f.time}</div>
           <div class="list-item-title">${icons[f.type]} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)}${f.linkedId ? ' \uD83D\uDD17' : ''}</div>
-          <div class="list-item-subtitle">${f.amount}${f.notes ? ' • ' + f.notes : ''}</div>
+          <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
       </div>
     `).join('');
@@ -2178,7 +2181,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div class="list-item-content">
           <div class="list-item-time">${d.time}</div>
           <div class="list-item-title">${icons[d.type]} ${d.type.charAt(0).toUpperCase() + d.type.slice(1)}</div>
-          ${d.notes ? `<div class="list-item-subtitle">${d.notes}</div>` : ''}
+          ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
       </div>
     `).join('');
@@ -2647,6 +2650,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   disconnectedCallback() {
     if (this._bfTimer) { clearInterval(this._bfTimer); this._bfTimer = null; }
     if (this.sleepTimer) { clearInterval(this.sleepTimer); this.sleepTimer = null; }
+    if (this._autoSaveTimer) { clearInterval(this._autoSaveTimer); this._autoSaveTimer = null; }
   }
 
 }
@@ -2678,7 +2682,7 @@ class HaBabyTrackerEditor extends HTMLElement {
       <h3>Baby and Lactation Tracker</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Baby and Lactation Tracker'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Baby and Lactation Tracker')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

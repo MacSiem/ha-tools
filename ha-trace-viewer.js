@@ -1274,6 +1274,7 @@ class HATraceViewer extends HTMLElement {
       e.stopPropagation();
       const dd = $('#expDD'); dd.classList.toggle('open');
       const close = () => { dd.classList.remove('open'); document.removeEventListener('click', close); };
+      this._expDDClose = close;
       setTimeout(() => document.addEventListener('click', close), 0);
     });
     $$('.dd-i[data-exp]').forEach(el => el.addEventListener('click', () => {
@@ -1847,6 +1848,7 @@ class HATraceViewer extends HTMLElement {
   disconnectedCallback() {
     if (this.relativeTimeUpdater) clearInterval(this.relativeTimeUpdater);
     if (this._resizeObserver) { this._resizeObserver.disconnect(); this._resizeObserver = null; }
+    if (this._expDDClose) { document.removeEventListener('click', this._expDDClose); this._expDDClose = null; }
   }
   static getConfigElement() { return document.createElement('ha-trace-viewer-editor'); }
   getCardSize() { return 10; }

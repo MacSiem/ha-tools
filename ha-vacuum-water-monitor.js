@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// XSS protection helper
+const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
@@ -2001,7 +2004,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
 </style>
       <div class="card">
-        <div class="card-title">${this._config.title}</div>
+        <div class="card-title">${_esc(this._config.title)}</div>
         <div class="tip-banner" id="tip-banner">
           <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
           <div class="tip-banner-title">\u{1F4A1} Konfiguracja</div>

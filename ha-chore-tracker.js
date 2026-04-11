@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// XSS protection helper
+const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
@@ -1204,7 +1207,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
               <div>
                 <label>Assignee</label>
                 <select id="chore-assignee">
-                  ${this.members.map(m => `<option value="${m.name}">${m.name}</option>`).join('')}
+                  ${this.members.map(m => `<option value="${_esc(m.name)}">${_esc(m.name)}</option>`).join('')}
                 </select>
               </div>
               <div>
@@ -1424,9 +1427,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
       const cardsHtml = choreCards.map(chore => `
         <div class="chore-card priority-${chore.priority}" data-id="${chore.id}">
-          <h3 class="chore-title">${chore.name}</h3>
+          <h3 class="chore-title">${_esc(chore.name)}</h3>
           <div class="chore-meta">
-            <span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${chore.assignee}</span>
+            <span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${_esc(chore.assignee)}</span>
             <span>${this.getRoomEmoji(chore.room)}</span>
           </div>
           <div style="font-size: 11px; color: var(--secondary-text); margin-top: 6px;">
@@ -1477,7 +1480,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     });
 
     this.chores.forEach(chore => {
-      html += `<div class="week-cell"><strong>${chore.name}</strong></div>`;
+      html += `<div class="week-cell"><strong>${_esc(chore.name)}</strong></div>`;
       days.forEach((_, index) => {
         const show = this.isChoreOnDay(chore, index);
         html += `<div class="week-cell">${show ? `<div class="chore-item">${chore.room}</div>` : ''}</div>`;
@@ -1552,7 +1555,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     leaderboardEl.innerHTML = sortedMembers.map((entry, index) => `
       <div class="leaderboard-row">
         <div class="rank">#${index + 1}</div>
-        <div class="name">${entry[0]}</div>
+        <div class="name">${_esc(entry[0])}</div>
         <div class="completion">${entry[1].completed} done</div>
         <div class="streak">🔥 ${entry[1].streak}</div>
       </div>

@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// XSS protection helper
+const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
@@ -1184,8 +1187,8 @@ canvas {
           <td class="checkbox-cell"><input type="checkbox" data-entity="${ent.entity_id}" ${checked} /></td>
           <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes" aria-label="Show attributes">▶</button></td>
           <td class="entity-id" title="${ent.entity_id}">${ent.entity_id}</td>
-          <td title="${ent.name}">${ent.name}</td>
-          <td class="state-val" title="${ent.state}">${ent.state}</td>
+          <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
+          <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
           <td>${ent.domain}</td>
           <td><span class="attr-count">${attrCount}</span></td>
         `;

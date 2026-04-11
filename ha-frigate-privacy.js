@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// XSS protection helper
+const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
@@ -1081,7 +1084,7 @@ class HaFrigatePrivacy extends HTMLElement {
           <div class="privacy-icon">\uD83D\uDD12</div>
           <div class="privacy-info">
             <div class="privacy-label">${t.privacyActive}</div>
-            <div class="privacy-cameras-label">${t.forCameras}: ${camLabel}</div>
+            <div class="privacy-cameras-label">${t.forCameras}: ${_esc(camLabel)}</div>
             <div class="countdown">
               <span class="countdown-label">${t.remainingTime}:</span>
               <span class="countdown-value">--:--</span>
@@ -1175,7 +1178,7 @@ class HaFrigatePrivacy extends HTMLElement {
           + ' - ' + String(s.endHour).padStart(2, '0') + ':' + String(s.endMin).padStart(2, '0');
         return `<div class="schedule-item ${s.enabled ? '' : 'disabled'}">
           <div class="schedule-main">
-            <div class="schedule-label">${s.label || (s.repeat ? t.repeat : t.oneTime)}</div>
+            <div class="schedule-label">${_esc(s.label) || (s.repeat ? t.repeat : t.oneTime)}</div>
             <div class="schedule-time">${timeRange}</div>
             <div class="schedule-days">${dayLabels}</div>
           </div>

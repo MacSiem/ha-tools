@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// XSS protection helper
+const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
 // Falls back to localStorage for instant reads (cache), writes to both
@@ -546,7 +549,7 @@ class HASentenceManager extends HTMLElement {
       slotElement.className = 'slot-item';
       slotElement.innerHTML = `
         <label>${name}:</label>
-        <input type="text" class="slot-input" data-slot-name="${name}" value="${type}">
+        <input type="text" class="slot-input" data-slot-name="${_esc(name)}" value="${_esc(type)}">
         <button class="remove-slot-btn">Remove</button>
       `;
       slotElement.querySelector('.remove-slot-btn').addEventListener('click', () => slotElement.remove());
@@ -598,7 +601,7 @@ class HASentenceManager extends HTMLElement {
       slotElement.className = 'slot-item';
       slotElement.innerHTML = `
         <label>${name}:</label>
-        <input type="text" class="slot-input" data-slot-name="${name}" value="${type}">
+        <input type="text" class="slot-input" data-slot-name="${_esc(name)}" value="${_esc(type)}">
         <button class="remove-slot-btn">Remove</button>
       `;
       slotElement.querySelector('.remove-slot-btn').addEventListener('click', () => slotElement.remove());
@@ -862,7 +865,7 @@ class HASentenceManager extends HTMLElement {
   }
 
   _escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // Import HA sentences into the editor's local storage
