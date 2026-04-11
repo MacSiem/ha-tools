@@ -196,6 +196,24 @@ class HaBabyTracker extends HTMLElement {
   // --- localStorage persistence ---
   _storageKey() { return 'ha-baby-tracker-' + this.selectedBaby; }
 
+  _startAutoSave() {
+    if (this._autoSaveTimer) return;
+    this._autoSaveTimer = setInterval(() => {
+      if (this.sleepTimer || this._bfTimer) {
+        this._saveData();
+      } else {
+        this._stopAutoSave();
+      }
+    }, 30000); // Auto-save every 30s while any timer runs
+  }
+
+  _stopAutoSave() {
+    if (this._autoSaveTimer) {
+      clearInterval(this._autoSaveTimer);
+      this._autoSaveTimer = null;
+    }
+  }
+
   _saveData() {
     try {
       const data = {
@@ -204,7 +222,12 @@ class HaBabyTracker extends HTMLElement {
         diapers: {},
         sleep: {},
         growth: {},
-        breastfeeding: this._bfSessions || []
+        breastfeeding: this._bfSessions || [],
+        // Persist running timers so they survive browser close
+        _runningTimers: {
+          sleep: this.sleepStartTime ? { startTime: this.sleepStartTime, baby: this.selectedBaby } : null,
+          bf: this._bfStartTime ? { startTime: this._bfStartTime, side: this._bfCurrentSide, sessions: this._bfSessions || [] } : null
+        }
       };
       this.feedingData.forEach((v, k) => { data.feeding[k] = v; });
       this.lactationData.forEach((v, k) => { data.lactation[k] = v; });
@@ -226,6 +249,23 @@ class HaBabyTracker extends HTMLElement {
       if (data.sleep) Object.entries(data.sleep).forEach(([k, v]) => { this.sleepData.set(k, v); });
       if (data.growth) Object.entries(data.growth).forEach(([k, v]) => { this.growthData.set(k, v); });
       if (data.breastfeeding) this._bfSessions = data.breastfeeding;
+      // Recover running timers after browser restart
+      if (data._runningTimers) {
+        const rt = data._runningTimers;
+        if (rt.sleep && rt.sleep.startTime && !this.sleepTimer) {
+          // Sleep was running — resume timer
+          this.sleepStartTime = rt.sleep.startTime;
+          this.sleepTimer = setInterval(() => this.updateSleepTimerDisplay(), 100);
+          console.info('[Baby Tracker] Recovered sleep timer started at ' + new Date(rt.sleep.startTime).toLocaleTimeString());
+        }
+        if (rt.bf && rt.bf.startTime && !this._bfTimer) {
+          // Breastfeeding was running — resume timer
+          this._bfStartTime = rt.bf.startTime;
+          this._bfCurrentSide = rt.bf.side;
+          this._bfTimer = setInterval(() => this.updateBreastfeedingDisplay(), 100);
+          console.info('[Baby Tracker] Recovered BF timer (' + rt.bf.side + ') started at ' + new Date(rt.bf.startTime).toLocaleTimeString());
+        }
+      }
     } catch (e) { console.warn('Baby and Lactation Tracker: load failed', e); }
   }
 
@@ -1856,6 +1896,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (this.sleepTimer) return;
     this.sleepStartTime = Date.now();
     this.sleepTimer = setInterval(() => this.updateSleepTimerDisplay(), 100);
+    this._saveData(); // Persist running timer immediately
+    this._startAutoSave();
     const _ssb = this.shadowRoot.getElementById('startSleepBtn');
     const _stb = this.shadowRoot.getElementById('stopSleepBtn');
     if (_ssb) _ssb.style.display = 'none';
@@ -1869,6 +1911,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const sleepEndTime = Date.now();
     const durationMinutes = Math.round((sleepEndTime - this.sleepStartTime) / 60000);
     this.sleepTimer = null;
+    if (!this._bfTimer) this._stopAutoSave();
 
     if (durationMinutes > 0) {
       const baby = this.getCurrentBaby();
@@ -1991,11 +2034,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this._bfCurrentSide = side;
     this._bfStartTime = Date.now();
     this._bfTimer = setInterval(() => this.updateBreastfeedingDisplay(), 100);
+    this._saveData(); // Persist running timer immediately
+    this._startAutoSave();
   }
 
   _stopBreastfeedingTimer() {
     if (!this._bfTimer) return;
     clearInterval(this._bfTimer);
+    if (!this.sleepTimer) this._stopAutoSave();
     const durationSeconds = Math.round((Date.now() - this._bfStartTime) / 1000);
     if (durationSeconds > 0) {
       this._bfSessions.push({

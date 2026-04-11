@@ -295,6 +295,7 @@ class HALogEmail extends HTMLElement {
         // Also refresh the log data display
         this._fetchLogData();
       }
+      this._lastPollTime = Date.now();
     } catch(e) {
       console.warn('[ha-log-email] Polling error:', e);
     }
@@ -703,8 +704,9 @@ class HALogEmail extends HTMLElement {
                 ${[30,60,120,300].map(s => `<option value="${s}" ${this._pollingIntervalSec === s ? 'selected' : ''}>${s < 60 ? s + 's' : (s/60) + 'min'}</option>`).join('')}
               </select>
               <button class="toggle-btn" id="btn-poll-toggle" style="padding:6px 14px;font-size:11px;">
-                ${this._pollingEnabled ? 'Wyłącz' : 'Włącz'}
+                ${this._pollingEnabled ? 'Wy\u0142\u0105cz' : 'W\u0142\u0105cz'}
               </button>
+              ${this._pollingEnabled && this._lastPollTime ? '<span style="font-size:10px;color:var(--bento-text-secondary,#64748B);margin-left:6px">last: ' + new Date(this._lastPollTime).toLocaleTimeString() + '</span>' : ''}
             </div>
           </div>
           <p style="margin:0 0 8px 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">
