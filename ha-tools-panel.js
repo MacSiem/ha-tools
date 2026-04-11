@@ -71,8 +71,8 @@ window._haToolsPersistence = window._haToolsPersistence || {
 // ── Build version & auto-update detection ──
 // Zmień BUILD_VERSION przy każdej aktualizacji kodu.
 // Panel automatycznie wykryje nową wersję i pokaże toast z przyciskiem "Odśwież".
-const HA_TOOLS_BUILD = '3.7.0';
-const HA_TOOLS_BUILD_TS = '20260402-1200';
+const HA_TOOLS_BUILD = '3.7.6';
+const HA_TOOLS_BUILD_TS = '20260411-1200';
 
 (function _checkVersion() {
   const KEY = 'ha-tools-build';

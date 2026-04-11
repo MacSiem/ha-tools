@@ -11,7 +11,7 @@
     font.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
     document.head.appendChild(font);
   }
-  const BASE = '/local/community/ha-tools-panel/ha-tools-panel.js';
+  const BASE = '/local/community/ha-tools/ha-tools-panel.js';
   const script = document.createElement('script');
   script.type = 'text/javascript';
   script.src = BASE + '?_=' + Date.now();

@@ -82,11 +82,15 @@ class HaNetworkMap extends HTMLElement {
     this.sortDesc = false;
     this._deviceRegistry = [];
     this._registryLoaded = false;
+    this._scanResults = {}; // ip → true/false from browser ping scan
+    this._scanInProgress = false;
+    this._loadPersistedScan(); // restore last scan results if fresh
     // --- HTML diffing ---
     this._lastHtml = '';
     this._lastScanTime = null;
   }
   _persistKey() { return 'ha-network-map-devices'; }
+  _scanPersistKey() { return 'ha-network-map-scan'; }
   _loadPersistedDevices() {
     try {
       const stored = localStorage.getItem(this._persistKey());
@@ -100,6 +104,24 @@ class HaNetworkMap extends HTMLElement {
       map[key] = {...d, last_seen: d.last_seen || new Date().toISOString()};
     });
     try { localStorage.setItem(this._persistKey(), JSON.stringify(map)); } catch {}
+  }
+  _persistScanResults() {
+    try {
+      const data = { results: this._scanResults, time: this._lastScanTime };
+      localStorage.setItem(this._scanPersistKey(), JSON.stringify(data));
+    } catch {}
+  }
+  _loadPersistedScan() {
+    try {
+      const stored = localStorage.getItem(this._scanPersistKey());
+      if (!stored) return;
+      const data = JSON.parse(stored);
+      // Only use cached scan if less than 1 hour old
+      if (data.time && (Date.now() - data.time) < 3600000) {
+        this._scanResults = data.results || {};
+        this._lastScanTime = data.time;
+      }
+    } catch {}
   }
   static get _translations() {
     return {
@@ -176,6 +198,16 @@ class HaNetworkMap extends HTMLElement {
     } catch (e) { console.warn('[ha-network-map] device registry load failed:', e); this._deviceRegistry = []; }
   }
   _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
+  _timeAgo(date) {
+    const sec = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (sec < 60) return this._lang === 'pl' ? 'przed chwil\u0105' : 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return min + (this._lang === 'pl' ? ' min temu' : 'm ago');
+    const hrs = Math.floor(min / 60);
+    if (hrs < 24) return hrs + (this._lang === 'pl' ? ' godz. temu' : 'h ago');
+    const days = Math.floor(hrs / 24);
+    return days + (this._lang === 'pl' ? ' dn. temu' : 'd ago');
+  }
   _getRegistryInfo() {
     const lookup = {};
     (this._deviceRegistry || []).forEach(d => {
@@ -189,17 +221,140 @@ class HaNetworkMap extends HTMLElement {
     });
     return lookup;
   }
+  _buildPingMap() {
+    // Cross-reference binary_sensor/sensor ping/connectivity entities to enhance device status
+    const states = this._hass.states;
+    const pingMap = {}; // keyed by normalized name → true if device responds
+    Object.keys(states).forEach(eid => {
+      // Match: binary_sensor.*_ping, sensor.*_ping, binary_sensor.*_connected, etc.
+      const isPing = /^binary_sensor\..+_(ping|connected|connectivity|online|reachable)$/.test(eid);
+      const isSensor = /^sensor\..+_(ping|latency|rtt)$/.test(eid);
+      if (!isPing && !isSensor) return;
+      const st = states[eid];
+      const name = (st.attributes?.friendly_name || eid).toLowerCase()
+        .replace(/\s*(ping|connected|connectivity|online|reachable|latency|rtt)\s*$/i, '').trim();
+      const isOn = isPing ? st.state === 'on' : (parseFloat(st.state) > 0 && st.state !== 'unavailable');
+      if (isOn) pingMap[name] = true;
+    });
+    return pingMap;
+  }
+  _hasActiveNetworkScanning() {
+    // Detect if user has router/nmap/ping-based device tracking
+    const states = this._hass.states;
+    let hasRouter = false, hasNmap = false, hasPing = false;
+    Object.keys(states).forEach(eid => {
+      if (!eid.startsWith('device_tracker.')) return;
+      const src = states[eid].attributes?.source_type;
+      if (src === 'router') hasRouter = true;
+      // nmap sets source_type to 'router' too, but check for nmap service
+    });
+    // Check for nmap service availability
+    if (this._hass.services?.nmap_tracker) hasNmap = true;
+    // Check for ping binary sensors
+    const pingCount = Object.keys(states).filter(e => /^binary_sensor\..+_(ping|connected|connectivity)$/.test(e)).length;
+    if (pingCount > 2) hasPing = true;
+    return { hasRouter, hasNmap, hasPing, hasAny: hasRouter || hasNmap || hasPing };
+  }
+  _detectSubnet(knownIps) {
+    // Detect subnet base from known IPs, router config, or HA URL
+    const ips = [...knownIps];
+    if (ips.length > 0) {
+      // Use most common /24 prefix from known IPs
+      const prefixes = {};
+      ips.forEach(ip => { const p = ip.split('.').slice(0, 3).join('.') + '.'; prefixes[p] = (prefixes[p] || 0) + 1; });
+      const best = Object.entries(prefixes).sort((a, b) => b[1] - a[1])[0];
+      if (best) return best[0];
+    }
+    // Fallback: detect from HA URL
+    const haUrl = window.location.hostname;
+    const m = haUrl.match(/^(\d+\.\d+\.\d+)\.\d+$/);
+    if (m) return m[1] + '.';
+    // Fallback: use router_ip from config
+    if (this.routerIp) {
+      const rm = this.routerIp.match(/^(\d+\.\d+\.\d+)\.\d+$/);
+      if (rm) return rm[1] + '.';
+    }
+    return null;
+  }
+  async _browserPingScan(ips, knownDeviceIps) {
+    // Browser-based reachability check using fetch with timeout
+    // Works because user's browser is on the same LAN as devices
+    const results = {}; // ip → true/false
+    const TIMEOUT = 1800; // ms — fast enough to detect online, short enough for 254 IPs
+    const BATCH = 40; // concurrent checks — high throughput for subnet scans
+    const probePort = async (ip, port) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
+      const proto = port === 443 || port === 8443 ? 'https' : 'http';
+      try {
+        await fetch(proto + '://' + ip + ':' + port + '/', { mode: 'no-cors', signal: ctrl.signal, cache: 'no-store' });
+        clearTimeout(timer);
+        return true; // connection established
+      } catch (e) {
+        clearTimeout(timer);
+        if (e.name === 'AbortError') return false; // timeout = unreachable
+        return true; // connection refused / net error = device IS on the network
+      }
+    };
+    const check = async (ip) => {
+      // Port 80 first (most common, fast)
+      if (await probePort(ip, 80)) { results[ip] = true; return; }
+      // If known device (has device_tracker), try additional ports
+      if (knownDeviceIps && knownDeviceIps.has(ip)) {
+        const extraPorts = [443, 8080, 8123, 8443, 5353, 9100];
+        const probes = await Promise.all(extraPorts.map(p => probePort(ip, p)));
+        if (probes.some(r => r)) { results[ip] = true; return; }
+      }
+      results[ip] = false;
+    };
+    // Process in batches to avoid flooding
+    for (let i = 0; i < ips.length; i += BATCH) {
+      const batch = ips.slice(i, i + BATCH);
+      await Promise.all(batch.map(ip => check(ip)));
+    }
+    return results;
+  }
   updateDevices() {
     const states = this._hass.states; this.devices = []; const deviceMap = {};
     const regLookup = this._getRegistryInfo();
+    const pingMap = this._buildPingMap();
+    this._networkScanning = this._hasActiveNetworkScanning();
     Object.keys(states).forEach(eid => {
       if (!eid.startsWith('device_tracker.')) return;
       const st = states[eid]; const attr = st.attributes || {};
       const fname = this._sanitize(attr.friendly_name || eid.replace('device_tracker.', ''));
       const raw = (st.state || '').toLowerCase();
-      let status = raw === 'home' ? 'home' : (raw === 'not_home' || raw === 'away') ? 'away' : raw === 'unavailable' ? 'offline' : raw === 'unknown' ? 'unknown' : 'zone';
       let ip = attr.ip || attr.ip_address || attr.local_ip || attr.host_ip || null;
       let mac = attr.mac || attr.mac_address || attr.host_mac || null;
+      // Cross-reference: HA ping sensors + browser scan results
+      const nameLower = fname.toLowerCase();
+      const pingAlive = pingMap[nameLower] || false;
+      const browserAlive = ip ? (this._scanResults[ip] === true) : false;
+      // Enhanced status: browser scan > ping sensors > HA state > freshness heuristic
+      let status;
+      if (raw === 'home') {
+        status = 'home';
+      } else if (browserAlive) {
+        status = 'home'; // Browser fetch confirmed device is reachable on LAN
+      } else if (pingAlive) {
+        status = 'home'; // HA ping/connectivity sensor confirms reachable
+      } else if (ip && this._scanResults[ip] === false) {
+        status = 'offline'; // Browser scan explicitly confirmed unreachable
+      } else if (raw === 'unavailable') {
+        status = 'offline';
+      } else if (raw === 'not_home' || raw === 'away') {
+        const lastChanged = new Date(st.last_changed || 0).getTime();
+        const staleMinutes = (Date.now() - lastChanged) / 60000;
+        if (ip && staleMinutes < 10 && (attr.source_type === 'router' || attr.source_type === 'nmap')) {
+          status = 'home'; // Router/nmap-tracked device with recent activity and IP
+        } else {
+          status = 'away';
+        }
+      } else if (raw === 'unknown') {
+        status = 'unknown';
+      } else {
+        status = 'zone'; // Named zone
+      }
       let mfr = null, mdl = null;
       const reg = regLookup[fname.toLowerCase()];
       if (reg) { if (!ip && reg.ip) ip = reg.ip; if (!mac && reg.mac) mac = reg.mac; mfr = reg.manufacturer; mdl = reg.model; }
@@ -316,6 +471,10 @@ class HaNetworkMap extends HTMLElement {
       else if (this.sortBy === 'ip') {
         av = a.ip ? a.ip.split('.').map(n => n.padStart(3,'0')).join('.') : 'zzz';
         bv = b.ip ? b.ip.split('.').map(n => n.padStart(3,'0')).join('.') : 'zzz';
+      } else if (this.sortBy === 'mac') {
+        av = a.mac || 'ZZ:ZZ:ZZ:ZZ:ZZ:ZZ'; bv = b.mac || 'ZZ:ZZ:ZZ:ZZ:ZZ:ZZ';
+      } else if (this.sortBy === 'lastSeen') {
+        av = a.lastSeen || ''; bv = b.lastSeen || '';
       } else { av = a.name; bv = b.name; }
       const r = av < bv ? -1 : av > bv ? 1 : 0;
       return this.sortDesc ? -r : r;
@@ -422,6 +581,22 @@ class HaNetworkMap extends HTMLElement {
       '<div class="stat-mini sa"><div class="sv">' + aw + '</div><div class="sl">' + this._t('awayLabel') + '</div></div>' +
       '<div class="stat-mini sf"><div class="sv">' + off + '</div><div class="sl">' + this._t('offlineLabel') + '</div></div></div>';
     if (!this.devices.length) return h + '<div class="es">' + this._t('noDevicesFound') + '</div>';
+    // Smart banner: context-aware guidance
+    const hasScanData = Object.keys(this._scanResults).length > 0;
+    if (this._networkScanning && !this._networkScanning.hasAny && on < 5 && aw > 10 && !hasScanData) {
+      const bannerMsg = this._lang === 'pl'
+        ? '\u{1F4E1} Wi\u0119kszo\u015B\u0107 urz\u0105dze\u0144 pokazuje si\u0119 jako <b>Poza domem</b>. Kliknij <b>Rescan</b> \u2014 zeskanujemy sie\u0107 z Twojej przegl\u0105darki. Dla sta\u0142ego monitorowania dodaj integracj\u0119 <b>nmap Tracker</b>, <b>Ping</b> lub <b>router</b> (Synology SRM, UniFi, Fritz!Box) w Ustawienia \u2192 Urz\u0105dzenia i us\u0142ugi.'
+        : '\u{1F4E1} Most devices show as <b>Away</b>. Click <b>Rescan</b> to scan your network from the browser. For persistent monitoring, add <b>nmap Tracker</b>, <b>Ping</b>, or a <b>router integration</b> (Synology SRM, UniFi, Fritz!Box) in Settings \u2192 Devices & Services.';
+      h += '<div style="margin:12px 0;padding:12px 16px;background:var(--bento-warning-light);border:1px solid var(--bento-warning);border-radius:var(--bento-radius-xs);font-size:13px;line-height:1.5;color:var(--bento-text)">' + bannerMsg + '</div>';
+    } else if (hasScanData) {
+      const scannedCount = Object.keys(this._scanResults).length;
+      const reachable = Object.values(this._scanResults).filter(v => v).length;
+      const scanTime = this._lastScanTime ? new Date(this._lastScanTime).toLocaleString() : '';
+      const scanMsg = this._lang === 'pl'
+        ? '\u2705 Skan sieci: <b>' + reachable + '</b> z <b>' + scannedCount + '</b> IP odpowiedzia\u0142o.' + (scanTime ? ' <span style="color:var(--bento-text-muted)">(skan: ' + scanTime + ')</span>' : '')
+        : '\u2705 Network scan: <b>' + reachable + '</b> of <b>' + scannedCount + '</b> IPs responded.' + (scanTime ? ' <span style="color:var(--bento-text-muted)">(scanned: ' + scanTime + ')</span>' : '');
+      h += '<div style="margin:12px 0;padding:10px 16px;background:var(--bento-success-light);border:1px solid var(--bento-success);border-radius:var(--bento-radius-xs);font-size:13px;line-height:1.5;color:var(--bento-text)">' + scanMsg + '</div>';
+    }
     const catOpts = cats.map(c => '<option value="' + c + '"' + (this._catFilter === c ? ' selected' : '') + '>' + c + '</option>').join('');
     if (this.selectedDevice) h += this._detailHtml(this.selectedDevice);
     h += '<div class="toolbar"><input type="text" class="si" id="sI" placeholder="' + this._t('searchPlaceholder') + '" value="' + (this.searchQuery || '') + '">' +
@@ -439,11 +614,14 @@ class HaNetworkMap extends HTMLElement {
       const mfg = d.manufacturer ? '<span class="ds">' + d.manufacturer + (d.model ? ' ' + d.model : '') + '</span>' : '';
       const lastSeenTime = d.last_seen || d.lastSeen || null;
       const lastSeenText = lastSeenTime ? new Date(lastSeenTime).toLocaleString() : '\u2014';
-      // Enhanced status badge for offline devices showing last_seen
+      // Enhanced status badge with last_seen for non-home statuses
       let statusBadge = '<span class="sb ' + sc + '">' + sL + '</span>';
-      if (d.status === 'offline' && lastSeenTime) {
+      if (d.status !== 'home' && d.status !== 'zone' && lastSeenTime) {
         const lastSeenDate = new Date(lastSeenTime);
-        statusBadge = '<span style="color:#94A3B8;font-weight:600">● Offline</span> <span style="font-size:10px;color:var(--bento-text-secondary)">(' + lastSeenDate.toLocaleString() + ')</span>';
+        const ago = this._timeAgo(lastSeenDate);
+        const colors = { away: '#F59E0B', offline: '#94A3B8', unknown: '#6B7280' };
+        const color = colors[d.status] || '#6B7280';
+        statusBadge = '<span style="color:' + color + ';font-weight:600">● ' + sL + '</span> <span style="font-size:10px;color:var(--bento-text-secondary)">(' + ago + ')</span>';
       }
       rows += '<tr data-i="' + i + '"><td><span class="di">' + d.icon + '</span><span class="dn">' + d.name + '</span>' + mfg + '</td>' +
         '<td>' + d.category + '</td><td>' + statusBadge + '</td>' +
@@ -454,8 +632,8 @@ class HaNetworkMap extends HTMLElement {
       '<th data-s="category">' + this._t('category') + sa('category') + '</th>' +
       '<th data-s="status">' + this._t('status') + sa('status') + '</th>' +
       '<th data-s="ip">' + this._t('ipAddress') + sa('ip') + '</th>' +
-      '<th>' + this._t('macAddress') + '</th>' +
-      '<th>' + this._t('lastSeen') + '</th>' +
+      '<th data-s="mac">' + this._t('macAddress') + sa('mac') + '</th>' +
+      '<th data-s="lastSeen">' + this._t('lastSeen') + sa('lastSeen') + '</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
     if (tp > 1) h += '<div class="pg"><button class="pb" data-p="' + (pg-1) + '"' + (pg<=1?' disabled':'') + '>\u2039 Prev</button>' +
       '<span class="pi2">' + pg + ' / ' + tp + ' (' + this.filteredDevices.length + ')</span>' +
@@ -527,15 +705,59 @@ class HaNetworkMap extends HTMLElement {
   _bindEvents() {
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { this.activeTab = b.dataset.tab; this._doRender(); }));
     const rescanBtn = this.shadowRoot.querySelector('#rescanBtn');
-    if (rescanBtn) rescanBtn.addEventListener('click', () => {
+    if (rescanBtn) rescanBtn.addEventListener('click', async () => {
+      if (this._scanInProgress) return;
+      this._scanInProgress = true;
       rescanBtn.classList.add('scanning');
-      rescanBtn.textContent = '\u23F3 ' + (this._lang === 'pl' ? 'Skanowanie...' : 'Scanning...');
+      rescanBtn.textContent = '\u23F3 ' + (this._lang === 'pl' ? 'Skanowanie sieci...' : 'Scanning network...');
       this._registryLoaded = false;
-      this._loadDeviceRegistry().then(() => {
-        this.updateDevices();
-        this._lastScanTime = Date.now();
-        this._doRender();
+      // Phase 1: Refresh HA entities + registry in parallel
+      const trackerIds = Object.keys(this._hass.states).filter(e => e.startsWith('device_tracker.'));
+      const haPromises = [];
+      if (trackerIds.length > 0) {
+        haPromises.push(this._hass.callService('homeassistant', 'update_entity', { entity_id: trackerIds }).catch(() => {}));
+      }
+      if (this._hass.services?.nmap_tracker?.scan) {
+        haPromises.push(this._hass.callService('nmap_tracker', 'scan', {}).catch(() => {}));
+      }
+      haPromises.push(this._loadDeviceRegistry());
+      await Promise.all(haPromises);
+      // Phase 2: Browser-based ping scan — known IPs + subnet discovery
+      this.updateDevices(); // refresh device list first to get latest IPs
+      const deviceIps = new Set(this.devices.map(d => d.ip).filter(ip => ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)));
+      const allIps = new Set(deviceIps);
+      // Detect subnet and add full range for discovery
+      const subnetBase = this._detectSubnet(deviceIps);
+      if (subnetBase) {
+        for (let i = 1; i <= 254; i++) allIps.add(subnetBase + i);
+      }
+      const ipList = [...allIps];
+      rescanBtn.textContent = '\u{1F4E1} ' + (this._lang === 'pl' ? ('Skanowanie ' + ipList.length + ' IP...') : ('Scanning ' + ipList.length + ' IPs...'));
+      if (ipList.length > 0) {
+        this._scanResults = await this._browserPingScan(ipList, deviceIps);
+      }
+      // Phase 3: Re-evaluate device statuses with scan data + add discovered devices
+      this.updateDevices();
+      // Add newly discovered IPs (reachable but not in any device_tracker)
+      const knownDeviceIps = new Set(this.devices.map(d => d.ip).filter(Boolean));
+      Object.entries(this._scanResults).forEach(([ip, alive]) => {
+        if (alive && !knownDeviceIps.has(ip)) {
+          this.devices.push({
+            id: 'discovered_' + ip, name: ip, status: 'home', rawState: 'discovered',
+            ip: ip, mac: '', sourceType: 'browser_scan', hostName: ip,
+            lastSeen: new Date().toISOString(), icon: '\u{1F4E1}',
+            category: this._lang === 'pl' ? 'Odkryte w sieci' : 'Discovered',
+            battery: null, hasGps: false, ssid: null, rssi: null, connType: null,
+            manufacturer: null, model: null, attributes: {}
+          });
+        }
       });
+      this._filterSort();
+      this._lastScanTime = Date.now();
+      this._persistScanResults();
+      this._persistDevices(this.devices);
+      this._scanInProgress = false;
+      this._doRender();
     });
     const si = this.shadowRoot.querySelector('#sI');
     if (si) si.addEventListener('input', e => {

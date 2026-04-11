@@ -1,6 +1,6 @@
 ﻿# HA Tools
 
-All-in-one Home Assistant custom panel with 24 tools for monitoring, automation, energy management, and more.
+All-in-one Home Assistant custom panel with 22 tools for monitoring, automation, energy management, and more.
 
 ![HA Tools Home](screenshots/home.jpg)
 
@@ -38,7 +38,7 @@ panel_custom:
 - **Entity Renamer** — Rename entities with propagation to dashboards, automations, and scripts
 - **Encoding Fixer** — Detect and fix mojibake, BOM, and encoding issues in entities, files, and Lovelace resources
 
-### Device Health (5 tools)
+### Device Health (6 tools)
 - **Device Health** — Monitor device battery, connectivity, and status
 - **Backup Manager** — Manage and monitor HA backups with health checks
 - **Network Map** — Network device visualization with topology map
@@ -125,7 +125,7 @@ ha-tools-loader.js  (bootstrap, loaded by panel_custom)
 - **NEW** Shared Bento Design System CSS (ha-tools-bento.js) — single source of truth for styling
 - **FIX** Server-side settings persistence (cross-device via frontend/set_user_data)
 - **FIX** Improved dark mode consistency across all tools
-- **NEW** 24 tools in the panel
+- **NEW** 22 tools in the panel
 
 ### v3.5.0
 - **FIX** Fixed card flickering — HTML diffing in all tools

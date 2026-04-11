@@ -289,16 +289,27 @@ class HaFrigatePrivacy extends HTMLElement {
             this._startCountdown();
           }
         } else if (timerState.state === 'idle' && this._privacyActive) {
-          // Timer finished server-side — clean up card state
+          // Timer finished server-side — clean up card state AND resume cameras
+          const camsToResume = this._privacyCameras && this._privacyCameras !== 'all'
+            ? this._privacyCameras.split(', ')
+            : this._cameras.map(c => c.entity_id);
           this._privacyActive = false;
           this._privacyEndTime = null;
           this._savePrivacyState();
           if (this._privacyTimerInterval) { clearInterval(this._privacyTimerInterval); this._privacyTimerInterval = null; }
+          this._setCameraStreams(camsToResume, true);
+          this._addHistoryEntry('resumed', 0);
+          const t = this._t;
+          this._sendNotification('▶️ ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
         }
       }
       // Check if privacy timer expired while page was away
       if (this._pendingAddonRestart) {
         this._pendingAddonRestart = false;
+        const camsRestart = this._privacyCameras && this._privacyCameras !== 'all'
+          ? this._privacyCameras.split(', ')
+          : this._cameras.map(c => c.entity_id);
+        this._setCameraStreams(camsRestart, true);
         const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
         hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
           const t = this._t;
@@ -308,9 +319,13 @@ class HaFrigatePrivacy extends HTMLElement {
       }
       // Also check persisted state in case _loadPrivacyState found active+expired
       if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime) {
+        const camsExpired = this._privacyCameras && this._privacyCameras !== 'all'
+          ? this._privacyCameras.split(', ')
+          : this._cameras.map(c => c.entity_id);
         this._privacyActive = false;
         this._privacyEndTime = null;
         this._savePrivacyState();
+        this._setCameraStreams(camsExpired, true);
         const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
         hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
           const t = this._t;
@@ -328,9 +343,13 @@ class HaFrigatePrivacy extends HTMLElement {
           this._renderScheduled = false;
           // Check if privacy timer expired (handles case where user navigated away and back)
           if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime && !this._privacyTimerInterval) {
+            const camsDeferred = this._privacyCameras && this._privacyCameras !== 'all'
+              ? this._privacyCameras.split(', ')
+              : (this._cameras || []).map(c => c.entity_id);
             this._privacyActive = false;
             this._privacyEndTime = null;
             this._savePrivacyState();
+            this._setCameraStreams(camsDeferred, true);
             const addonId = this._config?.frigate_addon_id || 'ccab4aaf_frigate';
             this._hass?.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
               const t = this._t;
