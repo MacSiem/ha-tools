@@ -2356,4 +2356,13 @@ ${HAToolsPanel.CSS}
         card.style.cssText = 'display:block; min-height:calc(100vh - 56px);';
         content.appendChild(card);
         this._cardInstance = card;
-   
+      } catch (e) {
+        content.innerHTML = `<div class="empty"><div class="big">\u26A0\uFE0F</div><div>B\u0142\u0105d: ${_esc(e.message)}</div></div>`;
+      }
+    }, 150);
+  }
+}
+
+if (!customElements.get('ha-tools-panel')) { customElements.define('ha-tools-panel', HAToolsPanel); }
+// HA Tools Panel registered
+
