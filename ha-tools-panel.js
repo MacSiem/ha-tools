@@ -1,6 +1,7 @@
 
-// XSS protection helper
-const _esc = (s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? '');
+// XSS protection helper (global singleton — tools reuse via window._haToolsEsc)
+window._haToolsEsc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+const _esc = window._haToolsEsc;
 
 // ── HA Tools Server Persistence Helper ──
 // Uses HA frontend/set_user_data for cross-device per-user persistence
@@ -2355,13 +2356,4 @@ ${HAToolsPanel.CSS}
         card.style.cssText = 'display:block; min-height:calc(100vh - 56px);';
         content.appendChild(card);
         this._cardInstance = card;
-      } catch (e) {
-        content.innerHTML = `<div class="empty"><div class="big">\u26A0\uFE0F</div><div>B\u0142\u0105d: ${_esc(e.message)}</div></div>`;
-      }
-    }, 150);
-  }
-}
-
-if (!customElements.get('ha-tools-panel')) { customElements.define('ha-tools-panel', HAToolsPanel); }
-// HA Tools Panel registered
-
+   
