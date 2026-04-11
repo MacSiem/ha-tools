@@ -101,6 +101,7 @@ class HAToolsPanel extends HTMLElement {
     if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
     if (this._autoRefreshTimer) { clearInterval(this._autoRefreshTimer); this._autoRefreshTimer = null; }
     if (this._hashHandler) window.removeEventListener('hashchange', this._hashHandler);
+    if (this._visibilityHandler) document.removeEventListener('visibilitychange', this._visibilityHandler);
   }
 
   _navigateFromHash() {
@@ -129,6 +130,16 @@ class HAToolsPanel extends HTMLElement {
     }
     this._hashHandler = () => this._navigateFromHash();
     window.addEventListener('hashchange', this._hashHandler);
+    // Re-render when tab becomes visible again (handles HA reconnect / sleep wake)
+    this._visibilityHandler = () => {
+      if (document.visibilityState === 'visible' && this._hass) {
+        // Force re-render + re-propagate hass to child card
+        this._lastHassPropagation = 0;
+        if (this._cardInstance) this._cardInstance.hass = this._hass;
+        this._render();
+      }
+    };
+    document.addEventListener('visibilitychange', this._visibilityHandler);
   }
 
   // Map tool tags to their script paths (all in /local/community/ha-tools/)
@@ -1013,9 +1024,15 @@ class HAToolsPanel extends HTMLElement {
   }
 
   set hass(hass) {
+    const wasDisconnected = this._hass && !this._hass.connected && hass?.connected;
     this._hass = hass;
     if (!this._rendered) {
       this._rendered = true;
+      this._render();
+    }
+    // Force full re-render after HA reconnect
+    if (wasDisconnected) {
+      this._lastHassPropagation = 0;
       this._render();
     }
     // Throttle hass propagation to child card (HA sends ~3 updates/sec)
