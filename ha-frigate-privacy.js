@@ -85,6 +85,8 @@ class HaFrigatePrivacy extends HTMLElement {
     this._schedules = [];
     this._scheduleForm = { enabled: true, days: [1,2,3,4,5], startHour: 18, startMin: 0, endHour: 20, endMin: 0, repeat: true, label: '' };
     this._editingScheduleIdx = null;
+    this._helpersChecked = false;
+    this._lastScheduleCheck = 0;
     this._history = [];
     // Notification settings
     this._notifyEnabled = true;
@@ -361,6 +363,13 @@ class HaFrigatePrivacy extends HTMLElement {
         }, 5000 - (now - (this._lastRenderTime || 0)));
       }
       return;
+    }
+    // Auto-create HA helpers on first load
+    if (!this._helpersChecked) this._ensureHAHelpers();
+    // Check schedules every 60s
+    if (now - this._lastScheduleCheck > 60000) {
+      this._lastScheduleCheck = now;
+      this._checkSchedules();
     }
     this._lastRenderTime = now;
     this._updateUI();
@@ -641,6 +650,116 @@ class HaFrigatePrivacy extends HTMLElement {
     this._saveHistory();
   }
 
+  // --- HA server-side helpers management ---
+  async _syncCamerasToHA(camerasStr) {
+    if (!this._hass) return;
+    try {
+      if (this._hass.states['input_text.frigate_privacy_cameras']) {
+        await this._hass.callService('input_text', 'set_value', {
+          entity_id: 'input_text.frigate_privacy_cameras',
+          value: (camerasStr || '').substring(0, 255)
+        });
+      }
+    } catch(e) { console.warn('[Frigate Privacy] Could not sync cameras to HA:', e); }
+  }
+
+  async _ensureHAHelpers() {
+    if (!this._hass || this._helpersChecked) return;
+    this._helpersChecked = true;
+    // Auto-create timer.frigate_privacy if missing
+    if (!this._hass.states['timer.frigate_privacy']) {
+      try {
+        await this._hass.callWS({ type: 'timer/create', name: 'Frigate Privacy', icon: 'mdi:camera-timer', duration: '01:00:00' });
+        console.info('[Frigate Privacy] Created timer.frigate_privacy helper');
+      } catch(e) { console.warn('[Frigate Privacy] Could not auto-create timer helper:', e); }
+    }
+    // Auto-create input_text.frigate_privacy_cameras if missing
+    if (!this._hass.states['input_text.frigate_privacy_cameras']) {
+      try {
+        await this._hass.callWS({ type: 'input_text/create', name: 'Frigate Privacy Cameras', icon: 'mdi:camera-off', min: 0, max: 255, mode: 'text' });
+        console.info('[Frigate Privacy] Created input_text.frigate_privacy_cameras helper');
+      } catch(e) { console.warn('[Frigate Privacy] Could not auto-create input_text helper:', e); }
+    }
+  }
+
+  // --- Schedule execution (checks every 60s in set hass) ---
+  _checkSchedules() {
+    if (!this._hass || !this._schedules || this._schedules.length === 0) return;
+    const now = new Date();
+    const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon..7=Sun
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    for (const sched of this._schedules) {
+      if (!sched.enabled) continue;
+      if (!sched.days.includes(dayOfWeek)) continue;
+      const startMin = sched.startHour * 60 + (sched.startMin || 0);
+      const endMin = sched.endHour * 60 + (sched.endMin || 0);
+      const inWindow = endMin > startMin
+        ? (nowMin >= startMin && nowMin < endMin)
+        : (nowMin >= startMin || nowMin < endMin); // overnight
+
+      if (inWindow && !this._privacyActive) {
+        // Schedule should be active but privacy is off — start it
+        const durationMin = endMin > startMin ? (endMin - nowMin) : (1440 - nowMin + endMin);
+        console.info('[Frigate Privacy] Schedule triggered: ' + (sched.label || 'unnamed') + ', duration: ' + durationMin + 'min');
+        this._pauseFrigate(Math.max(1, durationMin));
+        this._addHistoryEntry('scheduled', durationMin, this._privacyCameras);
+        return; // only one schedule at a time
+      }
+    }
+  }
+
+  async _syncScheduleToHA(sched, idx, remove) {
+    if (!this._hass) return;
+    const automationId = 'frigate_privacy_schedule_' + idx;
+    if (remove || !sched || !sched.enabled) {
+      // Remove HA automation if it exists
+      try {
+        const existing = this._hass.states['automation.' + automationId];
+        if (existing) {
+          await this._hass.callService('automation', 'turn_off', { entity_id: 'automation.' + automationId });
+        }
+      } catch(e) {}
+      return;
+    }
+    // Create/update HA automation for this schedule
+    const dayMap = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat', 7: 'sun' };
+    const weekdays = sched.days.map(d => dayMap[d]).filter(Boolean);
+    const startTime = String(sched.startHour).padStart(2, '0') + ':' + String(sched.startMin || 0).padStart(2, '0') + ':00';
+    const endTime = String(sched.endHour).padStart(2, '0') + ':' + String(sched.endMin || 0).padStart(2, '0') + ':00';
+    const durationMin = (sched.endHour * 60 + (sched.endMin || 0)) - (sched.startHour * 60 + (sched.startMin || 0));
+    const durationMinAbs = durationMin > 0 ? durationMin : durationMin + 1440;
+    const durationH = Math.floor(durationMinAbs / 60);
+    const durationM = durationMinAbs % 60;
+    const durStr = String(durationH).padStart(2, '0') + ':' + String(durationM).padStart(2, '0') + ':00';
+
+    // Get all camera switches
+    const switches = Object.keys(this._hass.states).filter(id =>
+      id.startsWith('switch.') && (id.endsWith('_detect') || id.endsWith('_motion') || id.endsWith('_recordings') || id.endsWith('_snapshots'))
+    );
+
+    try {
+      await this._hass.callWS({
+        type: 'automation/config',
+        entity_id: 'automation.' + automationId,
+        config: {
+          alias: 'Frigate Privacy Schedule: ' + (sched.label || '#' + idx),
+          description: 'Auto-generated by ha-tools Frigate Privacy. Pauses cameras on schedule.',
+          mode: 'single',
+          triggers: [{ trigger: 'time', at: startTime }],
+          conditions: [{ condition: 'time', weekday: weekdays }],
+          actions: [
+            { action: 'switch.turn_off', target: { entity_id: switches } },
+            { action: 'timer.start', target: { entity_id: 'timer.frigate_privacy' }, data: { duration: durStr } },
+            { action: 'input_text.set_value', target: { entity_id: 'input_text.frigate_privacy_cameras' }, data: { value: 'all (schedule)' } },
+            { action: 'persistent_notification.create', data: { title: '\uD83D\uDD12 Frigate Privacy (schedule)', message: (sched.label || 'Schedule #' + idx) + ' activated. Cameras paused for ' + durationMinAbs + ' min.' } }
+          ]
+        }
+      });
+      console.info('[Frigate Privacy] Synced schedule automation: ' + automationId);
+    } catch(e) { console.warn('[Frigate Privacy] Could not sync schedule automation:', e); }
+  }
+
   // --- Camera stream control helper ---
   async _setCameraStreams(camIds, turnOn) {
     if (!this._hass) return;
@@ -691,6 +810,8 @@ class HaFrigatePrivacy extends HTMLElement {
         const dur = String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0') + ':00';
         await this._hass.callService('timer', 'start', { entity_id: 'timer.frigate_privacy', duration: dur });
       } catch(e) { console.warn('[Frigate Privacy] Could not start HA timer:', e); }
+      // Sync paused cameras to HA entity (survives browser close)
+      this._syncCamerasToHA(selectedCams.join(', '));
       this._startCountdown();
       this._showToast(t.privacyModeStarted + ' ' + minutes + ' ' + t.min, 'success');
       this._sendNotification(
@@ -721,6 +842,8 @@ class HaFrigatePrivacy extends HTMLElement {
         this._privacyTimerInterval = null;
       }
       this._savePrivacyState();
+      // Clear paused cameras in HA entity
+      this._syncCamerasToHA('');
       // Cancel HA server-side timer
       try {
         await this._hass.callService('timer', 'cancel', { entity_id: 'timer.frigate_privacy' });
@@ -824,13 +947,18 @@ class HaFrigatePrivacy extends HTMLElement {
       this._schedules.push(schedule);
     }
     this._saveSchedules();
+    const savedIdx = this._editingScheduleIdx !== null ? this._editingScheduleIdx : this._schedules.length - 1;
+    this._syncScheduleToHA(schedule, savedIdx, false);
     this._resetScheduleForm();
     this._updateUI();
   }
 
   _deleteSchedule(idx) {
+    this._syncScheduleToHA(null, idx, true);
     this._schedules.splice(idx, 1);
     this._saveSchedules();
+    // Re-sync remaining schedules (indices shifted)
+    this._schedules.forEach((s, i) => this._syncScheduleToHA(s, i, false));
     this._updateUI();
   }
 
@@ -850,6 +978,7 @@ class HaFrigatePrivacy extends HTMLElement {
   _toggleScheduleEnabled(idx) {
     this._schedules[idx].enabled = !this._schedules[idx].enabled;
     this._saveSchedules();
+    this._syncScheduleToHA(this._schedules[idx], idx, false);
     this._updateUI();
   }
 
