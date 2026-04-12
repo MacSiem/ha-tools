@@ -257,12 +257,9 @@ class HaFrigatePrivacy extends HTMLElement {
           ? this._privacyCameras.split(', ')
           : this._cameras.map(c => c.entity_id);
         this._setCameraStreams(camsRestart, true);
-        const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
-        hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
-          const t = this._t;
-          this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
-          this._showToast(t.frigateResumed + ' (auto - timer expired)', 'success');
-        }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
+        const t = this._t;
+        this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+        this._showToast(t.frigateResumed + ' (auto - timer expired)', 'success');
       }
       // Also check persisted state in case _loadPrivacyState found active+expired
       if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime) {
@@ -273,11 +270,8 @@ class HaFrigatePrivacy extends HTMLElement {
         this._privacyEndTime = null;
         this._savePrivacyState();
         this._setCameraStreams(camsExpired, true);
-        const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
-        hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
-          const t = this._t;
-          this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
-        }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
+        const t = this._t;
+        this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
       }
       this._updateUI();
       this._lastRenderTime = now;
@@ -297,11 +291,8 @@ class HaFrigatePrivacy extends HTMLElement {
             this._privacyEndTime = null;
             this._savePrivacyState();
             this._setCameraStreams(camsDeferred, true);
-            const addonId = this._config?.frigate_addon_id || 'ccab4aaf_frigate';
-            this._hass?.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
-              const t = this._t;
-              this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
-            }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
+            const t = this._t;
+            this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
           }
           this._updateUI();
           this._lastRenderTime = Date.now();
@@ -751,25 +742,21 @@ class HaFrigatePrivacy extends HTMLElement {
   // --- Camera stream control helper ---
   async _setCameraStreams(camIds, turnOn) {
     if (!this._hass) return;
-    const action = turnOn ? 'turn_on' : 'turn_off';
-    const svcDomain = this._hass.services?.camera;
-    const hasCameraSvc = svcDomain && svcDomain[action];
+    // NOTE: We intentionally do NOT call camera.turn_off/turn_on.
+    // Turning off the camera entity stops the entire Frigate camera pipeline,
+    // which can cause Google Coral TPU to be released. On turn_on, Frigate may
+    // fail to re-acquire the Coral (USB race condition) and fall back to CPU.
+    // Instead, we only toggle the Frigate switches (detect/recordings/snapshots/motion)
+    // which pauses processing without stopping the camera stream or releasing the TPU.
+    const switchAction = turnOn ? 'turn_on' : 'turn_off';
     for (const camId of camIds) {
       const camName = camId.replace('camera.', '');
-      // Turn camera stream on/off (if camera integration supports it)
-      if (hasCameraSvc) {
-        try {
-          await this._hass.callService('camera', action, { entity_id: camId });
-        } catch(e) {
-          console.warn('[Frigate Privacy] camera.' + action + ' failed for ' + camId + ':', e.message || e);
-        }
-      }
-      // Toggle Frigate switches
-      const switchAction = turnOn ? 'turn_on' : 'turn_off';
       for (const suffix of ['_detect', '_recordings', '_snapshots', '_motion']) {
         const switchId = 'switch.' + camName + suffix;
         if (this._hass.states[switchId]) {
-          try { await this._hass.callService('switch', switchAction, { entity_id: switchId }); } catch(e) {}
+          try { await this._hass.callService('switch', switchAction, { entity_id: switchId }); } catch(e) {
+            console.warn('[Frigate Privacy] switch.' + switchAction + ' failed for ' + switchId + ':', e.message || e);
+          }
         }
       }
     }
