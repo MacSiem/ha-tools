@@ -2,6 +2,26 @@
 
 All notable changes to HA Tools Panel are documented here.
 
+## [3.9.0] - 2026-04-12
+
+### Added
+- Sidebar search/filter — instant text search across all tools in the navigation panel
+- Global XSS protection helper (`window._haToolsEsc`) — shared sanitizer singleton across all tools
+
+### Changed
+- Deduplicated `_haToolsPersistence` — replaced 61-line blocks with 2-line stubs in 20 tools (panel retains canonical implementation). Net reduction: ~1220 lines of duplicate code
+- Deduplicated `_esc` XSS helper — tools reuse `window._haToolsEsc` from panel with standalone fallback
+
+### Fixed
+- **Frigate Privacy: Coral TPU stability** — removed `camera.turn_off/turn_on` calls that stopped the entire Frigate camera pipeline and could cause Google Coral USB TPU to be released. Removed `hassio.addon_start` on auto-resume that caused full addon restarts with USB race conditions. Privacy now only toggles Frigate switches (detect/recordings/snapshots/motion), keeping camera streams alive and Coral TPU continuously assigned
+- XSS protection across 8 tools — user-controlled data (notes, labels, entity names, config titles) now escaped via `_esc()` before innerHTML insertion
+- Memory leak in ha-trace-viewer — document click listener now properly cleaned up in `disconnectedCallback()`
+- Memory leak in ha-baby-tracker — `_autoSaveTimer` interval cleared in `disconnectedCallback()`
+- Removed dead `ha-tools-common.js` (gitignored, never loaded by any tool)
+
+### Security
+- Added `_esc()` sanitization for: baby-tracker (feeding amounts, notes, config titles), chore-tracker (entry names, assignees), data-exporter (entity names/states), frigate-privacy (camera labels), sentence-manager (slot names/types), vacuum-water-monitor (config title), panel (location name, error messages)
+
 ## [3.8.0] - 2026-04-05
 
 ### Added

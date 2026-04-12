@@ -523,6 +523,42 @@ class HAToolsPanel extends HTMLElement {
   margin-left: 8px;
 }
 
+.sidebar-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bento-border);
+}
+.sidebar-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px 6px 28px;
+  border: 1px solid var(--bento-border);
+  border-radius: 6px;
+  background: var(--bento-bg);
+  color: var(--bento-text);
+  font-size: 13px;
+  outline: none;
+}
+.sidebar-search input:focus {
+  border-color: var(--bento-primary);
+  box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+}
+.sidebar-search input::placeholder { color: var(--bento-text-secondary); }
+.sidebar-search-wrap {
+  position: relative;
+}
+.sidebar-search-wrap::before {
+  content: '\\1F50D';
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  pointer-events: none;
+}
+.nav-item.search-hidden { display: none; }
+.nav-group-children.search-hidden { display: none; }
+.nav-section.search-hidden { display: none; }
+
 .sidebar-scroll {
   flex: 1;
   overflow-y: auto;
@@ -1380,6 +1416,11 @@ ${HAToolsPanel.CSS}
             <span>\u{1F6E0}\uFE0F</span> HA Tools
             <span class="version">v${HA_TOOLS_BUILD}</span>
           </div>
+          <div class="sidebar-search">
+            <div class="sidebar-search-wrap">
+              <input type="text" id="sidebarSearch" placeholder="${this._lang === 'pl' ? 'Szukaj narz\\u0119dzia...' : 'Search tools...'}" autocomplete="off" />
+            </div>
+          </div>
           <div class="sidebar-scroll">
             <div class="nav-item active" data-view="home">
               <span class="nav-icon">\u{1F3E0}</span>
@@ -1498,6 +1539,47 @@ ${HAToolsPanel.CSS}
       overlay.addEventListener('click', () => {
         sidebar.classList.remove('open');
         overlay.classList.remove('visible');
+      });
+    }
+
+    // Sidebar search/filter
+    const searchInput = this.shadowRoot.getElementById('sidebarSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        const q = searchInput.value.trim().toLowerCase();
+        const toolsContainer = this.shadowRoot.querySelector('.nav-tools-list');
+        const unavailContainer = this.shadowRoot.querySelector('.nav-unavail-list');
+        if (!toolsContainer) return;
+        // Filter tool nav-items
+        toolsContainer.querySelectorAll('.nav-item').forEach(item => {
+          const name = (item.textContent || '').toLowerCase();
+          const match = !q || name.includes(q);
+          item.classList.toggle('search-hidden', !match);
+        });
+        // Show/hide group containers if all children hidden
+        toolsContainer.querySelectorAll('.nav-group-children').forEach(grp => {
+          const hasVisible = grp.querySelector('.nav-item:not(.search-hidden)');
+          grp.classList.toggle('search-hidden', !hasVisible);
+        });
+        // Filter unavailable tools
+        if (unavailContainer) {
+          unavailContainer.querySelectorAll('.nav-item').forEach(item => {
+            const name = (item.textContent || '').toLowerCase();
+            item.classList.toggle('search-hidden', q && !name.includes(q));
+          });
+        }
+        // Hide section headers if all items below are hidden
+        const toolsSection = this.shadowRoot.querySelector('.nav-section-tools');
+        const unavailSection = this.shadowRoot.querySelector('.nav-section-unavailable');
+        if (toolsSection) {
+          const anyToolVisible = toolsContainer.querySelector('.nav-item:not(.search-hidden):not(.has-children)');
+          const anyParentVisible = toolsContainer.querySelector('.nav-item.has-children:not(.search-hidden)');
+          toolsSection.classList.toggle('search-hidden', !anyToolVisible && !anyParentVisible);
+        }
+        if (unavailSection && unavailContainer) {
+          const anyUnavailVisible = unavailContainer.querySelector('.nav-item:not(.search-hidden)');
+          unavailSection.classList.toggle('search-hidden', !anyUnavailVisible);
+        }
       });
     }
 
