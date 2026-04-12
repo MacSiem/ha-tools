@@ -13,6 +13,7 @@ class HASmartReports extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-smart-reports-editor'); }
   constructor() {
     super();
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
@@ -70,6 +71,8 @@ class HASmartReports extends HTMLElement {
         save: 'Zapisz',
         cancel: 'Anuluj',
         locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+        noEnergySensors: 'Nie znaleziono sensor\u00F3w energii (kWh/W). Przejd\u017A do Ustawienia \u2192 Energia i dodaj \u017Ar\u00F3d\u0142a energii.',
+        energyConfig: 'Konfiguracja energii',
       },
       en: {
         title: 'Smart Reports',
@@ -80,6 +83,8 @@ class HASmartReports extends HTMLElement {
         save: 'Save',
         cancel: 'Cancel',
         locale: 'en-US',
+        noEnergySensors: 'No energy sensors (kWh/W) found. Go to Settings \u2192 Energy and add energy sources.',
+        energyConfig: 'Energy configuration',
       },
     };
     return T[this._lang] || T.en;
@@ -532,6 +537,7 @@ canvas {
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(tab => {
       tab.addEventListener('click', () => {
         this._activeTab = tab.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         try { localStorage.setItem('ha-smart-reports-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
         this.shadowRoot.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
@@ -580,10 +586,8 @@ canvas {
         <div class="empty-state">
           <div style="font-size:48px;opacity:0.5;margin-bottom:12px;">⚡</div>
           <h3 style="margin:8px 0 4px;">${this._lang === 'pl' ? 'Brak danych energetycznych' : 'No energy data found'}</h3>
-          <p style="font-size:12px;color:var(--bento-text-secondary);">${this._lang === 'pl'
-            ? 'Nie znaleziono sensorów energii (kWh/W). Przejdź do Ustawienia → Energia i dodaj źródła energii.'
-            : 'No energy sensors (kWh/W) found. Go to Settings → Energy and add energy sources.'}</p>
-          <a href="/config/energy" style="color:var(--bento-primary,#3B82F6);font-size:12px;margin-top:8px;display:inline-block;">⚙️ ${this._lang === 'pl' ? 'Konfiguracja energii' : 'Energy configuration'}</a>
+          <p style="font-size:12px;color:var(--bento-text-secondary);">${this._t.noEnergySensors}</p>
+          <a href="/config/energy" style="color:var(--bento-primary,#3B82F6);font-size:12px;margin-top:8px;display:inline-block;">⚙️ ${this._t.energyConfig}</a>
         </div>`;
       return;
     }
@@ -881,6 +885,11 @@ canvas {
 
   disconnectedCallback() {
     // Cleanup any active event listeners or timers
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 
 }

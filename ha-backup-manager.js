@@ -9,6 +9,7 @@ class HaBackupManager extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     // --- Throttle fields ---
     this._lastRenderTime = 0;
     this._renderScheduled = false;
@@ -95,7 +96,7 @@ class HaBackupManager extends HTMLElement {
   get _t() {
     const T = {
       pl: {
-        title: 'Menedżer Kopią Zapasowych',
+        title: 'Menedżer Kopii Zapasowych',
         loading: 'Wczytywanie...',
         noData: 'Brak danych',
         error: 'Błąd',
@@ -103,6 +104,7 @@ class HaBackupManager extends HTMLElement {
         save: 'Zapisz',
         cancel: 'Anuluj',
         locale: 'pl-PL',
+        totalSize: 'Suma rozmiarów skompresowanych kopii',
       },
       en: {
         title: 'Backup Manager',
@@ -113,6 +115,7 @@ class HaBackupManager extends HTMLElement {
         save: 'Save',
         cancel: 'Cancel',
         locale: 'en-US',
+        totalSize: 'Total compressed backup size',
       },
     };
     return T[this._lang] || T.en;
@@ -459,7 +462,7 @@ class HaBackupManager extends HTMLElement {
           <div class="health-card">
             <h3>Storage Used</h3>
             <div class="health-value">${this._formatBytes(this._healthData.totalSize)}</div>
-            <p class="health-label">${L ? 'Suma rozmiarów skompresowanych kopii' : 'Total of all compressed backups'}</p>
+            <p class="health-label">${this._t.totalSize}</p>
             <p style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:4px;">${L ? 'Nie obejmuje rozpakowania' : 'Does not include uncompressed'}</p>
           </div>
 
@@ -1554,6 +1557,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
   _switchTab(tab) {
     this._activeTab = tab;
     try { localStorage.setItem('ha-backup-manager-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+    history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
     this._updateUI();
   }
 
@@ -1688,6 +1692,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
     // Cleanup any active event listeners or timers
   }
 
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
+  }
 }
 
 if (!customElements.get('ha-backup-manager')) { customElements.define('ha-backup-manager', HaBackupManager); }

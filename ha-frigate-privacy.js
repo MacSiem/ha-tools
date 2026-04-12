@@ -11,6 +11,7 @@ window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: 
 class HaFrigatePrivacy extends HTMLElement {
   constructor() {
     super();
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._lastRenderTime = 0;
@@ -1344,6 +1345,7 @@ tap_action:
     sr.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._updateUI();
       });
     });
@@ -2069,6 +2071,11 @@ tap_action:
   .custom-pause .input-minutes { width: 100%; }
 }
 `;
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 }
 

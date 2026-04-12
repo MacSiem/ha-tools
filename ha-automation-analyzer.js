@@ -11,6 +11,7 @@ class HAAutomationAnalyzer extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this.config = {};
     this._hass = null;
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this.currentTab = "overview";
     this.automationStats = new Map();
     this.automationHistory = new Map();
@@ -93,6 +94,90 @@ class HAAutomationAnalyzer extends HTMLElement {
         conditions: 'Warunki',
         lastTriggered: 'Ostatnie uruchomienie',
         never: 'Nigdy',
+        errorCountRecent: 'b\u0142\u0105d(y) w ostatnich uruchomieniach',
+        justNow: 'przed chwil\u0105',
+        excellent: 'Doskona\u0142y',
+        good: 'Dobry',
+        needsImprovement: 'Wymaga poprawy',
+        noAutomationsMatching: 'Brak automatyzacji pasuj\u0105cych do filtr\u00f3w',
+        totalLabel: '\u0141\u0105cznie',
+        active: 'Aktywnych',
+        disabledLabel: 'Wy\u0142\u0105czonych',
+        errorsLabel: 'B\u0142\u0119d\u00f3w',
+        searchPlaceholder: 'Szukaj automatyzacji\u2026',
+        runsTodayOption: 'Uruchomienia dzi\u015B',
+        executionTime: 'Czas wykonania',
+        descendingAscending: 'Malej\u0105co/Rosn\u0105co',
+        allTime: 'Ca\u0142y czas',
+        today: 'Dzi\u015B',
+        mostActiveTodayTitle: 'Najaktywniejsze dzi\u015B',
+        executionTimeDistribution: 'Rozk\u0142ad czas\u00f3w wykonania',
+        noExecutionTimeData: 'Brak danych o czasach wykonania \u2014 zbyt ma\u0142o uruchomie\u0144 z pe\u0142nymi danymi',
+        noTriggerData: 'Brak danych o wyzwalaczach \u2014 konfiguracja automatyzacji niedost\u0119pna',
+        errorBadge: 'b\u0142\u0105d',
+        disabledBadge: 'wy\u0142\u0105czona',
+        enableButton: 'W\u0142\u0105cz',
+        noFailedAutomations: 'Brak nieudanych automatyzacji',
+        noDisabledAutomations: 'Brak wy\u0142\u0105czonych automatyzacji',
+        allRecent: 'Wszystkie automatyzacje by\u0142y ostatnio aktywne',
+        withErrors: 'Z b\u0142\u0119dami',
+        automationsWithErrors: 'Automatyzacje z b\u0142\u0119dami',
+        disabledAutomations: 'Wy\u0142\u0105czone automatyzacje',
+        tracesNotice: 'Domy\u015blnie HA przechowuje tylko <strong>5 ostatnich tras</strong> na automatyzacj\u0119. Trasy s\u0105 <strong>czyszczone po restarcie</strong> HA \u2014 po ponownym uruchomieniu wszystkie zapisane trace zostan\u0105 usuni\u0119te. Mo\u017cesz zwi\u0119kszy\u0107 limit w <a id="trace-viewer-link">Trace Viewer</a> (HA Tools \u2192 Ustawienia).',
+        tracesNoticeDetail: '\u2139\uFE0F Aby zachowa\u0107 wi\u0119cej danych o wykonaniach, ustaw stored_traces w konfiguracji HA lub u\u017cyj sekcji ustawie\u0144 w Trace Viewer.',
+        closeButton: 'Zamknij',
+        loadingData: '\u0141adowanie danych...',
+        fetchingTraces: 'Pobieranie tras wykonania...',
+        fetchingHistory: 'Pobieranie historii wykonania...',
+        never: 'nigdy',
+        minutesAgo: 'm temu',
+        minutesAgoEn: 'm ago',
+        hoursAgoSuffix: 'h temu',
+        hoursAgoSuffixEn: 'h ago',
+        daysAgoSuffix: 'd temu',
+        daysAgoSuffixEn: 'd ago',
+        secondsAgo: 's temu',
+        secondsAgoEn: 's ago',
+        todayCount: 'Dzisiejsze uruchomienia',
+        averageTime: '\u015Aredni czas',
+        todayRunsOption: 'Uruchomienia dzi\u015B',
+        todayRunsOptionEn: 'Runs today',
+        noFailedLabel: '\u2705 Brak nieudanych automatyzacji',
+        noDisabledLabel: '\u2705 Brak wy\u0142\u0105czonych automatyzacji',
+        noStaleLabel: '\u2705 Wszystkie automatyzacje by\u0142y ostatnio aktywne',
+        sevenDays: '7 dni',
+        fourteenDays: '14 dni',
+        thirtyDays: '30 dni',
+        name: 'Nazwa',
+        state: 'Stan',
+        descending: 'Malejąco',
+        ascending: 'Rosnąco',
+        dailyExecutions: 'Dzienne wykonania (14 dni)',
+        statistics: 'Statystyki',
+        avgTimeLabel: '\u015Ar. czas',
+        withTimeData: 'Z danymi o czasie',
+        triggerTypes: 'Typ\u00f3w wyzwalaczy',
+        noSlowAutomations: '\u2705 Brak wolnych automatyzacji',
+        noFailedAutomations2: '\u2705 Brak nieudanych automatyzacji',
+        slowAutomationsTitle: '\u26A0\uFE0F Wolne automatyzacje (&gt;800ms)',
+        failedAutomationsTitle: '\u274C Automatyzacje z b\u0142\u0119dami',
+        disabledAutomationsTitle: '\u23F8\uFE0F Wy\u0142\u0105czone automatyzacje',
+        inactiveAutomationsTitle: '\uD83D\uDCA4 Nieaktywne automatyzacje (&gt;30 dni)',
+        slowStat: 'Wolnych (&gt;800ms)',
+        withErrorsStat: 'Z b\u0142\u0119dami',
+        disabledStat: 'Wy\u0142\u0105czonych',
+        inactiveStat: 'Nieaktywnych (&gt;30d)',
+        lastUpdated: 'Ostatnia aktualizacja: ',
+        automations: 'automatyzacji',
+        tabOverview: 'Przegl\u0105d',
+        tabPerformance: 'Wydajno\u015B\u0107',
+        tabOptimization: 'Optymalizacja',
+        phaseLoadingAutomations: 'Wczytywanie automatyzacji...',
+        phaseLoadingMetadata: 'Pobieranie metadanych...',
+        phaseLoadingTraces: 'Pobieranie tras wykonania...',
+        phaseLoadingHistory: 'Pobieranie historii wykonania...',
+        systemHealth: 'Stan systemu automatyzacji',
+        triggerTypesTitle: 'Typy wyzwalaczy',
       },
       en: {
         title: 'Automation Analyzer',
@@ -109,6 +194,90 @@ class HAAutomationAnalyzer extends HTMLElement {
         conditions: 'Conditions',
         lastTriggered: 'Last triggered',
         never: 'Never',
+        errorCountRecent: 'error(s) in recent runs',
+        justNow: 'just now',
+        excellent: 'Excellent',
+        good: 'Good',
+        needsImprovement: 'Needs improvement',
+        noAutomationsMatching: 'No automations matching filters',
+        totalLabel: 'Total',
+        active: 'Active',
+        disabledLabel: 'Disabled',
+        errorsLabel: 'Errors',
+        searchPlaceholder: 'Search automations\u2026',
+        runsTodayOption: 'Runs today',
+        executionTime: 'Execution time',
+        descendingAscending: 'Descending/Ascending',
+        allTime: 'All time',
+        today: 'Today',
+        mostActiveTodayTitle: 'Most active today',
+        executionTimeDistribution: 'Execution time distribution',
+        noExecutionTimeData: 'No execution time data \u2014 too few runs with complete data',
+        noTriggerData: 'No trigger data \u2014 automation configuration unavailable',
+        errorBadge: 'error',
+        disabledBadge: 'disabled',
+        enableButton: 'Enable',
+        noFailedAutomations: 'No failed automations',
+        noDisabledAutomations: 'No disabled automations',
+        allRecent: 'All automations were recently active',
+        withErrors: 'With errors',
+        automationsWithErrors: 'Automations with errors',
+        disabledAutomations: 'Disabled automations',
+        tracesNotice: 'By default HA stores only the <strong>last 5 traces</strong> per automation. Traces are <strong>cleared on restart</strong> \u2014 after reboot all stored traces will be removed. You can increase the limit in <a id="trace-viewer-link">Trace Viewer</a> (HA Tools \u2192 Settings).',
+        tracesNoticeDetail: '\u2139\uFE0F To keep more execution data, set stored_traces in HA config or use the Settings section in Trace Viewer.',
+        closeButton: 'Close',
+        loadingData: 'Loading data...',
+        fetchingTraces: 'Fetching execution traces...',
+        fetchingHistory: 'Fetching execution history...',
+        never: 'never',
+        minutesAgo: 'm ago',
+        minutesAgoEn: 'm ago',
+        hoursAgoSuffix: 'h ago',
+        hoursAgoSuffixEn: 'h ago',
+        daysAgoSuffix: 'd ago',
+        daysAgoSuffixEn: 'd ago',
+        secondsAgo: 's ago',
+        secondsAgoEn: 's ago',
+        todayCount: 'Today\'s runs',
+        averageTime: 'Average time',
+        todayRunsOption: 'Runs today',
+        todayRunsOptionEn: 'Runs today',
+        noFailedLabel: '\u2705 No failed automations',
+        noDisabledLabel: '\u2705 No disabled automations',
+        noStaleLabel: '\u2705 All automations were recently active',
+        sevenDays: '7 days',
+        fourteenDays: '14 days',
+        thirtyDays: '30 days',
+        name: 'Name',
+        state: 'State',
+        descending: 'Descending',
+        ascending: 'Ascending',
+        dailyExecutions: 'Daily executions (14 days)',
+        statistics: 'Statistics',
+        avgTimeLabel: 'Avg. time',
+        withTimeData: 'With time data',
+        triggerTypes: 'Trigger types',
+        noSlowAutomations: '\u2705 No slow automations',
+        noFailedAutomations2: '\u2705 No failed automations',
+        slowAutomationsTitle: '\u26A0\uFE0F Slow automations (&gt;800ms)',
+        failedAutomationsTitle: '\u274C Automations with errors',
+        disabledAutomationsTitle: '\u23F8\uFE0F Disabled automations',
+        inactiveAutomationsTitle: '\uD83D\uDCA4 Inactive automations (&gt;30 days)',
+        slowStat: 'Slow (&gt;800ms)',
+        withErrorsStat: 'With errors',
+        disabledStat: 'Disabled',
+        inactiveStat: 'Inactive (&gt;30d)',
+        lastUpdated: 'Last updated: ',
+        automations: 'automations',
+        tabOverview: 'Overview',
+        tabPerformance: 'Performance',
+        tabOptimization: 'Optimization',
+        phaseLoadingAutomations: 'Loading automations...',
+        phaseLoadingMetadata: 'Fetching metadata...',
+        phaseLoadingTraces: 'Fetching execution traces...',
+        phaseLoadingHistory: 'Fetching execution history...',
+        systemHealth: 'Automation system health',
+        triggerTypesTitle: 'Trigger Types',
       },
     };
     return T[this._lang] || T.en;
@@ -411,7 +580,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       this.render();
 
       // --- Phase 2: Fetch automation configs (enriches trigger types) ---
-      this._loadingPhase = "Pobieranie konfiguracji automatyzacji...";
+      this._loadingPhase = this._lang === 'pl' ? "Pobieranie konfiguracji automatyzacji..." : "Fetching automation configuration...";
       this.render();
       const allConfigs = await this._getAllAutomationConfigs(automations);
       const configByEntityId = new Map();
@@ -455,7 +624,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       this.render();
 
       // --- Phase 2b: Fetch traces ---
-      this._loadingPhase = "Pobieranie tras wykonania...";
+      this._loadingPhase = this._t.phaseLoadingTraces;
       this.render();
       const enabled = automationMeta.filter(a => !a.isDisabled);
       const batchSize = 15;
@@ -480,7 +649,7 @@ class HAAutomationAnalyzer extends HTMLElement {
               existing.isFailed = true;
               this.failedAutomations.set(a.id, {
                 name: a.name, automationId: a.internalId,
-                reason: `${traceAnalysis.errorCount} b\u0142\u0105d(y) w ostatnich uruchomieniach`
+                reason: `${traceAnalysis.errorCount} ${this._t.errorCountRecent}`
               });
             }
           }
@@ -510,7 +679,7 @@ class HAAutomationAnalyzer extends HTMLElement {
               existing.isFailed = true;
               this.failedAutomations.set(id, {
                 name, automationId: internalId,
-                reason: `${traceAnalysis.errorCount} b\u0142\u0105d(y) w ostatnich uruchomieniach`
+                reason: `${traceAnalysis.errorCount} ${this._t.errorCountRecent}`
               });
             }
           }
@@ -519,7 +688,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       } // end else (fallback per-automation trace fetch)
 
       // --- Phase 3: Fetch history ---
-      this._loadingPhase = "Pobieranie historii wykonania...";
+      this._loadingPhase = this._t.phaseLoadingHistory;
       this.render();
       const recentActive = enabled
         .filter(a => a.lastTriggered)
@@ -646,26 +815,32 @@ class HAAutomationAnalyzer extends HTMLElement {
   }
 
   _formatLastUpdated() {
-    if (!this._lastUpdated) return "Nigdy";
+    if (!this._lastUpdated) return this._t.never;
     const diff = Date.now() - this._lastUpdated;
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(seconds / 60);
-    if (seconds < 60) return `${seconds}s temu`;
-    if (minutes < 60) return `${minutes}m temu`;
-    return this._lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+    const suffix = this._lang === 'pl' ? this._t.secondsAgo : this._t.secondsAgoEn;
+    const minuteSuffix = this._lang === 'pl' ? this._t.minutesAgo : this._t.minutesAgoEn;
+    if (seconds < 60) return `${seconds}${suffix}`;
+    if (minutes < 60) return `${minutes}${minuteSuffix}`;
+    return this._lastUpdated.toLocaleTimeString(this._lang === 'pl' ? "pl-PL" : "en-US", { hour: "2-digit", minute: "2-digit" });
   }
 
   _formatTimeSince(date) {
-    if (!date) return "nigdy";
+    if (!date) return this._t.never;
     const diff = Date.now() - date.getTime();
     const mins = Math.floor(diff / 60000);
     const hours = Math.floor(mins / 60);
     const days = Math.floor(hours / 24);
-    if (mins < 1) return "przed chwil\u0105";
-    if (mins < 60) return `${mins}m temu`;
-    if (hours < 24) return `${hours}h temu`;
-    if (days < 7) return `${days}d temu`;
-    return date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
+    const minuteSuffix = this._lang === 'pl' ? this._t.minutesAgo : this._t.minutesAgoEn;
+    const hourSuffix = this._lang === 'pl' ? this._t.hoursAgoSuffix : this._t.hoursAgoSuffixEn;
+    const daySuffix = this._lang === 'pl' ? this._t.daysAgoSuffix : this._t.daysAgoSuffixEn;
+    if (mins < 1) return this._t.justNow;
+    if (mins < 60) return `${mins}${minuteSuffix}`;
+    if (hours < 24) return `${hours}${hourSuffix}`;
+    if (days < 7) return `${days}${daySuffix}`;
+    const dateLocale = this._lang === 'pl' ? "pl-PL" : "en-US";
+    return date.toLocaleDateString(dateLocale, { day: "numeric", month: "short" });
   }
 
   _navigateToAutomation(automationId) {
@@ -1083,7 +1258,7 @@ class HAAutomationAnalyzer extends HTMLElement {
     };
     const healthScore = this._calculateHealthScore();
     const healthClass = healthScore >= 75 ? "excellent" : healthScore >= 50 ? "good" : "poor";
-    const healthText = healthScore >= 75 ? "Doskona\u0142y" : healthScore >= 50 ? "Dobry" : "Wymaga poprawy";
+    const healthText = healthScore >= 75 ? this._t.excellent : healthScore >= 50 ? this._t.good : this._t.needsImprovement;
 
     // --- OVERVIEW TAB ---
     // --- Filter and sort the full automation list ---
@@ -1137,64 +1312,64 @@ class HAAutomationAnalyzer extends HTMLElement {
             return `<div class="auto-item-full" data-automation-id="${a.automationId}">
               <span class="auto-state-dot ${stateClass}"></span>
               <span class="auto-name" title="${a.name}">${a.name}</span>
-              ${countStr ? `<span class="auto-detail" title="Dzisiejsze uruchomienia">${countStr}</span>` : ""}
-              ${execStr ? `<span class="auto-detail" title="\u015Aredni czas">${execStr}</span>` : ""}
+              ${countStr ? `<span class="auto-detail" title="${this._t.todayCount}">${countStr}</span>` : ""}
+              ${execStr ? `<span class="auto-detail" title="${this._t.averageTime}">${execStr}</span>` : ""}
               <span class="auto-detail">${timeStr}</span>
             </div>`;
           }).join("")
-        : `<div class="empty-state">Brak automatyzacji pasuj\u0105cych do filtr\u00f3w</div>`;
+        : `<div class="empty-state">${this._t.noAutomationsMatching}</div>`;
 
       activeTabContent = `
         <div class="health-row">
           <div class="health-circle ${healthClass}">${healthScore}</div>
           <div>
-            <div class="card-title">Stan systemu automatyzacji</div>
+            <div class="card-title">${this._t.systemHealth}</div>
             <div class="health-label">${healthText}</div>
           </div>
         </div>
         <div class="stats">
           <div class="stat">
             <div class="stat-value">${stats.total}</div>
-            <div class="stat-label">\u0141\u0105cznie</div>
+            <div class="stat-label">${this._t.totalLabel}</div>
           </div>
           <div class="stat">
             <div class="stat-value">${stats.active}</div>
-            <div class="stat-label">Aktywnych</div>
+            <div class="stat-label">${this._t.active}</div>
           </div>
           <div class="stat">
             <div class="stat-value">${stats.disabled}</div>
-            <div class="stat-label">Wy\u0142\u0105czonych</div>
+            <div class="stat-label">${this._t.disabledLabel}</div>
           </div>
           <div class="stat">
             <div class="stat-value">${stats.failed}</div>
-            <div class="stat-label">B\u0142\u0119d\u00f3w</div>
+            <div class="stat-label">${this._t.errorsLabel}</div>
           </div>
         </div>
         <div class="card" style="margin-top:var(--aa-space-4)">
-          <h2 class="card-title">Automatyzacje</h2>
+          <h2 class="card-title">${this._t.automations}</h2>
           <div class="filter-bar">
-            <input type="text" id="aa-filter-input" placeholder="Szukaj automatyzacji\u2026" value="${this._filterText.replace(/"/g, "&quot;")}">
+            <input type="text" id="aa-filter-input" placeholder="${this._t.searchPlaceholder}" value="${this._filterText.replace(/"/g, "&quot;")}">
             <select id="aa-sort-select">
-              <option value="lastTriggered" ${this._sortBy === "lastTriggered" ? "selected" : ""}>Ostatnie uruchomienie</option>
-              <option value="name" ${this._sortBy === "name" ? "selected" : ""}>Nazwa</option>
-              <option value="todayCount" ${this._sortBy === "todayCount" ? "selected" : ""}>Uruchomienia dzi\u015B</option>
-              <option value="avgTime" ${this._sortBy === "avgTime" ? "selected" : ""}>Czas wykonania</option>
-              <option value="state" ${this._sortBy === "state" ? "selected" : ""}>Stan</option>
+              <option value="lastTriggered" ${this._sortBy === "lastTriggered" ? "selected" : ""}>${this._t.lastTriggered}</option>
+              <option value="name" ${this._sortBy === "name" ? "selected" : ""}>${this._t.name}</option>
+              <option value="todayCount" ${this._sortBy === "todayCount" ? "selected" : ""}>${this._t.runsTodayOption}</option>
+              <option value="avgTime" ${this._sortBy === "avgTime" ? "selected" : ""}>${this._t.executionTime}</option>
+              <option value="state" ${this._sortBy === "state" ? "selected" : ""}>${this._t.state}</option>
             </select>
-            <button class="sort-dir-btn" id="aa-sort-dir" title="${this._sortDir === "desc" ? "Malej\u0105co" : "Rosn\u0105co"}">${this._sortDir === "desc" ? "\u2193" : "\u2191"}</button>
+            <button class="sort-dir-btn" id="aa-sort-dir" title="${this._sortDir === "desc" ? this._t.descending : this._t.ascending}">${this._sortDir === "desc" ? "\u2193" : "\u2191"}</button>
             <select id="aa-time-range">
-              <option value="all" ${this._timeRange === "all" ? "selected" : ""}>Ca\u0142y czas</option>
-              <option value="1" ${this._timeRange === "1" ? "selected" : ""}>Dzi\u015B</option>
-              <option value="7" ${this._timeRange === "7" ? "selected" : ""}>7 dni</option>
-              <option value="14" ${this._timeRange === "14" ? "selected" : ""}>14 dni</option>
-              <option value="30" ${this._timeRange === "30" ? "selected" : ""}>30 dni</option>
+              <option value="all" ${this._timeRange === "all" ? "selected" : ""}>${this._t.allTime}</option>
+              <option value="1" ${this._timeRange === "1" ? "selected" : ""}>${this._t.today}</option>
+              <option value="7" ${this._timeRange === "7" ? "selected" : ""}>${this._t.sevenDays}</option>
+              <option value="14" ${this._timeRange === "14" ? "selected" : ""}>${this._t.fourteenDays}</option>
+              <option value="30" ${this._timeRange === "30" ? "selected" : ""}>${this._t.thirtyDays}</option>
             </select>
           </div>
-          <div class="filter-results-count">${filteredAutos.length} z ${allAutos.length} automatyzacji</div>
+          <div class="filter-results-count">${filteredAutos.length} ${this._lang === 'pl' ? 'z' : 'of'} ${allAutos.length} ${this._t.automations}</div>
           <div class="auto-list-full">${filteredListHtml}</div>
         </div>
         <div class="card">
-          <h2 class="card-title">Najaktywniejsze dzi\u015B</h2>
+          <h2 class="card-title">${this._t.mostActiveTodayTitle}</h2>
           <div class="canvas-wrap">
             <canvas id="top-automations-chart"></canvas>
           </div>
@@ -1206,35 +1381,35 @@ class HAAutomationAnalyzer extends HTMLElement {
 
       activeTabContent = `
         <div class="card">
-          <h2 class="card-title">Rozk\u0142ad czas\u00f3w wykonania</h2>
+          <h2 class="card-title">${this._t.executionTimeDistribution}</h2>
           ${hasExecData
             ? '<div class="canvas-wrap"><canvas id="exec-dist-chart"></canvas></div>'
-            : '<div class="chart-empty">Brak danych o czasach wykonania \u2014 zbyt ma\u0142o uruchomie\u0144 z pe\u0142nymi danymi</div>'}
+            : '<div class="chart-empty">${this._t.noExecutionTimeData}</div>'}
         </div>
         <div class="card">
-          <h2 class="card-title">Typy wyzwalaczy</h2>
+          <h2 class="card-title">${this._t.triggerTypesTitle}</h2>
           ${hasTriggerData
             ? '<div class="canvas-wrap"><canvas id="trigger-type-chart"></canvas></div>'
-            : '<div class="chart-empty">Brak danych o wyzwalaczach \u2014 konfiguracja automatyzacji niedost\u0119pna</div>'}
+            : '<div class="chart-empty">${this._t.noTriggerData}</div>'}
         </div>
         <div class="card">
-          <h2 class="card-title">Dzienne wykonania (14 dni)</h2>
+          <h2 class="card-title">${this._t.dailyExecutions}</h2>
           <div class="canvas-wrap"><canvas id="sparkline-chart"></canvas></div>
         </div>
         <div class="card">
-          <h2 class="card-title">Statystyki</h2>
+          <h2 class="card-title">${this._t.statistics}</h2>
           <div class="stats">
             <div class="stat">
               <div class="stat-value">${stats.avgTime}${typeof stats.avgTime === "string" ? "" : "ms"}</div>
-              <div class="stat-label">\u015Ar. czas</div>
+              <div class="stat-label">${this._t.avgTimeLabel}</div>
             </div>
             <div class="stat">
               <div class="stat-value">${this.executionTimes.length}</div>
-              <div class="stat-label">Z danymi o czasie</div>
+              <div class="stat-label">${this._t.withTimeData}</div>
             </div>
             <div class="stat">
               <div class="stat-value">${this.triggerTypes.size}</div>
-              <div class="stat-label">Typ\u00f3w wyzwalaczy</div>
+              <div class="stat-label">${this._t.triggerTypes}</div>
             </div>
           </div>
         </div>
@@ -1255,26 +1430,26 @@ class HAAutomationAnalyzer extends HTMLElement {
               <span class="badge badge-warn">${Math.round(a.avgExecutionTime)}ms</span>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : '<div class="empty-state">\u2705 Brak wolnych automatyzacji</div>';
+        : `<div class="empty-state">${this._t.noSlowAutomations}</div>`;
 
       const failedItems = failedPaginated.length > 0
         ? failedPaginated.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
-              <span class="badge badge-error">${a.reason || "b\u0142\u0105d"}</span>
+              <span class="badge badge-error">${a.reason || this._t.errorBadge}</span>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : '<div class="empty-state">\u2705 Brak nieudanych automatyzacji</div>';
+        : `<div class="empty-state">${this._t.noFailedLabel}</div>`;
 
       const disabledItems = disabledPaginated.length > 0
         ? disabledPaginated.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
-              <span class="badge badge-info">wy\u0142\u0105czona</span>
-              <button class="toggle-btn" data-entity-id="${a.id}" data-action="enable">W\u0142\u0105cz</button>
+              <span class="badge badge-info">${this._t.disabledBadge}</span>
+              <button class="toggle-btn" data-entity-id="${a.id}" data-action="enable">${this._t.enableButton}</button>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : '<div class="empty-state">\u2705 Brak wy\u0142\u0105czonych automatyzacji</div>';
+        : `<div class="empty-state">${this._t.noDisabledLabel}</div>`;
 
       const staleItems = stalePaginated.length > 0
         ? stalePaginated.map(a => `
@@ -1283,44 +1458,44 @@ class HAAutomationAnalyzer extends HTMLElement {
               <span class="badge badge-stale">${this._formatTimeSince(a.lastTriggered)}</span>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : '<div class="empty-state">\u2705 Wszystkie automatyzacje by\u0142y ostatnio aktywne</div>';
+        : `<div class="empty-state">${this._t.noStaleLabel}</div>`;
 
       activeTabContent = `
         <div class="opt-summary">
           <div class="opt-stat warn">
             <div class="opt-stat-value">${optData.slow.length}</div>
-            <div class="opt-stat-label">Wolnych (&gt;800ms)</div>
+            <div class="opt-stat-label">${this._t.slowStat}</div>
           </div>
           <div class="opt-stat error">
             <div class="opt-stat-value">${optData.failed.length}</div>
-            <div class="opt-stat-label">Z b\u0142\u0119dami</div>
+            <div class="opt-stat-label">${this._t.withErrorsStat}</div>
           </div>
           <div class="opt-stat info">
             <div class="opt-stat-value">${optData.disabled.length}</div>
-            <div class="opt-stat-label">Wy\u0142\u0105czonych</div>
+            <div class="opt-stat-label">${this._t.disabledStat}</div>
           </div>
           <div class="opt-stat stale">
             <div class="opt-stat-value">${optData.stale.length}</div>
-            <div class="opt-stat-label">Nieaktywnych (&gt;30d)</div>
+            <div class="opt-stat-label">${this._t.inactiveStat}</div>
           </div>
         </div>
         <div class="opt-section">
-          <h2 class="card-title">\u26A0\uFE0F Wolne automatyzacje (&gt;800ms)</h2>
+          <h2 class="card-title">${this._t.slowAutomationsTitle}</h2>
           <div class="auto-list">${slowItems}</div>
           ${optData.slow.length > 0 ? this._renderPagination('opt-slow', optData.slow.length) : ''}
         </div>
         <div class="opt-section">
-          <h2 class="card-title">\u274C Automatyzacje z b\u0142\u0119dami</h2>
+          <h2 class="card-title">${this._t.failedAutomationsTitle}</h2>
           <div class="auto-list">${failedItems}</div>
           ${optData.failed.length > 0 ? this._renderPagination('opt-failed', optData.failed.length) : ''}
         </div>
         <div class="opt-section">
-          <h2 class="card-title">\u23F8\uFE0F Wy\u0142\u0105czone automatyzacje</h2>
+          <h2 class="card-title">${this._t.disabledAutomationsTitle}</h2>
           <div class="auto-list">${disabledItems}</div>
           ${optData.disabled.length > 0 ? this._renderPagination('opt-disabled', optData.disabled.length) : ''}
         </div>
         <div class="opt-section">
-          <h2 class="card-title">\uD83D\uDCA4 Nieaktywne automatyzacje (&gt;30 dni)</h2>
+          <h2 class="card-title">${this._t.inactiveAutomationsTitle}</h2>
           <div class="auto-list">${staleItems}</div>
           ${optData.stale.length > 0 ? this._renderPagination('opt-stale', optData.stale.length) : ''}
         </div>
@@ -1330,7 +1505,7 @@ class HAAutomationAnalyzer extends HTMLElement {
     const loadingContent = `
       <div class="loading-state">
         <div class="loading-spinner"></div>
-        <div>\u0141adowanie danych...</div>
+        <div>${this._t.loadingData}</div>
       </div>
     `;
 
@@ -1400,9 +1575,9 @@ ${styles}
           <div class="header-left">
             <h1>${this.config.title}</h1>
             <p class="subtitle">
-              <span>Ostatnia aktualizacja: ${this._formatLastUpdated()}</span>
+              <span>${this._t.lastUpdated}${this._formatLastUpdated()}</span>
               <span>\u2022</span>
-              <span>${stats.total} automatyzacji</span>
+              <span>${stats.total} ${this._t.automations}</span>
             </p>
           </div>
         </div>
@@ -1410,18 +1585,16 @@ ${styles}
         <div class="trace-notice-global" id="trace-storage-notice">
           <span class="trace-notice-icon">\u{1f4a1}</span>
           <div>
-            Domy\u015blnie HA przechowuje tylko <strong>5 ostatnich tras</strong> na automatyzacj\u0119.
-            Trasy s\u0105 <strong>czyszczone po restarcie</strong> HA \u2014 po ponownym uruchomieniu wszystkie zapisane trace zostan\u0105 usuni\u0119te.
-            Mo\u017cesz zwi\u0119kszy\u0107 limit w <a id="trace-viewer-link">Trace Viewer</a> (HA Tools \u2192 Ustawienia).
-            <div class="detail">\u2139\uFE0F Aby zachowa\u0107 wi\u0119cej danych o wykonaniach, ustaw stored_traces w konfiguracji HA lub u\u017cyj sekcji ustawie\u0144 w Trace Viewer.</div>
+            ${this._t.tracesNotice}
+            <div class="detail">${this._t.tracesNoticeDetail}</div>
           </div>
-          <button class="trace-notice-dismiss" id="dismiss-trace-notice" title="Zamknij" aria-label="Zamknij">\u00d7</button>
+          <button class="trace-notice-dismiss" id="dismiss-trace-notice" title="${this._t.closeButton}" aria-label="${this._t.closeButton}">\u00d7</button>
         </div>
         ` : ""}
         <div class="tabs">
-          <button class="tab-btn ${this.currentTab === "overview" ? "active" : ""}" data-tab="overview">Przegl\u0105d</button>
-          <button class="tab-btn ${this.currentTab === "performance" ? "active" : ""}" data-tab="performance">Wydajno\u015B\u0107</button>
-          <button class="tab-btn ${this.currentTab === "optimization" ? "active" : ""}" data-tab="optimization">Optymalizacja</button>
+          <button class="tab-btn ${this.currentTab === "overview" ? "active" : ""}" data-tab="overview">${this._t.tabOverview}</button>
+          <button class="tab-btn ${this.currentTab === "performance" ? "active" : ""}" data-tab="performance">${this._t.tabPerformance}</button>
+          <button class="tab-btn ${this.currentTab === "optimization" ? "active" : ""}" data-tab="optimization">${this._t.tabOptimization}</button>
         </div>
         ${mainContent}
       </div>
@@ -1484,6 +1657,7 @@ ${styles}
     this.shadowRoot.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         this.currentTab = e.target.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.currentTab);
         this.render();
       });
     });
@@ -1638,7 +1812,7 @@ ${styles}
     const hasToday = data.some(a => a.todayCount > 0);
     const labels = data.map(a => a.name.length > 35 ? a.name.substring(0, 33) + "\u2026" : a.name);
     const values = hasToday ? data.map(a => a.todayCount) : data.map(a => a.traceCount);
-    const chartLabel = hasToday ? "Dzi\u015B" : "Ostatnie uruchomienia";
+    const chartLabel = hasToday ? (this._lang === 'pl' ? 'Dzi\u015B' : 'Today') : (this._lang === 'pl' ? 'Ostatnie uruchomienia' : 'Latest runs');
 
     const colors = this._getComputedColors();
     this._charts["top-auto"] = new window.Chart(canvas.getContext("2d"), {
@@ -1691,7 +1865,7 @@ ${styles}
       data: {
         labels: Object.keys(distribution),
         datasets: [{
-          label: "Automatyzacje",
+          label: this._t.automations,
           data: Object.values(distribution),
           backgroundColor: barColors,
           borderWidth: 0,
@@ -1794,7 +1968,7 @@ ${styles}
       data: {
         labels,
         datasets: [{
-          label: "Dzienne wykonania",
+          label: this._lang === 'pl' ? 'Dzienne wykonania' : 'Daily executions',
           data: dailyData,
           borderColor: colors.primary,
           backgroundColor: colors.primary + "18",
@@ -1853,6 +2027,11 @@ ${styles}
       if (chart && typeof chart.destroy === 'function') chart.destroy();
     });
     this._charts = {};
+  }
+
+  setActiveTab(tabId) {
+    this.currentTab = tabId;
+    this.render();
   }
 }
 

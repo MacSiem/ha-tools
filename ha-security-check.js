@@ -15,6 +15,7 @@ class HASecurityCheck extends HTMLElement {
   static getStubConfig() { return { type: 'custom:ha-security-check', title: 'Security Check' }; }
   constructor() {
     super();
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -1229,6 +1230,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         this.shadowRoot.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this._activeTab = btn.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._updateContent();
       });
     });
@@ -1548,6 +1550,11 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
   disconnectedCallback() {
     // Cleanup any active event listeners or timers
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 }
 

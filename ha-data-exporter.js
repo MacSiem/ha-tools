@@ -126,7 +126,7 @@ class HADataExporter extends HTMLElement {
 
   _updateSnapshotStatus() {
     const el = this.shadowRoot ? this.shadowRoot.getElementById('snapshotStatus') : null;
-    if (el) el.textContent = this._snapshots.length + ' zapisanych';
+    if (el) el.textContent = this._snapshots.length + ' ' + this._t.savedSnapshots;
   }
 
   disconnectedCallback() {
@@ -167,10 +167,27 @@ class HADataExporter extends HTMLElement {
         title: 'Eksporter Danych',
         loading: 'Wczytywanie...',
         noData: 'Brak danych',
-        error: 'Błąd',
-        refresh: 'Odśwież',
+        error: 'B\u0142\u0105d',
+        refresh: 'Od\u015bwie\u017c',
         save: 'Zapisz',
         cancel: 'Anuluj',
+        savedSnapshots: 'zapisanych',
+        attributes: 'Atrybuty',
+        takeSnapshot: 'Zr\u00f3b snapshot teraz',
+        clearSnapshots: 'Wyczy\u015b\u0107 snapshoty',
+        snapshotInterval30s: 'co 30s',
+        snapshotInterval1min: 'co 1 min',
+        snapshotInterval5min: 'co 5 min',
+        snapshotInterval15min: 'co 15 min',
+        snapshotInterval1h: 'co 1h',
+        stateHistory: 'Historia stan\u00f3w (24h z HA)',
+        snapshotsTitle: 'Snapshoty',
+        snapshots: 'zapisy\u00f3w',
+        clickToLoad: 'Kliknij aby za\u0142adowa\u0107...',
+        loadingHistory: '\u0141adowanie historii...',
+        loadHistoryError: 'Nie uda\u0142o si\u0119 pobra\u0107 historii:',
+        noStateChanges: 'Brak historii zmian w ostatnich 24h',
+        now: 'teraz',
         locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
       },
       en: {
@@ -181,6 +198,23 @@ class HADataExporter extends HTMLElement {
         refresh: 'Refresh',
         save: 'Save',
         cancel: 'Cancel',
+        savedSnapshots: 'saved',
+        attributes: 'Attributes',
+        takeSnapshot: 'Take snapshot now',
+        clearSnapshots: 'Clear snapshots',
+        snapshotInterval30s: 'every 30s',
+        snapshotInterval1min: 'every 1 min',
+        snapshotInterval5min: 'every 5 min',
+        snapshotInterval15min: 'every 15 min',
+        snapshotInterval1h: 'every 1h',
+        stateHistory: 'State history (24h from HA)',
+        snapshotsTitle: 'Snapshots',
+        snapshots: 'entries',
+        clickToLoad: 'Click to load...',
+        loadingHistory: 'Loading history...',
+        loadHistoryError: 'Failed to load history:',
+        noStateChanges: 'No state changes in the last 24h',
+        now: 'now',
         locale: 'en-US',
       },
     };
@@ -899,7 +933,7 @@ canvas {
         <div class="card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
-            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">⚙️ Ustawienia</button></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${this._lang === 'pl' ? '\u2699\uFE0F Ustawienia' : '\u2699\uFE0F Settings'}</button></div>
           </div>
           
           <div class="toolbar">
@@ -915,7 +949,7 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" checked class="attrs-toggle-input" /> Atrybuty</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" checked class="attrs-toggle-input" /> ${this._t.attributes}</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
@@ -923,11 +957,11 @@ canvas {
               Snapshots
             </label>
             <select id="snapshotInterval" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
-              <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>co 30s</option>
-              <option value="60" ${this._snapshotSettings.interval === 60 ? 'selected' : ''}>co 1 min</option>
-              <option value="300" ${this._snapshotSettings.interval === 300 ? 'selected' : ''}>co 5 min</option>
-              <option value="900" ${this._snapshotSettings.interval === 900 ? 'selected' : ''}>co 15 min</option>
-              <option value="3600" ${this._snapshotSettings.interval === 3600 ? 'selected' : ''}>co 1h</option>
+              <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>${this._t.snapshotInterval30s}</option>
+              <option value="60" ${this._snapshotSettings.interval === 60 ? 'selected' : ''}>${this._t.snapshotInterval1min}</option>
+              <option value="300" ${this._snapshotSettings.interval === 300 ? 'selected' : ''}>${this._t.snapshotInterval5min}</option>
+              <option value="900" ${this._snapshotSettings.interval === 900 ? 'selected' : ''}>${this._t.snapshotInterval15min}</option>
+              <option value="3600" ${this._snapshotSettings.interval === 3600 ? 'selected' : ''}>${this._t.snapshotInterval1h}</option>
             </select>
             <select id="snapshotMax" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
               <option value="20" ${this._snapshotSettings.maxSnapshots === 20 ? 'selected' : ''}>20 snap.</option>
@@ -935,9 +969,9 @@ canvas {
               <option value="100" ${this._snapshotSettings.maxSnapshots === 100 ? 'selected' : ''}>100 snap.</option>
               <option value="200" ${this._snapshotSettings.maxSnapshots === 200 ? 'selected' : ''}>200 snap.</option>
             </select>
-            <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} zapisanych</span>
-            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="Zr\u00F3b snapshot teraz" aria-label="Zr\u00F3b snapshot teraz">\u{1F4F8}</button>
-            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="Wyczy\u015B\u0107 snapshoty" aria-label="Wyczy\u015B\u0107 snapshoty">\u{1F5D1}</button>
+            <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} ${this._t.savedSnapshots}</span>
+            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="${this._t.takeSnapshot}" aria-label="${this._t.takeSnapshot}">\u{1F4F8}</button>
+            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="${this._t.clearSnapshots}" aria-label="${this._t.clearSnapshots}">\u{1F5D1}</button>
           </div>
           <div class="table-container">
             <table class="entity-table">
@@ -1167,12 +1201,12 @@ canvas {
         }
         attrHtml += '</div>';
         // History from HA API
-        attrHtml += `<div class="history-section"><div class="history-title">\u{1F4C8} Historia stan\u00F3w (24h z HA)</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">Kliknij aby za\u0142adowa\u0107...</span></div></div>`;
+        attrHtml += `<div class="history-section"><div class="history-title">\u{1F4C8} ${this._t.stateHistory}</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">${this._t.clickToLoad}</span></div></div>`;
         // Snapshot history (persisted)
         const snapHistory = this._getEntityHistory(ent.entity_id);
         if (snapHistory.length > 0) {
           const last10 = snapHistory.slice(-10).reverse();
-          attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} Snapshoty (' + snapHistory.length + ' zapis\u00F3w)</div><div class="history-list">';
+          attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
           last10.forEach(h => {
             const t = new Date(h.ts).toLocaleString();
             attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + h.state + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + h.attrs + ' attrs</span></div>';
@@ -1385,7 +1419,7 @@ canvas {
       return;
     }
 
-    container.innerHTML = '<span class="history-loading">\u0141adowanie historii...</span>';
+    container.innerHTML = '<span class="history-loading">' + this._t.loadingHistory + '</span>';
 
     try {
       const end = new Date().toISOString();
@@ -1415,13 +1449,13 @@ canvas {
       this._historyCache[entityId] = { data: changes, ts: Date.now() };
       this._renderHistory(container, changes, entityId);
     } catch (err) {
-      container.innerHTML = '<span class="history-loading">Nie uda\u0142o si\u0119 pobra\u0107 historii: ' + err.message + '</span>';
+      container.innerHTML = '<span class="history-loading">' + this._t.loadHistoryError + ' ' + err.message + '</span>';
     }
   }
 
   _renderHistory(container, changes, entityId) {
     if (!changes || changes.length === 0) {
-      container.innerHTML = '<span class="history-loading">Brak historii zmian w ostatnich 24h</span>';
+      container.innerHTML = '<span class="history-loading">' + this._t.noStateChanges + '</span>';
       return;
     }
     let html = '';
@@ -1433,7 +1467,7 @@ canvas {
       html += '<span class="history-time">' + timeStr + '</span>';
       if (i > 0) html += '<span class="history-arrow">\u2192</span>';
       html += '<span class="history-state">' + (ch.state || '?') + '</span>';
-      if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(teraz)</span>';
+      if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(' + this._t.now + ')</span>';
       html += '</div>';
     });
     container.innerHTML = html;

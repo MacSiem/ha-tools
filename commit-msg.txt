@@ -1,0 +1,5 @@
+feat(panel): add sidebar search/filter + update CHANGELOG v3.9.0
+
+- Instant text search across all tools in navigation sidebar
+- Filters tools, groups, and unavailable sections in real-time
+- CHANGELOG.md updated with all v3.9.0 changes (XSS, consolidation, Frigate fix, search)

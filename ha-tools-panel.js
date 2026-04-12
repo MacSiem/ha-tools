@@ -85,6 +85,7 @@ const HA_TOOLS_BUILD_TS = '20260411-1200';
 })();
 
 class HAToolsPanel extends HTMLElement {
+  get _lang() { return this._getSetting('language', 'pl'); }
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -109,16 +110,34 @@ class HAToolsPanel extends HTMLElement {
   }
 
   _navigateFromHash() {
-    const hash = location.hash.slice(1);
-    if (!hash) { if (this._activeView !== 'home') this._showHome(true); return; }
+    const raw = location.hash.slice(1);
+    if (!raw) { if (this._activeView !== 'home') this._showHome(true); return; }
+    // Support #tool-id/tab-name deep links
+    const [hash, tabPart] = raw.split('/');
+    this._pendingTab = tabPart || null;
     if (hash === 'settings') { if (this._activeView !== 'settings') this._showSettings(true); return; }
     const tool = HAToolsPanel.TOOLS.find(t => t.id === hash);
     if (tool) {
       if (this._activeToolId !== hash) {
         this._loadTool(hash, tool.tag, true);
         this._setActiveNav(this.shadowRoot.querySelector(`.nav-item[data-tool="${hash}"]`));
+      } else if (this._pendingTab && this._cardInstance) {
+        // Same tool, different tab
+        this._applyPendingTab(this._cardInstance);
       }
     }
+  }
+
+  _applyPendingTab(card) {
+    if (!this._pendingTab) return;
+    const tab = this._pendingTab;
+    this._pendingTab = null;
+    // Give tool time to render before switching tab
+    setTimeout(() => {
+      if (typeof card.setActiveTab === 'function') {
+        card.setActiveTab(tab);
+      }
+    }, 100);
   }
 
   connectedCallback() {
@@ -172,6 +191,114 @@ class HAToolsPanel extends HTMLElement {
       'ha-frigate-privacy': '/local/community/ha-tools/ha-frigate-privacy.js',
       'ha-encoding-fixer': '/local/community/ha-tools/ha-encoding-fixer.js',
     };
+  }
+
+  // Tool description translations
+  static get TOOL_DESCRIPTIONS() {
+    return {
+      'pl': {
+        'advanced-tools': 'Zaawansowane narz\u0119dzia',
+        'trace-viewer': 'Przegl\u0105daj i analizuj \u015Blady automatyzacji',
+        'device-health': 'Monitoruj stan urz\u0105dze\u0144, baterii i sieci',
+        'automation-analyzer': 'Analizuj wydajno\u015B\u0107 i problemy automatyzacji',
+        'backup-manager': 'Zarządzaj kopiami zapasowymi',
+        'network-map': 'Wizualizuj map\u0119 sieci urz\u0105dze\u0144',
+        'smart-reports': 'Raporty i analiza energii',
+        'energy-optimizer': 'Optymalizuj zu\u017Cycie energii',
+        'sentence-manager': 'Zarządzaj zdaniami g\u0142osowymi',
+        'home-family': 'Dom i rodzina',
+        'chore-tracker': '\u015Aledzenie obowi\u0105zk\u00F3w domowych',
+        'baby-tracker': '\u015Aledzenie aktywno\u015Bci dziecka i laktacji',
+        'data-exporter': 'Eksportuj dane z Home Assistant',
+        'storage-monitor': 'Wizualizacja u\u017Cycia dysku w stylu WinDirStat',
+        'security-check': 'Audyt bezpiecze\u0144stwa Home Assistant',
+        'log-email': 'Email digest b\u0142\u0119d\u00F3w i ostrze\u017Ce\u0144 HA',
+        'purge-cache': 'Wyczy\u015B\u0107 cache przegl\u0105darki i skrypt\u00F3w',
+        'yaml-checker': 'Walidator YAML: config check, encje, szablony',
+        'energy-insights': 'Dashboard energii: zu\u017Cycie, koszty, top urz\u0105dzenia, trendy',
+        'energy-email': 'Dzienne/tygodniowe/miesi\u0119czne raporty energii emailem',
+        'vacuum-water-monitor': 'Monitor poziomu wody i serwisu dla odkurzaczy (Roborock, Dreame)',
+        'entity-renamer': 'Zmiana nazw encji i urz\u0105dze\u0144 z propagacj\u0105 do dashboard\u00F3w, automatyzacji i skrypt\u00F3w',
+        'frigate-privacy': 'Pauza kamer Frigate z timerem i harmonogramem prywatno\u015Bci',
+        'encoding-fixer': 'Wykrywanie i naprawa mojibake, BOM i problem\u00F3w z kodowaniem'
+      },
+      'en': {
+        'advanced-tools': 'Advanced tools',
+        'trace-viewer': 'Browse and analyze automation traces',
+        'device-health': 'Monitor device, battery and network status',
+        'automation-analyzer': 'Analyze automation performance and issues',
+        'backup-manager': 'Manage backups',
+        'network-map': 'Visualize device network map',
+        'smart-reports': 'Reports and energy analysis',
+        'energy-optimizer': 'Optimize energy consumption',
+        'sentence-manager': 'Manage voice sentences',
+        'home-family': 'Home & Family',
+        'chore-tracker': 'Household chore tracking',
+        'baby-tracker': 'Baby activity and lactation tracking',
+        'data-exporter': 'Export data from Home Assistant',
+        'storage-monitor': 'Disk usage visualization (WinDirStat style)',
+        'security-check': 'Home Assistant security audit',
+        'log-email': 'HA error and warning email digest',
+        'purge-cache': 'Clear browser and script cache',
+        'yaml-checker': 'YAML validator: config check, entities, templates',
+        'energy-insights': 'Energy dashboard: consumption, costs, top devices, trends',
+        'energy-email': 'Daily/weekly/monthly energy reports by email',
+        'vacuum-water-monitor': 'Water level and maintenance monitor for vacuums (Roborock, Dreame)',
+        'entity-renamer': 'Rename entities and devices with propagation to dashboards, automations and scripts',
+        'frigate-privacy': 'Pause Frigate cameras with timer and privacy schedule',
+        'encoding-fixer': 'Detect and fix mojibake, BOM and encoding issues'
+      }
+    };
+  }
+
+  _getToolDesc(toolId, lang) {
+    const descs = HAToolsPanel.TOOL_DESCRIPTIONS[lang] || HAToolsPanel.TOOL_DESCRIPTIONS['pl'];
+    return descs[toolId] || '';
+  }
+
+  static get TIPS() {
+    return {
+      'pl': [
+        { title: 'Hard Reload', text: 'Ctrl+Shift+R wymusza pobranie nowej wersji JS z serwera.' },
+        { title: 'Purge Cache', text: 'U\u017Cyj narz\u0119dzia Purge Cache (Advanced Tools) aby wyczy\u015Bci\u0107 localStorage i cache.' },
+        { title: 'Backup', text: 'Regularne backupy HA chroni\u0105 konfiguracj\u0119. Backup Manager poka\u017Ce dost\u0119pne kopie.' },
+        { title: 'YAML Checker', text: 'Przed restartem HA u\u017Cyj YAML Checker aby sprawdzi\u0107 poprawno\u015B\u0107 konfiguracji.' },
+        { title: 'Automatyzacje', text: 'Automation Analyzer poka\u017Ce statystyki i problemy z automatyzacjami.' },
+        { title: 'Bezpiecze\u0144stwo', text: 'Security Check audytuje konfiguracj\u0119 HA i wykrywa potencjalne zagro\u017Cenia.' },
+        { title: 'Entity Renamer', text: 'Zmiana nazw encji z automatyczn\u0105 propagacj\u0105 do dashboard\u00F3w, automatyzacji i skrypt\u00F3w.' },
+        { title: 'Data Exporter', text: 'Eksportuj dane encji do JSON/CSV. W\u0142\u0105cz snapshoty aby \u015Bledzi\u0107 zmiany w czasie.' },
+        { title: 'Energy Optimizer', text: 'Analizuj zu\u017Cycie energii, ustaw taryfy i por\u00F3wnuj koszty dzie\u0144/noc.' },
+        { title: 'Network Map', text: 'Wizualizuj topologi\u0119 sieci urz\u0105dze\u0144 i ich po\u0142\u0105czenia.' },
+        { title: 'Sentence Manager', text: 'Zarz\u0105dzaj zdaniami g\u0142osowymi Assist \u2014 edytuj, testuj i organizuj komendy.' },
+        { title: 'Trace Viewer', text: 'Przegl\u0105daj \u015Blady automatyzacji z filtrami, eksportem i zapisem lokalnym.' },
+        { title: 'Log Email', text: 'Wysy\u0142aj logi HA mailem \u2014 ustaw filtry i harmonogram w ustawieniach.' },
+        { title: 'Vacuum Monitor', text: 'Monitoruj stan odkurzacza \u2014 filtr, szczotki, zu\u017Cycie wody.' },
+        { title: 'Storage Monitor', text: 'Wizualizacja u\u017Cycia dysku w stylu macOS \u2014 \u015Bled\u017A rozmiary katalog\u00F3w.' },
+        { title: 'Baby and Lactation Tracker', text: '\u015Aledź karmienie, laktację, sen i pieluchy \u2014 statystyki i wykresy aktywności dziecka.' }
+      ],
+      'en': [
+        { title: 'Hard Reload', text: 'Ctrl+Shift+R forces the browser to fetch the latest JS version from the server.' },
+        { title: 'Purge Cache', text: 'Use the Purge Cache tool (Advanced Tools) to clear localStorage and browser cache.' },
+        { title: 'Backup', text: 'Regular HA backups protect your configuration. Backup Manager shows available backups.' },
+        { title: 'YAML Checker', text: 'Before restarting HA, use YAML Checker to validate your configuration.' },
+        { title: 'Automations', text: 'Automation Analyzer shows statistics and issues with your automations.' },
+        { title: 'Security', text: 'Security Check audits your HA configuration and detects potential threats.' },
+        { title: 'Entity Renamer', text: 'Rename entities with automatic propagation to dashboards, automations and scripts.' },
+        { title: 'Data Exporter', text: 'Export entity data to JSON/CSV. Enable snapshots to track changes over time.' },
+        { title: 'Energy Optimizer', text: 'Analyze energy consumption, set tariffs and compare day/night costs.' },
+        { title: 'Network Map', text: 'Visualize the network topology of your devices and their connections.' },
+        { title: 'Sentence Manager', text: 'Manage Assist voice sentences — edit, test and organize commands.' },
+        { title: 'Trace Viewer', text: 'Browse automation traces with filters, export and local save.' },
+        { title: 'Log Email', text: 'Send HA logs by email — set filters and schedule in settings.' },
+        { title: 'Vacuum Monitor', text: 'Monitor vacuum status — filter, brush, water consumption.' },
+        { title: 'Storage Monitor', text: 'Disk usage visualization in macOS style — track directory sizes.' },
+        { title: 'Baby and Lactation Tracker', text: 'Track feeding, lactation, sleep and diapers — statistics and activity charts.' }
+      ]
+    };
+  }
+
+  _getTips(lang) {
+    return HAToolsPanel.TIPS[lang] || HAToolsPanel.TIPS['pl'];
   }
 
   _loadAddonScripts() {
@@ -244,7 +371,7 @@ class HAToolsPanel extends HTMLElement {
       bar.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;width:100%;">
           <div class="spinner" style="width:18px;height:18px;border-width:2px;flex-shrink:0;"></div>
-          <span style="font-size:13px;font-weight:500;color:var(--bento-text);">\u0141adowanie... ${this._loadedCount}/${total}</span>
+          <span style="font-size:13px;font-weight:500;color:var(--bento-text);">${this._lang === 'pl' ? '\u0141adowanie...' : 'Loading...'} ${this._loadedCount}/${total}</span>
           <div class="loading-progress" style="flex:1;">
             <div class="loading-progress-fill" style="width:${(this._loadedCount / total) * 100}%"></div>
           </div>
@@ -255,7 +382,7 @@ class HAToolsPanel extends HTMLElement {
         bar.innerHTML = `
           <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:10px;width:100%;">
             <span style="font-size:16px;">\u2705</span>
-            <span style="flex:1;font-size:13px;font-weight:500;color:var(--bento-text);">${this._loadedCount}/${total} narz\u0119dzi gotowych</span>
+            <span style="flex:1;font-size:13px;font-weight:500;color:var(--bento-text);">${this._lang === 'pl' ? this._loadedCount + '/' + total + ' narz\u0119dzi gotowych' : this._loadedCount + '/' + total + ' tools ready'}</span>
             <button onclick="this.closest('.loading-bar').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--bento-text-secondary);padding:0 4px;">\u2715</button>
           </div>`;
         setTimeout(() => { bar.style.display = 'none'; }, 4000);
@@ -263,7 +390,7 @@ class HAToolsPanel extends HTMLElement {
         bar.innerHTML = `
           <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;width:100%;">
             <span style="font-size:16px;">\u26A0\uFE0F</span>
-            <span style="flex:1;font-size:13px;font-weight:500;color:var(--bento-text);">${this._loadedCount}/${total} narz\u0119dzi za\u0142adowanych</span>
+            <span style="flex:1;font-size:13px;font-weight:500;color:var(--bento-text);">${this._lang === 'pl' ? this._loadedCount + '/' + total + ' narz\u0119dzi za\u0142adowanych' : this._loadedCount + '/' + total + ' tools loaded'}</span>
             <button onclick="this.closest('.loading-bar').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--bento-text-secondary);padding:0 4px;">\u2715</button>
           </div>`;
         setTimeout(() => { bar.style.display = 'none'; }, 8000);
@@ -283,12 +410,12 @@ class HAToolsPanel extends HTMLElement {
     }
     // Update tools count in section header
     const toolsSection = this.shadowRoot?.querySelector('.nav-section-tools');
-    if (toolsSection) toolsSection.textContent = `Narzędzia (${available.filter(t => t.tag).length})`;
+    if (toolsSection) toolsSection.textContent = this._lang === 'pl' ? `Narzędzia (${available.filter(t => t.tag).length})` : `Tools (${available.filter(t => t.tag).length})`;
     // Update unavailable section header
     const unavailSection = this.shadowRoot?.querySelector('.nav-section-unavailable');
     if (unavailSection) {
       if (unavailable.filter(t=>t.tag).length > 0) {
-        unavailSection.textContent = `Niedostępne (${unavailable.filter(t => t.tag).length})`;
+        unavailSection.textContent = this._lang === 'pl' ? `Niedostępne (${unavailable.filter(t => t.tag).length})` : `Unavailable (${unavailable.filter(t => t.tag).length})`;
         unavailSection.style.display = '';
       } else {
         unavailSection.style.display = 'none';
@@ -374,7 +501,7 @@ class HAToolsPanel extends HTMLElement {
     if (unavailContainer) {
       if (unavailable.filter(t=>t.tag).length > 0) {
         unavailContainer.innerHTML = unavailable.map(t => `
-          <div class="nav-item unavailable" title="Nie zainstalowane">
+          <div class="nav-item unavailable" title="${this._lang === 'pl' ? 'Nie zainstalowane' : 'Not installed'}">
             <span class="nav-icon">${t.icon}</span>
             <span>${t.name}</span>
           </div>
@@ -389,30 +516,30 @@ class HAToolsPanel extends HTMLElement {
 
   static get TOOLS() {
     return [
-      { id: 'advanced-tools', name: 'Advanced Tools', icon: '\u{1F527}', tag: null, desc: 'Zaawansowane narz\u0119dzia', category: 'debug' },
-      { id: 'trace-viewer', group: 'advanced-tools', name: 'Trace Viewer', icon: '\u{1F9EC}', tag: 'ha-trace-viewer', desc: 'Przeglądaj i analizuj ślady automatyzacji', repo: 'MacSiem/ha-trace-viewer', category: 'debug' },
-      { id: 'device-health', name: 'Device Health', icon: '\u{1F3E5}', tag: 'ha-device-health', desc: 'Monitoruj stan urządzeń, baterii i sieci', repo: 'MacSiem/ha-device-health', category: 'monitor' },
-      { id: 'automation-analyzer', group: 'advanced-tools', name: 'Automation Analyzer', icon: '\u{1F4CA}', tag: 'ha-automation-analyzer', desc: 'Analizuj wydajność i problemy automatyzacji', repo: 'MacSiem/ha-automation-analyzer', category: 'debug' },
-      { id: 'backup-manager', group: 'device-health', name: 'Backup Manager', icon: '\u{1F4BE}', tag: 'ha-backup-manager', desc: 'Zarządzaj kopiami zapasowymi', repo: 'MacSiem/ha-backup-manager', category: 'system' },
-      { id: 'network-map', group: 'device-health', name: 'Network Map', icon: '\u{1F310}', tag: 'ha-network-map', desc: 'Wizualizuj mapę sieci urządzeń', repo: 'MacSiem/ha-network-map', category: 'monitor' },
-      { id: 'smart-reports', name: 'Smart Reports & Energy', icon: '\u{1F4C8}', tag: 'ha-smart-reports', desc: 'Raporty i analiza energii', repo: 'MacSiem/ha-smart-reports', category: 'reports' },
-      { id: 'energy-optimizer', group: 'smart-reports', name: 'Energy Optimizer', icon: '\u26A1', tag: 'ha-energy-optimizer', desc: 'Optymalizuj zużycie energii', repo: 'MacSiem/ha-energy-optimizer', category: 'monitor' },
-      { id: 'sentence-manager', group: 'advanced-tools', name: 'Sentence Manager', icon: '\u{1F5E3}\uFE0F', tag: 'ha-sentence-manager', desc: 'Zarządzaj zdaniami głosowymi', repo: 'MacSiem/ha-sentence-manager', category: 'system' },
-      { id: 'home-family', name: 'Home & Family', icon: '\u{1F3E1}', tag: null, desc: 'Dom i rodzina', category: 'life' },
-      { id: 'chore-tracker', group: 'home-family', name: 'Chore Tracker', icon: '\u{1F3E0}', tag: 'ha-chore-tracker', desc: 'Śledzenie obowiązków domowych', repo: 'MacSiem/ha-chore-tracker', category: 'life' },
-      { id: 'baby-tracker', group: 'home-family', name: 'Baby and Lactation Tracker', icon: '\u{1F37C}', tag: 'ha-baby-tracker', desc: 'Śledzenie aktywności dziecka i laktacji', repo: 'MacSiem/ha-baby-tracker', category: 'life' },
-      { id: 'data-exporter', group: 'advanced-tools', name: 'Data Exporter', icon: '\u{1F4E4}', tag: 'ha-data-exporter', desc: 'Eksportuj dane z Home Assistant', repo: 'MacSiem/ha-data-exporter', category: 'system' },
-      { id: 'storage-monitor', group: 'device-health', name: 'Storage Monitor', icon: '\u{1F4BD}', tag: 'ha-storage-monitor', desc: 'Wizualizacja użycia dysku w stylu WinDirStat', repo: 'MacSiem/ha-storage-monitor', category: 'system' },
-      { id: 'security-check', group: 'device-health', name: 'Security Check', icon: '\u{1F6E1}\uFE0F', tag: 'ha-security-check', desc: 'Audyt bezpieczeństwa Home Assistant', repo: 'MacSiem/ha-security-check', category: 'system' },
-      { id: 'log-email', group: 'advanced-tools', name: 'Log Email', icon: '\uD83D\uDEA8', tag: 'ha-log-email', desc: 'Email digest b\u0142\u0119d\u00F3w i ostrze\u017Ce\u0144 HA', repo: 'MacSiem/ha-log-email', category: 'reports' },
-      { id: 'purge-cache', group: 'advanced-tools', name: 'Purge Cache', icon: '\u{1F9F9}', tag: 'ha-purge-cache', desc: 'Wyczy\u015B\u0107 cache przegl\u0105darki i skrypt\u00F3w', repo: 'MacSiem/ha-tools-panel', category: 'system' },
-      { id: 'yaml-checker', group: 'advanced-tools', name: 'YAML Checker', icon: '\uD83D\uDD0D', tag: 'ha-yaml-checker', desc: 'Walidator YAML: config check, encje, szablony', repo: 'MacSiem/ha-yaml-checker', category: 'debug' },
-      { id: 'energy-insights', group: 'smart-reports', name: 'Energy Insights', icon: '\u26A1', tag: 'ha-energy-insights', desc: 'Dashboard energii: zu\u017Cycie, koszty, top urz\u0105dzenia, trendy', repo: 'MacSiem/ha-energy-insights', category: 'monitor' },
-      { id: 'energy-email', group: 'smart-reports', name: 'Energy Email', icon: '\uD83D\uDCE7', tag: 'ha-energy-email', desc: 'Dzienne/tygodniowe/miesi\u0119czne raporty energii emailem', repo: 'MacSiem/ha-energy-email', category: 'reports' },
-      { id: 'vacuum-water-monitor', group: 'home-family', name: 'Vacuum Water Monitor', icon: '\uD83E\uDDF9', tag: 'ha-vacuum-water-monitor', desc: 'Monitor poziomu wody i serwisu dla odkurzaczy (Roborock, Dreame)', repo: 'MacSiem/ha-vacuum-water-monitor', category: 'monitor' },
-      { id: 'entity-renamer', group: 'advanced-tools', name: 'Entity Renamer', icon: '\uD83C\uDFF7\uFE0F', tag: 'ha-entity-renamer', desc: 'Zmiana nazw encji i urządzeń z propagacją do dashboardów, automatyzacji i skryptów', repo: 'MacSiem/ha-entity-renamer', category: 'system' },
-      { id: 'frigate-privacy', group: 'home-family', name: 'Frigate Privacy', icon: '🔒', tag: 'ha-frigate-privacy', desc: 'Pauza kamer Frigate z timerem i harmonogramem prywatności', repo: 'MacSiem/ha-tools-panel', category: 'system' },
-      { id: 'encoding-fixer', group: 'advanced-tools', name: 'Encoding Fixer', icon: '🔧', tag: 'ha-encoding-fixer', desc: 'Wykrywanie i naprawa mojibake, BOM i problemów z kodowaniem', repo: 'MacSiem/ha-tools-panel', category: 'debug' },
+      { id: 'advanced-tools', name: 'Advanced Tools', icon: '\u{1F527}', tag: null, category: 'debug' },
+      { id: 'trace-viewer', group: 'advanced-tools', name: 'Trace Viewer', icon: '\u{1F9EC}', tag: 'ha-trace-viewer', repo: 'MacSiem/ha-trace-viewer', category: 'debug' },
+      { id: 'device-health', name: 'Device Health', icon: '\u{1F3E5}', tag: 'ha-device-health', repo: 'MacSiem/ha-device-health', category: 'monitor' },
+      { id: 'automation-analyzer', group: 'advanced-tools', name: 'Automation Analyzer', icon: '\u{1F4CA}', tag: 'ha-automation-analyzer', repo: 'MacSiem/ha-automation-analyzer', category: 'debug' },
+      { id: 'backup-manager', group: 'device-health', name: 'Backup Manager', icon: '\u{1F4BE}', tag: 'ha-backup-manager', repo: 'MacSiem/ha-backup-manager', category: 'system' },
+      { id: 'network-map', group: 'device-health', name: 'Network Map', icon: '\u{1F310}', tag: 'ha-network-map', repo: 'MacSiem/ha-network-map', category: 'monitor' },
+      { id: 'smart-reports', name: 'Smart Reports & Energy', icon: '\u{1F4C8}', tag: 'ha-smart-reports', repo: 'MacSiem/ha-smart-reports', category: 'reports' },
+      { id: 'energy-optimizer', group: 'smart-reports', name: 'Energy Optimizer', icon: '\u26A1', tag: 'ha-energy-optimizer', repo: 'MacSiem/ha-energy-optimizer', category: 'monitor' },
+      { id: 'sentence-manager', group: 'advanced-tools', name: 'Sentence Manager', icon: '\u{1F5E3}\uFE0F', tag: 'ha-sentence-manager', repo: 'MacSiem/ha-sentence-manager', category: 'system' },
+      { id: 'home-family', name: 'Home & Family', icon: '\u{1F3E1}', tag: null, category: 'life' },
+      { id: 'chore-tracker', group: 'home-family', name: 'Chore Tracker', icon: '\u{1F3E0}', tag: 'ha-chore-tracker', repo: 'MacSiem/ha-chore-tracker', category: 'life' },
+      { id: 'baby-tracker', group: 'home-family', name: 'Baby and Lactation Tracker', icon: '\u{1F37C}', tag: 'ha-baby-tracker', repo: 'MacSiem/ha-baby-tracker', category: 'life' },
+      { id: 'data-exporter', group: 'advanced-tools', name: 'Data Exporter', icon: '\u{1F4E4}', tag: 'ha-data-exporter', repo: 'MacSiem/ha-data-exporter', category: 'system' },
+      { id: 'storage-monitor', group: 'device-health', name: 'Storage Monitor', icon: '\u{1F4BD}', tag: 'ha-storage-monitor', repo: 'MacSiem/ha-storage-monitor', category: 'system' },
+      { id: 'security-check', group: 'device-health', name: 'Security Check', icon: '\u{1F6E1}\uFE0F', tag: 'ha-security-check', repo: 'MacSiem/ha-security-check', category: 'system' },
+      { id: 'log-email', group: 'advanced-tools', name: 'Log Email', icon: '\uD83D\uDEA8', tag: 'ha-log-email', repo: 'MacSiem/ha-log-email', category: 'reports' },
+      { id: 'purge-cache', group: 'advanced-tools', name: 'Purge Cache', icon: '\u{1F9F9}', tag: 'ha-purge-cache', repo: 'MacSiem/ha-tools-panel', category: 'system' },
+      { id: 'yaml-checker', group: 'advanced-tools', name: 'YAML Checker', icon: '\uD83D\uDD0D', tag: 'ha-yaml-checker', repo: 'MacSiem/ha-yaml-checker', category: 'debug' },
+      { id: 'energy-insights', group: 'smart-reports', name: 'Energy Insights', icon: '\u26A1', tag: 'ha-energy-insights', repo: 'MacSiem/ha-energy-insights', category: 'monitor' },
+      { id: 'energy-email', group: 'smart-reports', name: 'Energy Email', icon: '\uD83D\uDCE7', tag: 'ha-energy-email', repo: 'MacSiem/ha-energy-email', category: 'reports' },
+      { id: 'vacuum-water-monitor', group: 'home-family', name: 'Vacuum Water Monitor', icon: '\uD83E\uDDF9', tag: 'ha-vacuum-water-monitor', repo: 'MacSiem/ha-vacuum-water-monitor', category: 'monitor' },
+      { id: 'entity-renamer', group: 'advanced-tools', name: 'Entity Renamer', icon: '\uD83C\uDFF7\uFE0F', tag: 'ha-entity-renamer', repo: 'MacSiem/ha-entity-renamer', category: 'system' },
+      { id: 'frigate-privacy', group: 'home-family', name: 'Frigate Privacy', icon: '🔒', tag: 'ha-frigate-privacy', repo: 'MacSiem/ha-tools-panel', category: 'system' },
+      { id: 'encoding-fixer', group: 'advanced-tools', name: 'Encoding Fixer', icon: '🔧', tag: 'ha-encoding-fixer', repo: 'MacSiem/ha-tools-panel', category: 'debug' },
     ];
   }
 
@@ -1428,7 +1555,7 @@ ${HAToolsPanel.CSS}
               <span class="nav-badge">${available.filter(t=>t.tag).length}/${HAToolsPanel.TOOLS.filter(t=>t.tag).length}</span>
             </div>
 
-            <div class="nav-section nav-section-tools">Narzędzia (${available.filter(t => t.tag).length})</div>
+            <div class="nav-section nav-section-tools">${this._lang === 'pl' ? 'Narzędzia' : 'Tools'} (${available.filter(t => t.tag).length})</div>
             <div class="nav-tools-list">
               ${(() => {
                 const parents = available.filter(t => !t.group);
@@ -1457,10 +1584,10 @@ ${HAToolsPanel.CSS}
               })()}
             </div>
 
-            <div class="nav-section nav-section-unavailable" ${unavailable.filter(t=>t.tag).length === 0 ? 'style="display:none"' : ''}>Niedostępne (${unavailable.filter(t => t.tag).length})</div>
+            <div class="nav-section nav-section-unavailable" ${unavailable.filter(t=>t.tag).length === 0 ? 'style="display:none"' : ''}>${this._lang === 'pl' ? 'Niedostępne' : 'Unavailable'} (${unavailable.filter(t => t.tag).length})</div>
             <div class="nav-unavail-list" ${unavailable.filter(t=>t.tag).length === 0 ? 'style="display:none"' : ''}>
               ${unavailable.map(t => `
-                <div class="nav-item unavailable" title="Nie zainstalowane">
+                <div class="nav-item unavailable" title="${this._lang === 'pl' ? 'Nie zainstalowane' : 'Not installed'}">
                   <span class="nav-icon">${t.icon}</span>
                   <span>${t.name}</span>
                 </div>
@@ -1470,7 +1597,7 @@ ${HAToolsPanel.CSS}
           <div class="sidebar-footer">
             <div class="nav-item" data-view="settings">
               <span class="nav-icon">\u2699\uFE0F</span>
-              <span>Ustawienia</span>
+              <span>${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</span>
             </div>
           </div>
         </div>
@@ -1480,8 +1607,8 @@ ${HAToolsPanel.CSS}
           <div class="toolbar">
             <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button><div class="toolbar-title" id="title">\u{1F3E0} Home</div>
             <div class="toolbar-actions" id="toolbarActions" style="display:none">
-              <button class="btn-icon" id="refreshBtn" title="Odśwież dane">&#x21bb;</button>
-              <label class="ar-toggle" title="Auto-odświeżanie co 30s">
+              <button class="btn-icon" id="refreshBtn" title="${this._lang === 'pl' ? 'Odśwież dane' : 'Refresh data'}">&#x21bb;</button>
+              <label class="ar-toggle" title="${this._lang === 'pl' ? 'Auto-odświeżanie co 30s' : 'Auto-refresh every 30s'}">
                 <input type="checkbox" id="autoRefreshCb">
                 <span class="ar-track"><span class="ar-thumb"></span></span>
                 <span class="ar-lbl">Auto</span>
@@ -1674,14 +1801,14 @@ ${HAToolsPanel.CSS}
         <div class="home-hero">
           <div class="hero-greeting">
             <div class="hero-title">\u{1F3E0} ${_esc(haLocation)}</div>
-            <div class="hero-subtitle">Home Assistant ${haVersion} \u2022 ${entityCount} encji \u2022 ${autoCount} automatyzacji \u2022 ${sensorCount} sensorów</div>
+            <div class="hero-subtitle">Home Assistant ${haVersion} ${this._lang === 'pl' ? '\u2022 ' + entityCount + ' encji \u2022 ' + autoCount + ' automatyzacji \u2022 ' + sensorCount + ' sensorów' : '\u2022 ' + entityCount + ' entities \u2022 ' + autoCount + ' automations \u2022 ' + sensorCount + ' sensors'}</div>
           </div>
           
         </div>
 
         <!-- Quick Access Groups -->
         <div class="home-section">
-          <div class="home-section-title">\u{1F4CB} Grupy narz\u0119dzi</div>
+          <div class="home-section-title">\u{1F4CB} ${this._lang === 'pl' ? 'Grupy narz\u0119dzi' : 'Tool Groups'}</div>
           <div class="groups-grid">
             ${[...groupParents, ...parents.filter(t => children.some(c => c.group === t.id))].filter(g => children.some(c => c.group === g.id)).map(g => {
               const myChildren = children.filter(c => c.group === g.id);
@@ -1690,7 +1817,7 @@ ${HAToolsPanel.CSS}
                   <div class="group-card-icon">${g.icon}</div>
                   <div class="group-card-info">
                     <div class="group-card-name">${g.name}</div>
-                    <div class="group-card-count">${myChildren.length} narz\u0119dzi</div>
+                    <div class="group-card-count">${myChildren.length} ${this._lang === 'pl' ? 'narz\u0119dzi' : 'tools'}</div>
                   </div>
                   
                   <span class="group-card-expand">\u25BC</span>
@@ -1707,84 +1834,24 @@ ${HAToolsPanel.CSS}
 
         <!-- Tips & Shortcuts -->
         <div class="home-section">
-          <div class="home-section-title">\u{1F4A1} Wskaz\u00F3wki</div>
+          <div class="home-section-title">\u{1F4A1} ${this._lang === 'pl' ? 'Wskaz\u00F3wki' : 'Tips & Tricks'}</div>
           <div class="tips-grid">
-            <div class="tip-card">
-              <div class="tip-icon">\u26A1</div>
-              <div class="tip-text"><strong>Hard Reload</strong><br>Ctrl+Shift+R wymusza pobranie nowej wersji JS z serwera.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F9F9}</div>
-              <div class="tip-text"><strong>Purge Cache</strong><br>U\u017Cyj narz\u0119dzia Purge Cache (Advanced Tools) aby wyczy\u015Bci\u0107 localStorage i cache.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F4BE}</div>
-              <div class="tip-text"><strong>Backup</strong><br>Regularne backupy HA chroni\u0105 konfiguracj\u0119. Backup Manager poka\u017Ce dost\u0119pne kopie.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F50D}</div>
-              <div class="tip-text"><strong>YAML Checker</strong><br>Przed restartem HA u\u017Cyj YAML Checker aby sprawdzi\u0107 poprawno\u015B\u0107 konfiguracji.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F4CA}</div>
-              <div class="tip-text"><strong>Automatyzacje</strong><br>Automation Analyzer poka\u017Ce statystyki i problemy z automatyzacjami.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F6E1}\uFE0F</div>
-              <div class="tip-text"><strong>Bezpiecze\u0144stwo</strong><br>Security Check audytuje konfiguracj\u0119 HA i wykrywa potencjalne zagro\u017Cenia.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u270F\uFE0F</div>
-              <div class="tip-text"><strong>Entity Renamer</strong><br>Zmiana nazw encji z automatyczn\u0105 propagacj\u0105 do dashboard\u00F3w, automatyzacji i skrypt\u00F3w.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F4E4}</div>
-              <div class="tip-text"><strong>Data Exporter</strong><br>Eksportuj dane encji do JSON/CSV. W\u0142\u0105cz snapshoty aby \u015Bledzi\u0107 zmiany w czasie.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u26A1</div>
-              <div class="tip-text"><strong>Energy Optimizer</strong><br>Analizuj zu\u017Cycie energii, ustaw taryfy i por\u00F3wnuj koszty dzie\u0144/noc.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F5FA}\uFE0F</div>
-              <div class="tip-text"><strong>Network Map</strong><br>Wizualizuj topologi\u0119 sieci urz\u0105dze\u0144 i ich po\u0142\u0105czenia.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F4AC}</div>
-              <div class="tip-text"><strong>Sentence Manager</strong><br>Zarz\u0105dzaj zdaniami g\u0142osowymi Assist \u2014 edytuj, testuj i organizuj komendy.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F50E}</div>
-              <div class="tip-text"><strong>Trace Viewer</strong><br>Przegl\u0105daj \u015Blady automatyzacji z filtrami, eksportem i zapisem lokalnym.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F4E7}</div>
-              <div class="tip-text"><strong>Log Email</strong><br>Wysy\u0142aj logi HA mailem \u2014 ustaw filtry i harmonogram w ustawieniach.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F9F9}</div>
-              <div class="tip-text"><strong>Vacuum Monitor</strong><br>Monitoruj stan odkurzacza \u2014 filtr, szczotki, zu\u017Cycie wody.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F4BE}</div>
-              <div class="tip-text"><strong>Storage Monitor</strong><br>Wizualizacja u\u017Cycia dysku w stylu macOS \u2014 \u015Bled\u017A rozmiary katalog\u00F3w.</div>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">\u{1F476}</div>
-              <div class="tip-text"><strong>Baby and Lactation Tracker</strong><br>\u015Aledź karmienie, laktację, sen i pieluchy \u2014 statystyki i wykresy aktywności dziecka.</div>
-            </div>
+            ${this._getTips(this._lang).map((tip, idx) => {
+              const icons = ['\u26A1', '\u{1F9F9}', '\u{1F4BE}', '\u{1F50D}', '\u{1F4CA}', '\u{1F6E1}\uFE0F', '\u270F\uFE0F', '\u{1F4E4}', '\u26A1', '\u{1F5FA}\uFE0F', '\u{1F4AC}', '\u{1F50E}', '\u{1F4E7}', '\u{1F9F9}', '\u{1F4BE}', '\u{1F476}'];
+              return `<div class="tip-card"><div class="tip-icon">${icons[idx] || '\u{1F4A1}'}</div><div class="tip-text"><strong>${tip.title}</strong><br>${tip.text}</div></div>`;
+            }).join('')}
           </div>
         </div>
 
         <!-- Changelog -->
         <div class="home-section">
-          <div class="home-section-title">\u{1F4DD} Ostatnie zmiany <span class="count">v3.5.0</span></div>
+          <div class="home-section-title">\u{1F4DD} ${this._lang === 'pl' ? 'Ostatnie zmiany' : 'Recent Changes'} <span class="count">v3.5.0</span></div>
           <div class="changelog-card">
-            <div class="cl-item"><span class="cl-tag fix">FIX</span> Naprawiono migotanie kart \u2014 HTML diffing we wszystkich narz\u0119dziach</div>
-            <div class="cl-item"><span class="cl-tag fix">FIX</span> Naprawiono puste karty w Security Check i Storage Monitor</div>
-            <div class="cl-item"><span class="cl-tag new">NEW</span> Entity Renamer \u2014 zmiana nazw encji z propagacj\u0105 do dashboard\u00F3w i automatyzacji</div>
-            <div class="cl-item"><span class="cl-tag new">NEW</span> Cry Analyzer wydzielony jako samodzielna karta (nie wymaga HA Tools)</div>
-            <div class="cl-item"><span class="cl-tag fix">FIX</span> Uproszczona propagacja hass do komponent\u00F3w</div>
+            <div class="cl-item"><span class="cl-tag fix">FIX</span> ${this._lang === 'pl' ? 'Naprawiono migotanie kart \u2014 HTML diffing we wszystkich narz\u0119dziach' : 'Fixed card flickering \u2014 HTML diffing in all tools'}</div>
+            <div class="cl-item"><span class="cl-tag fix">FIX</span> ${this._lang === 'pl' ? 'Naprawiono puste karty w Security Check i Storage Monitor' : 'Fixed empty cards in Security Check and Storage Monitor'}</div>
+            <div class="cl-item"><span class="cl-tag new">NEW</span> ${this._lang === 'pl' ? 'Entity Renamer \u2014 zmiana nazw encji z propagacj\u0105 do dashboard\u00F3w i automatyzacji' : 'Entity Renamer \u2014 rename entities with propagation to dashboards and automations'}</div>
+            <div class="cl-item"><span class="cl-tag new">NEW</span> ${this._lang === 'pl' ? 'Cry Analyzer wydzielony jako samodzielna karta (nie wymaga HA Tools)' : 'Cry Analyzer extracted as standalone card (no HA Tools required)'}</div>
+            <div class="cl-item"><span class="cl-tag fix">FIX</span> ${this._lang === 'pl' ? 'Uproszczona propagacja hass do komponent\u00F3w' : 'Simplified hass propagation to components'}</div>
             
           </div>
         </div>
@@ -1792,14 +1859,14 @@ ${HAToolsPanel.CSS}
         ${unavailable.filter(t=>t.tag).length > 0 ? `
           <div class="home-section">
             <div class="home-section-title">
-              ${this._loading ? '\u23F3' : '\u{1F4E6}'} ${this._loading ? '\u0141adowanie...' : 'Dost\u0119pne do instalacji'} <span class="count">(${unavailable.filter(t=>t.tag).length})</span>
+              ${this._loading ? '\u23F3' : '\u{1F4E6}'} ${this._loading ? (this._lang === 'pl' ? '\u0141adowanie...' : 'Loading...') : (this._lang === 'pl' ? 'Dost\u0119pne do instalacji' : 'Available for installation')} <span class="count">(${unavailable.filter(t=>t.tag).length})</span>
             </div>
             <div class="uninstalled-list">
               ${unavailable.map(t => `
                 <div class="uninstalled-item">
                   <div class="ui-icon">${t.icon}</div>
                   <div class="ui-name">${t.name}</div>
-                  <div class="ui-desc">${t.desc}</div>
+                  <div class="ui-desc">${this._getToolDesc(t.id, this._lang)}</div>
                   <a class="btn btn-secondary btn-sm" href="https://github.com/${t.repo}" target="_blank" rel="noopener">GitHub</a>
                 </div>
               `).join('')}
@@ -1811,8 +1878,8 @@ ${HAToolsPanel.CSS}
         <div class="home-section">
           <div class="donate-section">
             <div class="donate-text">
-              <h3>\u2764\uFE0F Wesprzyj rozw\u00F3j HA Tools</h3>
-              <p>Je\u015Bli HA Tools u\u0142atwia Ci \u017Cycie z Home Assistant, rozwa\u017C wsparcie projektu. Ka\u017Cda kawa motywuje do dalszego rozwoju!</p>
+              <h3>\u2764\uFE0F ${this._lang === 'pl' ? 'Wesprzyj rozw\u00F3j HA Tools' : 'Support HA Tools Development'}</h3>
+              <p>${this._lang === 'pl' ? 'Je\u015Bli HA Tools u\u0142atwia Ci \u017Cycie z Home Assistant, rozwa\u017C wsparcie projektu. Ka\u017Cda kawa motywuje do dalszego rozwoju!' : 'If HA Tools makes your Home Assistant life easier, consider supporting the project. Every coffee motivates further development!'}</p>
             </div>
             <div class="donate-buttons">
               <a class="donate-btn coffee" href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener">\u2615 Buy Me a Coffee</a>
@@ -1882,7 +1949,7 @@ ${HAToolsPanel.CSS}
     this._activeToolId = null;
     this._cardInstance = null;
     const title = this.shadowRoot.getElementById('title');
-    title.textContent = '\u2699\uFE0F Ustawienia';
+    title.textContent = this._lang === 'pl' ? '\u2699\uFE0F Ustawienia' : '\u2699\uFE0F Settings';
     this.shadowRoot.getElementById('toolbarActions').style.display = 'none'; this._stopAutoRefresh();
 
     const { available } = this._getToolStatus();
@@ -1896,14 +1963,14 @@ ${HAToolsPanel.CSS}
         <!-- General Settings -->
         <div class="settings-group">
           <div class="settings-group-header" data-group="general">
-            \u2699\uFE0F Ustawienia ogólne
+            \u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia ogólne' : 'General Settings'}
             <span class="chevron">\u25BC</span>
           </div>
           <div class="settings-group-body" data-body="general">
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Język</div>
-                <div class="setting-desc">Język interfejsu panelu</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Język' : 'Language'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Język interfejsu panelu' : 'Panel interface language'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="language">
@@ -1914,8 +1981,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Domyślny widok</div>
-                <div class="setting-desc">Co pokazać po otwarciu HA Tools</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Domyślny widok' : 'Default view'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Co pokazać po otwarciu HA Tools' : 'What to show when opening HA Tools'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="defaultTool">
@@ -1930,28 +1997,28 @@ ${HAToolsPanel.CSS}
         <!-- Energy Settings -->
         <div class="settings-group">
           <div class="settings-group-header" data-group="energy">
-            ⚡ Energia
+            ⚡ ${this._lang === 'pl' ? 'Energia' : 'Energy'}
             <span class="chevron">▼</span>
           </div>
           <div class="settings-group-body" data-body="energy">
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Tryb taryfy</div>
-                <div class="setting-desc">Sposób naliczania opłat za energię</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Tryb taryfy' : 'Tariff mode'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Sposób naliczania opłat za energię' : 'How to calculate electricity charges'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="energy_tariff_mode" id="energy-tariff-mode-select">
-                  <option value="flat" ${this._getSetting('energy_tariff_mode', 'flat') === 'flat' ? 'selected' : ''}>Jedna stawka</option>
-                  <option value="day_night" ${this._getSetting('energy_tariff_mode', 'flat') === 'day_night' ? 'selected' : ''}>Dzień / Noc</option>
-                  <option value="weekday_weekend" ${this._getSetting('energy_tariff_mode', 'flat') === 'weekday_weekend' ? 'selected' : ''}>Dzień roboczy / Weekend</option>
-                  <option value="mixed" ${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? 'selected' : ''}>Mix (dzień/noc + roboczy/weekend)</option>
+                  <option value="flat" ${this._getSetting('energy_tariff_mode', 'flat') === 'flat' ? 'selected' : ''}>${this._lang === 'pl' ? 'Jedna stawka' : 'Single rate'}</option>
+                  <option value="day_night" ${this._getSetting('energy_tariff_mode', 'flat') === 'day_night' ? 'selected' : ''}>${this._lang === 'pl' ? 'Dzień / Noc' : 'Day / Night'}</option>
+                  <option value="weekday_weekend" ${this._getSetting('energy_tariff_mode', 'flat') === 'weekday_weekend' ? 'selected' : ''}>${this._lang === 'pl' ? 'Dzień roboczy / Weekend' : 'Workday / Weekend'}</option>
+                  <option value="mixed" ${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? 'selected' : ''}>${this._lang === 'pl' ? 'Mix (dzień/noc + roboczy/weekend)' : 'Mix (day/night + workday/weekend)'}</option>
                 </select>
               </div>
             </div>
             <div class="setting-row tariff-row tariff-flat" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'flat' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Stawka za energię</div>
-                <div class="setting-desc">Jedna cena za 1 kWh</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Stawka za energię' : 'Energy rate'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Jedna cena za 1 kWh' : 'Single price per 1 kWh'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price" value="${this._getSetting('energy_price', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -1960,8 +2027,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-day_night" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'day_night' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Stawka dzienna</div>
-                <div class="setting-desc">Cena za 1 kWh w godzinach dziennych</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Stawka dzienna' : 'Daytime rate'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Cena za 1 kWh w godzinach dziennych' : 'Price per 1 kWh during daytime'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_day" value="${this._getSetting('energy_price_day', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -1970,8 +2037,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-day_night" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'day_night' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Stawka nocna</div>
-                <div class="setting-desc">Cena za 1 kWh w godzinach nocnych</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Stawka nocna' : 'Night rate'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Cena za 1 kWh w godzinach nocnych' : 'Price per 1 kWh during night'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_night" value="${this._getSetting('energy_price_night', 0.45)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -1980,8 +2047,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-weekday_weekend" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'weekday_weekend' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Stawka dzień roboczy</div>
-                <div class="setting-desc">Cena za 1 kWh w dni robocze (Pn-Pt)</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Stawka dzień roboczy' : 'Workday rate'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Cena za 1 kWh w dni robocze (Pn-Pt)' : 'Price per 1 kWh on workdays (Mon-Fri)'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_weekday" value="${this._getSetting('energy_price_weekday', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -1990,8 +2057,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-weekday_weekend" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'weekday_weekend' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Stawka weekend</div>
-                <div class="setting-desc">Cena za 1 kWh w weekendy (So-Nd)</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Stawka weekend' : 'Weekend rate'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Cena za 1 kWh w weekendy (So-Nd)' : 'Price per 1 kWh on weekends (Sat-Sun)'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_weekend" value="${this._getSetting('energy_price_weekend', 0.50)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -2000,8 +2067,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Dzień roboczy — dzień</div>
-                <div class="setting-desc">Pn-Pt, godziny dzienne</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Dzień roboczy — dzień' : 'Workday — daytime'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Pn-Pt, godziny dzienne' : 'Mon-Fri, daytime hours'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_wd_day" value="${this._getSetting('energy_price_wd_day', 0.65)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -2010,8 +2077,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Dzień roboczy — noc</div>
-                <div class="setting-desc">Pn-Pt, godziny nocne</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Dzień roboczy — noc' : 'Workday — night'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Pn-Pt, godziny nocne' : 'Mon-Fri, night hours'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_wd_night" value="${this._getSetting('energy_price_wd_night', 0.45)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -2020,8 +2087,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Weekend — dzień</div>
-                <div class="setting-desc">So-Nd, godziny dzienne</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Weekend — dzień' : 'Weekend — daytime'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'So-Nd, godziny dzienne' : 'Sat-Sun, daytime hours'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_we_day" value="${this._getSetting('energy_price_we_day', 0.55)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -2030,8 +2097,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-mixed" style="display:${this._getSetting('energy_tariff_mode', 'flat') === 'mixed' ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Weekend — noc</div>
-                <div class="setting-desc">So-Nd, godziny nocne</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Weekend — noc' : 'Weekend — night'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'So-Nd, godziny nocne' : 'Sat-Sun, night hours'}</div>
               </div>
               <div class="setting-control">
                 <input type="number" class="setting-input" data-setting="energy_price_we_night" value="${this._getSetting('energy_price_we_night', 0.40)}" step="0.01" min="0" style="width:80px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -2040,8 +2107,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row tariff-row tariff-day_night tariff-mixed" style="display:${['day_night','mixed'].includes(this._getSetting('energy_tariff_mode', 'flat')) ? '' : 'none'}">
               <div class="setting-info">
-                <div class="setting-label">Godziny dzienne</div>
-                <div class="setting-desc">Przedział godzin taryfy dziennej (np. 6:00–22:00)</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Godziny dzienne' : 'Daytime hours'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Przedział godzin taryfy dziennej (np. 6:00–22:00)' : 'Daytime hours range (e.g. 6:00–22:00)'}</div>
               </div>
               <div class="setting-control" style="display:flex;align-items:center;gap:6px;">
                 <input type="number" class="setting-input" data-setting="energy_day_hour_start" value="${this._getSetting('energy_day_hour_start', 6)}" step="1" min="0" max="23" style="width:55px;padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:6px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
@@ -2052,8 +2119,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Waluta</div>
-                <div class="setting-desc">Symbol waluty wyświetlany w raportach energii</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Waluta' : 'Currency'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Symbol waluty wyświetlany w raportach energii' : 'Currency symbol displayed in energy reports'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="energy_currency">
@@ -2076,8 +2143,8 @@ ${HAToolsPanel.CSS}
           <div class="settings-group-body" data-body="trace-backend">
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Przechowuj N ostatnich traces</div>
-                <div class="setting-desc">Ile trace'&#243;w HA ma przechowywa&#263; na automatyzacj&#281; (domy&#347;lnie 5). Zmiana dotyczy WSZYSTKICH automatyzacji.</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Przechowuj N ostatnich traces' : 'Store last N traces'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Ile trace\'ów HA ma przechowywać na automatyzacji (domyślnie 5). Zmiana dotyczy WSZYSTKICH automatyzacji.' : 'How many traces HA should store per automation (default 5). Changes apply to ALL automations.'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" id="storedTracesCount">
@@ -2091,25 +2158,25 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Maksymalny wiek traces</div>
-                <div class="setting-desc">Ukryj traces starsze ni&#380; wybrany okres (filtrowanie frontendu, nie usuwa danych)</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Maksymalny wiek traces' : 'Maximum trace age'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Ukryj traces starsze niż wybrany okres (filtrowanie frontendu, nie usuwa danych)' : 'Hide traces older than selected period (frontend filtering, does not delete data)'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="trace.maxAge" id="traceMaxAge">
-                  <option value="0" ${this._getSetting('trace.maxAge', '0') == '0' ? 'selected' : ''}>Bez limitu</option>
-                  <option value="3600" ${this._getSetting('trace.maxAge', '0') == '3600' ? 'selected' : ''}>1 godzina</option>
-                  <option value="21600" ${this._getSetting('trace.maxAge', '0') == '21600' ? 'selected' : ''}>6 godzin</option>
-                  <option value="43200" ${this._getSetting('trace.maxAge', '0') == '43200' ? 'selected' : ''}>12 godzin</option>
-                  <option value="86400" ${this._getSetting('trace.maxAge', '0') == '86400' ? 'selected' : ''}>24 godziny</option>
-                  <option value="604800" ${this._getSetting('trace.maxAge', '0') == '604800' ? 'selected' : ''}>7 dni</option>
-                  <option value="2592000" ${this._getSetting('trace.maxAge', '0') == '2592000' ? 'selected' : ''}>30 dni</option>
+                  <option value="0" ${this._getSetting('trace.maxAge', '0') == '0' ? 'selected' : ''}>${this._lang === 'pl' ? 'Bez limitu' : 'No limit'}</option>
+                  <option value="3600" ${this._getSetting('trace.maxAge', '0') == '3600' ? 'selected' : ''}>${this._lang === 'pl' ? '1 godzina' : '1 hour'}</option>
+                  <option value="21600" ${this._getSetting('trace.maxAge', '0') == '21600' ? 'selected' : ''}>${this._lang === 'pl' ? '6 godzin' : '6 hours'}</option>
+                  <option value="43200" ${this._getSetting('trace.maxAge', '0') == '43200' ? 'selected' : ''}>${this._lang === 'pl' ? '12 godzin' : '12 hours'}</option>
+                  <option value="86400" ${this._getSetting('trace.maxAge', '0') == '86400' ? 'selected' : ''}>${this._lang === 'pl' ? '24 godziny' : '24 hours'}</option>
+                  <option value="604800" ${this._getSetting('trace.maxAge', '0') == '604800' ? 'selected' : ''}>${this._lang === 'pl' ? '7 dni' : '7 days'}</option>
+                  <option value="2592000" ${this._getSetting('trace.maxAge', '0') == '2592000' ? 'selected' : ''}>${this._lang === 'pl' ? '30 dni' : '30 days'}</option>
                 </select>
               </div>
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Wpis&#243;w na stron&#281;</div>
-                <div class="setting-desc">Ile trace'&#243;w wy&#347;wietla&#263; na jednej stronie listy</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Wpisów na stronie' : 'Entries per page'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Ile traces wyświetlać na jednej stronie listy' : 'How many traces to display on one page'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="trace-viewer.pageSize" style="min-width:70px;">
@@ -2123,11 +2190,11 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Zastosuj stored_traces</div>
-                <div class="setting-desc">Zapisz wybran&#261; ilo&#347;&#263; traces do konfiguracji wszystkich automatyzacji w HA</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Zastosuj stored_traces' : 'Apply stored_traces'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Zapisz wybraną ilość traces do konfiguracji wszystkich automatyzacji w HA' : 'Save selected number of traces to all automations configuration in HA'}</div>
               </div>
               <div class="setting-control">
-                <button class="btn-apply" id="applyTracesBtn">&#x1F4BE; Zastosuj</button>
+                <button class="btn-apply" id="applyTracesBtn">&#x1F4BE; ${this._lang === 'pl' ? 'Zastosuj' : 'Apply'}</button>
               </div>
             </div>
             <div class="status-msg" id="traceStatus" style="margin:0 20px 8px;"></div>
@@ -2143,8 +2210,8 @@ ${HAToolsPanel.CSS}
           <div class="settings-group-body" data-body="data-exporter">
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Włącz snapshoty</div>
-                <div class="setting-desc">Automatyczne zapisywanie stanu encji w regularnych odstępach</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Włącz snapshoty' : 'Enable snapshots'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Automatyczne zapisywanie stanu encji w regularnych odstępach' : 'Automatically save entity states at regular intervals'}</div>
               </div>
               <div class="setting-control">
                 <label class="setting-toggle"><input type="checkbox" data-setting="data-exporter.snapshots.enabled" ${this._getSetting('data-exporter.snapshots.enabled', false) ? 'checked' : ''}><span class="slider"></span></label>
@@ -2152,8 +2219,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Interwał</div>
-                <div class="setting-desc">Co ile czasu zapisywać snapshot</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Interwał' : 'Interval'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Co ile czasu zapisywać snapshot' : 'How often to save a snapshot'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="data-exporter.snapshots.interval" style="min-width:70px;">
@@ -2167,8 +2234,8 @@ ${HAToolsPanel.CSS}
             </div>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Max snapshotów</div>
-                <div class="setting-desc">Maksymalna ilość przechowywanych snapshotów</div>
+                <div class="setting-label">${this._lang === 'pl' ? 'Max snapshotów' : 'Max snapshots'}</div>
+                <div class="setting-desc">${this._lang === 'pl' ? 'Maksymalna ilość przechowywanych snapshotów' : 'Maximum number of stored snapshots'}</div>
               </div>
               <div class="setting-control">
                 <select class="setting-select" data-setting="data-exporter.snapshots.max" style="min-width:70px;">
@@ -2177,6 +2244,21 @@ ${HAToolsPanel.CSS}
                   <option value="100" ${this._getSetting('data-exporter.snapshots.max', 50) == 100 ? 'selected' : ''}>100</option>
                   <option value="200" ${this._getSetting('data-exporter.snapshots.max', 50) == 200 ? 'selected' : ''}>200</option>
                 </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Email / SMTP Settings -->
+        <div class="settings-group">
+          <div class="settings-group-header" data-group="email">
+            &#x2709;&#xFE0F; ${this._lang === 'pl' ? 'Email / SMTP' : 'Email / SMTP'}
+            <span class="chevron">&#x25BC;</span>
+          </div>
+          <div class="settings-group-body" data-body="email">
+            <div id="smtp-settings-content" style="padding:4px 0;">
+              <div style="text-align:center;padding:20px;color:var(--bento-text-secondary);font-size:13px;">
+                &#x23F3; ${this._lang === 'pl' ? 'Sprawdzanie konfiguracji SMTP...' : 'Checking SMTP configuration...'}
               </div>
             </div>
           </div>
@@ -2255,7 +2337,7 @@ ${HAToolsPanel.CSS}
         applyBtn.textContent = '\u23F3 Stosowanie...';
         await this._applyStoredTraces(count, traceStatus);
         applyBtn.disabled = false;
-        applyBtn.textContent = '\u{1F4BE} Zastosuj stored_traces do wszystkich automatyzacji';
+        applyBtn.textContent = this._lang === 'pl' ? '\u{1F4BE} Zastosuj stored_traces do wszystkich automatyzacji' : '\u{1F4BE} Apply stored_traces to all automations';
       });
     }
 
@@ -2263,6 +2345,226 @@ ${HAToolsPanel.CSS}
     if (this._hass) {
       const infoEl = content.querySelector('.trace-current-info');
       this._loadCurrentStoredTraces(infoEl, storedTracesSelect);
+    }
+
+    // Load SMTP settings (async)
+    this._loadSmtpSettings(content);
+  }
+
+  async _loadSmtpSettings(content) {
+    const container = content.querySelector('#smtp-settings-content');
+    if (!container || !this._hass) return;
+
+    // Check if ha_tools_email component is loaded
+    const hasSvc = this._hass.services?.ha_tools_email;
+    if (!hasSvc) {
+      container.innerHTML = `
+        <div style="padding:12px 16px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <span style="font-size:20px">\u26A0\uFE0F</span>
+            <div>
+              <div style="font-weight:600;font-size:14px;color:var(--bento-text)">Komponent ha_tools_email nie zainstalowany</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary);margin-top:2px">${this._lang === 'pl' ? 'Wbudowany SMTP wymaga custom_component' : 'Built-in SMTP requires custom_component'}</div>
+            </div>
+          </div>
+          <details style="margin-top:8px;">
+            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary)">Instrukcja instalacji</summary>
+            <ol style="margin:8px 0 0;padding-left:20px;font-size:12px;color:var(--bento-text-secondary);line-height:1.8">
+              <li>Skopiuj folder <code>ha_tools_email</code> do <code>/config/custom_components/</code></li>
+              <li>Dodaj <code>ha_tools_email:</code> do <code>configuration.yaml</code></li>
+              <li>Zrestartuj Home Assistant</li>
+            </ol>
+          </details>
+          <div style="margin-top:12px;padding:10px 14px;background:rgba(59,130,246,0.08);border-radius:8px;font-size:12px;color:var(--bento-text-secondary);">
+            \u{1F4A1} Dop\u00F3ki komponent nie jest zainstalowany, emaile wysy\u0142ane s\u0105 przez integracj\u0119 <code>notify.*</code> (je\u015Bli skonfigurowana).
+          </div>
+        </div>`;
+      return;
+    }
+
+    // Component is installed — load current config
+    try {
+      const cfg = await this._hass.callService('ha_tools_email', 'get_config', {}, {}, true, true);
+      this._renderSmtpForm(container, cfg || {});
+    } catch (e) {
+      // get_config might use response_variable or return differently
+      // Try alternative: just render empty form
+      this._renderSmtpForm(container, {});
+    }
+  }
+
+  _renderSmtpForm(container, cfg) {
+    const inputStyle = "width:100%;padding:8px 12px;border:1.5px solid var(--bento-border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);box-sizing:border-box;";
+    const configured = cfg.configured || false;
+
+    container.innerHTML = `
+      <div style="padding:4px 0;">
+        ${configured ? '<div style="display:flex;align-items:center;gap:8px;padding:8px 16px;margin-bottom:8px;background:rgba(16,185,129,0.08);border-radius:8px;"><span style="font-size:16px">\u2705</span><span style="font-size:13px;color:var(--bento-text);">' + (this._lang === 'pl' ? 'SMTP skonfigurowany' : 'SMTP configured') + ' \u2014 <code>' + (cfg.server || '') + ':' + (cfg.port || 587) + '</code></span></div>' : ''}
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">${this._lang === 'pl' ? 'Serwer SMTP' : 'SMTP Server'}</div>
+            <div class="setting-desc">${this._lang === 'pl' ? 'np. smtp.gmail.com, smtp.office365.com' : 'e.g. smtp.gmail.com, smtp.office365.com'}</div>
+          </div>
+          <div class="setting-control" style="flex:1;max-width:260px;">
+            <input type="text" id="smtp-server" value="${cfg.server || ''}" placeholder="smtp.gmail.com" style="${inputStyle}">
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">${this._lang === 'pl' ? 'Port' : 'Port'}</div>
+            <div class="setting-desc">${this._lang === 'pl' ? '587 (STARTTLS) lub 465 (SSL)' : '587 (STARTTLS) or 465 (SSL)'}</div>
+          </div>
+          <div class="setting-control">
+            <input type="number" id="smtp-port" value="${cfg.port || 587}" min="1" max="65535" style="width:80px;padding:8px 12px;border:1.5px solid var(--bento-border);border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;background:var(--bento-card);color:var(--bento-text);">
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">${this._lang === 'pl' ? 'Szyfrowanie' : 'Encryption'}</div>
+            <div class="setting-desc">${this._lang === 'pl' ? 'Typ połączenia z serwerem' : 'Type of connection to the server'}</div>
+          </div>
+          <div class="setting-control">
+            <select id="smtp-encryption" class="setting-select" style="min-width:120px;">
+              <option value="starttls" ${(cfg.encryption || 'starttls') === 'starttls' ? 'selected' : ''}>STARTTLS</option>
+              <option value="ssl" ${cfg.encryption === 'ssl' ? 'selected' : ''}>SSL/TLS</option>
+              <option value="none" ${cfg.encryption === 'none' ? 'selected' : ''}>${this._lang === 'pl' ? 'Brak' : 'None'}</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Login / Email</div>
+            <div class="setting-desc">${this._lang === 'pl' ? 'Nazwa użytkownika SMTP' : 'SMTP username'}</div>
+          </div>
+          <div class="setting-control" style="flex:1;max-width:260px;">
+            <input type="text" id="smtp-username" value="${cfg.username || ''}" placeholder="your@gmail.com" style="${inputStyle}">
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">${this._lang === 'pl' ? 'Hasło' : 'Password'}</div>
+            <div class="setting-desc">${this._lang === 'pl' ? 'Hasło lub <code>!secret klucz</code>' : 'Password or <code>!secret key</code>'}</div>
+          </div>
+          <div class="setting-control" style="flex:1;max-width:260px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="${cfg.uses_secret ? 'text' : 'password'}" id="smtp-password" value="${cfg.uses_secret ? (cfg.password || '') : ''}" placeholder="${cfg.uses_secret ? '!secret ...' : (cfg.password || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022')}" style="${inputStyle}flex:1;">
+              <button id="smtp-secret-toggle" title="${this._lang === 'pl' ? 'Użyj !secret z secrets.yaml' : 'Use !secret from secrets.yaml'}" style="padding:6px 10px;border:1.5px solid var(--bento-border);border-radius:8px;background:${cfg.uses_secret ? 'var(--bento-primary)' : 'var(--bento-card)'};color:${cfg.uses_secret ? '#fff' : 'var(--bento-text)'};cursor:pointer;font-size:11px;white-space:nowrap;">\u{1F511}</button>
+            </div>
+            ${(cfg.available_secrets && cfg.available_secrets.length > 0) ? '<div id="smtp-secrets-list" style="display:' + (cfg.uses_secret ? 'flex' : 'none') + ';flex-wrap:wrap;gap:4px;margin-top:6px;">' + cfg.available_secrets.filter(function(s){ return /pass|mail|smtp|gmail|email/i.test(s); }).map(function(s){ return '<button class="secret-pick-btn" data-secret="' + s + '" style="padding:3px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-card);color:var(--bento-text-secondary);cursor:pointer;font-size:11px;font-family:monospace;">' + s + '</button>'; }).join('') + '</div>' : ''}</div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">${this._lang === 'pl' ? 'Nadawca (From)' : 'Sender (From)'}</div>
+            <div class="setting-desc">${this._lang === 'pl' ? 'Adres widoczny jako nadawca' : 'Address shown as sender'}</div>
+          </div>
+          <div class="setting-control" style="flex:1;max-width:260px;">
+            <input type="text" id="smtp-sender" value="${cfg.sender || ''}" placeholder="your@gmail.com" style="${inputStyle}">
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">${this._lang === 'pl' ? 'Domyślny odbiorca' : 'Default recipient'}</div>
+            <div class="setting-desc">${this._lang === 'pl' ? 'Używany gdy narzędzie nie poda odbiorcy' : 'Used when the tool does not provide a recipient'}</div>
+          </div>
+          <div class="setting-control" style="flex:1;max-width:260px;">
+            <input type="text" id="smtp-default-recipient" value="${cfg.default_recipient || ''}" placeholder="recipient@email.com" style="${inputStyle}">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;padding:12px 20px;flex-wrap:wrap;align-items:center;">
+          <button class="btn-apply" id="smtp-save-btn">\u{1F4BE} ${this._lang === 'pl' ? 'Zapisz' : 'Save'}</button>
+          <button class="btn-apply" id="smtp-test-btn" style="background:var(--bento-card);color:var(--bento-text);border:1.5px solid var(--bento-border);">\u{1F4E8} ${this._lang === 'pl' ? 'Wyślij test' : 'Send test'}</button>
+          <span id="smtp-status-msg" style="font-size:12px;"></span>
+        </div>
+        <div style="padding:4px 20px 12px;">
+          <details>
+            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary);">${this._lang === 'pl' ? '\u{1F4A1} Gmail — jak uzyskać App Password?' : '\u{1F4A1} Gmail — how to get App Password?'}</summary>
+            <div style="font-size:12px;color:var(--bento-text-secondary);line-height:1.7;margin-top:6px;">
+              ${this._lang === 'pl' ? '1. Włącz 2FA na koncie Google<br>2. Wejdź na <b>myaccount.google.com/apppasswords</b><br>3. Utwórz hasło aplikacji (nazwa: "HA Tools")<br>4. Skopiuj 16-znakowe hasło i wklej powyżej<br>Serwer: <code>smtp.gmail.com</code> | Port: <code>587</code> | STARTTLS' : '1. Enable 2FA on your Google account<br>2. Go to <b>myaccount.google.com/apppasswords</b><br>3. Create app password (name: "HA Tools")<br>4. Copy the 16-character password and paste above<br>Server: <code>smtp.gmail.com</code> | Port: <code>587</code> | STARTTLS'}
+            </div>
+          </details>
+        </div>
+      </div>`;
+
+    // Bind save
+    const saveBtn = container.querySelector('#smtp-save-btn');
+    const testBtn = container.querySelector('#smtp-test-btn');
+    const statusMsg = container.querySelector('#smtp-status-msg');
+
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      saveBtn.textContent = '\u23F3 Zapisuj\u0119...';
+      statusMsg.textContent = '';
+      try {
+        const pwd = container.querySelector('#smtp-password').value;
+        await this._hass.callService('ha_tools_email', 'save_config', {
+          server: container.querySelector('#smtp-server').value.trim(),
+          port: parseInt(container.querySelector('#smtp-port').value) || 587,
+          username: container.querySelector('#smtp-username').value.trim(),
+          password: pwd || cfg.password || '',
+          sender: container.querySelector('#smtp-sender').value.trim(),
+          encryption: container.querySelector('#smtp-encryption').value,
+          default_recipient: container.querySelector('#smtp-default-recipient').value.trim(),
+        });
+        statusMsg.innerHTML = '<span style="color:#10b981">\u2705 Zapisano!</span>';
+        // Update local reference
+        cfg.server = container.querySelector('#smtp-server').value.trim();
+        cfg.port = parseInt(container.querySelector('#smtp-port').value) || 587;
+        cfg.configured = true;
+      } catch (e) {
+        statusMsg.innerHTML = '<span style="color:#ef4444">\u274C ' + (e.message || 'B\u0142\u0105d zapisu') + '</span>';
+      }
+      saveBtn.disabled = false;
+      saveBtn.textContent = '\u{1F4BE} Zapisz';
+    });
+
+    testBtn.addEventListener('click', async () => {
+      testBtn.disabled = true;
+      testBtn.textContent = '\u23F3 Wysy\u0142am...';
+      statusMsg.textContent = '';
+      try {
+        await this._hass.callService('ha_tools_email', 'test', {});
+        statusMsg.innerHTML = '<span style="color:#10b981">\u2705 Test OK \u2014 sprawd\u017A skrzynk\u0119!</span>';
+      } catch (e) {
+        statusMsg.innerHTML = '<span style="color:#ef4444">\u274C ' + (e.message || 'B\u0142\u0105d wysy\u0142ania') + '</span>';
+      }
+      testBtn.disabled = false;
+      testBtn.textContent = '\u{1F4E8} Wy\u015Blij test';
+    });
+
+    // Secret toggle & picker
+    const secretToggle = container.querySelector('#smtp-secret-toggle');
+    const pwdInput = container.querySelector('#smtp-password');
+    const secretsList = container.querySelector('#smtp-secrets-list');
+    if (secretToggle) {
+      secretToggle.addEventListener('click', () => {
+        const isSecret = pwdInput.type === 'text' && pwdInput.value.startsWith('!secret ');
+        if (isSecret) {
+          // Switch to plain password mode
+          pwdInput.type = 'password';
+          pwdInput.value = '';
+          pwdInput.placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+          secretToggle.style.background = 'var(--bento-card)';
+          secretToggle.style.color = 'var(--bento-text)';
+          if (secretsList) secretsList.style.display = 'none';
+        } else {
+          // Switch to !secret mode
+          pwdInput.type = 'text';
+          pwdInput.value = '!secret ';
+          pwdInput.placeholder = '!secret gmail_password';
+          secretToggle.style.background = 'var(--bento-primary)';
+          secretToggle.style.color = '#fff';
+          if (secretsList) secretsList.style.display = 'flex';
+          pwdInput.focus();
+        }
+      });
+    }
+    if (secretsList) {
+      secretsList.querySelectorAll('.secret-pick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          pwdInput.value = '!secret ' + btn.dataset.secret;
+          pwdInput.type = 'text';
+        });
+      });
     }
   }
 
@@ -2387,7 +2689,10 @@ ${HAToolsPanel.CSS}
   }
 
   _loadTool(toolId, tag, skipHash) {
-    if (!skipHash) history.replaceState(null, '', location.pathname + '#' + toolId);
+    if (!skipHash) {
+      const tabSuffix = this._pendingTab ? '/' + this._pendingTab : '';
+      history.replaceState(null, '', location.pathname + '#' + toolId + tabSuffix);
+    }
     // Look up tag from TOOLS if not provided
     const tool = HAToolsPanel.TOOLS.find(t => t.id === toolId);
     if (!tag && tool) tag = tool.tag;
@@ -2406,7 +2711,7 @@ ${HAToolsPanel.CSS}
     if (arCb) arCb.checked = this._getSetting('autoRefresh', false);
 
     const content = this.shadowRoot.getElementById('content');
-    content.innerHTML = `<div class="empty"><div class="big">\u23F3</div><div>Ładowanie...</div></div>`;
+    content.innerHTML = `<div class="empty"><div class="big">\u23F3</div><div>${this._lang === 'pl' ? '\u0141adowanie...' : 'Loading...'}</div></div>`;
 
     setTimeout(() => {
       try {
@@ -2438,8 +2743,10 @@ ${HAToolsPanel.CSS}
         card.style.cssText = 'display:block; min-height:calc(100vh - 56px);';
         content.appendChild(card);
         this._cardInstance = card;
+        // Deep-link: activate pending tab after tool renders
+        this._applyPendingTab(card);
       } catch (e) {
-        content.innerHTML = `<div class="empty"><div class="big">\u26A0\uFE0F</div><div>B\u0142\u0105d: ${_esc(e.message)}</div></div>`;
+        content.innerHTML = `<div class="empty"><div class="big">\u26A0\uFE0F</div><div>${this._lang === 'pl' ? 'B\u0142\u0105d' : 'Error'}: ${_esc(e.message)}</div></div>`;
       }
     }, 150);
   }

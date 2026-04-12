@@ -13,6 +13,7 @@ class HAEntityRenamer extends HTMLElement {
   static getStubConfig() { return { type: 'custom:ha-entity-renamer', title: 'Entity Renamer' }; }
   constructor() {
     super();
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this.attachShadow({ mode: 'open' });
     this._lang = 'en';
     this._hass = null;
@@ -805,6 +806,7 @@ class HAEntityRenamer extends HTMLElement {
     root.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this.render();
       });
     });
@@ -918,6 +920,11 @@ class HAEntityRenamer extends HTMLElement {
 
   disconnectedCallback() {
     // Cleanup any active event listeners or timers
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this.render();
   }
 }
 

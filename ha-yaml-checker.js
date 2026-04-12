@@ -24,6 +24,7 @@ class HAYamlChecker extends HTMLElement {
   static getStubConfig() { return { type: 'custom:ha-yaml-checker', title: 'YAML Checker' }; }
   constructor() {
     super();
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
@@ -46,7 +47,7 @@ class HAYamlChecker extends HTMLElement {
   static get KEY_FILES() {
     return [
       { path: 'configuration.yaml', desc: 'G\u0142\u00F3wna konfiguracja HA', critical: true },
-      { path: 'automations.yaml', desc: 'Automatyzacje', critical: true },
+      { path: 'automations.yaml', desc: 'Automations', critical: true },
       { path: 'scripts.yaml', desc: 'Skrypty', critical: false },
       { path: 'scenes.yaml', desc: 'Sceny', critical: false },
       { path: 'utility_meter.yaml', desc: 'Liczniki', critical: false },
@@ -143,33 +144,33 @@ class HAYamlChecker extends HTMLElement {
   static get COMMON_ISSUES() {
     return [
       {
-        cat: 'Indentacja',
+        cat: 'Indentation',
         items: [
-          { title: 'Mieszanie spacji i tab\u00F3w', desc: 'YAML wymaga spacji \u2014 taby s\u0105 niedozwolone. U\u017Cyj 2 lub 4 spacji konsekwentnie w ca\u0142ym pliku.', severity: 'error' },
-          { title: 'Z\u0142a g\u0142\u0119boko\u015B\u0107 indentacji', desc: 'Elementy listy (- ) musz\u0105 by\u0107 na tym samym poziomie. Klucze podrz\u0119dne musz\u0105 mie\u0107 wi\u0119ksze wci\u0119cie ni\u017C rodzic.', severity: 'warning' },
+          { title: 'Mixing spaces and tabs', desc: 'YAML requires spaces — tabs are not allowed. Use 2 or 4 spaces consistently throughout the file.', severity: 'error' },
+          { title: 'Bad indentation depth', desc: 'List items (-) must be at the same level. Child keys must have greater indentation than parent.', severity: 'warning' },
         ]
       },
       {
-        cat: 'Ci\u0105gi tekstowe',
+        cat: 'Text Strings',
         items: [
-          { title: 'Brak cudzys\u0142ow\u00F3w przy specjalnych znakach', desc: 'Je\u015Bli warto\u015B\u0107 zawiera : # & * ? | < > = ! zawij j\u0105 w cudzys\u0142owy. Np. name: "Sensor: Main"', severity: 'warning' },
-          { title: 'Szablony z cudzys\u0142owami', desc: 'Szablony Jinja2 z apostrofami wewn\u0105trz: u\u017Cyj wewn\u0119trznych ", lub odwrotnie. Np. "{{ states(\'sensor.temp\') }}"', severity: 'warning' },
-          { title: 'Wieloliniowy tekst', desc: 'Dla d\u0142ugich string\u00F3w u\u017Cyj | (literalny) lub > (sk\u0142adany).\nmessage: |\n  Linia 1\n  Linia 2', severity: 'info' },
+          { title: 'Missing quotes for special characters', desc: 'If value contains : # & * ? | < > = ! wrap it in quotes. E.g., name: "Sensor: Main"', severity: 'warning' },
+          { title: 'Templates with quotes', desc: 'Jinja2 templates with apostrophes inside: use inner double quotes, or vice versa. E.g., "{{ states(\'sensor.temp\') }}"', severity: 'warning' },
+          { title: 'Multiline text', desc: 'For long strings use | (literal) or > (folded).\nmessage: |\n  Line 1\n  Line 2', severity: 'info' },
         ]
       },
       {
-        cat: 'Automatyzacje',
+        cat: 'Automations',
         items: [
-          { title: 'Brak pola alias', desc: 'Ka\u017Cda automatyzacja powinna mie\u0107 unikalny alias \u2014 u\u0142atwia debugowanie w Trace Viewer.', severity: 'warning' },
-          { title: 'Brak pola mode', desc: 'Domy\u015Blny mode to "single" \u2014 dodaj explicit dla jasno\u015Bci. Opcje: single, parallel, queued, restart.', severity: 'info' },
-          { title: 'Duplikacja ID', desc: 'Ka\u017Cde id: musi by\u0107 unikalne w automations.yaml. Duplikaty powoduj\u0105 nadpisanie automatyzacji.', severity: 'error' },
+          { title: 'Missing alias field', desc: 'Every automation should have a unique alias — helps debugging in Trace Viewer.', severity: 'warning' },
+          { title: 'Missing mode field', desc: 'Default mode is "single" — add explicit for clarity. Options: single, parallel, queued, restart.', severity: 'info' },
+          { title: 'Duplicate ID', desc: 'Each id: must be unique in automations.yaml. Duplicates cause automation to be overwritten.', severity: 'error' },
         ]
       },
       {
-        cat: 'Pakiety (packages)',
+        cat: 'Packages',
         items: [
-          { title: 'Konflikty kluczy mi\u0119dzy plikami', desc: 'Pakiety s\u0105 merge\'owane. Je\u015Bli dwa pakiety definiuj\u0105 ten sam klucz, m\u0142odszy nadpisze starszy.', severity: 'warning' },
-          { title: 'Brak namespace', desc: 'U\u017Cyj prefiksu np. input_boolean.baby_ a nie input_boolean bez prefiksu.', severity: 'info' },
+          { title: 'Key conflicts between files', desc: 'Packages are merged. If two packages define the same key, the younger overwrites the older.', severity: 'warning' },
+          { title: 'Missing namespace', desc: 'Use a prefix e.g., input_boolean.baby_ not input_boolean without prefix.', severity: 'info' },
         ]
       },
       {
@@ -182,10 +183,10 @@ class HAYamlChecker extends HTMLElement {
         ]
       },
       {
-        cat: 'Encje i szablony',
+        cat: this._lang === 'pl' ? 'Encje i szablony' : 'Entities & templates',
         items: [
-          { title: 'Referencja do nieistniej\u0105cej encji', desc: 'entity_id wskazuj\u0105ce na nieistn. encj\u0119 nie powoduj\u0105 b\u0142\u0119du YAML, ale automatyzacja nie zadzia\u0142a. Sprawd\u017A nazwy w Dev Tools \u203A States.', severity: 'warning' },
-          { title: 'Zawi\u0105zane zale\u017Cno\u015Bci w szablonach', desc: 'Szablon kt\u00F3ry odwo\u0142uje si\u0119 do encji kt\u00F3ra nie istnieje zwr\u00F3ci "unknown". Testuj szablony w Dev Tools \u203A Template.', severity: 'info' },
+          { title: this._lang === 'pl' ? 'Referencja do nieistniej\u0105cej encji' : 'Reference to non-existent entity', desc: this._lang === 'pl' ? 'entity_id wskazuj\u0105ce na nieistn. encj\u0119 nie powoduj\u0105 b\u0142\u0119du YAML, ale automatyzacja nie zadzia\u0142a. Sprawd\u017A nazwy w Dev Tools \u203A States.' : 'An entity_id pointing to a non-existent entity won\'t cause a YAML error, but the automation won\'t work. Check names in Dev Tools \u203A States.', severity: 'warning' },
+          { title: this._lang === 'pl' ? 'Zawi\u0105zane zale\u017Cno\u015Bci w szablonach' : 'Broken template dependencies', desc: this._lang === 'pl' ? 'Szablon kt\u00F3ry odwo\u0142uje si\u0119 do encji kt\u00F3ra nie istnieje zwr\u00F3ci "unknown". Testuj szablony w Dev Tools \u203A Template.' : 'A template referencing a non-existent entity will return "unknown". Test templates in Dev Tools \u203A Template.', severity: 'info' },
         ]
       },
     ];
@@ -227,10 +228,70 @@ class HAYamlChecker extends HTMLElement {
         logErrors: 'B\u0142\u0119d\u00F3w w logu',
         logWarnings: 'Ostrze\u017Ce\u0144 w logu',
         entities: 'Encji',
-        devices: 'Urz\u0105dze\u0144',
-        configDirLabel: 'Katalog konfiguracji',
-        configFilesNote: 'Pliki konfiguracji (status nieznany \u2014 HA API nie udost\u0119pnia zawarto\u015Bci plik\u00F3w)',
+        devices: 'Devices',
+        configDirLabel: 'Config directory',
+        configFilesNote: 'Config files (status unknown \u2014 HA API does not expose file contents)',
+        trailingWhitespace: 'Trailing whitespace',
+        emptyValue: 'Empty value for key "{key}" \u2014 verify if intentional',
+        inconsistentIndent: 'Inconsistent indentation: mixed 2-space ({count2}x) and 4-space ({count4}x). Recommended: 2 spaces.',
+        duplicateRootKey: 'Duplicate root-level key: "{key}" (first: line {line})',
+        possibleUnquotedColon: 'Possible issue: value contains ":" without quotes: {value}',
+        automationNoAlias: 'Automation without alias field \u2014 add alias for better debugging',
+        triggerOldFormat: 'HA 2024.4+: use "triggers:" instead of "trigger:" (deprecated format)',
+        conditionOldFormat: 'HA 2024.4+: use "conditions:" instead of "condition:" (deprecated format)',
+        actionOldFormat: 'HA 2024.4+: use "actions:" instead of "action:" (deprecated format)',
+        entityIdConvention: 'Convention: entity_id lowercase_snake_case',
+        modeSingleDefault: '"mode: single" is default \u2014 can be omitted',
+        delayBestPractice: 'Best practice: delay with seconds/milliseconds (e.g., delay: {seconds: 5})',
+        secretWarning: 'Security: potential secret without !secret \u2014 use secrets.yaml',
+        serviceRenamed: 'Service renamed: {old} \u2192 {new} (HA {version})',
+        brightnessNote: 'brightness: {value} (0-255) \u2014 consider brightness_pct: 0-100',
+        oldStateFormat: 'Old format: states.domain.entity \u2192 use states("domain.entity")',
+        missingQuotes: 'Missing quotes in argument: {arg}',
+        unknownTemplateFunction: 'Unknown template function: "{name}"',
+        unknownFilter: 'Unknown filter: "{name}"',
+        invalidStateClass: 'Invalid state_class: "{value}" \u2014 allowed: {allowed}',
+        unknownDeviceClass: 'Unknown device_class: "{value}"',
+        availabilityTemplate: 'Best practice: add availability_template with value_template',
+        jinja2SyntaxError: 'Check {% set %} syntax',
+        pasteYamlLabel: 'Paste YAML to check',
+        clearBtn: 'Clear',
+        validateBtn: 'Validate YAML',
+        checkConfigBtn: 'Check HA Configuration',
+        checkConfigInfo: "Runs HA's built-in validator (homeassistant.check_config). Detects YAML syntax errors and invalid configuration keys.",
+        clickToCheck: 'Click the button to check configuration',
+        checkingConfig: 'Checking HA configuration...',
+        pasteHint: 'Paste YAML file content here...',
+        clientValidation: 'client-side validation',
+        scanEntitiesBtn: 'Scan Entities',
+        scanEntityInfo: 'Scans entity names, templates, and YAML syntax for common encoding issues',
+        scanEntityHint: 'Scanning for potential issues...',
+        checkTemplateBtn: 'Check Template',
+        templateLabel: 'Template:',
+        scanSystemBtn: 'Scan System',
+        entityCheckInfo: 'Scans automations and scripts for references to non-existent entities. Helps find broken entity_id after device name change.',
+        analyzingEntities: 'Analyzing entities...',
+        clickToScanEntities: 'Click the button to scan entities',
+        templateTesterInfo: 'Test Jinja2 templates directly via HA API. Same as Dev Tools › Template, but built into the card.',
+        jinja2Template: 'Jinja2 Template',
+        executingTemplate: 'Executing template...',
+        result: 'Result',
+        executeTemplate: 'Execute Template',
         locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+        guideTabLabel: '📖 Guide',
+        automationsDesc: 'Automations',
+        brokenRefsTitle: 'Broken References',
+        noRefs: 'No broken references!',
+        unavailableTitle: 'Unavailable/Unknown Entities',
+        noDescTitle: 'Automations without Description',
+        scanSystemInfo: 'HA system information: version, entity, device, area, and component counts.',
+        clickToScanSystem: 'Click the button to scan system',
+        partialError: 'Partial Error',
+        critical: 'critical',
+        fileHint: 'To check file contents use: Paste & Validate or HA File Editor addon.',
+        moreCount: '...and {count} more',
+        entitiesWithoutFriendlyName: 'Entities without friendly_name',
+        topDomains: 'Top domains',
       },
       en: {
         title: 'YAML Checker',
@@ -259,7 +320,67 @@ class HAYamlChecker extends HTMLElement {
         devices: 'Devices',
         configDirLabel: 'Config directory',
         configFilesNote: 'Config files (status unknown \u2014 HA API does not expose file contents)',
+        trailingWhitespace: 'Trailing whitespace',
+        emptyValue: 'Empty value for key "{key}" — verify if intentional',
+        inconsistentIndent: 'Inconsistent indentation: mixed 2-space ({count2}x) and 4-space ({count4}x). Recommended: 2 spaces.',
+        duplicateRootKey: 'Duplicate root-level key: "{key}" (first: line {line})',
+        possibleUnquotedColon: 'Possible issue: value contains ":" without quotes: {value}',
+        automationNoAlias: 'Automation without alias field — add alias for better debugging',
+        triggerOldFormat: 'HA 2024.4+: use "triggers:" instead of "trigger:" (deprecated format)',
+        conditionOldFormat: 'HA 2024.4+: use "conditions:" instead of "condition:" (deprecated format)',
+        actionOldFormat: 'HA 2024.4+: use "actions:" instead of "action:" (deprecated format)',
+        entityIdConvention: 'Convention: entity_id lowercase_snake_case',
+        modeSingleDefault: '"mode: single" is default — can be omitted',
+        delayBestPractice: 'Best practice: delay with seconds/milliseconds (e.g., delay: {seconds: 5})',
+        secretWarning: 'Security: potential secret without !secret — use secrets.yaml',
+        serviceRenamed: 'Service renamed: {old} → {new} (HA {version})',
+        brightnessNote: 'brightness: {value} (0-255) — consider brightness_pct: 0-100',
+        oldStateFormat: 'Old format: states.domain.entity → use states("domain.entity")',
+        missingQuotes: 'Missing quotes in argument: {arg}',
+        unknownTemplateFunction: 'Unknown template function: "{name}"',
+        unknownFilter: 'Unknown filter: "{name}"',
+        invalidStateClass: 'Invalid state_class: "{value}" — allowed: {allowed}',
+        unknownDeviceClass: 'Unknown device_class: "{value}"',
+        availabilityTemplate: 'Best practice: add availability_template with value_template',
+        jinja2SyntaxError: 'Check {% set %} syntax',
+        pasteYamlLabel: 'Paste YAML to check',
+        clearBtn: 'Clear',
+        validateBtn: 'Validate YAML',
+        checkConfigBtn: 'Check HA Configuration',
+        checkConfigInfo: "Runs HA's built-in validator (homeassistant.check_config). Detects YAML syntax errors and invalid configuration keys.",
+        clickToCheck: 'Click the button to check configuration',
+        checkingConfig: 'Checking HA configuration...',
+        pasteHint: 'Paste YAML file content here...',
+        clientValidation: 'client-side validation',
+        scanEntitiesBtn: 'Scan Entities',
+        scanEntityInfo: 'Scans entity names, templates, and YAML syntax for common encoding issues',
+        scanEntityHint: 'Scanning for potential issues...',
+        checkTemplateBtn: 'Check Template',
+        templateLabel: 'Template:',
+        scanSystemBtn: 'Scan System',
+        entityCheckInfo: 'Scans automations and scripts for references to non-existent entities. Helps find broken entity_id after device name change.',
+        analyzingEntities: 'Analyzing entities...',
+        clickToScanEntities: 'Click the button to scan entities',
+        templateTesterInfo: 'Test Jinja2 templates directly via HA API. Same as Dev Tools › Template, but built into the card.',
+        jinja2Template: 'Jinja2 Template',
+        executingTemplate: 'Executing template...',
+        result: 'Result',
+        executeTemplate: 'Execute Template',
         locale: 'en-US',
+        guideTabLabel: '📖 Guide',
+        automationsDesc: 'Automations',
+        brokenRefsTitle: 'Broken References',
+        noRefs: 'No broken references!',
+        unavailableTitle: 'Unavailable/Unknown Entities',
+        noDescTitle: 'Automations without Description',
+        scanSystemInfo: 'HA system information: version, entity, device, area, and component counts.',
+        clickToScanSystem: 'Click the button to scan system',
+        partialError: 'Partial Error',
+        critical: 'critical',
+        fileHint: 'To check file contents use: Paste & Validate or HA File Editor addon.',
+        moreCount: '...and {count} more',
+        entitiesWithoutFriendlyName: 'Entities without friendly_name',
+        topDomains: 'Top domains',
       },
     };
     return T[this._lang] || T.en;
@@ -321,7 +442,7 @@ class HAYamlChecker extends HTMLElement {
           errors: [],
           warnings: [],
           ts: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')),
-          note: 'Sprawdzenie przez service (bez szczeg\u00F3\u0142\u00F3w b\u0142\u0119d\u00F3w)',
+          note: this._lang === 'pl' ? 'Sprawdzenie przez service (bez szczeg\u00F3\u0142\u00F3w b\u0142\u0119d\u00F3w)' : 'Checked via service (without error details)',
         };
       } catch (e2) {
         this._checkResult = {
@@ -627,12 +748,12 @@ class HAYamlChecker extends HTMLElement {
       }
       // Trailing spaces
       if (/\s+$/.test(line) && line.trim().length > 0) {
-        warnings.push({ line: i + 1, msg: 'Spacja na ko\u0144cu linii (trailing whitespace)', severity: 'info' });
+        warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Spacja na ko\u0144cu linii (trailing whitespace)' : this._t.trailingWhitespace, severity: 'info' });
       }
       // Empty value (key with no value)
       const emptyVal = line.match(/^(\s*)([a-zA-Z_][a-zA-Z0-9_]*):\s*$/);
       if (emptyVal && !line.trim().startsWith('#')) {
-        warnings.push({ line: i + 1, msg: `Pusta warto\u015B\u0107 dla klucza "${emptyVal[2]}" \u2014 sprawdz czy zamierzone`, severity: 'info' });
+        warnings.push({ line: i + 1, msg: this._lang === 'pl' ? `Pusta warto\u015B\u0107 dla klucza "${emptyVal[2]}" \u2014 sprawdz czy zamierzone` : this._t.emptyValue.replace('{key}', emptyVal[2]), severity: 'info' });
       }
       // Count indent styles
       const leadMatch = line.match(/^( +)/);
@@ -643,7 +764,7 @@ class HAYamlChecker extends HTMLElement {
       }
     });
     if (indentLevels[2] > 0 && indentLevels[4] > 0) {
-      warnings.push({ line: 0, msg: `Niespójne wci\u0119cia: mieszane 2-spacje (${indentLevels[2]}x) i 4-spacje (${indentLevels[4]}x). Zalecane: 2 spacje.`, severity: 'warning' });
+      warnings.push({ line: 0, msg: this._t.inconsistentIndent.replace('{count2}', indentLevels[2]).replace('{count4}', indentLevels[4]), severity: 'warning' });
     }
 
     // Check duplicate root keys
@@ -653,7 +774,7 @@ class HAYamlChecker extends HTMLElement {
       if (match) {
         const key = match[1];
         if (rootKeys[key] !== undefined) {
-          warnings.push({ line: i + 1, msg: `Duplikat klucza na poziomie g\u0142\u00F3wnym: "${key}" (pierwszy: linia ${rootKeys[key] + 1})`, severity: 'warning' });
+          warnings.push({ line: i + 1, msg: this._t.duplicateRootKey.replace('{key}', key).replace('{line}', rootKeys[key] + 1), severity: 'warning' });
         } else {
           rootKeys[key] = i;
         }
@@ -668,7 +789,7 @@ class HAYamlChecker extends HTMLElement {
         const val = valueMatch[1].trim();
         if (!val.startsWith('"') && !val.startsWith("'") && !val.startsWith('{') && !val.startsWith('[') && !val.startsWith('|') && !val.startsWith('>')) {
           if (/[^{]:/.test(val)) {
-            warnings.push({ line: i + 1, msg: `Mo\u017Cliwy problem: warto\u015B\u0107 zawiera ":" bez cudzys\u0142ow\u00F3w: ${val.substring(0, 60)}`, severity: 'warning' });
+            warnings.push({ line: i + 1, msg: this._lang === 'pl' ? `Mo\u017Cliwy problem: warto\u015B\u0107 zawiera ":" bez cudzys\u0142ow\u00F3w: ${val.substring(0, 60)}` : this._t.possibleUnquotedColon.replace('{value}', val.substring(0, 60)), severity: 'warning' });
           }
         }
       }
@@ -684,7 +805,7 @@ class HAYamlChecker extends HTMLElement {
         const line = lines[i].trim();
         if (line.startsWith('- id:') || line.startsWith('- alias:')) {
           if (inBlock && !hasAlias) {
-            warnings.push({ line: blockStart + 1, msg: 'Automatyzacja bez pola alias \u2014 dodaj alias dla lepszego debugowania', severity: 'warning' });
+            warnings.push({ line: blockStart + 1, msg: this._lang === 'pl' ? 'Automatyzacja bez pola alias \u2014 dodaj alias dla lepszego debugowania' : this._t.automationNoAlias, severity: 'warning' });
           }
           inBlock = true;
           hasAlias = line.startsWith('- alias:');
@@ -724,9 +845,9 @@ class HAYamlChecker extends HTMLElement {
     // Check for common HA mistakes: trigger: instead of triggers:
     lines.forEach((line, i) => {
       const t = line.trim();
-      if (t === 'trigger:') warnings.push({ line: i + 1, msg: 'HA 2024.4+: u\u017Cyj "triggers:" zamiast "trigger:" (starszy format)', severity: 'info' });
-      if (t === 'condition:') warnings.push({ line: i + 1, msg: 'HA 2024.4+: u\u017Cyj "conditions:" zamiast "condition:" (starszy format)', severity: 'info' });
-      if (t === 'action:') warnings.push({ line: i + 1, msg: 'HA 2024.4+: u\u017Cyj "actions:" zamiast "action:" (starszy format)', severity: 'info' });
+      if (t === 'trigger:') warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'HA 2024.4+: u\u017Cyj "triggers:" zamiast "trigger:" (starszy format)' : this._t.triggerOldFormat, severity: 'info' });
+      if (t === 'condition:') warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'HA 2024.4+: u\u017Cyj "conditions:" zamiast "condition:" (starszy format)' : this._t.conditionOldFormat, severity: 'info' });
+      if (t === 'action:') warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'HA 2024.4+: u\u017Cyj "actions:" zamiast "action:" (starszy format)' : this._t.actionOldFormat, severity: 'info' });
     });
 
     // Deprecated syntax (F4)
@@ -743,10 +864,10 @@ class HAYamlChecker extends HTMLElement {
     // Best practice lint (F3)
     lines.forEach((line, i) => {
       const t = line.trim();
-      if (/entity_id:\s*\w+\.\w*[A-Z]/.test(t)) warnings.push({ line: i + 1, msg: 'Konwencja: entity_id lowercase_snake_case', severity: 'info' });
-      if (t === 'mode: single') warnings.push({ line: i + 1, msg: '"mode: single" jest domyslny \u2014 mozna pominac', severity: 'info' });
-         if (/delay:\s*['"]\d+['"]/.test(t)) warnings.push({ line: i + 1, msg: 'Best practice: delay z seconds/milliseconds (np. delay: {seconds: 5})', severity: 'info' });
-         if (/secret|password|api_key|token/i.test(t) && !/!secret/.test(t) && !t.trim().startsWith('#')) warnings.push({ line: i + 1, msg: 'Security: potencjalny sekret bez !secret — uzyj secrets.yaml', severity: 'warning' });
+      if (/entity_id:\s*\w+\.\w*[A-Z]/.test(t)) warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Konwencja: entity_id lowercase_snake_case' : this._t.entityIdConvention, severity: 'info' });
+      if (t === 'mode: single') warnings.push({ line: i + 1, msg: this._lang === 'pl' ? '"mode: single" jest domyslny \u2014 mozna pominac' : this._t.modeSingleDefault, severity: 'info' });
+         if (/delay:\s*['"]\d+['"]/.test(t)) warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Best practice: delay z seconds/milliseconds (np. delay: {seconds: 5})' : this._t.delayBestPractice, severity: 'info' });
+         if (/secret|password|api_key|token/i.test(t) && !/!secret/.test(t) && !t.trim().startsWith('#')) warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Security: potencjalny sekret bez !secret — uzyj secrets.yaml' : this._t.secretWarning, severity: 'warning' });
     });
 
     // ── Check for deprecated/renamed services ──────────────────────────────
@@ -759,7 +880,7 @@ class HAYamlChecker extends HTMLElement {
         const mapping = HAYamlChecker.SERVICE_MAPPINGS?.[service];
         if (mapping) {
           if (mapping.replacement) {
-            warnings.push({ line: i + 1, msg: 'Service renamed: ' + service + ' \u2192 ' + mapping.replacement + ' (HA ' + mapping.version + ')', severity: mapping.severity || 'warning' });
+            warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Service renamed: ' + service + ' \u2192 ' + mapping.replacement + ' (HA ' + mapping.version + ')' : this._t.serviceRenamed.replace('{old}', service).replace('{new}', mapping.replacement).replace('{version}', mapping.version), severity: mapping.severity || 'warning' });
           } else if (mapping.note) {
             warnings.push({ line: i + 1, msg: mapping.note, severity: mapping.severity || 'info' });
           }
@@ -768,7 +889,7 @@ class HAYamlChecker extends HTMLElement {
       if (/brightness:\s*(\d+)/.test(line)) {
         const bm = line.match(/brightness:\s*(\d+)/);
         if (bm && parseInt(bm[1]) > 100) {
-          warnings.push({ line: i + 1, msg: 'brightness: ' + bm[1] + ' (0-255) \u2014 rozwa\u017C brightness_pct: 0-100', severity: 'info' });
+          warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'brightness: ' + bm[1] + ' (0-255) \u2014 rozwa\u017C brightness_pct: 0-100' : this._t.brightnessNote.replace('{value}', bm[1]), severity: 'info' });
         }
       }
     });
@@ -784,13 +905,13 @@ class HAYamlChecker extends HTMLElement {
         const tplBlocks = line.match(/\{\{[^}]*\}\}/g) || [];
         for (const block of tplBlocks) {
           if (/states\.[a-z_]+\.[a-z0-9_]+/.test(block)) {
-            warnings.push({ line: i + 1, msg: 'Stary zapis: states.domain.entity \u2192 u\u017Cyj states("domain.entity")', severity: 'warning' });
+            warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Stary zapis: states.domain.entity \u2192 u\u017Cyj states("domain.entity")' : this._t.oldStateFormat, severity: 'warning' });
           }
           const unquotedArgs = block.match(/(?:states|is_state|state_attr|has_value)\(\s*([a-z_]+\.[a-z0-9_]+)\s*[,)]/g);
           if (unquotedArgs) {
             for (const ua of unquotedArgs) {
               if (!/['"]/.test(ua)) {
-                warnings.push({ line: i + 1, msg: 'Brak cudzys\u0142ow\u00F3w w argumencie: ' + ua.trim(), severity: 'warning' });
+                warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Brak cudzys\u0142ow\u00F3w w argumencie: ' + ua.trim() : this._t.missingQuotes.replace('{arg}', ua.trim()), severity: 'warning' });
               }
             }
           }
@@ -799,7 +920,7 @@ class HAYamlChecker extends HTMLElement {
             const name = fc.replace(/\s*\($/, '');
             if (!allFuncs.has(name) && !builtinJinja.has(name) && !allFilters.has(name)) {
               if (/^[a-z_]{2,}$/.test(name) && !['not','and','or','in','is','if','else','elif','for','set','end','macro','block','extends','include','import','from','as','with','without'].includes(name)) {
-                warnings.push({ line: i + 1, msg: 'Nieznana funkcja szablonu: "' + name + '"', severity: 'warning' });
+                warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Nieznana funkcja szablonu: "' + name + '"' : this._t.unknownTemplateFunction.replace('{name}', name), severity: 'warning' });
               }
             }
           }
@@ -809,7 +930,7 @@ class HAYamlChecker extends HTMLElement {
           const filterName = fm.replace(/^\|\s*/, '');
           if (filterName && !allFilters.has(filterName) && !allFuncs.has(filterName) && !builtinJinja.has(filterName)) {
             if (/^[a-z_]{2,}$/.test(filterName) && !['not','and','or','in','is','if','else','elif','for','set','end'].includes(filterName)) {
-              warnings.push({ line: i + 1, msg: 'Nieznany filtr: "' + filterName + '"', severity: 'warning' });
+              warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Nieznany filtr: "' + filterName + '"' : this._t.unknownFilter.replace('{name}', filterName), severity: 'warning' });
             }
           }
         }
@@ -823,7 +944,7 @@ class HAYamlChecker extends HTMLElement {
       if (stateClassMatch) {
         const dc = HAYamlChecker.DEVICE_CLASSES;
         if (dc && dc.state_class && !dc.state_class.includes(stateClassMatch[1].toLowerCase())) {
-          warnings.push({ line: i + 1, msg: 'Nieprawid\u0142owy state_class: "' + stateClassMatch[1] + '" \u2014 dozwolone: ' + dc.state_class.join(', '), severity: 'warning' });
+          warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Nieprawid\u0142owy state_class: "' + stateClassMatch[1] + '" \u2014 dozwolone: ' + dc.state_class.join(', ') : this._t.invalidStateClass.replace('{value}', stateClassMatch[1]).replace('{allowed}', dc.state_class.join(', ')), severity: 'warning' });
         }
       }
       const devClassMatch = line.match(/device_class:\s*["']?(\w+)["']?/);
@@ -832,14 +953,14 @@ class HAYamlChecker extends HTMLElement {
         if (dc) {
           const allClasses = [...(dc.sensor || []), ...(dc.binary_sensor || [])];
           if (allClasses.length && !allClasses.includes(devClassMatch[1].toLowerCase())) {
-            warnings.push({ line: i + 1, msg: 'Nieznany device_class: "' + devClassMatch[1] + '"', severity: 'warning' });
+            warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Nieznany device_class: "' + devClassMatch[1] + '"' : this._t.unknownDeviceClass.replace('{value}', devClassMatch[1]), severity: 'warning' });
           }
         }
       }
       if (/^\s*value_template:/.test(line) && !/^\s*#/.test(line)) {
         const nearby = lines.slice(Math.max(0, i - 5), Math.min(lines.length, i + 15)).join(' ');
         if (!/availability_template:|availability:/.test(nearby)) {
-          warnings.push({ line: i + 1, msg: 'Best practice: dodaj availability_template przy value_template', severity: 'info' });
+          warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Best practice: dodaj availability_template przy value_template' : this._t.availabilityTemplate, severity: 'info' });
         }
       }
     });
@@ -860,7 +981,7 @@ class HAYamlChecker extends HTMLElement {
         else forStack.pop();
       }
       if (/{%-?\s*set\s+/.test(t) && !/{%-?\s*set\s+\w+\s*=/.test(t) && !/{%-?\s*set\s+\w+\s*%}/.test(t)) {
-        warnings.push({ line: i + 1, msg: 'Sprawd\u017A sk\u0142adni\u0119 {% set %}', severity: 'warning' });
+        warnings.push({ line: i + 1, msg: this._lang === 'pl' ? 'Sprawd\u017A sk\u0142adni\u0119 {% set %}' : this._t.jinja2SyntaxError, severity: 'warning' });
       }
     });
     ifStack.forEach(b => errors.push({ line: b.line, msg: 'Niezamkni\u0119ty {% if %}: ' + b.txt + '...', severity: 'error' }));
@@ -917,7 +1038,7 @@ ${this._css()}
                 'file-scanner': '📁 Pliki',
                 'paste-validate': '📝 Paste',
                 'template-tester': '🧪 Template',
-                'common-issues': '📖 Poradnik',
+                'common-issues': this._t.guideTabLabel,
               }[t]}
             </button>
           `).join('')}
@@ -944,13 +1065,13 @@ ${this._css()}
       <div class="tab-pane active" data-tab="config-check">
         <div class="info-box">
           <span class="info-icon">ℹ️</span>
-          <div>Uruchamia wbudowany walidator HA (<code>homeassistant.check_config</code>). Wykrywa b\u0142\u0119dy sk\u0142adni YAML oraz nieprawid\u0142owe klucze konfiguracji.</div>
+          <div>${this._t.checkConfigInfo}</div>
         </div>
-        ${this._checkLoading ? '<div class="loading-wrap"><div class="spinner"></div> Sprawdzanie konfiguracji HA...</div>' : ''}
-        ${!this._checkLoading && !r ? '<div class="empty-hint">Kliknij przycisk, aby sprawdzi\u0107 konfiguracj\u0119</div>' : ''}
+        ${this._checkLoading ? '<div class="loading-wrap"><div class="spinner"></div> ' + this._t.checkingConfig + '</div>' : ''}
+        ${!this._checkLoading && !r ? '<div class="empty-hint">' + this._t.clickToCheck + '</div>' : ''}
         ${!this._checkLoading && r ? this._renderCheckResult(r) : ''}
         <div style="margin-top:16px;">
-          <button class="btn btn-primary" id="btn-check">✅ Sprawdź konfigurację HA</button>
+          <button class="btn btn-primary" id="btn-check">✅ ${this._t.checkConfigBtn}</button>
         </div>
       </div>
     `;
@@ -984,14 +1105,14 @@ ${this._css()}
       <div class="tab-pane active" data-tab="entity-validator">
         <div class="info-box">
           <span class="info-icon">🔗</span>
-          <div>Skanuje automatyzacje i skrypty w poszukiwaniu referencji do nieistniej\u0105cych encji. Pomaga znale\u017A\u0107 "zepsute" entity_id po zmianie nazwy urz\u0105dzenia.</div>
+          <div>${this._t.entityCheckInfo}</div>
         </div>
-        ${this._entityLoading ? '<div class="loading-wrap"><div class="spinner"></div> Analizowanie encji...</div>' : ''}
-        ${!this._entityLoading && !r ? '<div class="empty-hint">Kliknij przycisk, aby przeskanowa\u0107 encje</div>' : ''}
-        ${!this._entityLoading && r && r.error ? `<div class="error-box">❌ B\u0142\u0105d: ${r.error}</div>` : ''}
+        ${this._entityLoading ? '<div class="loading-wrap"><div class="spinner"></div> ' + this._t.analyzingEntities + '</div>' : ''}
+        ${!this._entityLoading && !r ? '<div class="empty-hint">' + this._t.clickToScanEntities + '</div>' : ''}
+        ${!this._entityLoading && r && r.error ? `<div class="error-box">❌ ${this._lang === 'pl' ? 'B\u0142\u0105d' : 'Error'}: ${r.error}</div>` : ''}
         ${!this._entityLoading && r && !r.error ? this._renderEntityResult(r) : ''}
         <div style="margin-top:16px;">
-          <button class="btn btn-primary" id="btn-entity">🔗 Sprawdź encje</button>
+          <button class="btn btn-primary" id="btn-entity">🔗 ${this._t.scanEntitiesBtn || 'Scan Entities'}</button>
         </div>
       </div>
     `;
@@ -1027,34 +1148,34 @@ ${this._css()}
       ` : ''}
       ${r.broken.length ? `
         <div class="issue-section">
-          <h3>❌ Uszkodzone referencje (${r.broken.length})</h3>
+          <h3>❌ ${this._t.brokenRefsTitle} (${r.broken.length})</h3>
           ${r.broken.map(b => `<div class="issue-item error"><span class="issue-icon">❌</span><div><strong>${b.entity}</strong> <span style="color:var(--text-secondary);font-size:11px;">w ${b.type}: ${b.in}</span></div></div>`).join('')}
         </div>
-      ` : '<div class="all-good">✅ Brak uszkodzonych referencji!</div>'}
+      ` : '<div class="all-good">✅ ' + this._t.noRefs + '</div>'}
       ${r.problemStates?.length ? `
         <div class="issue-section">
-          <h3>⚠️ Encje unavailable/unknown (${r.problemStates.length})</h3>
+          <h3>⚠️ ${this._t.unavailableTitle} (${r.problemStates.length})</h3>
           ${r.problemStates.slice(0, 30).map(p => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${p.entity}</strong> — ${this._sanitize(p.name)} <span class="badge ${p.state === 'unavailable' ? 'error' : 'warning'}">${p.state}</span></div></div>`).join('')}
-          ${r.problemStates.length > 30 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">...i ${r.problemStates.length - 30} więcej</div>` : ''}
+          ${r.problemStates.length > 30 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">${this._t.moreCount.replace('{count}', r.problemStates.length - 30)}</div>` : ''}
         </div>
       ` : ''}
       ${r.autoNoDesc?.length ? `
         <div class="issue-section">
-          <h3>ℹ️ Automatyzacje bez opisu (${r.autoNoDesc.length})</h3>
+          <h3>ℹ️ ${this._t.noDescTitle} (${r.autoNoDesc.length})</h3>
           ${r.autoNoDesc.slice(0, 20).map(a => `<div class="issue-item info"><span class="issue-icon">ℹ️</span><div><strong>${this._sanitize(a.alias)}</strong> <span style="color:var(--bento-text-secondary);font-size:11px;">ID: ${a.id}</span></div></div>`).join('')}
-          ${r.autoNoDesc.length > 20 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">...i ${r.autoNoDesc.length - 20} więcej</div>` : ''}
+          ${r.autoNoDesc.length > 20 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">${this._t.moreCount.replace('{count}', r.autoNoDesc.length - 20)}</div>` : ''}
         </div>
       ` : ''}
       ${r.noFriendlyName?.length ? `
         <div class="issue-section">
-          <h3>ℹ️ Encje bez friendly_name (${r.noFriendlyName.length})</h3>
+          <h3>ℹ️ ${this._t.entitiesWithoutFriendlyName} (${r.noFriendlyName.length})</h3>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
             ${r.noFriendlyName.map(e => `<span class="badge warning" style="font-size:11px;">${e}</span>`).join('')}
           </div>
         </div>
       ` : ''}
       <div style="margin-top:12px;">
-        <div class="file-list-header">Top domeny</div>
+        <div class="file-list-header">${this._t.topDomains}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
           ${topDomains.map(([d,n]) => `<span class="badge info">${d}: ${n}</span>`).join('')}
         </div>
@@ -1068,13 +1189,13 @@ ${this._css()}
       <div class="tab-pane active" data-tab="file-scanner">
         <div class="info-box">
           <span class="info-icon">📁</span>
-          <div>Informacje o systemie HA: wersja, ilo\u015B\u0107 encji, urz\u0105dze\u0144, obszar\u00F3w i komponent\u00F3w.</div>
+          <div>${this._t.scanSystemInfo}</div>
         </div>
-        ${this._scanLoading ? '<div class="loading-wrap"><div class="spinner"></div> Pobieranie informacji o systemie...</div>' : ''}
-        ${!this._scanLoading && !r ? '<div class="empty-hint">Kliknij przycisk, aby pobra\u0107 info</div>' : ''}
+        ${this._scanLoading ? '<div class="loading-wrap"><div class="spinner"></div> ' + this._t.checkingConfig + '</div>' : ''}
+        ${!this._scanLoading && !r ? '<div class="empty-hint">' + this._t.clickToScanSystem + '</div>' : ''}
         ${!this._scanLoading && r ? this._renderScanResult(r) : ''}
         <div style="margin-top:16px;">
-          <button class="btn btn-primary" id="btn-scan">📁 Skanuj system</button>
+          <button class="btn btn-primary" id="btn-scan">📁 ${this._lang === 'pl' ? 'Skanuj system' : 'Scan System'}</button>
         </div>
       </div>
     `;
@@ -1082,7 +1203,7 @@ ${this._css()}
 
   _renderScanResult(r) {
     return `
-      ${r.error ? `<div class="error-box">⚠️ Cz\u0119\u015Bciowy b\u0142\u0105d: ${r.error}</div>` : ''}
+      ${r.error ? `<div class="error-box">⚠️ ${this._t.partialError}: ${r.error}</div>` : ''}
       ${r.haVersion ? `
         <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
           <div class="stat-card"><div class="stat-value">${r.haVersion}</div><div class="stat-label">HA Version</div></div>
@@ -1104,14 +1225,14 @@ ${this._css()}
           <div class="file-item">
             <span class="file-icon">📔</span>
             <div class="file-info">
-              <div class="file-path">${f.path}${f.critical ? '<span class="badge critical">krytyczny</span>' : ''}</div>
+              <div class="file-path">${f.path}${f.critical ? '<span class="badge critical">' + this._t.critical + '</span>' : ''}</div>
               <div class="file-desc">${f.desc}</div>
             </div>
-            <span class="file-status-icon" title="Nieznany (HA API nie zwraca listy plik\u00F3w YAML)">\u2753</span>
+            <span class="file-status-icon" title="${this._lang === 'pl' ? 'Nieznany (HA API nie zwraca listy plik\u00F3w YAML)' : 'Unknown (HA API does not return YAML file list)'}">\u2753</span>
           </div>
         `).join('')}
       </div>
-      <div class="note-box" style="margin-top:12px;">💡 Aby sprawdzi\u0107 zawarto\u015B\u0107 plik\u00F3w u\u017Cyj: <strong>Paste &amp; Validate</strong> lub <strong>HA File Editor</strong> addon.</div>
+      <div class="note-box" style="margin-top:12px;">💡 ${this._t.fileHint}</div>
     `;
   }
 
@@ -1121,18 +1242,18 @@ ${this._css()}
       <div class="tab-pane active" data-tab="paste-validate">
         <div class="paste-wrap">
           <div class="paste-toolbar">
-            <span class="paste-label">📝 Wklej YAML do sprawdzenia</span>
-            <button class="btn btn-sm" id="btn-clear-paste">Wyczyść</button>
+            <span class="paste-label">📝 ${this._t.pasteYamlLabel}</span>
+            <button class="btn btn-sm" id="btn-clear-paste">${this._t.clearBtn}</button>
           </div>
-          <textarea class="yaml-textarea" id="yaml-input" placeholder="# Wklej tutaj zawartość pliku YAML...\nautomation:\n  - alias: Test\n    trigger:\n      - platform: state\n        entity_id: light.salon">${this._pasteValue}</textarea>
-          <button class="btn btn-primary" id="btn-validate">🔍 Waliduj YAML</button>
+          <textarea class="yaml-textarea" id="yaml-input" placeholder="# ${this._t.pasteHint}\nautomation:\n  - alias: Test\n    trigger:\n      - platform: state\n        entity_id: light.salon">${this._pasteValue}</textarea>
+          <button class="btn btn-primary" id="btn-validate">🔍 ${this._t.validateBtn}</button>
           ${this._pasteErrors && (errors.length || warnings.length) ? `
             <div class="paste-results">
               <div class="result-header ${errors.length ? 'error' : 'warning'}">
                 <span class="result-icon">${errors.length ? '❌' : '⚠️'}</span>
                 <div>
-                  <strong>${errors.length} b\u0142\u0119d\u00F3w, ${warnings.length} ostrze\u017Ce\u0144</strong>
-                  <small>${lineCount} linii | walidacja kliencka</small>
+                  <strong>${errors.length} ${this._t.errors}, ${warnings.length} ${this._t.warnings}</strong>
+                  <small>${lineCount} lines | ${this._t.clientValidation}</small>
                 </div>
               </div>
               ${[...errors, ...warnings].map(e => `
@@ -1155,19 +1276,19 @@ ${this._css()}
       <div class="tab-pane active" data-tab="template-tester">
         <div class="info-box">
           <span class="info-icon">🧪</span>
-          <div>Testuj szablony Jinja2 bezpo\u015Brednio przez HA API. To samo co Dev Tools \u203A Template, ale wbudowane w kart\u0119.</div>
+          <div>${this._t.templateTesterInfo}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div>
-            <div class="paste-label" style="margin-bottom:6px;">Szablon Jinja2</div>
+            <div class="paste-label" style="margin-bottom:6px;">${this._t.jinja2Template}</div>
             <textarea class="yaml-textarea" id="template-input" style="min-height:120px;" placeholder="{{ states('sun.sun') }}">${this._templateValue}</textarea>
           </div>
-          ${this._templateLoading ? '<div class="loading-wrap"><div class="spinner"></div> Wykonywanie szablonu...</div>' : ''}
+          ${this._templateLoading ? '<div class="loading-wrap"><div class="spinner"></div> ' + this._t.executingTemplate + '</div>' : ''}
           ${!this._templateLoading && r ? `
             <div class="result-header ${r.ok ? 'success' : 'error'}">
               <span class="result-icon">${r.ok ? '✅' : '❌'}</span>
               <div>
-                <strong>${r.ok ? 'Wynik' : 'B\u0142\u0105d'}</strong>
+                <strong>${r.ok ? this._t.result : this._t.error}</strong>
                 <small>${r.ts}</small>
               </div>
             </div>
@@ -1175,7 +1296,7 @@ ${this._css()}
             ${!r.ok ? `<div class="error-box">${r.error}</div>` : ''}
           ` : ''}
           <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn btn-primary" id="btn-template">▶️ Wykonaj template</button>
+            <button class="btn btn-primary" id="btn-template">▶️ ${this._t.executeTemplate}</button>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               ${[
                 ['{{ states("sun.sun") }}', '☀️ sun'],
@@ -1217,6 +1338,7 @@ ${this._css()}
     const content = this.shadowRoot.getElementById('tab-content');
     if (!content) { this._render(); return; }
     this._activeTab = tab;
+    history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
     try { localStorage.setItem('ha-yaml-checker-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
     // Update tab buttons
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => {
@@ -1413,6 +1535,11 @@ ${this._css()}
 
   disconnectedCallback() {
     // Cleanup any active event listeners or timers
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 }
 

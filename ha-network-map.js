@@ -7,6 +7,7 @@ window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: 
 class HaNetworkMap extends HTMLElement {
   constructor() {
     super();
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._lastRenderTime = 0;
@@ -644,7 +645,7 @@ class HaNetworkMap extends HTMLElement {
     const cb = this.shadowRoot.querySelector('#cMD'); if (cb) { cb.setAttribute('aria-label', 'Close'); cb.addEventListener('click', () => { el.innerHTML = ''; }); }
   }
   _bindEvents() {
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { this.activeTab = b.dataset.tab; this._doRender(); }));
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { this.activeTab = b.dataset.tab; history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.activeTab); this._doRender(); }));
     const rescanBtn = this.shadowRoot.querySelector('#rescanBtn');
     if (rescanBtn) rescanBtn.addEventListener('click', async () => {
       if (this._scanInProgress) return;
@@ -744,6 +745,11 @@ class HaNetworkMap extends HTMLElement {
 
   disconnectedCallback() {
     // Cleanup any active event listeners or timers
+  }
+
+  setActiveTab(tabId) {
+    this.activeTab = tabId;
+    this._doRender();
   }
 }
 if (!customElements.get('ha-network-map')) customElements.define('ha-network-map', HaNetworkMap);

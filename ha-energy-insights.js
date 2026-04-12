@@ -17,6 +17,7 @@ class HAEnergyInsights extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
 
     // State fields
     this._hass = null;
@@ -159,11 +160,14 @@ class HAEnergyInsights extends HTMLElement {
     const c = this._config;
     const mode = c.energy_tariff_mode || 'flat';
     const cur = c.currency || 'PLN';
+    const suffix = this._lang === 'pl' ?
+      { 'day_night': ' (dzień/noc)', 'weekday_weekend': ' (roboczy/weekend)' } :
+      { 'day_night': ' (day/night)', 'weekday_weekend': ' (weekday/weekend)' };
     switch (mode) {
       case 'day_night':
-        return cur + ' ' + (c.energy_price_day || 0.65) + '/' + (c.energy_price_night || 0.45) + ' (dzień/noc)';
+        return cur + ' ' + (c.energy_price_day || 0.65) + '/' + (c.energy_price_night || 0.45) + (suffix['day_night'] || '');
       case 'weekday_weekend':
-        return cur + ' ' + (c.energy_price_weekday || 0.65) + '/' + (c.energy_price_weekend || 0.50) + ' (roboczy/weekend)';
+        return cur + ' ' + (c.energy_price_weekday || 0.65) + '/' + (c.energy_price_weekend || 0.50) + (suffix['weekday_weekend'] || '');
       case 'mixed':
         return cur + ' mix: ' + (c.energy_price_wd_day || 0.65) + '/' + (c.energy_price_wd_night || 0.45) + '/' + (c.energy_price_we_day || 0.55) + '/' + (c.energy_price_we_night || 0.40);
       default:
@@ -839,6 +843,7 @@ ${this._getStyles()}
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
         localStorage.setItem('ha-energy-insights-active-tab', this._activeTab);
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         // Update tab content only (no full DOM rebuild)
         this._updateContent();
         if (this._chartJsReady && this._data && this._activeTab !== 'overview' && this._activeTab !== 'tips') {
@@ -846,6 +851,11 @@ ${this._getStyles()}
         }
       });
     });
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 }
 

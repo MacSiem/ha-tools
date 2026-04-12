@@ -30,6 +30,7 @@ class HaChoreTracker extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     // --- Throttle fields ---
     this._lastRenderTime = 0;
     this._renderScheduled = false;
@@ -1134,7 +1135,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <button class="tab-btn ${this.activeTab === 'board' ? 'active' : ''}" data-tab="board">📋 Board</button>
           <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">📅 Schedule</button>
           <button class="tab-btn ${this.activeTab === 'stats' ? 'active' : ''}" data-tab="stats">🏆 Stats</button>
-          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">⚙️ Ustawienia</button>
+          <button class="tab-btn ${this.activeTab === 'settings' ? 'active' : ''}" data-tab="settings">\u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia' : 'Settings'}</button>
         </div>
 
         <!-- Board Tab -->
@@ -1286,6 +1287,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   switchTab(tabName) {
     if (!tabName) return;
     this.activeTab = tabName;
+    history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.activeTab);
     // Toggle tab buttons
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tabName);
@@ -1581,6 +1583,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this._renderScheduled = false;
   }
 
+  setActiveTab(tabId) {
+    this.activeTab = tabId;
+    this.render();
+  }
 }
 
 if (!customElements.get('ha-chore-tracker')) customElements.define('ha-chore-tracker', HaChoreTracker);

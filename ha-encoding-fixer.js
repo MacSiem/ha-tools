@@ -9,6 +9,7 @@ class HaEncodingFixer extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lastRenderTime = 0;
     this._renderScheduled = false;
     this._firstHassRender = false;
@@ -149,7 +150,7 @@ class HaEncodingFixer extends HTMLElement {
         restoreSelected: 'Przywroc zaznaczone',
         restoreAll: 'Przywroc wszystkie',
         restoreDone: 'Przywrocono. Zalecany restart HA (Ustawienia > System > Restart).',
-        noBackup: 'Brak kopii â€” najpierw utwĂłrz snapshot aktualnych zasobow',
+        noBackup: 'Brak kopii — najpierw utwórz snapshot aktualnych zasobów',
         createSnapshot: 'Zapisz snapshot',
         snapshotCreated: 'Snapshot zapisany',
         corruptionWarning: 'Wykryto utrate zasobow!',
@@ -244,7 +245,7 @@ class HaEncodingFixer extends HTMLElement {
         restoreSelected: 'Restore selected',
         restoreAll: 'Restore all',
         restoreDone: 'Restored. HA restart recommended (Settings > System > Restart).',
-        noBackup: 'No backup â€” create a snapshot of current resources first',
+        noBackup: 'No backup — create a snapshot of current resources first',
         createSnapshot: 'Save snapshot',
         snapshotCreated: 'Snapshot saved',
         corruptionWarning: 'Resource loss detected!',
@@ -949,6 +950,7 @@ class HaEncodingFixer extends HTMLElement {
         const tabsContainer = sr.querySelector('.tabs');
         const scrollPos = tabsContainer?.scrollLeft || 0;
         this._activeTab = btn.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._updateUI();
         // Restore scroll position after DOM rebuild
         requestAnimationFrame(() => {
@@ -2005,6 +2007,11 @@ class HaEncodingFixer extends HTMLElement {
 
   disconnectedCallback() {
     // Cleanup any active event listeners or timers
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 }
 

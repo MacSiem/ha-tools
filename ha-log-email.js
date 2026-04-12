@@ -15,6 +15,7 @@ class HALogEmail extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-log-email-editor'); }
   constructor() {
     super();
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
@@ -262,7 +263,19 @@ class HALogEmail extends HTMLElement {
     };
   }
 
-  // ── SMTP Detection & Verification ────────────────────────────────
+  // ── HA Tools Email (built-in SMTP) ────────────────────────────────
+  _hasHaToolsEmail() {
+    return !!this._hass?.services?.ha_tools_email?.send;
+  }
+
+  async _sendViaHaToolsEmail(to, subject, body, html) {
+    const data = { subject, body };
+    if (html) data.html = html;
+    if (to) data.to = to;
+    await this._hass.callService('ha_tools_email', 'send', data);
+  }
+
+  // ── SMTP Detection & Verification (legacy notify fallback) ──────
   _detectSmtp() {
     if (!this._hass) return { found: false, services: [] };
     const notifyServices = this._hass.services?.notify || {};
@@ -277,15 +290,20 @@ class HALogEmail extends HTMLElement {
   }
 
   async _testSmtp(service) {
-    if (!this._hass || !service) return;
+    if (!this._hass) return;
     this._smtpTesting = true;
     this._update();
     try {
-      await this._hass.callService('notify', service, {
-        title: '\u2705 HA Tools Panel \u2014 SMTP Test (Log Email)',
-        message: 'SMTP jest poprawnie skonfigurowany.\nTestowy email z Log Email.\nCzas: ' + new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'))
-      });
-      this._smtpStatus = { ok: true, service, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
+      if (this._hasHaToolsEmail()) {
+        await this._hass.callService('ha_tools_email', 'test', {});
+        this._smtpStatus = { ok: true, service: 'ha_tools_email', time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
+      } else if (service) {
+        await this._hass.callService('notify', service, {
+          title: '\u2705 HA Tools Panel \u2014 SMTP Test (Log Email)',
+          message: (this._lang === 'pl' ? 'SMTP jest poprawnie skonfigurowany.\nTestowy email z Log Email.\nCzas: ' : 'SMTP is correctly configured.\nTest email from Log Email.\nTime: ') + new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'))
+        });
+        this._smtpStatus = { ok: true, service, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
+      }
     } catch (e) {
       this._smtpStatus = { ok: false, service, error: e.message || 'Unknown error' };
     }
@@ -294,6 +312,30 @@ class HALogEmail extends HTMLElement {
   }
 
   _renderSmtpSection() {
+    // Built-in SMTP takes priority
+    if (this._hasHaToolsEmail()) {
+      const statusBadge = this._smtpStatus
+        ? (this._smtpStatus.ok
+          ? '<span class="badge-ok">\u2705 Test OK (' + this._smtpStatus.time + ')</span>'
+          : '<span class="badge-er">\u274C ' + this._smtpStatus.error + '</span>')
+        : '';
+      return '<div class="smtp-section">' +
+        '<div class="smtp-header">' +
+          '<span class="smtp-icon">\u2709\uFE0F</span>' +
+          '<div>' +
+            '<div class="smtp-title">' + (this._lang === 'pl' ? 'Wbudowany SMTP (ha_tools_email)' : 'Built-in SMTP (ha_tools_email)') + '</div>' +
+            '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Konfiguracja w <b>Ustawienia \u2192 Email/SMTP</b>' : 'Configure in <b>Settings \u2192 Email/SMTP</b>') + '</div>' +
+          '</div>' +
+          '<span class="badge-ok" style="margin-left:auto">\u2705</span>' +
+        '</div>' +
+        '<div class="smtp-actions">' +
+          '<button class="send-btn" id="btn-smtp-test" style="width:auto;padding:8px 16px" ' + (this._smtpTesting ? 'disabled' : '') + '>' +
+            (this._smtpTesting ? (this._lang === 'pl' ? '\u23F3 Wysyłam...' : '\u23F3 Sending...') : (this._lang === 'pl' ? '\u{1F4E8} Wyślij test' : '\u{1F4E8} Send test')) +
+          '</button>' +
+          statusBadge +
+        '</div>' +
+      '</div>';
+    }
     const smtp = this._detectSmtp();
     if (smtp.found) {
       const statusBadge = this._smtpStatus
@@ -305,15 +347,15 @@ class HALogEmail extends HTMLElement {
         '<div class="smtp-header">' +
           '<span class="smtp-icon">\u2709\uFE0F</span>' +
           '<div>' +
-            '<div class="smtp-title">SMTP skonfigurowany</div>' +
-            '<div class="smtp-sub">Serwis: <code>notify.' + smtp.defaultService + '</code>' +
-            (smtp.services.length > 1 ? ' (+ ' + (smtp.services.length - 1) + ' wi\u0119cej)' : '') + '</div>' +
+            '<div class="smtp-title">' + (this._lang === 'pl' ? 'SMTP skonfigurowany' : 'SMTP configured') + '</div>' +
+            '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Serwis' : 'Service') + ': <code>notify.' + smtp.defaultService + '</code>' +
+            (smtp.services.length > 1 ? ' (+ ' + (smtp.services.length - 1) + (this._lang === 'pl' ? ' więcej' : ' more') + ')' : '') + '</div>' +
           '</div>' +
           '<span class="badge-ok" style="margin-left:auto">\u2705</span>' +
         '</div>' +
         '<div class="smtp-actions">' +
           '<button class="send-btn" id="btn-smtp-test" style="width:auto;padding:8px 16px" ' + (this._smtpTesting ? 'disabled' : '') + '>' +
-            (this._smtpTesting ? '\u23F3 Wysy\u0142am...' : '\u{1F4E8} Wy\u015Blij test') +
+            (this._smtpTesting ? (this._lang === 'pl' ? '\u23F3 Wysyłam...' : '\u23F3 Sending...') : (this._lang === 'pl' ? '\u{1F4E8} Wyślij test' : '\u{1F4E8} Send test')) +
           '</button>' +
           statusBadge +
         '</div>' +
@@ -355,9 +397,10 @@ class HALogEmail extends HTMLElement {
   }
   async _sendEmailNow(period) {
     if (!this._hass) return;
+    const useBuiltIn = this._hasHaToolsEmail();
     const smtp = this._detectSmtp();
-    if (!smtp.found || !smtp.defaultService) {
-      this._sendStatus = { status: 'error', period, error: 'SMTP nie skonfigurowany. Przejdz do zakladki SMTP i skonfiguruj usluge notify (np. notify.smtp_gmail). Szczegoly w dokumentacji HA: https://www.home-assistant.io/integrations/smtp/' };
+    if (!useBuiltIn && (!smtp.found || !smtp.defaultService)) {
+      this._sendStatus = { status: 'error', period, error: (this._lang === 'pl' ? 'SMTP nie skonfigurowany. Otwórz HA Tools → Ustawienia → Email/SMTP i skonfiguruj połączenie.' : 'SMTP not configured. Open HA Tools → Settings → Email/SMTP and configure the connection.') };
       this._render(); return;
     }
     this._sendStatus = { status: 'sending', period };
@@ -368,8 +411,8 @@ class HALogEmail extends HTMLElement {
       const warnings = data ? (data.warnings || []) : [];
       const now = new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'));
       const subject = period === 'daily'
-        ? 'HA Log - Raport dzienny (' + now + ')'
-        : 'HA Log - Raport tygodniowy (' + now + ')';
+        ? (this._lang === 'pl' ? 'HA Log - Raport dzienny (' + now + ')' : 'HA Log - Daily Report (' + now + ')')
+        : (this._lang === 'pl' ? 'HA Log - Raport tygodniowy (' + now + ')' : 'HA Log - Weekly Report (' + now + ')');
       var body = '<h2>' + subject + '</h2>';
       body += '<p>Errors: <strong>' + errors.length + '</strong> | Warnings: <strong>' + warnings.length + '</strong></p>';
       if (errors.length > 0) {
@@ -384,18 +427,23 @@ class HALogEmail extends HTMLElement {
       }
       if (errors.length === 0 && warnings.length === 0) body += '<p style="color:#10b981">System czysty.</p>';
       body += '<hr><p style="font-size:11px;color:#999">HA Tools Log Email</p>';
-      const svcData = { title: subject, message: body, data: { html: body } };
-      // Parse comma-separated recipients from config
-      if (this._config.email_recipient) {
-        const recipients = this._config.email_recipient.split(',').map(r => r.trim()).filter(r => r && r.includes('@'));
-        if (recipients.length > 0) {
-          svcData.target = recipients;
+      const to = this._config.email_recipient || '';
+
+      if (useBuiltIn) {
+        // Built-in SMTP via ha_tools_email
+        await this._sendViaHaToolsEmail(to, subject, body, body);
+      } else {
+        // Legacy: notify.* fallback
+        const svcData = { title: subject, message: body, data: { html: body } };
+        if (to) {
+          const recipients = to.split(',').map(r => r.trim()).filter(r => r && r.includes('@'));
+          if (recipients.length > 0) svcData.target = recipients;
         }
+        await this._hass.callService('notify', smtp.defaultService, svcData);
       }
-      await this._hass.callService('notify', smtp.defaultService, svcData);
       this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     } catch (err) {
-      this._sendStatus = { status: 'error', period, error: (err.message || 'Unknown error') + ' — Sprawdz konfiguracje SMTP w configuration.yaml i przetestuj usluge notify w Narzedzia deweloperskie > Uslugi.' };
+      this._sendStatus = { status: 'error', period, error: (err.message || 'Unknown error') };
     }
     this._render();
   }
@@ -582,11 +630,11 @@ class HALogEmail extends HTMLElement {
 
         <div class="section-header">SMTP Service</div>
         <div class="info-card" style="padding:12px">
-          ${(() => { const smtp = this._detectSmtp(); if (!smtp.found) return '<span style="color:var(--bento-text-muted)">\u26A0\uFE0F Brak wykrytego serwisu SMTP</span>'; return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>\uD83D\uDCE7 Serwis: <code>notify.' + smtp.defaultService + '</code></span>' + (smtp.services.length > 1 ? '<select id="smtpServiceSelect" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px">' + smtp.services.map(s => '<option value="' + s + '" ' + (s === smtp.defaultService ? "selected" : "") + '>notify.' + s + '</option>').join("") + '</select>' : "") + '</div>'; })()}
+          ${(() => { const smtp = this._detectSmtp(); if (!smtp.found) return '<span style="color:var(--bento-text-muted)">\u26A0\uFE0F ' + (this._lang === 'pl' ? 'Brak wykrytego serwisu SMTP' : 'No SMTP service detected') + '</span>'; return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>\uD83D\uDCE7 ' + (this._lang === 'pl' ? 'Serwis' : 'Service') + ': <code>notify.' + smtp.defaultService + '</code></span>' + (smtp.services.length > 1 ? '<select id="smtpServiceSelect" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px">' + smtp.services.map(s => '<option value="' + s + '" ' + (s === smtp.defaultService ? "selected" : "") + '>notify.' + s + '</option>').join("") + '</select>' : "") + '</div>'; })()}
         </div>
         <div class="section-header" style="margin-top:10px">Recipient</div>
         <div class="info-card">
-          <span>\uD83D\uDCE7 ${this._config.email_recipient || '<span style="color:var(--bento-text-muted)">Nie ustawiony \u2014 dodaj email_recipient w konfiguracji karty</span>'}</span>
+          <span>\uD83D\uDCE7 ${this._config.email_recipient || '<span style="color:var(--bento-text-muted)">' + (this._lang === 'pl' ? 'Nie ustawiony \u2014 dodaj email_recipient w konfiguracji karty' : 'Not set \u2014 add email_recipient in card configuration') + '</span>'}</span>
         </div>
 
         
@@ -628,7 +676,7 @@ class HALogEmail extends HTMLElement {
         <div class="section-header" style="margin-top:16px">Recipient</div>
         <div class="info-card">\uD83D\uDCE7 ${this._config.email_recipient}</div>
         <div class="info-note" style="margin-top:8px">
-          \u2139\uFE0F Wysy\u0142a email bezpo\u015Brednio przez wykryty serwis SMTP (notify). Nie wymaga osobnych automatyzacji.
+          ${this._lang === 'pl' ? 'ℹ️ Wysyła email bezpośrednio przez wykryty serwis SMTP (notify). Nie wymaga osobnych automatyzacji.' : 'ℹ️ Sends email directly via the detected SMTP service (notify). No separate automations required.'}
         </div>
 
         <div class="section-header" style="margin-top:20px">Instant Error Notification</div>
@@ -637,7 +685,7 @@ class HALogEmail extends HTMLElement {
             <div>
               <p style="margin:0;font-weight:600;font-size:13px">🔔 Live error polling</p>
               <p style="margin:4px 0 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">
-                ${this._pollingEnabled ? '🟢 Aktywne — sprawdzanie co ' + this._pollingIntervalSec + 's' : '⚫ Wyłączone'}
+                ${this._pollingEnabled ? (this._lang === 'pl' ? '🟢 Aktywne — sprawdzanie co ' : '🟢 Active — checking every ') + this._pollingIntervalSec + 's' : (this._lang === 'pl' ? '⚫ Wyłączone' : '⚫ Disabled')}
               </p>
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
@@ -645,22 +693,22 @@ class HALogEmail extends HTMLElement {
                 ${[30,60,120,300].map(s => `<option value="${s}" ${this._pollingIntervalSec === s ? 'selected' : ''}>${s < 60 ? s + 's' : (s/60) + 'min'}</option>`).join('')}
               </select>
               <button class="toggle-btn" id="btn-poll-toggle" style="padding:6px 14px;font-size:11px;">
-                ${this._pollingEnabled ? 'Wy\u0142\u0105cz' : 'W\u0142\u0105cz'}
+                ${this._pollingEnabled ? (this._lang === 'pl' ? 'Wyłącz' : 'Disable') : (this._lang === 'pl' ? 'Włącz' : 'Enable')}
               </button>
               ${this._pollingEnabled && this._lastPollTime ? '<span style="font-size:10px;color:var(--bento-text-secondary,#64748B);margin-left:6px">last: ' + new Date(this._lastPollTime).toLocaleTimeString() + '</span>' : ''}
             </div>
           </div>
           <p style="margin:0 0 8px 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">
-            Polling wysyła persistent_notification w HA przy wykryciu nowego ERROR. Alternatywnie użyj automatyzacji:
+            ${this._lang === 'pl' ? 'Polling wysyła persistent_notification w HA przy wykryciu nowego ERROR. Alternatywnie użyj automatyzacji:' : 'Polling sends a persistent_notification in HA when a new ERROR is detected. Alternatively, use an automation:'}
           </p>
-          <p style="margin:0 0 8px 0;font-weight:600;font-size:13px">Automatyczne powiadomienia przy nowym bledzie</p>
+          <p style="margin:0 0 8px 0;font-weight:600;font-size:13px">${this._lang === 'pl' ? 'Automatyczne powiadomienia przy nowym bledzie' : 'Automatic notifications on new errors'}</p>
           <p style="margin:0 0 12px 0;font-size:12px;color:var(--bento-text-secondary)">
-            Skopiuj ponizszq automatyzacje do <code>automations.yaml</code> aby otrzymywac natychmiastowy email/powiadomienie przy kazdym nowym ERROR w system_log.
+            ${this._lang === 'pl' ? 'Skopiuj poniższą automatyzację do <code>automations.yaml</code> aby otrzymywać natychmiastowy email/powiadomienie przy każdym nowym ERROR w system_log.' : 'Copy the automation below into <code>automations.yaml</code> to receive an instant email/notification for every new ERROR in system_log.'}
           </p>
           <details style="margin-top:8px">
-            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary)">Pokaz YAML automatyzacji</summary>
+            <summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary)">${this._lang === 'pl' ? 'Pokaż YAML automatyzacji' : 'Show automation YAML'}</summary>
             <pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.5;margin-top:8px">alias: "Log Email - Instant Error Alert"
-description: "Wyslij powiadomienie przy nowym bledzie w system_log"
+description: "${this._lang === 'pl' ? 'Wyślij powiadomienie przy nowym błędzie w system_log' : 'Send notification on new system_log error'}"
 trigger:
   - platform: event
     event_type: system_log_event
@@ -746,7 +794,7 @@ max: 3</pre>
         .tab-btn.active { color: var(--bento-primary); border-bottom: 2px solid var(--bento-primary); margin-bottom: -1px; }
         .content { padding: 16px; }
 
-        .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
         .stat-card { background: var(--bento-bg); border-radius: var(--bento-radius-sm); padding: 10px 8px; text-align: center; border: 1px solid var(--bento-border); }
         .stat-card.stat-error { border-color: #ef444440; background: #ef444408; }
         .stat-card.stat-warn { border-color: #f59e0b40; background: #f59e0b08; }
@@ -833,7 +881,7 @@ max: 3</pre>
           .log-entry { flex-wrap: wrap; gap: 2px 6px; }
           .log-domain { max-width: 60%; font-size: 11px; }
           .log-msg { flex-basis: 100%; max-width: 100%; overflow-wrap: anywhere; font-size: 11px; }
-          .overview-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .overview-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .send-grid { grid-template-columns: 1fr; }
           .schedule-grid { grid-template-columns: 1fr; }
           .schedule-card { padding: 10px; }
@@ -898,6 +946,7 @@ max: 3</pre>
         const tabsEl = this.shadowRoot.querySelector('.tabs');
         this._tabsScrollLeft = tabsEl ? tabsEl.scrollLeft : 0;
         this._activeTab = e.currentTarget.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._render();
       });
     });
@@ -990,6 +1039,11 @@ max: 3</pre>
       clearInterval(this._pollingTimer);
       this._pollingTimer = null;
     }
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 }
 

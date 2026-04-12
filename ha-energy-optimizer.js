@@ -9,6 +9,7 @@ class HaEnergyOptimizer extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     // --- Throttle fields ---
     this._lastRenderTime = 0;
     this._renderScheduled = false;
@@ -169,9 +170,10 @@ class HaEnergyOptimizer extends HTMLElement {
     const c = this._config;
     const mode = c.energy_tariff_mode || 'flat';
     const cur = c.currency || 'PLN';
+    const suffix = { 'day_night': ' (day/night)', 'weekday_weekend': ' (weekday/weekend)' };
     switch (mode) {
-      case 'day_night': return cur + ' ' + (c.energy_price_day || 0.65) + '/' + (c.energy_price_night || 0.45) + ' (dzień/noc)';
-      case 'weekday_weekend': return cur + ' ' + (c.energy_price_weekday || 0.65) + '/' + (c.energy_price_weekend || 0.50) + ' (roboczy/weekend)';
+      case 'day_night': return cur + ' ' + (c.energy_price_day || 0.65) + '/' + (c.energy_price_night || 0.45) + (suffix['day_night'] || '');
+      case 'weekday_weekend': return cur + ' ' + (c.energy_price_weekday || 0.65) + '/' + (c.energy_price_weekend || 0.50) + (suffix['weekday_weekend'] || '');
       case 'mixed': return cur + ' mix';
       default: return cur + ' @ ' + (c.energy_price || 0.65) + '/kWh';
     }
@@ -623,11 +625,11 @@ class HaEnergyOptimizer extends HTMLElement {
           <div class="stat-value" style="color:${isUp ? 'var(--bento-error)' : 'var(--bento-success)'}">${costDiff >= 0 ? '+' : ''}${costDiff.toFixed(2)} ${cur}</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Śr. dzienny koszt (teraz)</div>
+          <div class="stat-label">${this._lang === 'pl' ? '\u015Ar. dzienny koszt (teraz)' : 'Avg. daily cost (current)'}</div>
           <div class="stat-value">${chartCurrent.length > 0 ? ((currentKwh / chartCurrent.length) * r).toFixed(2) : '—'} ${cur}</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Śr. dzienny koszt (poprz.)</div>
+          <div class="stat-label">${this._lang === 'pl' ? '\u015Ar. dzienny koszt (poprz.)' : 'Avg. daily cost (previous)'}</div>
           <div class="stat-value">${chartPrev.length > 0 ? ((prevKwh / chartPrev.length) * r).toFixed(2) : '—'} ${cur}</div>
         </div>
       </div>
@@ -852,12 +854,12 @@ class HaEnergyOptimizer extends HTMLElement {
       <div class="card">
         <h2 class="card-title" style="position:relative;">${this._config.title || 'Energy Optimizer'}
           <button class="settings-btn" data-action="open-settings">
-            \u2699\uFE0F ${this._lang === 'pl' ? 'Stawki' : 'Rates'}
+            \u2699\uFE0F Rates
           </button>
         </h2>
 
         <div class="rate-annotation">
-          ${this._lang === 'pl' ? 'Taryfikator' : 'Tariff'}: ${this._getTariffLabel()}
+          Tariff: ${this._getTariffLabel()}
         </div>
 
         <div class="data-source-badge">
@@ -873,10 +875,10 @@ class HaEnergyOptimizer extends HTMLElement {
 
         <div id="dashboard" class="tab-content active">
           <div class="time-range-selector">
-            <button class="time-range-btn${this._timeRange === 'today' ? ' active' : ''}" data-time-range="today">${this._lang === 'pl' ? 'Dzisiaj' : 'Today'}</button>
-            <button class="time-range-btn${this._timeRange === 'yesterday' ? ' active' : ''}" data-time-range="yesterday">${this._lang === 'pl' ? 'Wczoraj' : 'Yesterday'}</button>
-            <button class="time-range-btn${this._timeRange === '7days' ? ' active' : ''}" data-time-range="7days">${this._lang === 'pl' ? 'Ostatnie 7 dni' : 'Last 7 days'}</button>
-            <button class="time-range-btn${this._timeRange === '30days' ? ' active' : ''}" data-time-range="30days">${this._lang === 'pl' ? 'Ostatnie 30 dni' : 'Last 30 days'}</button>
+            <button class="time-range-btn${this._timeRange === 'today' ? ' active' : ''}" data-time-range="today">Today</button>
+            <button class="time-range-btn${this._timeRange === 'yesterday' ? ' active' : ''}" data-time-range="yesterday">Yesterday</button>
+            <button class="time-range-btn${this._timeRange === '7days' ? ' active' : ''}" data-time-range="7days">Last 7 days</button>
+            <button class="time-range-btn${this._timeRange === '30days' ? ' active' : ''}" data-time-range="30days">Last 30 days</button>
           </div>
           <div class="grid">
             <div class="summary-card">
@@ -996,9 +998,9 @@ class HaEnergyOptimizer extends HTMLElement {
 
         <div class="settings-overlay" id="settings-overlay">
           <div class="settings-panel">
-            <h3>\u2699\uFE0F ${this._lang === 'pl' ? 'Ustawienia stawek energii' : 'Energy Rate Settings'}</h3>
+            <h3>\u2699\uFE0F Energy Rate Settings</h3>
             <div class="form-row">
-              <label>${this._lang === 'pl' ? 'Tryb taryfikacji' : 'Tariff Mode'}</label>
+              <label>Tariff Mode</label>
               <select class="input-tariff-mode">
                 <option value="flat" ${(this._config.energy_tariff_mode || 'flat') === 'flat' ? 'selected' : ''}>Flat rate</option>
                 <option value="day_night" ${this._config.energy_tariff_mode === 'day_night' ? 'selected' : ''}>Day / Night</option>
@@ -1007,33 +1009,33 @@ class HaEnergyOptimizer extends HTMLElement {
               </select>
             </div>
             <div class="form-row">
-              <label>${this._lang === 'pl' ? 'Stawka (PLN/kWh)' : 'Rate (per kWh)'}</label>
+              <label>Rate (per kWh)</label>
               <input type="number" step="0.01" class="input-energy-price" value="${this._config.energy_price || 0.65}" />
-              <div class="rate-annotation">${this._lang === 'pl' ? 'Dla trybu flat — jedna stawka calodobowa' : 'For flat mode — single 24h rate'}</div>
+              <div class="rate-annotation">For flat mode — single 24h rate</div>
             </div>
             <div class="form-row">
-              <label>${this._lang === 'pl' ? 'Stawka dzienna' : 'Day Rate'}</label>
+              <label>Day Rate</label>
               <input type="number" step="0.01" class="input-price-day" value="${this._config.energy_price_day || 0.65}" />
             </div>
             <div class="form-row">
-              <label>${this._lang === 'pl' ? 'Stawka nocna' : 'Night Rate'}</label>
+              <label>Night Rate</label>
               <input type="number" step="0.01" class="input-price-night" value="${this._config.energy_price_night || 0.45}" />
             </div>
             <div class="form-row">
-              <label>${this._lang === 'pl' ? 'Godzina start dnia' : 'Day Start Hour'}</label>
+              <label>Day Start Hour</label>
               <input type="number" min="0" max="23" class="input-day-start" value="${this._config.energy_day_hour_start || 6}" />
             </div>
             <div class="form-row">
-              <label>${this._lang === 'pl' ? 'Godzina start nocy' : 'Night Start Hour'}</label>
+              <label>Night Start Hour</label>
               <input type="number" min="0" max="23" class="input-night-start" value="${this._config.energy_night_hour_start || 22}" />
             </div>
             <div class="form-row">
-              <label>${this._lang === 'pl' ? 'Waluta' : 'Currency'}</label>
+              <label>Currency</label>
               <input type="text" class="input-currency" value="${this._config.currency || 'PLN'}" />
             </div>
             <div class="btn-row">
-              <button class="btn-cancel" data-action="close-settings">${this._lang === 'pl' ? 'Anuluj' : 'Cancel'}</button>
-              <button class="btn-save" data-action="save-settings">${this._lang === 'pl' ? 'Zapisz' : 'Save'}</button>
+              <button class="btn-cancel" data-action="close-settings">Cancel</button>
+              <button class="btn-save" data-action="save-settings">Save</button>
             </div>
           </div>
         </div>
@@ -1048,6 +1050,7 @@ class HaEnergyOptimizer extends HTMLElement {
         sr.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         this._currentTab = e.target.dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._currentTab);
         this._showTab(e.target.dataset.tab);
       });
     });
@@ -1746,7 +1749,10 @@ async _drawComparisonChart() {
     }
   }
 
-
+  setActiveTab(tabId) {
+    this._currentTab = tabId;
+    this._render();
+  }
 
 }
 

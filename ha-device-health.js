@@ -9,6 +9,7 @@ class HADeviceHealth extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: "open" });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._config = {};
     this._hass = null;
     this._activeTab = "devices";
@@ -1479,6 +1480,7 @@ ${style}
       tab.addEventListener("click", (e) => {
         this._activeTab = e.target.dataset.tab;
         try { localStorage.setItem('ha-device-health-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._render();
       });
     });
@@ -1716,6 +1718,11 @@ ${style}
   disconnectedCallback() {
     // Clear render scheduling flag to prevent orphaned setTimeout calls
     this._renderScheduled = false;
+  }
+
+  setActiveTab(tabId) {
+    this._activeTab = tabId;
+    this._render();
   }
 }
 

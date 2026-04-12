@@ -36,9 +36,16 @@ class HaBabyTracker extends HTMLElement {
         sleepDuration: 'Czas snu',
         addChild: 'Dodaj dziecko',
         saveNames: 'Zapisz nazwy',
+        sideLeft: 'Lewa',
+        sideRight: 'Prawa',
+        sideBoth: 'Obie',
+        typeBreastfeed: 'Karmienie piersi\u0105',
+        typePump: 'Odci\u0105ganie',
+        typeManual: 'R\u0119czne',
+        typeSupplement: 'Suplement',
       },
       en: {
-        title: 'Baby and Lactation Tracker',
+        title: 'Baby and Lactation Journal',
         loading: 'Loading...',
         noData: 'No data',
         error: 'Error',
@@ -52,7 +59,7 @@ class HaBabyTracker extends HTMLElement {
         rightBreast: 'Right Breast',
         startTimer: 'Start',
         stopTimer: 'Stop',
-        switchBreast: 'Switch',
+        switchBreast: 'Switch Breast',
         duration: 'Duration',
         sleepFrom: 'Sleep From',
         sleepTo: 'Sleep To',
@@ -61,6 +68,13 @@ class HaBabyTracker extends HTMLElement {
         sleepDuration: 'Sleep Duration',
         addChild: 'Add Child',
         saveNames: 'Save Names',
+        sideLeft: 'Left',
+        sideRight: 'Right',
+        sideBoth: 'Both',
+        typeBreastfeed: 'Breastfeeding',
+        typePump: 'Pumping',
+        typeManual: 'Hand Expr.',
+        typeSupplement: 'Supplement',
       },
     };
     return T[this._lang] || T.en;
@@ -113,6 +127,7 @@ class HaBabyTracker extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     // --- Throttle fields ---
     this._lastRenderTime = 0;
     this._renderScheduled = false;
@@ -1192,13 +1207,21 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         <div class="tip-banner" id="tip-banner">
           <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
-          <div class="tip-banner-title">\u{1F4A1} Jak zacz\u0105\u0107?</div>
+          <div class="tip-banner-title">\u{1F4A1} ${this._lang === 'pl' ? 'Jak zacz\u0105\u0107?' : 'Getting started'}</div>
           <ul>
+            ${this._lang === 'pl' ? `
             <li><strong>Encje HA:</strong> tool automatycznie tworzy 15 encji <code>input_*</code> (input_number, input_datetime, input_select) przy pierwszym uruchomieniu.</li>
             <li><strong>Komendy g\u0142osowe:</strong> po skonfigurowaniu Sentence Manager, mo\u017Cesz u\u017Cywa\u0107 komend jak <em>"karmienie butelk\u0105 120 ml"</em> lub <em>"zmiana pieluchy brudna"</em>.</li>
             <li><strong>Zak\u0142adki:</strong> Feeding (karmienie), Diapers (pieluchy), Sleep (sen), Growth (wzrost/waga).</li>
             <li><strong>Multi-baby:</strong> dodaj wiele dzieci \u2014 ka\u017Cde ma osobne encje i statystyki.</li>
             <li><strong>Wykresy:</strong> statystyki dnia, tygodnia. Wykresy wzrostu z percentylami WHO.</li>
+            ` : `
+            <li><strong>HA Entities:</strong> the tool automatically creates 15 <code>input_*</code> entities (input_number, input_datetime, input_select) on first run.</li>
+            <li><strong>Voice commands:</strong> after configuring Sentence Manager, you can use commands like <em>"bottle feeding 120 ml"</em> or <em>"dirty diaper change"</em>.</li>
+            <li><strong>Tabs:</strong> Feeding, Diapers, Sleep, Growth (weight/height).</li>
+            <li><strong>Multi-baby:</strong> add multiple children \u2014 each gets separate entities and statistics.</li>
+            <li><strong>Charts:</strong> daily and weekly stats. Growth charts with WHO percentiles.</li>
+            `}
           </ul>
         </div>
 
@@ -1235,7 +1258,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <!-- Feeding Tab -->
         <div class="tab-pane" id="feeding-tab" style="display:${this.selectedTab === 'feeding' ? 'block' : 'none'}">
         <div class="section-block" style="margin-bottom:16px">
-        <h3 style="margin:0 0 12px;font-size:15px">👶 Dzieci</h3>
+        <h3 style="margin:0 0 12px;font-size:15px">👶 ${this._lang === 'pl' ? 'Dzieci' : 'Children'}</h3>
         <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           ${this.babies.map((b, i) => `
             <div style="display:flex;align-items:center;gap:8px">
@@ -1246,8 +1269,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           `).join('')}
         </div>
         <div style="display:flex;gap:8px">
-          <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ Dodaj dziecko</button>
-          <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 Zapisz nazwy</button>
+          <button onclick="this.getRootNode().host._addChild()" style="padding:8px 16px;border:none;border-radius:8px;background:var(--bento-primary,#3B82F6);color:white;font-weight:600;font-size:12px;cursor:pointer">➕ ${this._lang === 'pl' ? 'Dodaj dziecko' : 'Add child'}</button>
+          <button onclick="this.getRootNode().host._saveChildNames()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text);font-weight:500;font-size:12px;cursor:pointer">💾 ${this._lang === 'pl' ? 'Zapisz nazwy' : 'Save names'}</button>
         </div>
       </div>
 
@@ -1647,6 +1670,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     shadowRoot.querySelectorAll('.tab-button').forEach(btn => {
       btn.addEventListener('click', (e) => {
         this.selectedTab = e.target.closest('[data-tab]').dataset.tab;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.selectedTab);
         // Toggle button active states
         shadowRoot.querySelectorAll('.tab-button').forEach(b => {
           b.classList.toggle('active', b.dataset.tab === this.selectedTab);
@@ -2563,9 +2587,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const listEl = this.shadowRoot.getElementById('lactationList');
     if (!listEl) return;
 
-    const L = this._lang === 'pl';
-    const sideLabels = { left: L ? 'Lewa' : 'Left', right: L ? 'Prawa' : 'Right', both: L ? 'Obie' : 'Both' };
-    const typeLabels = { breastfeed: L ? 'Karmienie piersi\u0105' : 'Breastfeeding', pump: L ? 'Odci\u0105ganie' : 'Pumping', manual: L ? 'R\u0119czne' : 'Hand Expr.', supplement: L ? 'Suplement' : 'Supplement' };
+    const sideLabels = { left: this._t.sideLeft, right: this._t.sideRight, both: this._t.sideBoth };
+    const typeLabels = { breastfeed: this._t.typeBreastfeed, pump: this._t.typePump, manual: this._t.typeManual, supplement: this._t.typeSupplement };
 
     listEl.innerHTML = entries.slice(0, 20).map(e => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
@@ -2577,7 +2600,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         </div>
         <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${e.time} ${e.date !== today ? e.date : ''}</div>
       </div>
-    `).join('') || `<div style="text-align:center;padding:20px;color:var(--bento-text-secondary)">${L ? 'Brak wpisów' : 'No entries yet'}</div>`;
+    `).join('') || `<div style="text-align:center;padding:20px;color:var(--bento-text-secondary)">${this._lang === 'pl' ? 'Brak wpisów' : 'No entries'}</div>`;
   }
 
   // --- Canvas size fix for Bento CSS ---
@@ -2595,6 +2618,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (this._autoSaveTimer) { clearInterval(this._autoSaveTimer); this._autoSaveTimer = null; }
   }
 
+  setActiveTab(tabId) {
+    this.selectedTab = tabId;
+    this.renderCard();
+  }
 }
 
 if (!customElements.get('ha-baby-tracker')) { customElements.define('ha-baby-tracker', HaBabyTracker); }
