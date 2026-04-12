@@ -1,155 +1,159 @@
 (function() {
 'use strict';
 
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
 class HaNetworkMap extends HTMLElement {
   constructor() {
     super();
     this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
+    this._hass = null;
+    this.activeTab = 'devices';
+    this._title = 'Network Map';
+    this._routerIp = '192.168.1.1';
+    this.config = {};
+
+    // Data
+    this.devices = [];
+    this.filteredDevices = [];
+    this._bindings = {}; // ip/name → entity_id
+    this._subnets = []; // list of subnet prefixes to scan
+    this._scanResults = {}; // ip → true/false (reachable)
+    this._scanInProgress = false;
+    this._scanProgress = { current: 0, total: 0 };
+    this._lastScanTime = null;
+    this._deviceRegistry = [];
+
+    // UI State
+    this.searchQuery = '';
+    this._catFilter = null;
+    this.sortBy = 'name';
+    this.sortDesc = false;
+    this._pageSize = 20;
+    this._currentPage = 1;
+    this.selectedDevice = null;
+    this._suggestedBindings = [];
+
+    // Rendering
+    this._lastHtml = '';
     this._lastRenderTime = 0;
     this._renderScheduled = false;
     this._firstHassRender = false;
-    this._currentPage = {};
-    this._pageSize = 20;
-    this.devices = [];
-    this.filteredDevices = [];
-    this.selectedDevice = null;
-    this.activeTab = 'list';
-    this.searchQuery = '';
-    this.sortBy = 'name';
-    this.sortDesc = false;
-    this._deviceRegistry = [];
-    this._registryLoaded = false;
-    this._scanResults = {}; // ip → true/false from browser ping scan
-    this._scanInProgress = false;
-    this._loadPersistedScan(); // restore last scan results if fresh
-    // --- HTML diffing ---
-    this._lastHtml = '';
-    this._lastScanTime = null;
   }
-  _persistKey() { return 'ha-network-map-devices'; }
-  _scanPersistKey() { return 'ha-network-map-scan'; }
-  _loadPersistedDevices() {
-    try {
-      const stored = localStorage.getItem(this._persistKey());
-      return stored ? JSON.parse(stored) : {};
-    } catch { return {}; }
-  }
-  _persistDevices(devices) {
-    const map = {};
-    devices.forEach(d => {
-      const key = d.ip || d.mac || d.name;
-      map[key] = {...d, last_seen: d.last_seen || new Date().toISOString()};
-    });
-    try { localStorage.setItem(this._persistKey(), JSON.stringify(map)); } catch {}
-  }
-  _persistScanResults() {
-    try {
-      const data = { results: this._scanResults, time: this._lastScanTime };
-      localStorage.setItem(this._scanPersistKey(), JSON.stringify(data));
-    } catch {}
-  }
-  _loadPersistedScan() {
-    try {
-      const stored = localStorage.getItem(this._scanPersistKey());
-      if (!stored) return;
-      const data = JSON.parse(stored);
-      // Only use cached scan if less than 1 hour old
-      if (data.time && (Date.now() - data.time) < 3600000) {
-        this._scanResults = data.results || {};
-        this._lastScanTime = data.time;
-      }
-    } catch {}
-  }
+
   static get _translations() {
     return {
       en: {
-        listTab: 'List', mapTab: 'Map',
-        searchPlaceholder: 'Search devices...', deviceName: 'Device Name', category: 'Category',
-        status: 'Status', ipAddress: 'IP Address', macAddress: 'MAC Address', lastSeen: 'Last Seen',
-        noDevicesFound: 'No network devices found. Install Nmap, Ping, Shelly, ESPHome, or other device integrations to discover devices.',
-        phone: 'Phone', tablet: 'Tablet', computer: 'Computer', media: 'Media',
-        smartHome: 'Smart Home', wearable: 'Wearable', other: 'Other',
-        home: 'HOME', away: 'AWAY', unknown: 'UNKNOWN', offline: 'OFFLINE', zone: 'ZONE',
-        totalDevices: 'Total Devices', online: 'Online', awayLabel: 'Away', offlineLabel: 'Offline',
-        deviceDetail: 'Device:', categoryDetail: 'Category:', statusDetail: 'Status:',
-        ipDetail: 'IP:', macDetail: 'MAC:', lastSeenDetail: 'Last Seen:',
-        router: 'Router', gateway: 'Gateway', manufacturer: 'Manufacturer', model: 'Model',
-        connection: 'Connection', allCategories: 'All', filterCategory: 'Filter:',
+        // Tabs
+        devicesTab: 'Devices', topologyTab: 'Topology', subnetsTab: 'Subnets', bindingsTab: 'Bindings',
+        // Devices tab
+        searchPlaceholder: 'Search devices...', allCategories: 'All', filterCategory: 'Filter:',
+        deviceName: 'Device Name', ipAddress: 'IP Address', macAddress: 'MAC', manufacturer: 'Manufacturer',
+        reachable: 'Reachable', haEntity: 'HA Entity', totalDevices: 'Total', reachableCount: 'Reachable',
+        unreachableCount: 'Unreachable', boundCount: 'Bound to HA',
+        noDevicesFound: 'No devices found. Start a network scan.',
+        scanningNetwork: 'Scanning network...', scanProgress: 'Progress',
+        // Topology tab
+        networkTopology: 'Network Topology', router: 'Router', gateway: 'Gateway',
+        // Subnets tab
+        currentSubnets: 'Current Subnets', addSubnetLabel: 'Add subnet (e.g., 192.168.1)', rescanAll: 'Scan All',
+        rescan: 'Rescan', remove: 'Remove', defaultSubnet: 'Default (auto-detected)',
+        // Bindings tab
+        deviceBindings: 'Device Bindings', suggestedBindings: 'Suggested Bindings', accept: 'Accept',
+        reject: 'Reject', manualBind: 'Manual Bind', selectEntity: '— Select entity —',
+        noBoundDevices: 'No bindings yet. Suggest bindings or bind manually.',
+        bind: 'Bind',
+        // Status
+        reachableStatus: 'Reachable', unreachableStatus: 'Unreachable',
+        // Detail
+        details: 'Details', bind: 'Bind', unbind: 'Unbind', close: 'Close',
+        category: 'Category', status: 'Status', lastSeen: 'Last Seen',
       },
       pl: {
-        listTab: 'Lista', mapTab: 'Mapa',
-        searchPlaceholder: 'Szukaj urz\u0105dze\u0144...', deviceName: 'Nazwa urz\u0105dzenia', category: 'Kategoria',
-        status: 'Stan', ipAddress: 'Adres IP', macAddress: 'Adres MAC', lastSeen: 'Ostatnio widoczne',
-        noDevicesFound: 'Brak urz\u0105dze\u0144 sieciowych. Zainstaluj integracje Nmap, Ping, Shelly, ESPHome lub inne do automatycznego odkrywania urz\u0105dze\u0144.',
-        phone: 'Telefon', tablet: 'Tablet', computer: 'Komputer', media: 'Media',
-        smartHome: 'Inteligentny dom', wearable: 'Urz\u0105dzenie noszone', other: 'Inne',
-        home: 'W DOMU', away: 'POZA DOMEM', unknown: 'NIEZNANY', offline: 'NIEDOST\u0118PNY', zone: 'STREFA',
-        totalDevices: 'Razem urz\u0105dze\u0144', online: 'Online', awayLabel: 'Poza domem', offlineLabel: 'Offline',
-        deviceDetail: 'Urz\u0105dzenie:', categoryDetail: 'Kategoria:', statusDetail: 'Stan:',
-        ipDetail: 'IP:', macDetail: 'MAC:', lastSeenDetail: 'Ostatnio:',
-        router: 'Router', gateway: 'Brama', manufacturer: 'Producent', model: 'Model',
-        connection: 'Po\u0142\u0105czenie', allCategories: 'Wszystkie', filterCategory: 'Filtr:',
+        // Tabs
+        devicesTab: 'Urządzenia', topologyTab: 'Topologia', subnetsTab: 'Sieci', bindingsTab: 'Powiązania',
+        // Devices tab
+        searchPlaceholder: 'Szukaj urządzeń...', allCategories: 'Wszystkie', filterCategory: 'Filtr:',
+        deviceName: 'Nazwa urządzenia', ipAddress: 'Adres IP', macAddress: 'MAC', manufacturer: 'Producent',
+        reachable: 'Dostępne', haEntity: 'Encja HA', totalDevices: 'Razem', reachableCount: 'Dostępne',
+        unreachableCount: 'Niedostępne', boundCount: 'Powiązane z HA',
+        noDevicesFound: 'Brak urządzeń. Uruchom skanowanie sieci.',
+        scanningNetwork: 'Skanowanie sieci...', scanProgress: 'Postęp',
+        // Topology tab
+        networkTopology: 'Topologia sieci', router: 'Router', gateway: 'Brama',
+        // Subnets tab
+        currentSubnets: 'Bieżące sieci', addSubnetLabel: 'Dodaj sieć (np. 192.168.1)', rescanAll: 'Skanuj wszystko',
+        rescan: 'Skanuj', remove: 'Usuń', defaultSubnet: 'Domyślna (auto-wykryta)',
+        // Bindings tab
+        deviceBindings: 'Powiązania urządzeń', suggestedBindings: 'Sugerowane powiązania', accept: 'Zaakceptuj',
+        reject: 'Odrzuć', manualBind: 'Powiąż ręcznie', selectEntity: '— Wybierz encję —',
+        noBoundDevices: 'Brak powiązań. Zasugeruj powiązania lub powiąż ręcznie.',
+        bind: 'Powiąż',
+        // Status
+        reachableStatus: 'Dostępne', unreachableStatus: 'Niedostępne',
+        // Detail
+        details: 'Szczegóły', bind: 'Powiąż', unbind: 'Rozpowiąż', close: 'Zamknij',
+        category: 'Kategoria', status: 'Stan', lastSeen: 'Ostatnio widoczne',
       }
     };
   }
+
   _t(key) {
-    const lang = this._hass?.language || 'en';
+    const lang = this._hass?.language || this._lang || 'en';
     const T = HaNetworkMap._translations;
     return (T[lang] || T['en'])[key] || T['en'][key] || key;
   }
+
   setConfig(config) {
     this.config = config;
-    this.title = config.title || 'Network Map';
-    this.routerIp = config.router_ip || '192.168.1.1';
-    this.gatewayIp = config.gateway_ip || '192.168.0.1';
+    this._title = config.title || 'Network Map';
+    this._routerIp = config.router_ip || '192.168.1.1';
   }
-  set hass(hass) {
 
-    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
+  set hass(hass) {
     if (!hass) return;
-    const now = Date.now();
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
+    this._hass = hass;
+
     if (!this._firstHassRender) {
       this._firstHassRender = true;
-      this._loadDeviceRegistry().then(() => { this.updateDevices(); this._lastScanTime = Date.now(); this._doRender(); });
-      this._lastRenderTime = now;
+      this._loadSubnets();
+      this._loadBindings();
+      this._loadDeviceRegistry().then(() => {
+        this._startAutoScan();
+        this._doRender();
+      });
       return;
     }
+
+    const now = Date.now();
     if (now - (this._lastRenderTime || 0) < 5000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
         setTimeout(() => {
           this._renderScheduled = false;
-          this.updateDevices(); this._doRender();
+          this._buildDeviceList();
+          this._doRender();
           this._lastRenderTime = Date.now();
         }, 5000 - (now - (this._lastRenderTime || 0)));
       }
       return;
     }
-    this.updateDevices(); this._doRender(); this._lastRenderTime = now;
+    this._buildDeviceList();
+    this._doRender();
+    this._lastRenderTime = now;
   }
+
   async _loadDeviceRegistry() {
-    if (this._registryLoaded || !this._hass) return;
+    if (!this._hass) return;
     try {
       this._deviceRegistry = await this._hass.callWS({ type: 'config/device_registry/list' });
-      this._registryLoaded = true;
-    } catch (e) { console.warn('[ha-network-map] device registry load failed:', e); this._deviceRegistry = []; }
+    } catch (e) {
+      console.warn('[ha-network-map] device registry load failed:', e);
+      this._deviceRegistry = [];
+    }
   }
-  _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
-  _timeAgo(date) {
-    const sec = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (sec < 60) return this._lang === 'pl' ? 'przed chwil\u0105' : 'just now';
-    const min = Math.floor(sec / 60);
-    if (min < 60) return min + (this._lang === 'pl' ? ' min temu' : 'm ago');
-    const hrs = Math.floor(min / 60);
-    if (hrs < 24) return hrs + (this._lang === 'pl' ? ' godz. temu' : 'h ago');
-    const days = Math.floor(hrs / 24);
-    return days + (this._lang === 'pl' ? ' dn. temu' : 'd ago');
-  }
+
   _getRegistryInfo() {
     const lookup = {};
     (this._deviceRegistry || []).forEach(d => {
@@ -157,652 +161,902 @@ class HaNetworkMap extends HTMLElement {
       const ipMatch = d.configuration_url ? d.configuration_url.match(/(\d+\.\d+\.\d+\.\d+)/) : null;
       const ip = ipMatch ? ipMatch[1] : null;
       if (mac || ip) {
-        const name = this._sanitize(d.name_by_user || d.name || '').toLowerCase();
+        const name = (d.name_by_user || d.name || '').toLowerCase();
         lookup[name] = { mac, ip, manufacturer: d.manufacturer || null, model: d.model || null };
       }
     });
     return lookup;
   }
-  _buildPingMap() {
-    // Cross-reference binary_sensor/sensor ping/connectivity entities to enhance device status
-    const states = this._hass.states;
-    const pingMap = {}; // keyed by normalized name → true if device responds
-    Object.keys(states).forEach(eid => {
-      // Match: binary_sensor.*_ping, sensor.*_ping, binary_sensor.*_connected, etc.
-      const isPing = /^binary_sensor\..+_(ping|connected|connectivity|online|reachable)$/.test(eid);
-      const isSensor = /^sensor\..+_(ping|latency|rtt)$/.test(eid);
-      if (!isPing && !isSensor) return;
-      const st = states[eid];
-      const name = (st.attributes?.friendly_name || eid).toLowerCase()
-        .replace(/\s*(ping|connected|connectivity|online|reachable|latency|rtt)\s*$/i, '').trim();
-      const isOn = isPing ? st.state === 'on' : (parseFloat(st.state) > 0 && st.state !== 'unavailable');
-      if (isOn) pingMap[name] = true;
-    });
-    return pingMap;
-  }
-  _hasActiveNetworkScanning() {
-    // Detect if user has router/nmap/ping-based device tracking
-    const states = this._hass.states;
-    let hasRouter = false, hasNmap = false, hasPing = false;
-    Object.keys(states).forEach(eid => {
-      if (!eid.startsWith('device_tracker.')) return;
-      const src = states[eid].attributes?.source_type;
-      if (src === 'router') hasRouter = true;
-      // nmap sets source_type to 'router' too, but check for nmap service
-    });
-    // Check for nmap service availability
-    if (this._hass.services?.nmap_tracker) hasNmap = true;
-    // Check for ping binary sensors
-    const pingCount = Object.keys(states).filter(e => /^binary_sensor\..+_(ping|connected|connectivity)$/.test(e)).length;
-    if (pingCount > 2) hasPing = true;
-    return { hasRouter, hasNmap, hasPing, hasAny: hasRouter || hasNmap || hasPing };
-  }
-  _detectSubnet(knownIps) {
-    // Detect subnet base from known IPs, router config, or HA URL
-    const ips = [...knownIps];
-    if (ips.length > 0) {
-      // Use most common /24 prefix from known IPs
-      const prefixes = {};
-      ips.forEach(ip => { const p = ip.split('.').slice(0, 3).join('.') + '.'; prefixes[p] = (prefixes[p] || 0) + 1; });
-      const best = Object.entries(prefixes).sort((a, b) => b[1] - a[1])[0];
-      if (best) return best[0];
-    }
-    // Fallback: detect from HA URL
-    const haUrl = window.location.hostname;
-    const m = haUrl.match(/^(\d+\.\d+\.\d+)\.\d+$/);
-    if (m) return m[1] + '.';
-    // Fallback: use router_ip from config
-    if (this.routerIp) {
-      const rm = this.routerIp.match(/^(\d+\.\d+\.\d+)\.\d+$/);
-      if (rm) return rm[1] + '.';
-    }
-    return null;
-  }
-  async _browserPingScan(ips, knownDeviceIps) {
-    // Browser-based reachability check using fetch with timeout
-    // Works because user's browser is on the same LAN as devices
-    const results = {}; // ip → true/false
-    const TIMEOUT = 1800; // ms — fast enough to detect online, short enough for 254 IPs
-    const BATCH = 40; // concurrent checks — high throughput for subnet scans
-    const probePort = async (ip, port) => {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
-      const proto = port === 443 || port === 8443 ? 'https' : 'http';
-      try {
-        await fetch(proto + '://' + ip + ':' + port + '/', { mode: 'no-cors', signal: ctrl.signal, cache: 'no-store' });
-        clearTimeout(timer);
-        return true; // connection established
-      } catch (e) {
-        clearTimeout(timer);
-        if (e.name === 'AbortError') return false; // timeout = unreachable
-        return true; // connection refused / net error = device IS on the network
-      }
-    };
-    const check = async (ip) => {
-      // Port 80 first (most common, fast)
-      if (await probePort(ip, 80)) { results[ip] = true; return; }
-      // If known device (has device_tracker), try additional ports
-      if (knownDeviceIps && knownDeviceIps.has(ip)) {
-        const extraPorts = [443, 8080, 8123, 8443, 5353, 9100];
-        const probes = await Promise.all(extraPorts.map(p => probePort(ip, p)));
-        if (probes.some(r => r)) { results[ip] = true; return; }
-      }
-      results[ip] = false;
-    };
-    // Process in batches to avoid flooding
-    for (let i = 0; i < ips.length; i += BATCH) {
-      const batch = ips.slice(i, i + BATCH);
-      await Promise.all(batch.map(ip => check(ip)));
-    }
-    return results;
-  }
-  updateDevices() {
-    const states = this._hass.states; this.devices = []; const deviceMap = {};
-    const regLookup = this._getRegistryInfo();
-    const pingMap = this._buildPingMap();
-    this._networkScanning = this._hasActiveNetworkScanning();
-    Object.keys(states).forEach(eid => {
-      if (!eid.startsWith('device_tracker.')) return;
-      const st = states[eid]; const attr = st.attributes || {};
-      const fname = this._sanitize(attr.friendly_name || eid.replace('device_tracker.', ''));
-      const raw = (st.state || '').toLowerCase();
-      let ip = attr.ip || attr.ip_address || attr.local_ip || attr.host_ip || null;
-      let mac = attr.mac || attr.mac_address || attr.host_mac || null;
-      // Cross-reference: HA ping sensors + browser scan results
-      const nameLower = fname.toLowerCase();
-      const pingAlive = pingMap[nameLower] || false;
-      const browserAlive = ip ? (this._scanResults[ip] === true) : false;
-      // Enhanced status: browser scan > ping sensors > HA state > freshness heuristic
-      let status;
-      if (raw === 'home') {
-        status = 'home';
-      } else if (browserAlive) {
-        status = 'home'; // Browser fetch confirmed device is reachable on LAN
-      } else if (pingAlive) {
-        status = 'home'; // HA ping/connectivity sensor confirms reachable
-      } else if (ip && this._scanResults[ip] === false) {
-        status = 'offline'; // Browser scan explicitly confirmed unreachable
-      } else if (raw === 'unavailable') {
-        status = 'offline';
-      } else if (raw === 'not_home' || raw === 'away') {
-        const lastChanged = new Date(st.last_changed || 0).getTime();
-        const staleMinutes = (Date.now() - lastChanged) / 60000;
-        if (ip && staleMinutes < 10 && (attr.source_type === 'router' || attr.source_type === 'nmap')) {
-          status = 'home'; // Router/nmap-tracked device with recent activity and IP
-        } else {
-          status = 'away';
-        }
-      } else if (raw === 'unknown') {
-        status = 'unknown';
+
+  _loadSubnets() {
+    try {
+      const stored = localStorage.getItem('ha-tools-net-subnets');
+      if (stored) {
+        this._subnets = JSON.parse(stored);
       } else {
-        status = 'zone'; // Named zone
+        this._subnets = [this._detectDefaultSubnet()];
+        this._saveSubnets();
       }
-      let mfr = null, mdl = null;
-      const reg = regLookup[fname.toLowerCase()];
-      if (reg) { if (!ip && reg.ip) ip = reg.ip; if (!mac && reg.mac) mac = reg.mac; mfr = reg.manufacturer; mdl = reg.model; }
-      const dev = {
-        id: eid, name: fname, status, rawState: st.state, ip: ip || '', mac: mac ? mac.toUpperCase() : '',
-        sourceType: attr.source_type || 'unknown', hostName: attr.host_name || fname,
-        lastSeen: st.last_changed || st.last_updated || '', icon: this._icon(fname, attr),
-        category: this._cat(fname, attr), battery: attr.battery_level || attr.battery || null,
-        hasGps: attr.latitude !== undefined && attr.longitude !== undefined,
-        ssid: attr.essid || attr.ssid || attr.wifi_name || null,
-        rssi: attr.rssi || attr.signal_strength || null,
-        connType: attr.connection_type || attr.network_type || (attr.is_wired ? 'ethernet' : null),
-        manufacturer: mfr, model: mdl, attributes: attr
-      };
-      this.devices.push(dev); deviceMap[fname.toLowerCase()] = dev;
-    });
-    (this._deviceRegistry || []).forEach(d => {
-      const mac = d.connections?.find(c => c[0] === 'mac')?.[1] || null;
-      const ipM = d.configuration_url ? d.configuration_url.match(/(\d+\.\d+\.\d+\.\d+)/) : null;
-      const ip = ipM ? ipM[1] : null;
-      if (!mac && !ip) return;
-      const nm = this._sanitize(d.name_by_user || d.name || ''); const nk = nm.toLowerCase();
-      if (deviceMap[nk]) {
-        if (mac && !deviceMap[nk].mac) deviceMap[nk].mac = mac.toUpperCase();
-        if (ip && !deviceMap[nk].ip) deviceMap[nk].ip = ip;
-        if (d.manufacturer && !deviceMap[nk].manufacturer) deviceMap[nk].manufacturer = d.manufacturer;
-        if (d.model && !deviceMap[nk].model) deviceMap[nk].model = d.model;
-        return;
+    } catch (e) {
+      this._subnets = [this._detectDefaultSubnet()];
+    }
+  }
+
+  _saveSubnets() {
+    try {
+      localStorage.setItem('ha-tools-net-subnets', JSON.stringify(this._subnets));
+    } catch (e) {}
+  }
+
+  _loadBindings() {
+    try {
+      const stored = localStorage.getItem('ha-tools-net-bindings');
+      this._bindings = stored ? JSON.parse(stored) : {};
+    } catch (e) {
+      this._bindings = {};
+    }
+  }
+
+  _saveBindings() {
+    try {
+      localStorage.setItem('ha-tools-net-bindings', JSON.stringify(this._bindings));
+    } catch (e) {}
+  }
+
+  _detectDefaultSubnet() {
+    // Try to detect subnet from router IP
+    if (this._routerIp && /^\d+\.\d+\.\d+\.\d+$/.test(this._routerIp)) {
+      const parts = this._routerIp.split('.');
+      return parts.slice(0, 3).join('.');
+    }
+    return '192.168.1';
+  }
+
+  async _startAutoScan() {
+    if (this._subnets.length === 0) {
+      this._subnets = [this._detectDefaultSubnet()];
+      this._saveSubnets();
+    }
+    await this._scanAllSubnets();
+  }
+
+  async _scanAllSubnets() {
+    if (this._scanInProgress) return;
+    this._scanInProgress = true;
+    this._scanResults = {};
+
+    try {
+      for (const subnet of this._subnets) {
+        await this._scanSubnet(subnet);
       }
-      this.devices.push({
-        id: 'reg_' + d.id, name: nm, status: 'unknown', rawState: 'unknown', ip: ip || '',
-        mac: mac ? mac.toUpperCase() : '', sourceType: 'registry', hostName: nm, lastSeen: '',
-        icon: this._icon(nm, { manufacturer: d.manufacturer, model: d.model }),
-        category: this._cat(nm, { manufacturer: d.manufacturer, model: d.model }),
-        battery: null, hasGps: false, ssid: null, rssi: null, connType: null,
-        manufacturer: d.manufacturer || null, model: d.model || null, attributes: {}
+    } catch (e) {
+      console.warn('[ha-network-map] scan error:', e);
+    }
+
+    this._lastScanTime = Date.now();
+    this._persistScanResults();
+    this._buildDeviceList();
+    this._scanInProgress = false;
+    this._scanProgress = { current: 0, total: 0 };
+    this._doRender();
+  }
+
+  async _scanSubnet(subnet) {
+    const ips = [];
+    for (let i = 1; i <= 254; i++) {
+      ips.push(subnet + '.' + i);
+    }
+
+    // Batch scan with timeout
+    const batchSize = 40;
+    const timeout = 2000;
+    const ports = [80, 443, 8080, 8123];
+
+    for (let b = 0; b < ips.length; b += batchSize) {
+      const batch = ips.slice(b, b + batchSize);
+      const promises = batch.map(ip =>
+        Promise.race([
+          this._pingIp(ip, ports),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeout))
+        ]).catch(() => false)
+      );
+
+      const results = await Promise.all(promises);
+      results.forEach((reachable, idx) => {
+        this._scanResults[batch[idx]] = reachable;
+        this._scanProgress.current++;
+        this._scanProgress.total = ips.length;
+        this._doRender();
       });
-      deviceMap[nk] = this.devices[this.devices.length - 1];
-    });
-    // === HYBRID PERSISTENCE: Merge with persisted offline this.devices ===
-    const persisted = this._loadPersistedDevices();
-    const currentKeys = new Set(this.devices.map(d => d.ip || d.mac || d.name));
-    
-    // Add previously seen this.devices that are now offline
-    Object.values(persisted).forEach(pd => {
-      const key = pd.ip || pd.mac || pd.name;
-      if (!currentKeys.has(key)) {
+    }
+  }
+
+  async _pingIp(ip, ports) {
+    // Try to fetch from multiple ports to detect reachability
+    for (const port of ports) {
+      try {
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 500);
+        const res = await fetch('http://' + ip + ':' + port + '/', {
+          method: 'HEAD',
+          signal: ctrl.signal,
+          mode: 'no-cors'
+        });
+        clearTimeout(timeoutId);
+        return true;
+      } catch (e) {}
+    }
+    return false;
+  }
+
+  _persistScanResults() {
+    try {
+      const data = { results: this._scanResults, time: this._lastScanTime };
+      localStorage.setItem('ha-tools-net-scan', JSON.stringify(data));
+    } catch (e) {}
+  }
+
+  _cat(name, attr) {
+    const a = (name + ' ' + ((attr && attr.model) || '') + ' ' + ((attr && attr.manufacturer) || '')).toLowerCase();
+    if (/phone|iphone|android|mobile|pixel|galaxy/.test(a)) return 'Phone';
+    if (/tablet|ipad/.test(a)) return 'Tablet';
+    if (/computer|laptop|pc|mac|desktop/.test(a)) return 'Computer';
+    if (/router|gateway|access.?point|ap |mesh|wifi/.test(a)) return 'Router';
+    if (/camera|doorbell|ring/.test(a)) return 'Camera';
+    if (/light|bulb|lamp/.test(a)) return 'Smart Home';
+    if (/sensor|motion|temperature/.test(a)) return 'Smart Home';
+    if (/tv|media|kodi|plex/.test(a)) return 'Media';
+    if (/voice|echo|alexa/.test(a)) return 'Smart Home';
+    return 'Other';
+  }
+
+  _icon(name, attr) {
+    const c = this._cat(name, attr);
+    return ({
+      Phone: '📱', Tablet: '📲', Computer: '💻', Router: '📡',
+      Camera: '📷', 'Smart Home': '🏠', Media: '📺', Other: '📡'
+    })[c] || '📡';
+  }
+
+  _buildDeviceList() {
+    this.devices = [];
+    const seen = new Set();
+
+    // Get device registry info for enrichment
+    const regInfo = this._getRegistryInfo();
+
+    // Get all device_tracker entities from HA
+    if (this._hass?.states) {
+      Object.values(this._hass.states).forEach(entity => {
+        if (!entity.entity_id || !entity.entity_id.startsWith('device_tracker.')) return;
+        const a = entity.attributes || {};
+        const name = a.friendly_name || entity.entity_id.split('.')[1];
+        const nameLow = name.toLowerCase();
+        const reg = regInfo[nameLow] || {};
+        const ip = a.ip_address || a.ip || a.local_ip || a.host_ip || reg.ip || null;
+        const mac = a.mac_address || a.mac || a.host_mac || reg.mac || null;
+        const manufacturer = a.manufacturer || reg.manufacturer || null;
+        const model = a.model || reg.model || null;
+
+        // Deduplicate by IP (if has one) or entity_id
+        const dedupeKey = ip || entity.entity_id;
+        if (seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
+        if (ip) seen.add(ip); // also mark IP as seen for scan merge
+
+        const bindKey = ip || entity.entity_id;
+        const isReachable = ip ? (this._scanResults[ip] === true) : null;
+
         this.devices.push({
-          ...pd,
-          status: 'offline',
-          rawState: 'offline',
-          last_seen: pd.last_seen || pd.lastSeen
+          ip, mac, manufacturer, model, name,
+          category: this._cat(name, { manufacturer, model }),
+          icon: this._icon(name, { manufacturer, model }),
+          reachable: isReachable,
+          entity_id: entity.entity_id,
+          state: entity.state,
+          source_type: a.source_type || null,
+          lastSeen: a.last_seen || new Date().toISOString(),
+          binding: this._bindings[bindKey] || null
+        });
+      });
+    }
+
+    // Add discovered devices from scan not in HA
+    Object.entries(this._scanResults).forEach(([ip, reachable]) => {
+      if (reachable && !seen.has(ip)) {
+        seen.add(ip);
+        this.devices.push({
+          ip, mac: null, manufacturer: null, model: null, name: ip,
+          category: this._lang === 'pl' ? 'Odkryte' : 'Discovered',
+          icon: '📡', reachable: true, entity_id: null,
+          lastSeen: new Date().toISOString(),
+          binding: this._bindings[ip] || null
         });
       }
     });
-    
-    // Update last_seen for online this.devices and preserve for offline
-    this.devices.forEach(d => {
-      if (d.status === 'home' || d.status === 'zone' || d.rawState === 'home') {
-        d.last_seen = new Date().toISOString();
-      } else if (!d.last_seen) {
-        const key = d.ip || d.mac || d.name;
-        if (persisted[key]) {
-          d.last_seen = persisted[key].last_seen || persisted[key].lastSeen;
-        }
-      }
-    });
-    
-    // Persist updated device list
-    this._persistDevices(this.devices);
-    this.devices = this.devices;
+
     this._filterSort();
   }
-  _cat(name, attr) {
-    const a = (name + ' ' + ((attr && attr.model) || '') + ' ' + ((attr && attr.manufacturer) || '')).toLowerCase();
-    if (/phone|iphone|android|mobile|pixel|galaxy|oneplus|xiaomi|huawei|oppo|redmi|sm-[a-z]/.test(a)) return 'Phone';
-    if (/tablet|ipad/.test(a)) return 'Tablet';
-    if (/computer|laptop|pc|mac|desktop|thinkpad|macbook|imac|surface|dell|lenovo|hp |asus|lggram/.test(a)) return 'Computer';
-    if (/raspberry|pi|rpi|server|nas|synology|qnap/.test(a)) return 'Server';
-    if (/tv|media|kodi|plex|chromecast|roku|fire.?stick|apple.?tv|shield|sonos|denon|samsung.*tv|lg.*tv|play.?box|avr/.test(a)) return 'Media';
-    if (/printer|brother|canon|epson|hp.?print/.test(a)) return 'Printer';
-    if (/camera|doorbell|ring|nest|reolink|frigate|hikvision|dahua|cam-pt/.test(a)) return 'Camera';
-    if (/router|gateway|access.?point|ap |mesh|wifi|ubiquiti|unifi|mikrotik|tp.?link|fritz/.test(a)) return 'Router';
-    if (/switch|plug|socket|relay|shelly|sonoff|tasmota|zigbee|zwave|esp32|esp8266|tuya|ikea|meross/.test(a)) return 'Smart Home';
-    if (/light|bulb|lamp|hue|tradfri|yeelight|wled|led.?strip/.test(a)) return 'Smart Home';
-    if (/sensor|motion|temperature|humidity|thermostat|climate/.test(a)) return 'Smart Home';
-    if (/watch|wearable|band|fitbit|garmin|oclean/.test(a)) return 'Wearable';
-    if (/vacuum|roborock|dreame|roomba|robot/.test(a)) return 'Smart Home';
-    if (/voice|echo|alexa|google.?home|homepod/.test(a)) return 'Smart Home';
-    return 'Other';
-  }
-  _icon(name, attr) {
-    const c = this._cat(name, attr);
-    return ({ Phone:'\u{1F4F1}', Tablet:'\u{1F4F2}', Computer:'\u{1F4BB}', Server:'\u{1F5A5}\uFE0F',
-      Media:'\u{1F4FA}', Printer:'\u{1F5A8}\uFE0F', Camera:'\u{1F4F7}', Router:'\u{1F4E1}',
-      'Smart Home':'\u{1F3E0}', Wearable:'\u231A', Other:'\u{1F4E1}' })[c] || '\u{1F4E1}';
-  }
+
   _filterSort() {
     let f = this.devices;
-    if (this._catFilter && this._catFilter !== 'all') f = f.filter(d => d.category === this._catFilter);
+    if (this._catFilter && this._catFilter !== 'all') {
+      f = f.filter(d => d.category === this._catFilter);
+    }
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
-      f = f.filter(d => d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q) ||
-        (d.ip && d.ip.includes(q)) || (d.mac && d.mac.toLowerCase().includes(q)) ||
-        (d.manufacturer && d.manufacturer.toLowerCase().includes(q)) || (d.model && d.model.toLowerCase().includes(q)));
+      f = f.filter(d =>
+        (d.name && d.name.toLowerCase().includes(q)) ||
+        (d.ip && d.ip.includes(q)) ||
+        (d.mac && d.mac.toLowerCase().includes(q)) ||
+        (d.manufacturer && d.manufacturer.toLowerCase().includes(q))
+      );
     }
-    this.filteredDevices = f;
-    this.filteredDevices.sort((a, b) => {
+
+    f.sort((a, b) => {
       let av, bv;
-      if (this.sortBy === 'status') {
-        const so = { home:0, zone:1, away:2, unknown:3, offline:4 };
-        av = so[a.status] ?? 5; bv = so[b.status] ?? 5;
-      } else if (this.sortBy === 'category') { av = a.category; bv = b.category; }
-      else if (this.sortBy === 'ip') {
-        av = a.ip ? a.ip.split('.').map(n => n.padStart(3,'0')).join('.') : 'zzz';
-        bv = b.ip ? b.ip.split('.').map(n => n.padStart(3,'0')).join('.') : 'zzz';
-      } else if (this.sortBy === 'mac') {
-        av = a.mac || 'ZZ:ZZ:ZZ:ZZ:ZZ:ZZ'; bv = b.mac || 'ZZ:ZZ:ZZ:ZZ:ZZ:ZZ';
-      } else if (this.sortBy === 'lastSeen') {
-        av = a.lastSeen || ''; bv = b.lastSeen || '';
-      } else { av = a.name; bv = b.name; }
+      if (this.sortBy === 'reachable') {
+        av = a.reachable ? 0 : 1;
+        bv = b.reachable ? 0 : 1;
+      } else if (this.sortBy === 'category') {
+        av = a.category;
+        bv = b.category;
+      } else if (this.sortBy === 'ip') {
+        av = a.ip ? a.ip.split('.').map(n => parseInt(n)).join('.') : 'zzz';
+        bv = b.ip ? b.ip.split('.').map(n => parseInt(n)).join('.') : 'zzz';
+      } else {
+        av = a.name;
+        bv = b.name;
+      }
       const r = av < bv ? -1 : av > bv ? 1 : 0;
       return this.sortDesc ? -r : r;
     });
+
+    this.filteredDevices = f;
+    this._currentPage = 1;
   }
+
   _doRender() {
     if (!this._hass) return;
     const css = this._css();
-    const content = this.activeTab === 'list' ? this._listTab() : this._mapTab();
-    const scanInfo = this._lastScanTime ? '<span style="font-size:11px;color:var(--bento-text-secondary);">Last scan: ' + new Date(this._lastScanTime).toLocaleTimeString() + '</span>' : '';
-    const html = css + '<div class="card"><div class="card-header-wrapper"><div class="card-header">\u{1F4E1} ' + this.title + '</div><div class="header-footer">' + scanInfo + '<button class="rb" id="rescanBtn">\u{1F504} ' + (this._lang === 'pl' ? 'Skanuj' : 'Rescan') + '</button></div></div><div class="tabs">' +
-      '<button class="tab-btn ' + (this.activeTab === 'list' ? 'active' : '') + '" data-tab="list">' + this._t('listTab') + '</button>' +
-      '<button class="tab-btn ' + (this.activeTab === 'map' ? 'active' : '') + '" data-tab="map">' + this._t('mapTab') + '</button>' +
-      '</div>' + content + '</div>';
+    let content = '';
+
+    if (this._scanInProgress) {
+      content = this._renderScanOverlay();
+    } else {
+      switch (this.activeTab) {
+        case 'devices': content = this._renderDevicesTab(); break;
+        case 'topology': content = this._renderTopologyTab(); break;
+        case 'subnets': content = this._renderSubnetsTab(); break;
+        case 'bindings': content = this._renderBindingsTab(); break;
+      }
+    }
+
+    const html = css + '<div class="card">' +
+      '<div class="card-header-wrapper">' +
+      '<div class="card-header">📡 ' + this._title + '</div>' +
+      '<div class="header-footer">' +
+      (this._lastScanTime ? '<span style="font-size:11px;color:var(--bento-text-secondary);">Scanned: ' + new Date(this._lastScanTime).toLocaleTimeString() + '</span>' : '') +
+      '<button class="rb" id="rescanBtn">🔄 ' + (this._lang === 'pl' ? 'Skanuj' : 'Rescan') + '</button>' +
+      '</div>' +
+      '</div>' +
+      '<div class="tabs">' +
+      '<button class="tab-btn ' + (this.activeTab === 'devices' ? 'active' : '') + '" data-tab="devices">' + this._t('devicesTab') + '</button>' +
+      '<button class="tab-btn ' + (this.activeTab === 'topology' ? 'active' : '') + '" data-tab="topology">' + this._t('topologyTab') + '</button>' +
+      '<button class="tab-btn ' + (this.activeTab === 'subnets' ? 'active' : '') + '" data-tab="subnets">' + this._t('subnetsTab') + '</button>' +
+      '<button class="tab-btn ' + (this.activeTab === 'bindings' ? 'active' : '') + '" data-tab="bindings">' + this._t('bindingsTab') + '</button>' +
+      '</div>' +
+      content +
+      '</div>';
+
     if (this._lastHtml === html) return;
     this._lastHtml = html;
     this.shadowRoot.innerHTML = html;
     this._bindEvents();
   }
-  _css() { return '<style>' + (window.HAToolsBentoCSS || "") + '\n' +
-    '* { box-sizing: border-box; }' +
-    ':host{--bp:var(--bento-primary);--bpl:var(--bento-primary-light);--bs:var(--bento-success);--bsl:var(--bento-success-light);--be:var(--bento-error);--bel:var(--bento-error-light);--bw:var(--bento-warning);--bwl:var(--bento-warning-light);' +
-    '--bbg:var(--bento-bg);--bcard:var(--bento-card);--bbrd:var(--bento-border);' +
-    '--btxt:var(--bento-text);--btxt2:var(--bento-text-secondary);--btxtm:var(--bento-text-muted);' +
-    '--brxs:var(--bento-radius-xs);--brsm:var(--bento-radius-sm);--brmd:var(--bento-radius-md);--bshsm:var(--bento-shadow-sm);--bshmd:var(--bento-shadow-md);' +
-    '--btr:var(--bento-transition);font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif}' +
-    '.card{background:var(--bento-card);border:1px solid var(--bento-border);border-radius:var(--bento-radius-md);box-shadow:var(--bento-shadow-sm);padding:20px;color:var(--bento-text);font-family:Inter,-apple-system,sans-serif}' +
-    '.card-header-wrapper{border-bottom:1px solid var(--bento-border);padding-bottom:12px;margin-bottom:16px}' +
-    '.card-header{font-size:20px;font-weight:600;color:var(--bento-text);margin-bottom:12px;}' +
-    '.header-footer{display:flex;gap:12px;align-items:center;flex-wrap:wrap}@media(max-width:480px){.header-footer{flex-direction:column;align-items:flex-start;width:100%}.rb{width:100%}}' +
-    '.tabs{display:flex;gap:4px;border-bottom:2px solid var(--bento-border);margin-bottom:20px;overflow-x:auto}' +
-    '.tab-btn{padding:10px 18px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;font-family:Inter,sans-serif;' +
-    'color:var(--bento-text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;transition:var(--btr);white-space:nowrap;border-radius:0}' +
-    '.tab-btn:hover{color:var(--bento-primary);background:var(--bento-primary-light)}.tab-btn.active{color:var(--bento-primary);border-bottom-color:var(--bento-primary);font-weight:600}' +
-    '.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}' +
-    '.stat-mini{background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm);padding:12px;text-align:center;transition:var(--btr)}' +
-    '.stat-mini:hover{box-shadow:var(--bento-shadow-md);transform:translateY(-1px)}' +
-    '.stat-mini .sv{font-size:24px;font-weight:700;color:var(--bento-text);line-height:1.2}' +
-    '.stat-mini .sl{font-size:11px;font-weight:500;color:var(--bento-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}' +
-    '.stat-mini.so .sv{color:var(--bento-success)}.stat-mini.sa .sv{color:var(--bento-warning)}.stat-mini.sf .sv{color:var(--bento-error)}' +
-    '.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}' +
-    '.si{flex:1;min-width:150px;padding:8px 12px;border:1.5px solid var(--bento-border);border-radius:var(--bento-radius-xs);font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card);color:var(--bento-text);outline:none;transition:var(--btr)}' +
-    '.si:focus{border-color:var(--bento-primary);box-shadow:0 0 0 3px rgba(59,130,246,.1)}.si::placeholder{color:var(--bento-text-muted)}' +
-    '.fs{padding:8px 12px;border:1.5px solid var(--bento-border);border-radius:var(--bento-radius-xs);font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card);color:var(--bento-text);outline:none;min-width:0}.fs:focus{border-color:var(--bento-primary)}' +
-    '.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}' +
-    'table{width:100%;border-collapse:separate;border-spacing:0;font-family:Inter,sans-serif;min-width:600px}' +
-    'th{background:var(--bento-bg);color:var(--bento-text-secondary);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:10px 12px;text-align:left;border-bottom:2px solid var(--bento-border);cursor:pointer;user-select:none;white-space:nowrap}' +
-    'th:hover{color:var(--bento-primary)}' +
-    'td{padding:10px 12px;border-bottom:1px solid var(--bento-border);color:var(--bento-text);font-size:13px;white-space:nowrap}' +
-    'tr:hover td{background:var(--bento-primary-light)}tr:last-child td{border-bottom:none}tr{cursor:pointer}' +
-    '.di{font-size:16px;margin-right:4px;vertical-align:middle}.dn{font-weight:500}' +
-    '.ds{font-size:11px;color:var(--bento-text-muted);display:block;margin-top:1px}' +
-    '.sb{display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}' +
-    '.sh{background:var(--bento-success-light);color:var(--bento-success)}.sa2{background:var(--bento-warning-light);color:var(--bento-warning)}.su{background:rgba(148,163,184,.12);color:var(--bento-text-muted)}.so2{background:var(--bento-error-light);color:var(--bento-error)}.sz{background:var(--bento-primary-light);color:var(--bento-primary)}' +
-    '.mn{font-family:"SF Mono","Cascadia Code",monospace;font-size:12px;color:var(--bento-text-secondary)}' +
-    '.dd{background:var(--bento-bg);border:1px solid var(--bento-border);padding:16px;border-radius:var(--bento-radius-sm);margin-top:12px;animation:bf .2s ease-out}' +
-    '@keyframes bf{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}' +
-    '.dr{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bento-border);gap:8px}' +
-    '.dr:last-child{border-bottom:none}.dl{color:var(--bento-text-secondary);font-size:12px;font-weight:500;white-space:nowrap}.dv{color:var(--bento-text);font-size:12px;text-align:right;word-break:break-all}' +
-    '.dc{float:right;background:none;border:1px solid var(--bento-border);border-radius:var(--bento-radius-xs);padding:4px 10px;cursor:pointer;color:var(--bento-text-secondary);font-size:12px}' +
-    '.dc:hover{background:var(--bento-error-light);color:var(--bento-error)}' +
-    '.pg{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;padding:12px 0;border-top:1px solid var(--bento-border);flex-wrap:wrap}' +
-    '.pb{padding:6px 12px;border:1.5px solid var(--bento-border);background:var(--bento-card);color:var(--bento-text);border-radius:var(--bento-radius-xs);cursor:pointer;font-size:12px;font-weight:500;font-family:Inter,sans-serif;transition:var(--btr)}' +
-    '.pb:hover:not(:disabled){background:var(--bento-primary);color:#fff;border-color:var(--bento-primary)}.pb:disabled{opacity:.4;cursor:not-allowed}' +
-    '.pi2{font-size:12px;color:var(--bento-text-secondary);font-weight:500}' +
-    '.tree-view{margin:0}' +
-    '.tree-group{margin-bottom:8px;border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm);overflow:hidden}' +
-    '.tree-group-header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bento-bg);cursor:pointer;user-select:none;transition:var(--btr)}' +
-    '.tree-group-header:hover{background:rgba(59,130,246,.04)}' +
-    '.tree-toggle{display:inline-block;width:16px;text-align:center;font-size:12px;color:var(--bento-text-secondary);transition:transform .2s}' +
-    '.tree-toggle.collapsed{transform:rotate(-90deg)}' +
-    '.tree-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}' +
-    '.tree-status-label{font-weight:500;color:var(--bento-text);flex:1;font-size:13px}' +
-    '.tree-group-items{display:flex;flex-direction:column;border-top:1px solid var(--bento-border);max-height:none;overflow:hidden;transition:max-height .3s}' +
-    '.tree-group-items.collapsed{max-height:0;border-top:none}' +
-    '.tree-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bento-border);cursor:pointer;transition:var(--btr);font-size:12px}' +
-    '.tree-item:last-child{border-bottom:none}' +
-    '.tree-item:hover{background:rgba(59,130,246,.05)}' +
-    '.tree-item-icon{font-size:16px;min-width:20px;text-align:center}' +
-    '.tree-item-name{font-weight:500;color:var(--bento-text);min-width:120px;flex:1}' +
-    '.tree-item-ip{color:var(--bento-text-secondary);font-family:"SF Mono","Cascadia Code",monospace;font-size:11px;min-width:100px;text-align:right}' +
-    '.tree-item-mfg{color:var(--bento-text-muted);font-size:10px;min-width:80px;text-align:right}' +
-    '@media(max-width:600px){.tree-item{flex-wrap:wrap;gap:4px;padding:8px}.tree-item-name{min-width:100%}.tree-item-ip{min-width:100%;text-align:left}.tree-item-mfg{min-width:100%;text-align:left}}' +
-    '.es{text-align:center;padding:40px 16px;color:var(--bento-text-secondary);font-size:14px}' +
-    '::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bento-border);border-radius:3px}' +
-    '@media(max-width:600px){.card{padding:12px}.stats-bar{grid-template-columns:repeat(2,1fr);gap:6px}.stat-mini{padding:8px}' +
-    '.stat-mini .sv{font-size:20px}.toolbar{flex-direction:column}.si{width:100%}table{min-width:500px}td,th{padding:8px 6px;font-size:12px}}' +
-    '/* === DARK MODE === */ @media (prefers-color-scheme: dark) { /* ===== BENTO DESIGN SYSTEM (local fallback) ===== */  :host { --bento-primary: #3B82F6; --bento-primary-hover: #2563EB; --bento-primary-light: rgba(59, 130, 246, 0.08); --bento-success: #10B981; --bento-success-light: rgba(16, 185, 129, 0.08); --bento-error: #EF4444; --bento-error-light: rgba(239, 68, 68, 0.08); --bento-warning: #F59E0B; --bento-warning-light: rgba(245, 158, 11, 0.08); --bento-bg: var(--primary-background-color, #F8FAFC); --bento-card: var(--card-background-color, #FFFFFF); --bento-border: var(--divider-color, #E2E8F0); --bento-text: var(--primary-text-color, #1E293B); --bento-text-secondary: var(--secondary-text-color, #64748B); --bento-text-muted: var(--disabled-text-color, #94A3B8); --bento-radius-xs: 6px; --bento-radius-sm: 10px; --bento-radius-md: 16px; --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04); --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04); --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }  :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-border: var(--divider-color, #2a2a4a); --bento-text: var(--primary-text-color, #e0e0e0); --bento-text-secondary: var(--secondary-text-color, #a0a0b0); --bento-text-muted: var(--disabled-text-color, #6a6a7a); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4); --bento-primary-light: rgba(59,130,246,0.15); --bento-success-light: rgba(16,185,129,0.15); --bento-error-light: rgba(239,68,68,0.15); --bento-warning-light: rgba(245,158,11,0.15); color-scheme: dark !important; } .card, .card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card { background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important; } input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); } .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); } .tab-content, .section { color: var(--bento-text); } table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); } table td { color: var(--bento-text); border-color: var(--bento-border); } tr:hover td { background: rgba(59,130,246,0.08); } .empty-state, .no-data { color: var(--bento-text-secondary); } .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); } .addon-list, .content-item { background: rgba(255,255,255,0.05); } .chart-container { background: var(--bento-bg); border-color: var(--bento-border); } pre, code { background: #1e293b !important; color: #e2e8f0 !important; } } /* === MOBILE FIX */ @media(max-width:768px){.tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:2px}.tab,.tab-button,.tab-btn{padding:6px 10px;font-size:12px;white-space:nowrap}.card,.card{padding:14px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:repeat(2,1fr);gap:8px}.stat-val,.kpi-val,.metric-val{font-size:18px}.stat-lbl,.kpi-lbl,.metric-lbl{font-size:10px}.panels,.board{flex-direction:column}.column{min-width:unset}h2{font-size:18px}h3{font-size:15px}}@media(max-width:480px){.tabs{gap:1px}.tab,.tab-button,.tab-btn{padding:5px 8px;font-size:11px}.stats,.stats-grid,.summary-grid,.stat-cards,.kpi-grid,.metrics-grid{grid-template-columns:1fr 1fr}.stat-val,.kpi-val,.metric-val{font-size:16px}}' +
-    '/* BENTO TAB OVERRIDE */.tabs,.tab-bar,.tab-nav,.tab-header{display:flex!important;gap:4px!important;border-bottom:2px solid var(--bento-border,var(--divider-color,#334155))!important;padding:0 4px!important;margin-bottom:20px!important;overflow-x:auto!important;flex-wrap:nowrap!important}.tab,.tab-btn,.tab-button,.dtab{padding:10px 18px!important;border:none!important;background:transparent!important;cursor:pointer!important;font-size:13px!important;font-weight:500!important;font-family:Inter,sans-serif!important;color:var(--bento-text-secondary,var(--secondary-text-color,#94A3B8))!important;border-bottom:2px solid transparent!important;margin-bottom:-2px!important;transition:all .2s cubic-bezier(.4,0,.2,1)!important;white-space:nowrap!important;border-radius:0!important;flex:none!important}.tab:hover,.tab-btn:hover,.tab-button:hover,.dtab:hover{color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.08)!important}.tab.active,.tab-btn.active,.tab-button.active,.dtab.active{color:var(--bento-primary,#3B82F6)!important;border-bottom-color:var(--bento-primary,#3B82F6)!important;background:rgba(59,130,246,.04)!important;font-weight:600!important}.stat-card,.stat-item,.metric-card,.kpi-card{background:var(--bento-card,var(--card-background-color,#1E293B))!important;border:1px solid var(--bento-border,var(--divider-color,#334155))!important;border-radius:var(--bento-radius-sm,10px)!important;padding:16px!important;text-align:center!important}' +
-    '.chart-container { max-height: 300px; overflow: hidden; position: relative; } .chart-container canvas { max-height: 250px; width: 100%; } canvas { max-height: 300px; } ' +
-    '.rb{padding:6px 14px;border:1.5px solid var(--bento-border);border-radius:var(--bento-radius-xs);background:var(--bento-card);color:var(--bento-text-secondary);font-size:12px;font-weight:500;font-family:Inter,sans-serif;cursor:pointer;transition:var(--btr);white-space:nowrap}' +
-    '.rb:hover{background:var(--bento-primary);color:#fff;border-color:var(--bento-primary)}' +
-    '.rb.scanning{opacity:.6;pointer-events:none}' +
-    '</style>'; }
-  _listTab() {
+
+  _renderScanOverlay() {
+    const prog = Math.round((this._scanProgress.current / (this._scanProgress.total || 1)) * 100);
+    return '<div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;z-index:1000;border-radius:var(--bento-radius-md)">' +
+      '<div style="background:var(--bento-card);padding:32px;border-radius:var(--bento-radius-md);text-align:center">' +
+      '<div style="font-size:32px;margin-bottom:16px">⏳</div>' +
+      '<div style="font-size:16px;font-weight:500;margin-bottom:16px;color:var(--bento-text)">' + this._t('scanningNetwork') + '</div>' +
+      '<div style="width:200px;height:4px;background:var(--bento-border);border-radius:2px;margin-bottom:8px;overflow:hidden">' +
+      '<div style="width:' + prog + '%;height:100%;background:var(--bento-primary);transition:width .3s"></div>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--bento-text-secondary)">' + this._scanProgress.current + '/' + this._scanProgress.total + '</div>' +
+      '</div>' +
+      '</div>';
+  }
+
+  _renderDevicesTab() {
     const total = this.devices.length;
-    const on = this.devices.filter(d => d.status === 'home' || d.status === 'zone').length;
-    const aw = this.devices.filter(d => d.status === 'away').length;
-    const off = this.devices.filter(d => d.status === 'offline' || d.status === 'unknown').length;
+    const reachable = this.devices.filter(d => d.reachable === true).length;
+    const unreachable = this.devices.filter(d => d.reachable === false).length;
+    const unknown = total - reachable - unreachable;
+    const bound = this.devices.filter(d => d.binding).length;
     const cats = [...new Set(this.devices.map(d => d.category))].sort();
+
     let h = '<div class="stats-bar">' +
       '<div class="stat-mini"><div class="sv">' + total + '</div><div class="sl">' + this._t('totalDevices') + '</div></div>' +
-      '<div class="stat-mini so"><div class="sv">' + on + '</div><div class="sl">' + this._t('online') + '</div></div>' +
-      '<div class="stat-mini sa"><div class="sv">' + aw + '</div><div class="sl">' + this._t('awayLabel') + '</div></div>' +
-      '<div class="stat-mini sf"><div class="sv">' + off + '</div><div class="sl">' + this._t('offlineLabel') + '</div></div></div>';
-    if (!this.devices.length) return h + '<div class="es">' + this._t('noDevicesFound') + '</div>';
-    // Smart banner: context-aware guidance
-    const hasScanData = Object.keys(this._scanResults).length > 0;
-    if (this._networkScanning && !this._networkScanning.hasAny && on < 5 && aw > 10 && !hasScanData) {
-      const bannerMsg = this._lang === 'pl'
-        ? '\u{1F4E1} Wi\u0119kszo\u015B\u0107 urz\u0105dze\u0144 pokazuje si\u0119 jako <b>Poza domem</b>. Kliknij <b>Rescan</b> \u2014 zeskanujemy sie\u0107 z Twojej przegl\u0105darki. Dla sta\u0142ego monitorowania dodaj integracj\u0119 <b>nmap Tracker</b>, <b>Ping</b> lub <b>router</b> (Synology SRM, UniFi, Fritz!Box) w Ustawienia \u2192 Urz\u0105dzenia i us\u0142ugi.'
-        : '\u{1F4E1} Most devices show as <b>Away</b>. Click <b>Rescan</b> to scan your network from the browser. For persistent monitoring, add <b>nmap Tracker</b>, <b>Ping</b>, or a <b>router integration</b> (Synology SRM, UniFi, Fritz!Box) in Settings \u2192 Devices & Services.';
-      h += '<div style="margin:12px 0;padding:12px 16px;background:var(--bento-warning-light);border:1px solid var(--bento-warning);border-radius:var(--bento-radius-xs);font-size:13px;line-height:1.5;color:var(--bento-text)">' + bannerMsg + '</div>';
-    } else if (hasScanData) {
-      const scannedCount = Object.keys(this._scanResults).length;
-      const reachable = Object.values(this._scanResults).filter(v => v).length;
-      const scanTime = this._lastScanTime ? new Date(this._lastScanTime).toLocaleString() : '';
-      const scanMsg = this._lang === 'pl'
-        ? '\u2705 Skan sieci: <b>' + reachable + '</b> z <b>' + scannedCount + '</b> IP odpowiedzia\u0142o.' + (scanTime ? ' <span style="color:var(--bento-text-muted)">(skan: ' + scanTime + ')</span>' : '')
-        : '\u2705 Network scan: <b>' + reachable + '</b> of <b>' + scannedCount + '</b> IPs responded.' + (scanTime ? ' <span style="color:var(--bento-text-muted)">(scanned: ' + scanTime + ')</span>' : '');
-      h += '<div style="margin:12px 0;padding:10px 16px;background:var(--bento-success-light);border:1px solid var(--bento-success);border-radius:var(--bento-radius-xs);font-size:13px;line-height:1.5;color:var(--bento-text)">' + scanMsg + '</div>';
+      '<div class="stat-mini so"><div class="sv">' + reachable + '</div><div class="sl">' + this._t('reachableCount') + '</div></div>' +
+      '<div class="stat-mini sa"><div class="sv">' + unreachable + '</div><div class="sl">' + this._t('unreachableCount') + '</div></div>' +
+      '<div class="stat-mini sz"><div class="sv">' + bound + '</div><div class="sl">' + this._t('boundCount') + '</div></div>' +
+      '</div>';
+
+    if (!this.devices.length) {
+      return h + '<div class="es">' + this._t('noDevicesFound') + '</div>';
     }
+
+    if (this.selectedDevice) {
+      h += this._renderDeviceDetail(this.selectedDevice);
+    }
+
     const catOpts = cats.map(c => '<option value="' + c + '"' + (this._catFilter === c ? ' selected' : '') + '>' + c + '</option>').join('');
-    if (this.selectedDevice) h += this._detailHtml(this.selectedDevice);
     h += '<div class="toolbar"><input type="text" class="si" id="sI" placeholder="' + this._t('searchPlaceholder') + '" value="' + (this.searchQuery || '') + '">' +
       '<select class="fs" id="cF"><option value="all">' + this._t('allCategories') + '</option>' + catOpts + '</select></div>';
-    if (!this._currentPage['l']) this._currentPage['l'] = 1;
-    const ps = this._pageSize; const tp = Math.max(1, Math.ceil(this.filteredDevices.length / ps));
-    const pg = Math.min(this._currentPage['l'], tp); this._currentPage['l'] = pg;
+
+    const ps = this._pageSize;
+    const tp = Math.max(1, Math.ceil(this.filteredDevices.length / ps));
+    const pg = Math.min(this._currentPage, tp);
+    this._currentPage = pg;
     const items = this.filteredDevices.slice((pg - 1) * ps, pg * ps);
-    const sa = (c) => this.sortBy === c ? (this.sortDesc ? ' \u25BC' : ' \u25B2') : '';
+
+    const sa = (c) => this.sortBy === c ? (this.sortDesc ? ' ▼' : ' ▲') : '';
     let rows = '';
     items.forEach((d, i) => {
-      const ipD = d.ip || '\u2014'; const macD = d.mac || '\u2014';
-      const sL = d.status === 'zone' ? d.rawState : this._t(d.status);
-      const sc = d.status === 'home' ? 'sh' : d.status === 'away' ? 'sa2' : d.status === 'offline' ? 'so2' : d.status === 'zone' ? 'sz' : 'su';
-      const mfg = d.manufacturer ? '<span class="ds">' + d.manufacturer + (d.model ? ' ' + d.model : '') + '</span>' : '';
-      const lastSeenTime = d.last_seen || d.lastSeen || null;
-      const lastSeenText = lastSeenTime ? new Date(lastSeenTime).toLocaleString() : '\u2014';
-      // Enhanced status badge with last_seen for non-home statuses
-      let statusBadge = '<span class="sb ' + sc + '">' + sL + '</span>';
-      if (d.status !== 'home' && d.status !== 'zone' && lastSeenTime) {
-        const lastSeenDate = new Date(lastSeenTime);
-        const ago = this._timeAgo(lastSeenDate);
-        const colors = { away: '#F59E0B', offline: '#94A3B8', unknown: '#6B7280' };
-        const color = colors[d.status] || '#6B7280';
-        statusBadge = '<span style="color:' + color + ';font-weight:600">● ' + sL + '</span> <span style="font-size:10px;color:var(--bento-text-secondary)">(' + ago + ')</span>';
-      }
-      rows += '<tr data-i="' + i + '"><td><span class="di">' + d.icon + '</span><span class="dn">' + d.name + '</span>' + mfg + '</td>' +
-        '<td>' + d.category + '</td><td>' + statusBadge + '</td>' +
-        '<td class="mn">' + ipD + '</td><td class="mn">' + macD + '</td><td>' + lastSeenText + '</td></tr>';
+      const dot = d.reachable === true ? '<span style="color:#10B981">\u25CF</span>' : d.reachable === false ? '<span style="color:#EF4444">\u25CF</span>' : '<span style="color:#94A3B8">\u2014</span>';
+      rows += '<tr data-i="' + i + '"><td><span class="di">' + d.icon + '</span><span class="dn">' + d.name + '</span></td>' +
+        '<td>' + d.category + '</td>' +
+        '<td class="mn">' + (d.ip || '—') + '</td>' +
+        '<td class="mn">' + (d.mac || '—') + '</td>' +
+        '<td>' + (d.manufacturer || '—') + '</td>' +
+        '<td style="text-align:center">' + dot + '</td>' +
+        '<td><small>' + (d.binding ? d.binding : '—') + '</small></td>' +
+        '</tr>';
     });
+
     h += '<div class="tw"><table><thead><tr>' +
       '<th data-s="name">' + this._t('deviceName') + sa('name') + '</th>' +
       '<th data-s="category">' + this._t('category') + sa('category') + '</th>' +
-      '<th data-s="status">' + this._t('status') + sa('status') + '</th>' +
       '<th data-s="ip">' + this._t('ipAddress') + sa('ip') + '</th>' +
-      '<th data-s="mac">' + this._t('macAddress') + sa('mac') + '</th>' +
-      '<th data-s="lastSeen">' + this._t('lastSeen') + sa('lastSeen') + '</th>' +
+      '<th data-s="mac">' + this._t('macAddress') + '</th>' +
+      '<th data-s="manufacturer">' + this._t('manufacturer') + '</th>' +
+      '<th data-s="reachable">' + this._t('reachable') + sa('reachable') + '</th>' +
+      '<th>' + this._t('haEntity') + '</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-    if (tp > 1) h += '<div class="pg"><button class="pb" data-p="' + (pg-1) + '"' + (pg<=1?' disabled':'') + '>\u2039 Prev</button>' +
-      '<span class="pi2">' + pg + ' / ' + tp + ' (' + this.filteredDevices.length + ')</span>' +
-      '<button class="pb" data-p="' + (pg+1) + '"' + (pg>=tp?' disabled':'') + '>Next \u203A</button></div>';
+
+    if (tp > 1) {
+      h += '<div class="pg"><button class="pb" data-p="' + (pg - 1) + '"' + (pg <= 1 ? ' disabled' : '') + '>‹ Prev</button>' +
+        '<span class="pi2">' + pg + ' / ' + tp + ' (' + this.filteredDevices.length + ')</span>' +
+        '<button class="pb" data-p="' + (pg + 1) + '"' + (pg >= tp ? ' disabled' : '') + '>Next ›</button></div>';
+    }
+
     return h;
   }
-  _detailHtml(d) {
-    const sL = d.status === 'zone' ? d.rawState : this._t(d.status);
-    let rows = [[this._t('deviceDetail'), d.icon + ' ' + d.name], [this._t('categoryDetail'), d.category],
-      [this._t('statusDetail'), sL], [this._t('ipDetail'), d.ip || '\u2014'], [this._t('macDetail'), d.mac || '\u2014']];
+
+  _renderDeviceDetail(d) {
+    let rows = [
+      [this._t('deviceName'), d.icon + ' ' + d.name],
+      [this._t('category'), d.category],
+      [this._t('status'), d.reachable ? this._t('reachableStatus') : this._t('unreachableStatus')],
+      [this._t('ipAddress'), d.ip || '—'],
+      [this._t('macAddress'), d.mac || '—']
+    ];
     if (d.manufacturer) rows.push([this._t('manufacturer'), d.manufacturer + (d.model ? ' ' + d.model : '')]);
-    if (d.battery !== null) rows.push(['\u{1F50B} Battery', d.battery + '%']);
-    if (d.ssid) rows.push(['\u{1F4F6} WiFi', d.ssid]);
-    if (d.rssi) rows.push(['\u{1F4E1} Signal', d.rssi + ' dBm']);
-    if (d.connType) rows.push([this._t('connection'), d.connType]);
-    const lastSeenTime = d.last_seen || d.lastSeen;
-    if (lastSeenTime) rows.push([this._t('lastSeenDetail'), new Date(lastSeenTime).toLocaleString()]);
+    if (d.entity_id) rows.push(['Entity', d.entity_id]);
+
     const rh = rows.map(r => '<div class="dr"><span class="dl">' + r[0] + '</span><span class="dv">' + r[1] + '</span></div>').join('');
-    return '<div class="dd" id="dD"><button class="dc" id="cD">\u2715 Zamknij</button><div style="clear:both"></div>' + rh + '</div>';
+    const bindHtml = d.reachable ? '<button class="rb" id="bindBtn" data-ip="' + (d.ip || d.name) + '">🔗 ' + this._t('bind') + '</button>' : '';
+
+    return '<div class="dd" id="dD"><button class="dc" id="cD">✕ ' + this._t('close') + '</button><div style="clear:both"></div>' +
+      rh + '<div style="margin-top:12px">' + bindHtml + '</div></div>';
   }
-  _mapTab() {
-    if (!this.devices.length) return '<div class="es">' + this._t('noDevicesFound') + '</div>';
-    // Group devices by status
-    const groups = { home: [], zone: [], away: [], offline: [], unknown: [] };
-    this.devices.forEach(d => {
-      const status = d.status || 'unknown';
-      if (groups[status]) groups[status].push(d);
-      else groups[status] = [d];
-    });
-    const statusOrder = ['home', 'zone', 'away', 'offline', 'unknown'];
-    const cm = { home:'#10B981', zone:'#3B82F6', away:'#F59E0B', offline:'#EF4444', unknown:'#94A3B8' };
-    let html = '<div class="tree-view">';
-    statusOrder.forEach(status => {
-      if (!groups[status] || !groups[status].length) return;
-      const label = this._t(status);
-      const color = cm[status];
-      html += '<div class="tree-group"><div class="tree-group-header" style="border-left: 3px solid ' + color + '">' +
-        '<span class="tree-toggle" data-status="' + status + '">▼</span>' +
-        '<span class="tree-status-dot" style="background:' + color + '"></span>' +
-        '<span class="tree-status-label">' + label + ' (' + groups[status].length + ')</span></div>' +
-        '<div class="tree-group-items" data-status="' + status + '">';
-      groups[status].forEach(d => {
-        const ipD = d.ip || '—';
-        const mfg = d.manufacturer ? ' • ' + d.manufacturer : '';
-        html += '<div class="tree-item" data-device-id="' + d.id + '">' +
-          '<span class="tree-item-icon">' + d.icon + '</span>' +
-          '<span class="tree-item-name">' + d.name + '</span>' +
-          '<span class="tree-item-ip">' + ipD + '</span>' +
-          '<span class="tree-item-mfg">' + mfg + '</span></div>';
+
+  _renderTopologyTab() {
+    if (!this.devices.length) {
+      return '<div class="es">' + this._t('noDevicesFound') + '</div>';
+    }
+
+    // Simple SVG topology
+    const w = 800, h = 400;
+    const centerX = w / 2, centerY = h / 2;
+    const radius = 120;
+
+    // Router at center
+    const nodes = [{ ip: this._routerIp, name: this._t('router'), reachable: true, isRouter: true, x: centerX, y: centerY }];
+
+    // Arrange devices in circle
+    this.devices.forEach((d, i) => {
+      const angle = (i / this.devices.length) * Math.PI * 2;
+      nodes.push({
+        ip: d.ip,
+        name: d.name,
+        reachable: d.reachable,
+        isRouter: false,
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius
       });
-      html += '</div></div>';
     });
-    html += '</div><div id="mDD"></div>';
-    return html;
+
+    let svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:400px;border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm)">';
+
+    // Lines from router to devices
+    nodes.slice(1).forEach(n => {
+      svg += '<line x1="' + nodes[0].x + '" y1="' + nodes[0].y + '" x2="' + n.x + '" y2="' + n.y + '" stroke="var(--bento-border)" stroke-width="2"/>';
+    });
+
+    // Nodes
+    nodes.forEach(n => {
+      const color = n.reachable ? '#10B981' : '#94A3B8';
+      svg += '<circle cx="' + n.x + '" cy="' + n.y + '" r="24" fill="' + color + '" opacity="0.2" stroke="' + color + '" stroke-width="2"/>' +
+        '<text x="' + n.x + '" y="' + (n.y + 28) + '" text-anchor="middle" font-size="11" fill="var(--bento-text)" font-family="Inter,sans-serif">' +
+        n.name.substring(0, 10) + '</text>';
+    });
+
+    svg += '</svg>';
+    return svg;
   }
-  _showMapDetail(d) {
-    const el = this.shadowRoot.querySelector('#mDD'); if (!el) return;
-    const sL = d.status === 'zone' ? d.rawState : this._t(d.status);
-    let rows = [[this._t('deviceDetail'), d.icon + ' ' + d.name], [this._t('categoryDetail'), d.category],
-      [this._t('statusDetail'), sL], [this._t('ipDetail'), d.ip || '\u2014'], [this._t('macDetail'), d.mac || '\u2014']];
-    if (d.manufacturer) rows.push([this._t('manufacturer'), d.manufacturer + (d.model ? ' ' + d.model : '')]);
-    if (d.battery !== null) rows.push(['\u{1F50B} Battery', d.battery + '%']);
-    if (d.ssid) rows.push(['\u{1F4F6} WiFi', d.ssid]);
-    if (d.connType) rows.push([this._t('connection'), d.connType]);
-    const rh = rows.map(r => '<div class="dr"><span class="dl">' + r[0] + '</span><span class="dv">' + r[1] + '</span></div>').join('');
-    el.innerHTML = '<div class="dd"><button class="dc" id="cMD">\u2715</button><div style="clear:both"></div>' + rh + '</div>';
-    const cb = this.shadowRoot.querySelector('#cMD'); if (cb) { cb.setAttribute('aria-label', 'Close'); cb.addEventListener('click', () => { el.innerHTML = ''; }); }
+
+  _renderSubnetsTab() {
+    let h = '<div class="tree-view">';
+
+    h += '<div class="tree-group"><div class="tree-group-header">' +
+      '<span class="tree-toggle">▼</span>' +
+      '<span class="tree-status-label">' + this._t('currentSubnets') + '</span>' +
+      '</div><div class="tree-group-items">';
+
+    if (this._subnets.length === 0) {
+      h += '<div class="tree-item"><span style="color:var(--bento-text-secondary)">— ' + this._t('noDevicesFound') + '</span></div>';
+    } else {
+      this._subnets.forEach(subnet => {
+        const isDefault = subnet === this._detectDefaultSubnet();
+        h += '<div class="tree-item"><span class="tree-item-name">' + subnet + '.0/24</span>' +
+          (isDefault ? '<span style="font-size:10px;color:var(--bento-text-muted)">(' + this._t('defaultSubnet') + ')</span>' : '') +
+          '<button class="rb" style="float:right;font-size:11px" data-remove-subnet="' + subnet + '">✕</button>' +
+          '</div>';
+      });
+    }
+
+    h += '</div></div>';
+
+    h += '<div style="margin-top:16px"><div style="display:flex;gap:8px">' +
+      '<input type="text" class="si" id="subnetInput" placeholder="' + this._t('addSubnetLabel') + '" style="flex:1">' +
+      '<button class="rb" id="addSubnetBtn">' + (this._lang === 'pl' ? 'Dodaj' : 'Add') + '</button>' +
+      '<button class="rb" id="rescanSubnetBtn">🔄 ' + this._t('rescanAll') + '</button>' +
+      '</div></div>';
+
+    return h + '</div>';
   }
+
+  _renderBindingsTab() {
+    let h = '<div>';
+
+    // Suggested bindings
+    if (this._suggestedBindings.length > 0) {
+      h += '<div class="tree-group" style="margin-bottom:16px"><div class="tree-group-header">' +
+        '<span class="tree-toggle">▼</span>' +
+        '<span class="tree-status-label">' + this._t('suggestedBindings') + ' (' + this._suggestedBindings.length + ')</span>' +
+        '</div><div class="tree-group-items">';
+
+      this._suggestedBindings.forEach(sug => {
+        h += '<div class="tree-item" style="gap:4px">' +
+          '<span class="tree-item-name">' + sug.deviceName + ' → ' + sug.entityName + '</span>' +
+          '<button class="rb" style="font-size:11px" data-accept-suggestion="' + sug.key + '">✓</button>' +
+          '<button class="rb" style="font-size:11px" data-reject-suggestion="' + sug.key + '">✕</button>' +
+          '</div>';
+      });
+
+      h += '</div></div>';
+    }
+
+    // Current bindings
+    const currentBindings = Object.entries(this._bindings);
+    if (currentBindings.length > 0) {
+      h += '<div class="tree-group"><div class="tree-group-header">' +
+        '<span class="tree-toggle">▼</span>' +
+        '<span class="tree-status-label">' + this._t('deviceBindings') + ' (' + currentBindings.length + ')</span>' +
+        '</div><div class="tree-group-items">';
+
+      currentBindings.forEach(([key, entityId]) => {
+        const device = this.devices.find(d => d.ip === key || d.name === key);
+        const devName = device ? device.name : key;
+        h += '<div class="tree-item">' +
+          '<span class="tree-item-name">' + devName + '</span>' +
+          '<span style="color:var(--bento-text-secondary);flex:1">' + entityId + '</span>' +
+          '<button class="rb" style="font-size:11px" data-unbind="' + key + '">✕</button>' +
+          '</div>';
+      });
+
+      h += '</div></div>';
+    } else {
+      h += '<div class="es">' + this._t('noBoundDevices') + '</div>';
+    }
+
+    // Manual bind
+    if (Object.keys(this._hass?.states || {}).some(e => e.startsWith('device_tracker.'))) {
+      h += '<div style="margin-top:16px;padding:16px;background:var(--bento-bg);border-radius:var(--bento-radius-sm)">' +
+        '<div style="font-weight:500;margin-bottom:8px">' + this._t('manualBind') + '</div>' +
+        '<select class="fs" id="deviceSelect" style="width:100%;margin-bottom:8px">' +
+        '<option value="">— ' + this._t('selectEntity') + '</option>';
+
+      Object.keys(this._hass.states).filter(e => e.startsWith('device_tracker.')).forEach(e => {
+        h += '<option value="' + e + '">' + (this._hass.states[e].attributes.friendly_name || e) + '</option>';
+      });
+
+      h += '</select><button class="rb" id="manualBindBtn" style="width:100%">' + this._t('bind') + '</button>' +
+        '</div>';
+    }
+
+    return h + '</div>';
+  }
+
   _bindEvents() {
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { this.activeTab = b.dataset.tab; history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.activeTab); this._doRender(); }));
+    // Tab switching
+    this.shadowRoot.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        this.activeTab = tabId;
+        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + tabId);
+        this._doRender();
+      });
+    });
+
+    // Rescan button
     const rescanBtn = this.shadowRoot.querySelector('#rescanBtn');
-    if (rescanBtn) rescanBtn.addEventListener('click', async () => {
-      if (this._scanInProgress) return;
-      this._scanInProgress = true;
-      rescanBtn.classList.add('scanning');
-      rescanBtn.textContent = '\u23F3 ' + (this._lang === 'pl' ? 'Skanowanie sieci...' : 'Scanning network...');
-      this._registryLoaded = false;
-      // Phase 1: Refresh HA entities + registry in parallel
-      const trackerIds = Object.keys(this._hass.states).filter(e => e.startsWith('device_tracker.'));
-      const haPromises = [];
-      if (trackerIds.length > 0) {
-        haPromises.push(this._hass.callService('homeassistant', 'update_entity', { entity_id: trackerIds }).catch(() => {}));
-      }
-      if (this._hass.services?.nmap_tracker?.scan) {
-        haPromises.push(this._hass.callService('nmap_tracker', 'scan', {}).catch(() => {}));
-      }
-      haPromises.push(this._loadDeviceRegistry());
-      await Promise.all(haPromises);
-      // Phase 2: Browser-based ping scan — known IPs + subnet discovery
-      this.updateDevices(); // refresh device list first to get latest IPs
-      const deviceIps = new Set(this.devices.map(d => d.ip).filter(ip => ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)));
-      const allIps = new Set(deviceIps);
-      // Detect subnet and add full range for discovery
-      const subnetBase = this._detectSubnet(deviceIps);
-      if (subnetBase) {
-        for (let i = 1; i <= 254; i++) allIps.add(subnetBase + i);
-      }
-      const ipList = [...allIps];
-      rescanBtn.textContent = '\u{1F4E1} ' + (this._lang === 'pl' ? ('Skanowanie ' + ipList.length + ' IP...') : ('Scanning ' + ipList.length + ' IPs...'));
-      if (ipList.length > 0) {
-        this._scanResults = await this._browserPingScan(ipList, deviceIps);
-      }
-      // Phase 3: Re-evaluate device statuses with scan data + add discovered devices
-      this.updateDevices();
-      // Add newly discovered IPs (reachable but not in any device_tracker)
-      const knownDeviceIps = new Set(this.devices.map(d => d.ip).filter(Boolean));
-      Object.entries(this._scanResults).forEach(([ip, alive]) => {
-        if (alive && !knownDeviceIps.has(ip)) {
-          this.devices.push({
-            id: 'discovered_' + ip, name: ip, status: 'home', rawState: 'discovered',
-            ip: ip, mac: '', sourceType: 'browser_scan', hostName: ip,
-            lastSeen: new Date().toISOString(), icon: '\u{1F4E1}',
-            category: this._lang === 'pl' ? 'Odkryte w sieci' : 'Discovered',
-            battery: null, hasGps: false, ssid: null, rssi: null, connType: null,
-            manufacturer: null, model: null, attributes: {}
-          });
+    if (rescanBtn) {
+      rescanBtn.addEventListener('click', () => this._scanAllSubnets());
+    }
+
+    // Devices tab events
+    const sI = this.shadowRoot.querySelector('#sI');
+    if (sI) {
+      sI.addEventListener('input', (e) => {
+        this.searchQuery = e.target.value;
+        this._filterSort();
+        this._doRender();
+      });
+    }
+
+    const cF = this.shadowRoot.querySelector('#cF');
+    if (cF) {
+      cF.addEventListener('change', (e) => {
+        this._catFilter = e.target.value === 'all' ? null : e.target.value;
+        this._filterSort();
+        this._doRender();
+      });
+    }
+
+    this.shadowRoot.querySelectorAll('th[data-s]').forEach(th => {
+      th.addEventListener('click', () => {
+        const s = th.dataset.s;
+        if (this.sortBy === s) this.sortDesc = !this.sortDesc;
+        else { this.sortBy = s; this.sortDesc = false; }
+        this._filterSort();
+        this._doRender();
+      });
+    });
+
+    this.shadowRoot.querySelectorAll('tbody tr[data-i]').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const idx = parseInt(tr.dataset.i);
+        const ps = (this._currentPage - 1) * this._pageSize;
+        this.selectedDevice = this.filteredDevices[ps + idx];
+        this._doRender();
+      });
+    });
+
+    const cD = this.shadowRoot.querySelector('#cD');
+    if (cD) {
+      cD.addEventListener('click', () => {
+        this.selectedDevice = null;
+        this._doRender();
+      });
+    }
+
+    this.shadowRoot.querySelectorAll('.pb:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = parseInt(btn.dataset.p);
+        if (p > 0) {
+          this._currentPage = p;
+          this._doRender();
         }
       });
-      this._filterSort();
-      this._lastScanTime = Date.now();
-      this._persistScanResults();
-      this._persistDevices(this.devices);
-      this._scanInProgress = false;
-      this._doRender();
     });
-    const si = this.shadowRoot.querySelector('#sI');
-    if (si) si.addEventListener('input', e => {
-      this.searchQuery = e.target.value; this._currentPage['l'] = 1; this._filterSort(); this._doRender();
-      setTimeout(() => { const inp = this.shadowRoot.querySelector('#sI'); if (inp) { inp.focus(); inp.selectionStart = inp.selectionEnd = inp.value.length; } }, 0);
+
+    const bindBtn = this.shadowRoot.querySelector('#bindBtn');
+    if (bindBtn) {
+      bindBtn.addEventListener('click', () => {
+        const ip = bindBtn.dataset.ip;
+        const trackerEntities = Object.keys(this._hass?.states || {}).filter(e => e.startsWith('device_tracker.'));
+        if (trackerEntities.length > 0) {
+          const choice = prompt('Select entity ID:\n\n' + trackerEntities.join('\n'));
+          if (choice && trackerEntities.includes(choice)) {
+            this._bindings[ip] = choice;
+            this._saveBindings();
+            this._buildDeviceList();
+            this._doRender();
+          }
+        }
+      });
+    }
+
+    // Subnets tab events
+    const addSubnetBtn = this.shadowRoot.querySelector('#addSubnetBtn');
+    if (addSubnetBtn) {
+      addSubnetBtn.addEventListener('click', () => {
+        const input = this.shadowRoot.querySelector('#subnetInput');
+        if (input && input.value) {
+          if (!this._subnets.includes(input.value)) {
+            this._subnets.push(input.value);
+            this._saveSubnets();
+            input.value = '';
+            this._doRender();
+          }
+        }
+      });
+    }
+
+    this.shadowRoot.querySelectorAll('[data-remove-subnet]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const subnet = btn.dataset.removeSubnet;
+        this._subnets = this._subnets.filter(s => s !== subnet);
+        this._saveSubnets();
+        this._doRender();
+      });
     });
-    const cf = this.shadowRoot.querySelector('#cF');
-    if (cf) cf.addEventListener('change', e => { this._catFilter = e.target.value === 'all' ? null : e.target.value; this._currentPage['l'] = 1; this._filterSort(); this._doRender(); });
-    this.shadowRoot.querySelectorAll('th[data-s]').forEach(h => h.addEventListener('click', () => {
-      const s = h.dataset.s; if (this.sortBy === s) this.sortDesc = !this.sortDesc; else { this.sortBy = s; this.sortDesc = false; }
-      this._filterSort(); this._doRender();
-    }));
-    this.shadowRoot.querySelectorAll('tbody tr[data-i]').forEach(r => r.addEventListener('click', () => {
-      const ps = ((this._currentPage['l'] || 1) - 1) * this._pageSize;
-      this.selectedDevice = this.filteredDevices[ps + parseInt(r.dataset.i)]; this._doRender();
-    }));
-    const cd = this.shadowRoot.querySelector('#cD');
-    if (cd) cd.addEventListener('click', () => { this.selectedDevice = null; this._doRender(); });
-    this.shadowRoot.querySelectorAll('.pb:not([disabled])').forEach(b => b.addEventListener('click', () => {
-      const p = parseInt(b.dataset.p); if (p > 0) { this._currentPage['l'] = p; this._doRender(); }
-    }));
-    // Tree view events (map tab)
-    this.shadowRoot.querySelectorAll('.tree-group-header').forEach(h => h.addEventListener('click', () => {
-      const status = h.querySelector('.tree-toggle').dataset.status;
-      const toggle = h.querySelector('.tree-toggle');
-      const items = this.shadowRoot.querySelector('.tree-group-items[data-status="' + status + '"]');
-      if (items) {
-        items.classList.toggle('collapsed');
-        toggle.classList.toggle('collapsed');
-      }
-    }));
-    this.shadowRoot.querySelectorAll('.tree-item').forEach(item => item.addEventListener('click', e => {
-      e.stopPropagation();
-      const devId = item.dataset.deviceId;
-      const dev = this.devices.find(d => d.id === devId);
-      if (dev) this._showMapDetail(dev);
-    }));
-  }
-  static getConfigElement() { return document.createElement('ha-network-map-editor'); }
-  getCardSize() { return 8; }
 
-  static getStubConfig() { return { type: 'custom:ha-network-map', title: 'Network Map', router_ip: '192.168.1.1', gateway_ip: '192.168.0.1' }; }
+    const rescanSubnetBtn = this.shadowRoot.querySelector('#rescanSubnetBtn');
+    if (rescanSubnetBtn) {
+      rescanSubnetBtn.addEventListener('click', () => this._scanAllSubnets());
+    }
 
-  disconnectedCallback() {
-    // Cleanup any active event listeners or timers
+    // Bindings tab events
+    this.shadowRoot.querySelectorAll('[data-accept-suggestion]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.acceptSuggestion;
+        const sug = this._suggestedBindings.find(s => s.key === key);
+        if (sug) {
+          this._bindings[sug.deviceKey] = sug.entityId;
+          this._saveBindings();
+          this._suggestedBindings = this._suggestedBindings.filter(s => s.key !== key);
+          this._buildDeviceList();
+          this._doRender();
+        }
+      });
+    });
+
+    this.shadowRoot.querySelectorAll('[data-reject-suggestion]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.rejectSuggestion;
+        this._suggestedBindings = this._suggestedBindings.filter(s => s.key !== key);
+        this._doRender();
+      });
+    });
+
+    this.shadowRoot.querySelectorAll('[data-unbind]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.unbind;
+        delete this._bindings[key];
+        this._saveBindings();
+        this._buildDeviceList();
+        this._doRender();
+      });
+    });
+
+    const manualBindBtn = this.shadowRoot.querySelector('#manualBindBtn');
+    if (manualBindBtn) {
+      manualBindBtn.addEventListener('click', () => {
+        const deviceSelect = this.shadowRoot.querySelector('#deviceSelect');
+        if (deviceSelect && deviceSelect.value) {
+          const entityId = deviceSelect.value;
+          const ip = prompt('Enter device IP or name:');
+          if (ip) {
+            this._bindings[ip] = entityId;
+            this._saveBindings();
+            deviceSelect.value = '';
+            this._buildDeviceList();
+            this._doRender();
+          }
+        }
+      });
+    }
   }
 
   setActiveTab(tabId) {
     this.activeTab = tabId;
     this._doRender();
   }
+
+  _css() {
+    return '<style>' + (window.HAToolsBentoCSS || '') + '\n' +
+    '* { box-sizing: border-box; }' +
+    ':host { --bp: var(--bento-primary); --bs: var(--bento-success); --be: var(--bento-error); ' +
+    '--bbg: var(--bento-bg); --bcard: var(--bento-card); --btxt: var(--bento-text); ' +
+    '--btxt2: var(--bento-text-secondary); --brmd: var(--bento-radius-md); ' +
+    'font-family: Inter, -apple-system, sans-serif; }' +
+    '.card { background: var(--bento-card); border: 1px solid var(--bento-border); ' +
+    'border-radius: var(--bento-radius-md); box-shadow: var(--bento-shadow-sm); ' +
+    'padding: 20px; color: var(--bento-text); position: relative; }' +
+    '.card-header-wrapper { border-bottom: 1px solid var(--bento-border); ' +
+    'padding-bottom: 12px; margin-bottom: 16px; }' +
+    '.card-header { font-size: 20px; font-weight: 600; color: var(--bento-text); ' +
+    'margin-bottom: 12px; }' +
+    '.header-footer { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }' +
+    '.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); ' +
+    'margin-bottom: 20px; overflow-x: auto; }' +
+    '.tab-btn { padding: 10px 18px; border: none; background: transparent; cursor: pointer; ' +
+    'font-size: 13px; font-weight: 500; color: var(--bento-text-secondary); ' +
+    'border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap; }' +
+    '.tab-btn:hover { color: var(--bento-primary); background: rgba(59,130,246,.08); }' +
+    '.tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); ' +
+    'font-weight: 600; }' +
+    '.stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); ' +
+    'gap: 10px; margin-bottom: 16px; }' +
+    '.stat-mini { background: var(--bento-bg); border: 1px solid var(--bento-border); ' +
+    'border-radius: var(--bento-radius-sm); padding: 12px; text-align: center; }' +
+    '.stat-mini .sv { font-size: 24px; font-weight: 700; color: var(--bento-text); }' +
+    '.stat-mini .sl { font-size: 11px; color: var(--bento-text-secondary); ' +
+    'text-transform: uppercase; margin-top: 2px; }' +
+    '.stat-mini.so .sv { color: var(--bento-success); }' +
+    '.stat-mini.sa .sv { color: var(--bento-warning); }' +
+    '.stat-mini.sz .sv { color: var(--bento-primary); }' +
+    '.toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }' +
+    '.si, .fs { padding: 8px 12px; border: 1.5px solid var(--bento-border); ' +
+    'border-radius: var(--bento-radius-xs); font-size: 13px; background: var(--bento-card); ' +
+    'color: var(--bento-text); outline: none; }' +
+    '.si { flex: 1; min-width: 150px; }' +
+    '.si:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }' +
+    '.tw { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }' +
+    'table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 600px; }' +
+    'th { background: var(--bento-bg); color: var(--bento-text-secondary); font-size: 11px; ' +
+    'font-weight: 600; text-transform: uppercase; padding: 10px 12px; text-align: left; ' +
+    'border-bottom: 2px solid var(--bento-border); cursor: pointer; }' +
+    'th:hover { color: var(--bento-primary); }' +
+    'td { padding: 10px 12px; border-bottom: 1px solid var(--bento-border); ' +
+    'color: var(--bento-text); font-size: 13px; }' +
+    'tr:hover td { background: rgba(59,130,246,.04); }' +
+    'tr { cursor: pointer; }' +
+    '.di { font-size: 16px; margin-right: 4px; vertical-align: middle; }' +
+    '.dn { font-weight: 500; }' +
+    '.ds { font-size: 11px; color: var(--bento-text-muted); }' +
+    '.mn { font-family: "SF Mono", monospace; font-size: 12px; color: var(--bento-text-secondary); }' +
+    '.dd { background: var(--bento-bg); border: 1px solid var(--bento-border); padding: 16px; ' +
+    'border-radius: var(--bento-radius-sm); margin-top: 12px; animation: bf .2s ease-out; }' +
+    '@keyframes bf { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }' +
+    '.dr { display: flex; justify-content: space-between; padding: 6px 0; ' +
+    'border-bottom: 1px solid var(--bento-border); }' +
+    '.dr:last-child { border-bottom: none; }' +
+    '.dl { color: var(--bento-text-secondary); font-size: 12px; font-weight: 500; }' +
+    '.dv { color: var(--bento-text); font-size: 12px; text-align: right; }' +
+    '.dc { float: right; background: none; border: 1px solid var(--bento-border); ' +
+    'border-radius: var(--bento-radius-xs); padding: 4px 10px; cursor: pointer; ' +
+    'color: var(--bento-text-secondary); font-size: 12px; }' +
+    '.dc:hover { background: var(--bento-error-light); color: var(--bento-error); }' +
+    '.pg { display: flex; justify-content: center; align-items: center; gap: 8px; ' +
+    'margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--bento-border); }' +
+    '.pb { padding: 6px 12px; border: 1.5px solid var(--bento-border); ' +
+    'background: var(--bento-card); color: var(--bento-text); border-radius: var(--bento-radius-xs); ' +
+    'cursor: pointer; font-size: 12px; font-weight: 500; }' +
+    '.pb:hover:not(:disabled) { background: var(--bento-primary); color: #fff; ' +
+    'border-color: var(--bento-primary); }' +
+    '.pb:disabled { opacity: .4; cursor: not-allowed; }' +
+    '.pi2 { font-size: 12px; color: var(--bento-text-secondary); }' +
+    '.tree-view { margin: 0; }' +
+    '.tree-group { margin-bottom: 8px; border: 1px solid var(--bento-border); ' +
+    'border-radius: var(--bento-radius-sm); overflow: hidden; }' +
+    '.tree-group-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; ' +
+    'background: var(--bento-bg); cursor: pointer; user-select: none; }' +
+    '.tree-group-header:hover { background: rgba(59,130,246,.04); }' +
+    '.tree-toggle { display: inline-block; width: 16px; font-size: 12px; ' +
+    'color: var(--bento-text-secondary); }' +
+    '.tree-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }' +
+    '.tree-status-label { font-weight: 500; color: var(--bento-text); flex: 1; font-size: 13px; }' +
+    '.tree-group-items { display: flex; flex-direction: column; border-top: 1px solid var(--bento-border); }' +
+    '.tree-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; ' +
+    'border-bottom: 1px solid var(--bento-border); cursor: pointer; font-size: 12px; }' +
+    '.tree-item:last-child { border-bottom: none; }' +
+    '.tree-item:hover { background: rgba(59,130,246,.05); }' +
+    '.tree-item-name { font-weight: 500; color: var(--bento-text); flex: 1; }' +
+    '.es { text-align: center; padding: 40px 16px; color: var(--bento-text-secondary); }' +
+    '.rb { padding: 6px 14px; border: 1.5px solid var(--bento-border); ' +
+    'border-radius: var(--bento-radius-xs); background: var(--bento-card); ' +
+    'color: var(--bento-text-secondary); font-size: 12px; font-weight: 500; cursor: pointer; }' +
+    '.rb:hover { background: var(--bento-primary); color: #fff; border-color: var(--bento-primary); }' +
+    '::-webkit-scrollbar { width: 6px; }' +
+    '::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 3px; }' +
+    '</style>';
+  }
+
+  getCardSize() { return 8; }
+  static getConfigElement() { return document.createElement('ha-network-map-editor'); }
+  static getStubConfig() {
+    return { type: 'custom:ha-network-map', title: 'Network Map', router_ip: '192.168.1.1' };
+  }
 }
-if (!customElements.get('ha-network-map')) customElements.define('ha-network-map', HaNetworkMap);
+
+if (!customElements.get('ha-network-map')) {
+  customElements.define('ha-network-map', HaNetworkMap);
+}
+
 class HaNetworkMapEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
     this._config = {};
   }
+
   setConfig(config) {
     this._config = { ...config };
     this._render();
   }
-  _dispatch() {
-    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+
+  set hass(hass) {
+    this._hass = hass;
   }
+
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: this._config },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
   _render() {
     if (!this._hass) return;
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display: block; padding: 16px; }
+        h3 { margin: 0 0 16px; font-size: 15px; font-weight: 600; }
+        input { outline: none; transition: border-color .2s; width: 100%; padding: 8px 12px;
+                border: 1px solid var(--divider-color); border-radius: 8px; font-size: 14px; }
+        input:focus { border-color: var(--primary-color); }
+        div { margin-bottom: 12px; }
+        label { display: block; font-weight: 500; margin-bottom: 4px; font-size: 13px; }
+      </style>
       <h3>Network Map</h3>
-            <div style="margin-bottom:12px;">
-              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Network Map'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
-            </div>
-            <div style="margin-bottom:12px;">
-              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Router IP</label>
-              <input type="text" id="cf_router_ip" value="${this._config?.router_ip || '192.168.1.1'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
-            </div>
+      <div>
+        <label>Title</label>
+        <input type="text" id="cf_title" value="${this._config?.title || 'Network Map'}">
+      </div>
+      <div>
+        <label>Router IP</label>
+        <input type="text" id="cf_router_ip" value="${this._config?.router_ip || '192.168.1.1'}">
+      </div>
     `;
-        const f_title = this.shadowRoot.querySelector('#cf_title');
-        if (f_title) f_title.addEventListener('input', (e) => {
-          this._config = { ...this._config, title: e.target.value };
-          this._dispatch();
-        });
-        const f_router_ip = this.shadowRoot.querySelector('#cf_router_ip');
-        if (f_router_ip) f_router_ip.addEventListener('input', (e) => {
-          this._config = { ...this._config, router_ip: e.target.value };
-          this._dispatch();
-        });
+
+    const f_title = this.shadowRoot.querySelector('#cf_title');
+    if (f_title) {
+      f_title.addEventListener('input', (e) => {
+        this._config = { ...this._config, title: e.target.value };
+        this._dispatch();
+      });
+    }
+
+    const f_router_ip = this.shadowRoot.querySelector('#cf_router_ip');
+    if (f_router_ip) {
+      f_router_ip.addEventListener('input', (e) => {
+        this._config = { ...this._config, router_ip: e.target.value };
+        this._dispatch();
+      });
+    }
   }
-  connectedCallback() { this._render(); }
+
+  connectedCallback() {
+    this._render();
+  }
 }
-if (!customElements.get('ha-network-map-editor')) { customElements.define('ha-network-map-editor', HaNetworkMapEditor); }
+
+if (!customElements.get('ha-network-map-editor')) {
+  customElements.define('ha-network-map-editor', HaNetworkMapEditor);
+}
 
 })();
 
 window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-network-map', name: 'Network Map', description: 'Network device list and topology map' });
+window.customCards.push({
+  type: 'ha-network-map',
+  name: 'Network Map',
+  description: 'Network device reachability map and topology'
+});
