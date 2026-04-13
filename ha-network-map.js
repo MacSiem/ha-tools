@@ -965,6 +965,18 @@ class HaNetworkMap extends HTMLElement {
     '.rb:hover { background: var(--bento-primary); color: #fff; border-color: var(--bento-primary); }' +
     '::-webkit-scrollbar { width: 6px; }' +
     '::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 3px; }' +
+    '@media (max-width: 600px) {' +
+    '  .stats-bar { grid-template-columns: repeat(2, 1fr); }' +
+    '  .stat-mini .sv { font-size: 18px; }' +
+    '  table { min-width: 400px; }' +
+    '  th:nth-child(4), td:nth-child(4),' +
+    '  th:nth-child(5), td:nth-child(5),' +
+    '  th:nth-child(7), td:nth-child(7) { display: none; }' +
+    '  .tab-btn { padding: 8px 12px; font-size: 12px; }' +
+    '  .card-header { font-size: 16px; }' +
+    '  .toolbar { flex-direction: column; }' +
+    '  .si { min-width: 0; }' +
+    '}' +
     '</style>';
   }
 

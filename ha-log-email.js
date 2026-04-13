@@ -20,6 +20,7 @@ class HALogEmail extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._hass = null;
     this._config = {};
+    this._centralRecipient = null;
     this._activeTab = 'overview';
     this._tabsScrollLeft = 0;
     this._logData = null;
@@ -114,6 +115,18 @@ class HALogEmail extends HTMLElement {
       max_entries: config.max_entries || 50,
       ...config
     };
+    this._loadCentralRecipient();
+  }
+
+  async _loadCentralRecipient() {
+    if (!this._hass || !this._hasHaToolsEmail()) return;
+    try {
+      const resp = await this._hass.callService('ha_tools_email', 'get_config', {}, undefined, true);
+      if (resp?.default_recipient && !this._config.email_recipient) {
+        this._centralRecipient = resp.default_recipient;
+        this._render();
+      }
+    } catch(e) { /* ignore if service not available */ }
   }
 
   getCardSize() { return 5; }
@@ -275,44 +288,25 @@ class HALogEmail extends HTMLElement {
     await this._hass.callService('ha_tools_email', 'send', data);
   }
 
-  // ── SMTP Detection & Verification (legacy notify fallback) ──────
-  _detectSmtp() {
-    if (!this._hass) return { found: false, services: [] };
-    const notifyServices = this._hass.services?.notify || {};
-    const emailServices = Object.keys(notifyServices).filter(s =>
-      s.includes('email') || s.includes('smtp') || s.includes('mail') || s.includes('gmail') || s.includes('outlook')
-    );
-    return {
-      found: emailServices.length > 0,
-      services: emailServices,
-      defaultService: emailServices.find(s => s === 'email_report') || emailServices[0] || null
-    };
-  }
-
-  async _testSmtp(service) {
+  async _testSmtp() {
     if (!this._hass) return;
+    if (!this._hasHaToolsEmail()) {
+      this._smtpStatus = { ok: false, error: (this._lang === 'pl' ? 'ha_tools_email nie zainstalowany' : 'ha_tools_email not installed') };
+      return;
+    }
     this._smtpTesting = true;
     this._update();
     try {
-      if (this._hasHaToolsEmail()) {
-        await this._hass.callService('ha_tools_email', 'test', {});
-        this._smtpStatus = { ok: true, service: 'ha_tools_email', time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
-      } else if (service) {
-        await this._hass.callService('notify', service, {
-          title: '\u2705 HA Tools Panel \u2014 SMTP Test (Log Email)',
-          message: (this._lang === 'pl' ? 'SMTP jest poprawnie skonfigurowany.\nTestowy email z Log Email.\nCzas: ' : 'SMTP is correctly configured.\nTest email from Log Email.\nTime: ') + new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'))
-        });
-        this._smtpStatus = { ok: true, service, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
-      }
+      await this._hass.callService('ha_tools_email', 'test', {});
+      this._smtpStatus = { ok: true, service: 'ha_tools_email', time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     } catch (e) {
-      this._smtpStatus = { ok: false, service, error: e.message || 'Unknown error' };
+      this._smtpStatus = { ok: false, error: e.message || 'Unknown error' };
     }
     this._smtpTesting = false;
     this._update();
   }
 
   _renderSmtpSection() {
-    // Built-in SMTP takes priority
     if (this._hasHaToolsEmail()) {
       const statusBadge = this._smtpStatus
         ? (this._smtpStatus.ok
@@ -323,35 +317,9 @@ class HALogEmail extends HTMLElement {
         '<div class="smtp-header">' +
           '<span class="smtp-icon">\u2709\uFE0F</span>' +
           '<div>' +
-            '<div class="smtp-title">' + (this._lang === 'pl' ? 'Wbudowany SMTP (ha_tools_email)' : 'Built-in SMTP (ha_tools_email)') + '</div>' +
-            '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Konfiguracja w <b>Ustawienia \u2192 Email/SMTP</b>' : 'Configure in <b>Settings \u2192 Email/SMTP</b>') + '</div>' +
+            '<div class="smtp-title">' + (this._lang === 'pl' ? '\u2705 SMTP skonfigurowany (ha_tools_email)' : '\u2705 SMTP configured (ha_tools_email)') + '</div>' +
+            '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Skonfiguruj w <b>HA Tools \u2192 Ustawienia \u2192 Email/SMTP</b>' : 'Configure in <b>HA Tools \u2192 Settings \u2192 Email/SMTP</b>') + '</div>' +
           '</div>' +
-          '<span class="badge-ok" style="margin-left:auto">\u2705</span>' +
-        '</div>' +
-        '<div class="smtp-actions">' +
-          '<button class="send-btn" id="btn-smtp-test" style="width:auto;padding:8px 16px" ' + (this._smtpTesting ? 'disabled' : '') + '>' +
-            (this._smtpTesting ? (this._lang === 'pl' ? '\u23F3 Wysyłam...' : '\u23F3 Sending...') : (this._lang === 'pl' ? '\u{1F4E8} Wyślij test' : '\u{1F4E8} Send test')) +
-          '</button>' +
-          statusBadge +
-        '</div>' +
-      '</div>';
-    }
-    const smtp = this._detectSmtp();
-    if (smtp.found) {
-      const statusBadge = this._smtpStatus
-        ? (this._smtpStatus.ok
-          ? '<span class="badge-ok">\u2705 Test OK (' + this._smtpStatus.time + ')</span>'
-          : '<span class="badge-er">\u274C ' + this._smtpStatus.error + '</span>')
-        : '';
-      return '<div class="smtp-section">' +
-        '<div class="smtp-header">' +
-          '<span class="smtp-icon">\u2709\uFE0F</span>' +
-          '<div>' +
-            '<div class="smtp-title">' + (this._lang === 'pl' ? 'SMTP skonfigurowany' : 'SMTP configured') + '</div>' +
-            '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Serwis' : 'Service') + ': <code>notify.' + smtp.defaultService + '</code>' +
-            (smtp.services.length > 1 ? ' (+ ' + (smtp.services.length - 1) + (this._lang === 'pl' ? ' więcej' : ' more') + ')' : '') + '</div>' +
-          '</div>' +
-          '<span class="badge-ok" style="margin-left:auto">\u2705</span>' +
         '</div>' +
         '<div class="smtp-actions">' +
           '<button class="send-btn" id="btn-smtp-test" style="width:auto;padding:8px 16px" ' + (this._smtpTesting ? 'disabled' : '') + '>' +
@@ -365,42 +333,16 @@ class HALogEmail extends HTMLElement {
       '<div class="smtp-header">' +
         '<span class="smtp-icon">\u26A0\uFE0F</span>' +
         '<div class="smtp-info">' +
-          '<div class="smtp-title">' + (this._lang === 'pl' ? 'SMTP nie skonfigurowany' : 'SMTP not configured') + '</div>' +
-          '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Wysy\u0142anie emaili wymaga integracji SMTP' : 'Sending emails requires SMTP integration') + '</div>' +
+          '<div class="smtp-title">' + (this._lang === 'pl' ? '\u26A0\uFE0F SMTP nie skonfigurowany' : '\u26A0\uFE0F SMTP not configured') + '</div>' +
+          '<div class="smtp-sub">' + (this._lang === 'pl' ? 'Otwórz <b>HA Tools \u2192 Ustawienia \u2192 Email/SMTP</b>' : 'Open <b>HA Tools \u2192 Settings \u2192 Email/SMTP</b>') + '</div>' +
         '</div>' +
-      '</div>' +
-      '<div class="smtp-guide">' +
-        '<p style="font-size:12px;color:var(--bento-text-secondary);margin:8px 0">' +
-          (this._lang === 'pl'
-            ? '📋 <b>Konfiguracja w 3 krokach:</b>'
-            : '📋 <b>Setup in 3 steps:</b>') +
-        '</p>' +
-        '<ol style="margin:0;padding-left:20px;font-size:12px;color:var(--bento-text-secondary);line-height:1.8">' +
-          '<li>' + (this._lang === 'pl'
-            ? 'Otwórz <b>Settings → Integrations</b> w HA'
-            : 'Open <b>Settings → Integrations</b> in HA') + '</li>' +
-          '<li>' + (this._lang === 'pl'
-            ? 'Dodaj integrację <b>SMTP</b> (wyszukaj "smtp" lub "email")'
-            : 'Add <b>SMTP</b> integration (search "smtp" or "email")') + '</li>' +
-          '<li>' + (this._lang === 'pl'
-            ? 'Uzupełnij dane serwera (Gmail: smtp.gmail.com:587, Outlook: smtp.office365.com:587)'
-            : 'Fill in server details (Gmail: smtp.gmail.com:587, Outlook: smtp.office365.com:587)') + '</li>' +
-        '</ol>' +
-        '<details style="margin-top:10px">' +
-          '<summary style="cursor:pointer;font-weight:600;font-size:12px;color:var(--bento-primary)">' +
-            (this._lang === 'pl' ? 'Alternatywa: konfiguracja YAML' : 'Alternative: YAML configuration') +
-          '</summary>' +
-          '<pre style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.5;margin:8px 0;white-space:pre">notify:\n  - name: email_report\n    platform: smtp\n    server: smtp.gmail.com\n    port: 587\n    encryption: starttls\n    username: your@gmail.com\n    password: !secret gmail_app_password\n    sender: your@gmail.com\n    recipient: recipient@email.com</pre>' +
-        '</details>' +
       '</div>' +
     '</div>';
   }
   async _sendEmailNow(period) {
     if (!this._hass) return;
-    const useBuiltIn = this._hasHaToolsEmail();
-    const smtp = this._detectSmtp();
-    if (!useBuiltIn && (!smtp.found || !smtp.defaultService)) {
-      this._sendStatus = { status: 'error', period, error: (this._lang === 'pl' ? 'SMTP nie skonfigurowany. Otwórz HA Tools → Ustawienia → Email/SMTP i skonfiguruj połączenie.' : 'SMTP not configured. Open HA Tools → Settings → Email/SMTP and configure the connection.') };
+    if (!this._hasHaToolsEmail()) {
+      this._sendStatus = { status: 'error', period, error: (this._lang === 'pl' ? 'ha_tools_email nie zainstalowany. Skonfiguruj SMTP w HA Tools \u2192 Ustawienia \u2192 Email/SMTP.' : 'ha_tools_email not installed. Configure SMTP in HA Tools \u2192 Settings \u2192 Email/SMTP.') };
       this._render(); return;
     }
     this._sendStatus = { status: 'sending', period };
@@ -427,20 +369,8 @@ class HALogEmail extends HTMLElement {
       }
       if (errors.length === 0 && warnings.length === 0) body += '<p style="color:#10b981">System czysty.</p>';
       body += '<hr><p style="font-size:11px;color:#999">HA Tools Log Email</p>';
-      const to = this._config.email_recipient || '';
-
-      if (useBuiltIn) {
-        // Built-in SMTP via ha_tools_email
-        await this._sendViaHaToolsEmail(to, subject, body, body);
-      } else {
-        // Legacy: notify.* fallback
-        const svcData = { title: subject, message: body, data: { html: body } };
-        if (to) {
-          const recipients = to.split(',').map(r => r.trim()).filter(r => r && r.includes('@'));
-          if (recipients.length > 0) svcData.target = recipients;
-        }
-        await this._hass.callService('notify', smtp.defaultService, svcData);
-      }
+      const to = this._config.email_recipient || this._centralRecipient || '';
+      await this._sendViaHaToolsEmail(to, subject, body, body);
       this._sendStatus = { status: 'success', period, time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
     } catch (err) {
       this._sendStatus = { status: 'error', period, error: (err.message || 'Unknown error') };
@@ -630,11 +560,10 @@ class HALogEmail extends HTMLElement {
 
         <div class="section-header">SMTP Service</div>
         <div class="info-card" style="padding:12px">
-          ${(() => { const smtp = this._detectSmtp(); if (!smtp.found) return '<span style="color:var(--bento-text-muted)">\u26A0\uFE0F ' + (this._lang === 'pl' ? 'Brak wykrytego serwisu SMTP' : 'No SMTP service detected') + '</span>'; return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>\uD83D\uDCE7 ' + (this._lang === 'pl' ? 'Serwis' : 'Service') + ': <code>notify.' + smtp.defaultService + '</code></span>' + (smtp.services.length > 1 ? '<select id="smtpServiceSelect" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px">' + smtp.services.map(s => '<option value="' + s + '" ' + (s === smtp.defaultService ? "selected" : "") + '>notify.' + s + '</option>').join("") + '</select>' : "") + '</div>'; })()}
         </div>
         <div class="section-header" style="margin-top:10px">Recipient</div>
         <div class="info-card">
-          <span>\uD83D\uDCE7 ${this._config.email_recipient || '<span style="color:var(--bento-text-muted)">' + (this._lang === 'pl' ? 'Nie ustawiony \u2014 dodaj email_recipient w konfiguracji karty' : 'Not set \u2014 add email_recipient in card configuration') + '</span>'}</span>
+          <span>\uD83D\uDCE7 ${this._config.email_recipient || (this._centralRecipient ? '<span style="color:var(--bento-text-secondary)">' + (this._lang === 'pl' ? 'Domyślnie z Ustawień' : 'Default from Settings') + ' ' + this._centralRecipient + '</span>' : '<span style="color:var(--bento-text-muted)">' + (this._lang === 'pl' ? 'Nie ustawiony \u2014 dodaj email_recipient w konfiguracji karty lub Ustawienia' : 'Not set \u2014 add email_recipient in card configuration or Settings') + '</span>')}</span>
         </div>
 
         
@@ -676,7 +605,7 @@ class HALogEmail extends HTMLElement {
         <div class="section-header" style="margin-top:16px">Recipient</div>
         <div class="info-card">\uD83D\uDCE7 ${this._config.email_recipient}</div>
         <div class="info-note" style="margin-top:8px">
-          ${this._lang === 'pl' ? 'ℹ️ Wysyła email bezpośrednio przez wykryty serwis SMTP (notify). Nie wymaga osobnych automatyzacji.' : 'ℹ️ Sends email directly via the detected SMTP service (notify). No separate automations required.'}
+          ${this._lang === 'pl' ? 'ℹ️ Wysyła email bezpośrednio przez ha_tools_email (centralna konfiguracja). Nie wymaga osobnych automatyzacji.' : 'ℹ️ Sends email directly via ha_tools_email (central config). No separate automations required.'}
         </div>
 
         <div class="section-header" style="margin-top:20px">Instant Error Notification</div>
@@ -962,8 +891,7 @@ max: 3</pre>
 
     const btnSmtpTest = this.shadowRoot.getElementById('btn-smtp-test');
     if (btnSmtpTest) {
-      const smtp = this._detectSmtp();
-      btnSmtpTest.addEventListener('click', () => this._testSmtp(smtp.defaultService));
+      btnSmtpTest.addEventListener('click', () => this._testSmtp());
     }
     const btnSendDaily = this.shadowRoot.getElementById('btn-send-daily');
     if (btnSendDaily) btnSendDaily.addEventListener('click', () => this._sendEmailNow('daily'));
@@ -1081,9 +1009,10 @@ class HaLogEmailEditor extends HTMLElement {
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
-              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Email recipient</label>
-              <input type="text" id="cf_email_recipient" value="${this._config?.email_recipient || 'your@email.com'}"
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Email recipient (override)</label>
+              <input type="text" id="cf_email_recipient" value="${this._config?.email_recipient || ''}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+              <div style="font-size:11px;color:var(--bento-text-secondary);margin-top:4px;">${this._lang === 'pl' ? 'Pozostaw puste, aby u\u017cy\u0107 ustawienia centralnego' : 'Leave empty to use central setting'}</div>
             </div>
     `;
         const f_title = this.shadowRoot.querySelector('#cf_title');

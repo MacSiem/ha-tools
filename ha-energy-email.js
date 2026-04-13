@@ -216,7 +216,7 @@ class HAEnergyEmail extends HTMLElement {
   async _discoverAll() {
     await this._ensureHelpers();
     this._discoverEnergySensors();
-    this._discoverNotifyService();
+    this._discoverRecipient();
     this._discoveryDone = true;
     this._render();
     // Fetch recorder stats in background (for period views)
@@ -401,44 +401,24 @@ class HAEnergyEmail extends HTMLElement {
     try { return localStorage.getItem(`ha-energy-email-${key}`) || ''; } catch(e) { return ''; }
   }
 
-  _discoverNotifyService() {
+  _discoverRecipient() {
     if (!this._hass) return;
-    const smtp = this._detectSmtp();
-    // Restore saved service from HA helper
-    const savedService = this._readHelper('service');
-    if (savedService && smtp.services.find(s => s.service === savedService)) this._detectedService = savedService;
-    if (!this._detectedService && smtp.found && smtp.defaultService) {
-      this._detectedService = smtp.defaultService;
-    }
     // Try to get SMTP recipient from HA helper first
     if (!this._config.recipient && !this._detectedRecipient) {
       const savedRecipient = this._readHelper('recipient');
       if (savedRecipient && savedRecipient.includes('@')) { this._detectedRecipient = savedRecipient; return; }
-      // Scan for any input_text with email
-      const states = this._hass.states;
-      for (const [eid, state] of Object.entries(states)) {
-        if (eid.includes('email') && eid.startsWith('input_text.') && eid !== this._helperEntity('recipient') && state.state.includes('@')) {
-          this._detectedRecipient = state.state; break;
-        }
-      }
-      // Try config_entries API
+      // Try config_entries API to get ha_tools_email default recipient
       if (!this._detectedRecipient && !this._configEntriesChecked) {
         this._configEntriesChecked = true;
-        this._hass.callWS({ type: 'config_entries/get' }).then(entries => {
-          const smtpEntry = entries.find(e => e.domain === 'smtp' || (e.domain === 'notify' && e.title && /smtp|email|mail/i.test(e.title)));
-          if (smtpEntry && smtpEntry.data) {
-            const r = smtpEntry.data.recipient || smtpEntry.data.recipient_email;
-            if (r) { this._detectedRecipient = Array.isArray(r) ? r[0] : r; this._render(); }
+        this._hass.callWS({ type: 'config/config_entries' }).then(entries => {
+          const haToolsEntry = entries.find(e => e.domain === 'ha_tools_email');
+          if (haToolsEntry && haToolsEntry.data) {
+            const r = haToolsEntry.data.default_recipient;
+            if (r) { this._detectedRecipient = r; this._render(); }
           }
         }).catch(() => {});
       }
     }
-  }
-
-  _saveService(svc) {
-    this._saveToHelper('service', svc);
-    this._detectedService = svc;
-    this._renderTab();
   }
 
   _getRecipient() {
@@ -451,12 +431,6 @@ class HAEnergyEmail extends HTMLElement {
     this._saveToHelper('recipient', email);
     this._detectedRecipient = email;
     this._render();
-  }
-
-  _getNotifyService() {
-    if (this._config.notify_service) return this._config.notify_service;
-    if (this._detectedService) return this._detectedService;
-    return null;
   }
 
   _devices() {
@@ -643,10 +617,9 @@ class HAEnergyEmail extends HTMLElement {
     if (!this._hass) return;
     const L = this._lang === 'pl';
     const recipient = this._getRecipient();
-    const service = this._getNotifyService();
     const recipientDisplay = recipient
       ? `To: ${recipient}`
-      : (service ? `via notify.${service}` : (L ? 'Nie wykryto adresu email' : 'No email detected'));
+      : (L ? 'Nie ustawiono odbiorcy' : 'No recipient set');
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
 
@@ -787,8 +760,6 @@ class HAEnergyEmail extends HTMLElement {
         .email-input-row { display: flex; gap: 8px; align-items: center; }
         .email-input { flex: 1; padding: 8px 12px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs); font-size: 13px; font-family: 'Inter', sans-serif; background: var(--bento-card); color: var(--bento-text); outline: none; }
         .email-input:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px var(--bento-primary-light); }
-        .svc-select-btn { transition: all .2s; }
-        .svc-select-btn:not(.btn-primary):hover { background: var(--bento-primary-light) !important; }
         .email-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px 12px; background: var(--bento-success-light); border-radius: var(--bento-radius-xs); font-size: 12px; color: var(--bento-text); }
         .email-edit-btn { background: none; border: none; color: var(--bento-primary); cursor: pointer; font-size: 11px; padding: 2px 6px; font-family: 'Inter', sans-serif; }
         .email-edit-btn:hover { text-decoration: underline; }
@@ -1104,7 +1075,6 @@ class HAEnergyEmail extends HTMLElement {
   _tabSchedule() {
     const L = this._lang === 'pl';
     const recipient = this._getRecipient();
-    const service = this._getNotifyService();
     const dailyId = 'automation.send_daily_energy_report';
     const weeklyId = 'automation.send_weekly_energy_report';
     const monthlyId = 'automation.send_monthly_energy_report';
@@ -1117,7 +1087,7 @@ class HAEnergyEmail extends HTMLElement {
       if (state === 'off') return '<span class="badge badge-er">\u274C Disabled</span>';
       return '<span class="badge badge-wa">\u2795 ' + (L ? 'Nie utworzony' : 'Not Created') + '</span>';
     };
-    const recipientInfo = recipient ? `\u{1F4E7} ${recipient}` : (service ? `\u{1F4E7} via notify.${service}` : `\u{1F4E7} <i>${L ? 'Brak — ustaw email powy\u017Cej' : 'None — set email above'}</i>`);
+    const recipientInfo = recipient ? `\u{1F4E7} ${recipient}` : `\u{1F4E7} <i>${L ? 'Brak — ustaw email powy\u017Cej' : 'None — set email above'}</i>`;
     const sd = this._scheduleDefaults;
     const dayNames = L
       ? { mon: 'Poniedzia\u0142ek', tue: 'Wtorek', wed: '\u015Aroda', thu: 'Czwartek', fri: 'Pi\u0105tek', sat: 'Sobota', sun: 'Niedziela' }
@@ -1182,8 +1152,7 @@ class HAEnergyEmail extends HTMLElement {
     const isAuto = devices.length === 0 && autoDevices.length > 0;
     const today = new Date().toISOString().split('T')[0];
     const recipient = this._getRecipient();
-    const service = this._getNotifyService();
-    const recipientLine = recipient || (service ? `notify.${service}` : '—');
+    const recipientLine = recipient || '—';
     const periods = [
       { key: 'day', icon: '\u2600\uFE0F', titleL: 'Raport dzienny', titleE: 'Daily Report', rangeL: 'Ostatnie 24h', rangeE: 'Last 24h' },
       { key: 'week', icon: '\u{1F4C6}', titleL: 'Raport tygodniowy', titleE: 'Weekly Report', rangeL: 'Ostatnie 7 dni', rangeE: 'Last 7 days' },
@@ -1238,11 +1207,9 @@ class HAEnergyEmail extends HTMLElement {
 
   _tabSend() {
     const L = this._lang === 'pl';
-    const service = this._getNotifyService();
     const smtpConfig = this._renderSmtpSection();
     return `
-      <div class="info-row">\u{1F4E4}\u00A0 ${L ? 'R\u0119cznie wy\u015Blij raport energii via <b>notify.' + (service || 'email_report') + '</b>.' : 'Manually trigger an energy report via <b>notify.' + (service || 'email_report') + '</b>.'}</div>
-      ${!service ? `<div class="info-row info-warn">\u26A0\uFE0F\u00A0 ${L ? '<b>Nie wykryto serwisu email.</b> ' + this._t.smtpConfigWarning : '<b>No email service detected.</b> ' + this._t.smtpConfigWarning}</div>` : ''}
+      <div class="info-row">\u{1F4E4}\u00A0 ${L ? 'R\u0119cznie wy\u015Blij raport energii poprzez ha_tools_email.' : 'Manually trigger an energy report via ha_tools_email.'}</div>
       ${smtpConfig}
       <div style="font-size:12px;color:var(--bento-text-secondary);margin:16px 0 12px;padding:10px;background:var(--bento-primary-light);border-radius:var(--bento-radius-xs)">${L ? '💡 Konfiguracja SMTP w: HA Tools Panel → Settings → Log Email' : '💡 SMTP configuration in: HA Tools Panel → Settings → Log Email'}</div>
       <div class="schedule-card">
@@ -1293,7 +1260,6 @@ class HAEnergyEmail extends HTMLElement {
     const enabledCount = devices.filter(d => !excluded.has(d.key)).length;
 
     const recipient = this._getRecipient();
-    const service = this._getNotifyService();
     const price = this._getAvgRate();
     const currency = this._config.currency || 'PLN';
 
@@ -1413,35 +1379,7 @@ class HAEnergyEmail extends HTMLElement {
   _attachScheduleEvents() {
     const root = this.shadowRoot;
     const btnSmtpTest = root.getElementById('btn-smtp-test');
-    if (btnSmtpTest) { const svc = this._getNotifyService(); btnSmtpTest.addEventListener('click', () => this._testSmtp(svc)); }
-    root.querySelectorAll('.svc-select-btn').forEach(btn => {
-      btn.addEventListener('click', () => { this._saveService(btn.dataset.svc); });
-    });
-    root.querySelectorAll('.smtp-preset-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const yamlEl = root.getElementById('smtp-yaml');
-        if (yamlEl) yamlEl.textContent = this._smtpYaml(btn.dataset.preset);
-        root.querySelectorAll('.smtp-preset-btn').forEach(b => b.style.fontWeight = 'normal');
-        btn.style.fontWeight = '700';
-      });
-    });
-    const btnCopy = root.getElementById('btn-copy-yaml');
-    if (btnCopy) {
-      btnCopy.addEventListener('click', () => {
-        const yamlEl = root.getElementById('smtp-yaml');
-        if (yamlEl) {
-          navigator.clipboard.writeText(yamlEl.textContent).then(() => {
-            btnCopy.textContent = '\u2705 Copied!';
-            setTimeout(() => { btnCopy.textContent = '\uD83D\uDCCB Copy YAML'; }, 2000);
-          }).catch(() => {
-            const range = document.createRange(); range.selectNodeContents(yamlEl);
-            const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-            btnCopy.textContent = '\u2705 Selected \u2014 Ctrl+C';
-            setTimeout(() => { btnCopy.textContent = '\uD83D\uDCCB Copy YAML'; }, 3000);
-          });
-        }
-      });
-    }
+    if (btnSmtpTest) { btnSmtpTest.addEventListener('click', () => this._testSmtp()); }
     // Time inputs — save on change
     const timeInputs = [
       ['time-daily', 'daily_time', 'daily'],
@@ -1495,9 +1433,8 @@ class HAEnergyEmail extends HTMLElement {
 
   async _createAutomation(type, update = false) {
     if (!this._hass) return;
-    const service = this._getNotifyService();
     const recipient = this._getRecipient();
-    if (!service) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'Najpierw skonfiguruj SMTP' : 'Configure SMTP first')); return; }
+    if (!this._hasHaToolsEmail()) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'ha_tools_email nie zainstalowany' : 'ha_tools_email not installed')); return; }
     if (!recipient) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'Najpierw ustaw adres email' : 'Set email address first')); return; }
     const sd = this._scheduleDefaults;
     const L = this._lang === 'pl';
@@ -1574,11 +1511,11 @@ class HAEnergyEmail extends HTMLElement {
       `Generated by HA Energy Email card | ${this._getTariffLabel()}`
     ].join('\\n');
     const action = [{
-      service: `notify.${service}`,
+      service: 'ha_tools_email.send',
       data: {
-        title: `\u26A1 Energy ${typeName} Report \u2013 {{ now().strftime('%Y-%m-%d') }}`,
-        message: emailMsg,
-        target: recipient
+        subject: `\u26A1 Energy ${typeName} Report \u2013 {{ now().strftime('%Y-%m-%d') }}`,
+        body: emailMsg,
+        to: recipient
       }
     }];
     try {
@@ -1617,15 +1554,13 @@ class HAEnergyEmail extends HTMLElement {
     this._sending = true;
     this._renderTab(); this._attachSendEvents();
     const L = this._lang === 'pl';
-    const useBuiltIn = this._hasHaToolsEmail();
-    const svc = this._getNotifyService();
     const recipient = this._getRecipient();
     const price = this._getAvgRate();
     const currency = this._config.currency || 'PLN';
     const dateStr = new Date().toISOString().split('T')[0];
     const nowStr = new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { hour12: false });
     try {
-      if (!useBuiltIn && !svc) throw new Error(L ? 'Nie znaleziono serwisu email. Skonfiguruj SMTP w Ustawienia \u2192 Email/SMTP.' : 'No email service found. Configure SMTP in Settings \u2192 Email/SMTP.');
+      if (!this._hasHaToolsEmail()) throw new Error(L ? 'ha_tools_email nie zainstalowany. Skonfiguruj SMTP w Ustawienia \u2192 Email/SMTP.' : 'ha_tools_email not installed. Configure SMTP in Settings \u2192 Email/SMTP.');
       // Get device data — fetch from recorder for period reports
       const periodMap = { daily: 'day', weekly: 'week', monthly: 'month', quick: 'week' };
       const periodKey = periodMap[type] || 'week';
@@ -1703,19 +1638,9 @@ class HAEnergyEmail extends HTMLElement {
         </div>
       </div>`;
       const title = `\u26A1 ${typeName} ${L ? 'raport energii' : 'Energy Report'} \u2013 ${dateStr}`;
-      const plainText = `${typeName} ${L ? 'raport energii' : 'Energy Report'} - ${dateStr}\n${L ? 'Łącznie' : 'Total'}: ${totalKwh.toFixed(2)} kWh / ${totalCost.toFixed(2)} ${currency}\n${devices.map(d => `${d.name}: ${(d.month||0).toFixed(2)} kWh`).join('\n')}`;
-      if (useBuiltIn) {
-        // Built-in SMTP via ha_tools_email
-        await this._sendViaHaToolsEmail(recipient || '', title, plainText, html);
-      } else {
-        // Legacy: notify.* fallback
-        const svcData = { title, message: plainText, data: { html: html } };
-        if (recipient) {
-          const recipients = recipient.split(',').map(r => r.trim()).filter(r => r && r.includes('@'));
-          if (recipients.length > 0) svcData.target = recipients;
-        }
-        await this._hass.callService('notify', svc, svcData);
-      }
+      const plainText = `${typeName} ${L ? 'raport energii' : 'Energy Report'} - ${dateStr}\n${L ? '\u0141\u0105cznie' : 'Total'}: ${totalKwh.toFixed(2)} kWh / ${totalCost.toFixed(2)} ${currency}\n${devices.map(d => `${d.name}: ${(d.month||0).toFixed(2)} kWh`).join('\n')}`;
+      // Built-in SMTP via ha_tools_email
+      await this._sendViaHaToolsEmail(recipient || '', title, plainText, html);
       this._lastSent[type] = nowStr;
       this._showToast(`\u2705 ${typeName} ${L ? 'wys\u0142any!' : 'sent!'}`);
     } catch (e) { this._showToast('\u274C Error: ' + (e.message || 'Check HA logs')); }
@@ -1735,105 +1660,34 @@ class HAEnergyEmail extends HTMLElement {
     await this._hass.callService('ha_tools_email', 'send', data);
   }
 
-  // --- SMTP Detection & Setup (legacy notify fallback) ---
-
-  _detectSmtp() {
-    if (!this._hass || !this._hass.services || !this._hass.services.notify) return { found: false, services: [], defaultService: null };
-    const notifyServices = this._hass.services.notify;
-    // Exclude known non-email services
-    const nonEmailPatterns = /^(mobile_app_|google_assistant|alexa_media|lg_tv|persistent_notification$|notify$|send_message$|tts[_.]|rest[_.])/i;
-    const emailPatterns = /email|smtp|mail/i;
-    const emailServices = [];
-    for (const [key, svc] of Object.entries(notifyServices)) {
-      if (nonEmailPatterns.test(key)) continue;
-      const fields = svc.fields || {};
-      if (!(fields.message || fields.title)) continue;
-      // Include if name/key matches email patterns, or if it has a 'target' field (SMTP-like)
-      if (emailPatterns.test(key) || emailPatterns.test(svc.name || '') || fields.target) {
-        emailServices.push({ service: key, name: svc.name || key, description: svc.description || '', hasTitle: !!fields.title, hasTarget: !!fields.target });
-      }
-    }
-    const defaultService = emailServices.length > 0 ? emailServices[0].service : null;
-    return { found: emailServices.length > 0, services: emailServices, defaultService };
-  }
-
-  _smtpYaml(preset) {
-    const p = { gmail: { server: 'smtp.gmail.com', user: 'YOUR_EMAIL@gmail.com' }, outlook: { server: 'smtp.office365.com', user: 'YOUR_EMAIL@outlook.com' }, custom: { server: 'smtp.your-provider.com', user: 'your@email.com' } }[preset] || { server: 'smtp.gmail.com', user: 'YOUR_EMAIL@gmail.com' };
-    return 'notify:\n  - name: "email_report"\n    platform: smtp\n    server: "' + p.server + '"\n    port: 587\n    encryption: starttls\n    username: "' + p.user + '"\n    password: "YOUR_APP_PASSWORD"\n    sender: "' + p.user + '"\n    sender_name: "Home Assistant"\n    recipient:\n      - "' + p.user + '"';
-  }
+  // --- SMTP Configuration via ha_tools_email ---
 
   _renderSmtpSection() {
     const L = this._lang === 'pl';
-    // Built-in SMTP takes priority
     if (this._hasHaToolsEmail()) {
       return `<div class="smtp-section">
         <div class="smtp-header"><div class="smtp-icon">\u2705</div><div>
-          <div class="smtp-title">${L ? 'Wbudowany SMTP (ha_tools_email)' : 'Built-in SMTP (ha_tools_email)'}</div>
-          <div class="smtp-detail">${L ? 'Konfiguracja w <b>Ustawienia \u2192 Email/SMTP</b>' : 'Configure in <b>Settings \u2192 Email/SMTP</b>'}</div>
+          <div class="smtp-title">${L ? 'SMTP skonfigurowany (ha_tools_email)' : 'SMTP Configured (ha_tools_email)'}</div>
+          <div class="smtp-detail">${L ? 'Konfiguracja w' : 'Configure in'} <b>${L ? 'Ustawienia \u2192 Email/SMTP' : 'Settings \u2192 Email/SMTP'}</b></div>
         </div></div>
-      </div>`;
-    }
-    const smtp = this._detectSmtp();
-    const currentService = this._getNotifyService();
-    if (smtp.found && smtp.services.length > 0) {
-      const svcList = smtp.services.map(s => `<code>notify.${s.service}</code>`).join(', ');
-      const hasMultiple = smtp.services.length > 1;
-      return `<div class="smtp-section">
-        <div class="smtp-header"><div class="smtp-icon">\u2705</div><div>
-          <div class="smtp-title">${L ? 'SMTP skonfigurowany' : 'SMTP Configured'}</div>
-          <div class="smtp-detail">${L ? 'Dost\u0119pne' : 'Available'}: ${svcList}</div>
-        </div></div>
-        ${hasMultiple ? `<div style="margin-top:12px">
-          <label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary);display:block;margin-bottom:4px">${L ? 'Wybierz serwis do wysy\u0142ki' : 'Select notify service'}:</label>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            ${smtp.services.map(s => `<button class="btn svc-select-btn ${s.service === currentService ? 'btn-primary' : ''}" data-svc="${s.service}" style="font-size:12px;padding:6px 14px">notify.${s.service}</button>`).join('')}
-          </div>
-        </div>` : `<div class="smtp-detail" style="margin-top:8px">${L ? 'U\u017Cywany' : 'Using'}: <code>notify.${currentService || smtp.defaultService}</code></div>`}
         <div class="smtp-actions" style="margin-top:12px">
           <button class="btn btn-primary" id="btn-smtp-test">\uD83D\uDCE7 ${L ? 'Wy\u015Blij testowy email' : 'Send Test Email'}</button>
-          <a class="btn" href="/config/integrations/dashboard" target="_blank" style="text-decoration:none">\u2699\uFE0F ${L ? 'Integracje' : 'Integrations'}</a>
         </div>
       </div>`;
     }
-    const gmailYaml = this._smtpYaml('gmail');
     return `<div class="smtp-section smtp-missing">
       <div class="smtp-header"><div class="smtp-icon">\u26A0\uFE0F</div><div>
         <div class="smtp-title">${L ? 'SMTP nie skonfigurowany' : 'SMTP Not Configured'}</div>
-        <div class="smtp-detail">${L ? 'Nie wykryto serwisu email.' : 'No email notify service detected.'}</div>
+        <div class="smtp-detail">${L ? 'Otw\u00F3rz' : 'Open'} <b>HA Tools \u2192 ${L ? 'Ustawienia' : 'Settings'} \u2192 Email/SMTP</b></div>
       </div></div>
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        <a class="btn btn-primary" href="/config/integrations/dashboard/add?domain=smtp" target="_blank" style="text-decoration:none">\u26A1 ${L ? 'Dodaj integracj\u0119 SMTP' : 'Add SMTP Integration'}</a>
-        <a class="btn" href="/config/integrations/dashboard" target="_blank" style="text-decoration:none">\u2699\uFE0F ${L ? 'Integracje' : 'Integrations'}</a>
-      </div>
-      <div class="smtp-guide">
-        <div class="guide-title" style="margin-top:16px">\uD83D\uDCDD ${L ? 'Alternatywa: konfiguracja YAML' : 'Alternative: YAML config'}</div>
-        <div class="guide-steps">
-          <div class="guide-step"><div class="step-num">1</div><div>
-            <p>${L ? 'Skopiuj YAML do' : 'Copy YAML into'} <code>configuration.yaml</code>:</p>
-            <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
-              <button class="btn smtp-preset-btn" data-preset="gmail" style="font-size:12px">\uD83D\uDCE7 Gmail</button>
-              <button class="btn smtp-preset-btn" data-preset="outlook" style="font-size:12px">\uD83D\uDCE8 Outlook</button>
-              <button class="btn smtp-preset-btn" data-preset="custom" style="font-size:12px">\u2699\uFE0F Custom</button>
-            </div>
-            <pre id="smtp-yaml">${gmailYaml}</pre>
-            <button class="btn" id="btn-copy-yaml" style="margin-top:6px;font-size:12px">\uD83D\uDCCB Copy YAML</button>
-          </div></div>
-          <div class="guide-step"><div class="step-num">2</div><div>
-            <p><b>Gmail</b>: <a href="https://myaccount.google.com/apppasswords" target="_blank">App Password</a>. <b>Outlook</b>: <a href="https://account.live.com/proofs/AppPassword" target="_blank">App Password</a>.</p>
-          </div></div>
-          <div class="guide-step"><div class="step-num">3</div><div>
-            <p><a href="/developer-tools/yaml" target="_blank">Developer Tools \u2192 YAML</a> \u2192 Check & Restart.</p>
-          </div></div>
-        </div>
-      </div>
     </div>`;
   }
 
-  async _testSmtp(service) {
-    if (!this._hass || !service) { this._showToast('\u274C No SMTP service found'); return; }
+  async _testSmtp() {
+    if (!this._hasHaToolsEmail()) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'ha_tools_email nie zainstalowany' : 'ha_tools_email not installed')); return; }
     try {
-      await this._hass.callService('notify', service, { title: '\u2705 HA Energy Email \u2014 Test', message: 'Test email from HA Tools Energy Email.\n\nTimestamp: ' + new Date().toISOString() });
-      this._showToast('\u2705 Test email sent via notify.' + service);
+      await this._hass.callService('ha_tools_email', 'test', {});
+      this._showToast('\u2705 ' + (this._lang === 'pl' ? 'Testowy email wysy\u0142any!' : 'Test email sent!'));
     } catch (e) { this._showToast('\u274C SMTP test failed: ' + (e.message || 'Check HA logs')); }
   }
 
