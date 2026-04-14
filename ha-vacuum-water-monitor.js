@@ -806,6 +806,11 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const totalMl = device.water_total_ml || (calib ? calib.tank_ml : 0);
     let remainingL = null, percentRemaining = null, usedMl = null;
 
+    // Validation: Check if critical water tracking entities exist
+    const hasWaterSensor = device.water_sensor && this._hass.states[device.water_sensor];
+    const hasWaterUsedInput = device.water_used_input && this._hass.states[device.water_used_input];
+    const configMissing = totalMl > 0 && !hasWaterSensor && !hasWaterUsedInput;
+
     if (totalMl > 0) {
       const waterSensorRaw = this._getStateValue(device.water_sensor);
       if (waterSensorRaw !== null && waterSensorRaw !== 'unavailable' && waterSensorRaw !== 'unknown') {
@@ -870,6 +875,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
       mainBrushH, sideBrushH, filterH, sensorH, dockBrushH, dockStrainerH,
       dockCleanWaterFull, dockDirtyWaterFull, waterShortage, mopAttached, mopDrying,
       areaCleaned, durationSec, lastCleanStart, lastCleanEnd,
+      configMissing,
     };
   }
 
@@ -986,6 +992,17 @@ class HAVacuumWaterMonitor extends HTMLElement {
         + (data.percentRemaining !== null && data.percentRemaining <= (cfg.critical_threshold || 10) && !data.waterEmpty
           ? `<div class="alert-banner alert-warn">\u26A0\uFE0F Water low (${Math.round(data.percentRemaining)}%) - refill soon.</div>` : '');
 
+    const configMissingBanner = data.configMissing
+      ? `<div style="padding:12px 16px;background:rgba(245,158,11,0.08);border:1.5px solid #f59e0b;border-radius:8px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px">\u{1F527}</span>
+            <div style="font-size:13px;color:var(--bento-text,#1a1a2e);">
+              <b>Konfiguracja:</b> Licznik wody nie skonfigurowany. Ustaw <code style="background:var(--bento-bg);padding:2px 6px;border-radius:4px">water_used_input</code> w opcjach karty. Patrz README.
+            </div>
+          </div>
+        </div>`
+      : '';
+
     const dockHtml = (cfg.show_dock_status !== false) ? this._buildDockSection(device, data) : '';
     // Q1/Q2: Calibration info based on brand profile
     let calibHtml = '';
@@ -1020,6 +1037,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     return `
       <div class="tab-content">
         ${alertBanner}
+        ${configMissingBanner}
         ${noWaterTracking ? `<div class="no-water-note">\uD83D\uDCCC This device doesn't track water levels</div>` : `
         <div class="device-body">
           <div class="gauge-wrap">

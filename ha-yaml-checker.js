@@ -47,19 +47,13 @@ class HAYamlChecker extends HTMLElement {
   static get KEY_FILES() {
     return [
       { path: 'configuration.yaml', desc: 'G\u0142\u00F3wna konfiguracja HA', critical: true },
-      { path: 'automations.yaml', desc: 'Automations', critical: true },
+      { path: 'automations.yaml', desc: 'Automations', critical: false },
       { path: 'scripts.yaml', desc: 'Skrypty', critical: false },
       { path: 'scenes.yaml', desc: 'Sceny', critical: false },
-      { path: 'utility_meter.yaml', desc: 'Liczniki', critical: false },
+      { path: 'groups.yaml', desc: 'Grupy', critical: false },
+      { path: 'customize.yaml', desc: 'Customize', critical: false },
       { path: 'secrets.yaml', desc: 'Sekrety (wra\u017Cliwe dane)', critical: false },
-      { path: 'packages/baby_all.yaml', desc: 'Baby Tracker', critical: false },
-      { path: 'packages/energy_reports.yaml', desc: 'Energy Reports', critical: false },
-      { path: 'packages/log_email.yaml', desc: 'Log Email', critical: false },
-      { path: 'packages/cry_detection.yaml', desc: 'Cry Detection', critical: false },
-      { path: 'packages/dishwasher.yaml', desc: 'Dishwasher', critical: false },
-      { path: 'packages/domofon.yaml', desc: 'Domofon', critical: false },
-      { path: 'packages/roborock.yaml', desc: 'Roborock', critical: false },
-      { path: 'packages/power_calc.yaml', desc: 'Power Calc', critical: false },
+      { path: 'ui-lovelace.yaml', desc: 'Lovelace (YAML mode)', critical: false },
     ];
   }
 
