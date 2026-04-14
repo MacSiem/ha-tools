@@ -136,6 +136,13 @@ class HaEncodingFixer extends HTMLElement {
         fixYamlAll: 'Napraw wszystkie pliki',
         yamlFixing: 'Naprawianie...',
         yamlFixSuccess: 'Naprawiono',
+        scanApi: 'Skanuj automacje/skrypty/sceny',
+        apiScanning: 'Skan przez HA API...',
+        apiScope: 'Skanuje i naprawia przez HA REST API (automations.yaml, scripts.yaml, scenes.yaml). Dziala od razu po instalacji z HACS, bez konfiguracji shell_command.',
+        apiNoIssues: 'Brak mojibake w automacjach/skryptach/scenach',
+        apiSkipped: 'Pominieto (brak id)',
+        advancedScan: 'Skan zaawansowany (wszystkie pliki)',
+        advancedScanDesc: 'Opcjonalnie: pelny skan wszystkich plikow YAML w /config/ (w tym configuration.yaml, packages/) wymaga dodania shell_command.',
         tabRestore: 'Odzyskiwanie',
         restoreTitle: 'Odzyskiwanie utraconych zasobow',
         restoreDesc: 'Porownuje zaladowane zasoby lovelace z kopia zapasowa i wykrywa brakujace po uszkodzeniu pliku .storage',
@@ -231,6 +238,13 @@ class HaEncodingFixer extends HTMLElement {
         fixYamlAll: 'Fix all files',
         yamlFixing: 'Fixing...',
         yamlFixSuccess: 'Fixed',
+        scanApi: 'Scan automations/scripts/scenes',
+        apiScanning: 'Scanning via HA API...',
+        apiScope: 'Scans and fixes via HA REST API (automations.yaml, scripts.yaml, scenes.yaml). Works out-of-the-box after HACS install, no shell_command setup required.',
+        apiNoIssues: 'No mojibake in automations/scripts/scenes',
+        apiSkipped: 'Skipped (no id)',
+        advancedScan: 'Advanced scan (all files)',
+        advancedScanDesc: 'Optional: full scan of every YAML file in /config/ (including configuration.yaml, packages/) requires shell_command setup.',
         tabRestore: 'Restore',
         restoreTitle: 'Recover lost resources',
         restoreDesc: 'Compares loaded lovelace resources with backup snapshot â€” detects missing entries after .storage file corruption',
@@ -972,7 +986,11 @@ class HaEncodingFixer extends HTMLElement {
     const checkConfig = sr.querySelector('[data-action="check-config"]');
     if (checkConfig) checkConfig.addEventListener('click', () => this._checkConfig());
 
-    // Deep YAML scan (requires shell_command setup)
+    // API scan (zero-config, HACS-friendly) -- primary path for mojibake in automations/scripts/scenes
+    const scanApi = sr.querySelector('[data-action="scan-api"]');
+    if (scanApi) scanApi.addEventListener('click', () => this._scanViaApi());
+
+    // Deep YAML scan (optional, requires shell_command setup)
     const scanDeep = sr.querySelector('[data-action="scan-yaml-deep"]');
     if (scanDeep) scanDeep.addEventListener('click', () => this._scanYamlDeep());
 
@@ -1107,6 +1125,207 @@ class HaEncodingFixer extends HTMLElement {
     return !!(this._hass?.services?.shell_command?.[cmd]);
   }
 
+  // --- Deep walk helpers (used by zero-config API scan/fix) ---
+  _deepDetectMojibake(value, samples, pathArr) {
+    pathArr = pathArr || [];
+    samples = samples || [];
+    let count = 0;
+    if (typeof value === 'string') {
+      const det = this._detectMojibake(value);
+      if (det && det.fixed !== value && det.method !== 'suspicious') {
+        count = 1;
+        if (samples.length < 3) {
+          samples.push({
+            path: pathArr.join('.') || '(root)',
+            before: value.length > 80 ? value.slice(0, 80) + '\u2026' : value,
+            after: det.fixed.length > 80 ? det.fixed.slice(0, 80) + '\u2026' : det.fixed
+          });
+        }
+      }
+      return { count, samples };
+    }
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        const r = this._deepDetectMojibake(value[i], samples, pathArr.concat([i]));
+        count += r.count;
+      }
+      return { count, samples };
+    }
+    if (value && typeof value === 'object') {
+      for (const k of Object.keys(value)) {
+        const r = this._deepDetectMojibake(value[k], samples, pathArr.concat([k]));
+        count += r.count;
+      }
+      return { count, samples };
+    }
+    return { count, samples };
+  }
+
+  _deepFixStrings(value, stats) {
+    if (typeof value === 'string') {
+      const det = this._detectMojibake(value);
+      if (det && det.fixed !== value && det.method !== 'suspicious') {
+        stats.fixed++;
+        return det.fixed;
+      }
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.map(v => this._deepFixStrings(v, stats));
+    }
+    if (value && typeof value === 'object') {
+      const out = {};
+      for (const k of Object.keys(value)) {
+        out[k] = this._deepFixStrings(value[k], stats);
+      }
+      return out;
+    }
+    return value;
+  }
+
+  // --- Zero-config scan via HA REST config API ---
+  // Works out-of-the-box after HACS install. Covers automations.yaml, scripts.yaml, scenes.yaml.
+  async _scanViaApi() {
+    if (!this._hass || this._yamlScanning) return;
+    this._yamlScanning = true;
+    this._yamlResults = null;
+    this._restoreScanning = false;
+    this._restoreMissing = [];
+    this._restoreBackupInfo = null;
+    this._restoreSelectedIds = new Set();
+    this._updateUI();
+
+    const domains = [
+      { domain: 'automation', file: 'automations.yaml' },
+      { domain: 'script',     file: 'scripts.yaml' },
+      { domain: 'scene',      file: 'scenes.yaml' }
+    ];
+
+    const issues = [];
+    let scanned = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    try {
+      for (const d of domains) {
+        const entities = Object.values(this._hass.states || {}).filter(s => s.entity_id.startsWith(d.domain + '.'));
+        for (const st of entities) {
+          let objectId;
+          if (d.domain === 'automation') {
+            objectId = st.attributes && st.attributes.id;
+            if (!objectId) { skipped++; continue; }
+          } else {
+            objectId = st.entity_id.split('.')[1];
+          }
+          scanned++;
+          try {
+            const cfg = await this._hass.callApi('GET', 'config/' + d.domain + '/config/' + objectId);
+            const { count, samples } = this._deepDetectMojibake(cfg, [], []);
+            if (count > 0) {
+              const alias = (cfg && (cfg.alias || cfg.name)) || st.entity_id;
+              const ctx = samples.map(s => s.path + ': ' + s.before + ' \u2192 ' + s.after).join(' | ');
+              issues.push({
+                file: d.file,
+                line: 0,
+                issue: 'mojibake',
+                detail: count + ' string(s) in "' + alias + '"',
+                context: ctx,
+                fixable: true,
+                via: 'api',
+                domain: d.domain,
+                object_id: String(objectId),
+                entity_id: st.entity_id,
+                alias: alias,
+                mojibake_count: count
+              });
+            }
+          } catch (e) {
+            errors++;
+            console.warn('[Encoding Fixer] API scan ' + d.domain + '/' + objectId + ':', e);
+          }
+        }
+      }
+
+      this._yamlResults = {
+        timestamp: Math.floor(Date.now() / 1000),
+        mode: 'api_scan',
+        scanned_files: scanned,
+        skipped_files: skipped,
+        total_issues: issues.length,
+        fixed_files: 0,
+        issues: issues
+      };
+      if (errors) this._yamlResults.warning = errors + ' entries failed to fetch';
+    } catch (e) {
+      console.warn('[Encoding Fixer] API scan error:', e);
+      this._yamlResults = { error: e.message, scanned_files: scanned, total_issues: 0, issues: [] };
+    }
+
+    this._yamlScanning = false;
+    this._updateUI();
+  }
+
+  // Fix one API-scanned issue: GET config -> deep-replace -> POST back -> reload domain
+  async _fixConfigIssueByIdx(idx) {
+    if (!this._hass || !this._yamlResults) return;
+    const issue = this._yamlResults.issues[idx];
+    if (!issue || issue.via !== 'api') return;
+    const t = this._t;
+    try {
+      const cfg = await this._hass.callApi('GET', 'config/' + issue.domain + '/config/' + issue.object_id);
+      const stats = { fixed: 0 };
+      const fixed = this._deepFixStrings(cfg, stats);
+      if (stats.fixed === 0) {
+        this._showToast(issue.file + ': nothing to fix', 'info');
+        return;
+      }
+      await this._hass.callApi('POST', 'config/' + issue.domain + '/config/' + issue.object_id, fixed);
+      try { await this._hass.callService(issue.domain, 'reload', {}); } catch(e) { /* soft */ }
+      this._showToast(t.yamlFixSuccess + ': ' + issue.file + ' (' + stats.fixed + ')', 'success');
+      this._addFixLog('yaml', issue.file + ':' + issue.entity_id, 'success', stats.fixed + ' strings');
+      await this._scanViaApi();
+    } catch (e) {
+      console.warn('[Encoding Fixer] API fix error:', e);
+      this._showToast(t.yamlFixError + ': ' + e.message, 'error');
+      this._addFixLog('yaml', issue.file + ':' + issue.entity_id, 'failed', e.message);
+    }
+  }
+
+  // Fix all API-scanned issues in a single batch, then reload touched domains
+  async _fixAllConfigIssues() {
+    if (!this._hass || !this._yamlResults) return;
+    const t = this._t;
+    const issues = (this._yamlResults.issues || []).filter(i => i.via === 'api' && i.fixable);
+    if (issues.length === 0) return;
+
+    const reloadDomains = new Set();
+    let ok = 0, fail = 0, totalStrings = 0;
+    for (const issue of issues) {
+      try {
+        const cfg = await this._hass.callApi('GET', 'config/' + issue.domain + '/config/' + issue.object_id);
+        const stats = { fixed: 0 };
+        const fixed = this._deepFixStrings(cfg, stats);
+        if (stats.fixed > 0) {
+          await this._hass.callApi('POST', 'config/' + issue.domain + '/config/' + issue.object_id, fixed);
+          totalStrings += stats.fixed;
+          reloadDomains.add(issue.domain);
+          ok++;
+          this._addFixLog('yaml', issue.file + ':' + issue.entity_id, 'success', stats.fixed + ' strings');
+        }
+      } catch (e) {
+        fail++;
+        console.warn('[Encoding Fixer] batch fix error:', e);
+        this._addFixLog('yaml', issue.file + ':' + issue.entity_id, 'failed', e.message);
+      }
+    }
+    for (const dom of reloadDomains) {
+      try { await this._hass.callService(dom, 'reload', {}); } catch(e) { /* soft */ }
+    }
+    const kind = fail ? 'warning' : 'success';
+    this._showToast(t.yamlFixSuccess + ': ' + ok + ' file(s), ' + totalStrings + ' string(s)' + (fail ? ', ' + fail + ' failed' : ''), kind);
+    await this._scanViaApi();
+  }
+
   // --- Config check (built-in, zero setup) ---
   async _checkConfig() {
     if (!this._hass || this._yamlScanning) return;
@@ -1149,10 +1368,17 @@ class HaEncodingFixer extends HTMLElement {
 
   // --- Deep file scan (requires shell_command setup) ---
   async _fixYamlFile(idx) {
-    if (!this._hass || !this._yamlResults || !this._hasShellCommand('fix_encoding')) return;
-    const t = this._t;
+    if (!this._hass || !this._yamlResults) return;
     const issue = this._yamlResults.issues[idx];
     if (!issue || (issue.issue !== 'bom' && issue.issue !== 'mojibake')) return;
+
+    // Dispatch: API-based issue (zero-config) vs. shell_command-based issue
+    if (issue.via === 'api') {
+      return this._fixConfigIssueByIdx(idx);
+    }
+
+    if (!this._hasShellCommand('fix_encoding')) return;
+    const t = this._t;
     try {
       await this._hass.callService('shell_command', 'fix_encoding', {});
       await new Promise(r => setTimeout(r, 2000));
@@ -1167,8 +1393,16 @@ class HaEncodingFixer extends HTMLElement {
   }
 
   async _fixYamlAll() {
-    if (!this._hass || !this._yamlResults || !this._hasShellCommand('fix_encoding')) return;
+    if (!this._hass || !this._yamlResults) return;
     const t = this._t;
+
+    // Dispatch: API-based issues (zero-config) vs. shell_command-based
+    const apiIssues = (this._yamlResults.issues || []).filter(i => i.via === 'api' && i.fixable);
+    if (apiIssues.length > 0) {
+      return this._fixAllConfigIssues();
+    }
+
+    if (!this._hasShellCommand('fix_encoding')) return;
     try {
       await this._hass.callService('shell_command', 'fix_encoding', {});
       await new Promise(r => setTimeout(r, 3000));
@@ -1513,23 +1747,29 @@ class HaEncodingFixer extends HTMLElement {
     if (!this._yamlScanning && this._yamlResults) {
       if (this._yamlResults.error) {
         resultsHtml = `<div class="section"><div class="empty-state" style="color:var(--bento-error)">\u26A0\uFE0F ${t.yamlRunError}<br><small>${this._escapeHtml(this._yamlResults.error)}</small></div></div>`;
-        resultsHtml = `<div class="section"><div class="empty-state">\u2705 ${t.yamlOk}<br><small>${t.yamlScannedFiles}: ${this._yamlResults.scanned_files}</small></div></div>`;
+      } else if (!this._yamlResults.issues || this._yamlResults.total_issues === 0) {
+        const okMsg = this._yamlResults.mode === 'api_scan' ? t.apiNoIssues : t.yamlOk;
+        const skipped = this._yamlResults.skipped_files ? ` (${t.apiSkipped}: ${this._yamlResults.skipped_files})` : '';
+        resultsHtml = `<div class="section"><div class="empty-state">\u2705 ${okMsg}<br><small>${t.yamlScannedFiles}: ${this._yamlResults.scanned_files}${skipped}</small></div></div>`;
       } else {
-        const fixableIssues = this._yamlResults.issues.filter(i => i.issue === 'bom' || i.issue === 'mojibake');
+        const fixableIssues = this._yamlResults.issues.filter(i => i.fixable);
         const rows = this._yamlResults.issues.map((issue, idx) => {
           const issueLabel = {
             'bom': 'BOM',
             'mojibake': 'Mojibake',
             'invalid_utf8': 'Invalid UTF-8',
             'null_byte': 'Null byte',
-            'read_error': 'Read error'
+            'read_error': 'Read error',
+            'config_error': 'Config error'
           }[issue.issue] || issue.issue;
           const issueClass = issue.issue === 'bom' || issue.issue === 'mojibake' ? 'issue-bom' : 'issue-broken_url';
-          const fixable = (issue.issue === 'bom' || issue.issue === 'mojibake') && hasDeepFix;
+          // Use per-issue fixable flag (set at scan time) instead of re-checking shell_command
+          const fixable = issue.fixable === true || ((issue.issue === 'bom' || issue.issue === 'mojibake') && hasDeepFix);
+          const location = issue.entity_id ? (issue.entity_id) : (issue.line > 0 ? ':' + issue.line : '');
           return `<div class="yaml-row">
             <div class="yaml-file">${this._escapeHtml(issue.file)}</div>
-            <div class="yaml-line">${issue.line > 0 ? ':' + issue.line : ''}</div>
-            <div class="yaml-issue ${issueClass}">${issueLabel}</div>
+            <div class="yaml-line">${this._escapeHtml(location)}</div>
+            <div class="yaml-issue ${issueClass}">${issueLabel}${issue.mojibake_count ? ' \u00D7' + issue.mojibake_count : ''}</div>
             <div class="yaml-detail">${this._escapeHtml(issue.detail || '')}</div>
             ${issue.context ? `<div class="yaml-context"><code>${this._escapeHtml(issue.context)}</code></div>` : ''}
             ${fixable ? `<button class="btn btn-sm btn-primary" data-fix-yaml="${idx}">${t.fixYamlFile}</button>` : ''}
@@ -1548,22 +1788,20 @@ class HaEncodingFixer extends HTMLElement {
       }
     }
 
-    // Setup guide for deep scan
+    // Optional advanced scan setup (shell_command path) -- only shown as informational
     const setupGuide = !hasDeepScan ? `
       <div class="section info-section">
-        <h3>\uD83D\uDD27 ${this._lang === 'pl' ? 'Zaawansowany skan plikow' : 'Advanced file scan'}</h3>
+        <h3>\uD83D\uDD27 ${t.advancedScan}</h3>
         <p style="font-size:13px;color:var(--bento-text-secondary);margin-bottom:12px;">
-          ${this._lang === 'pl'
-            ? 'Podstawowy skan (Sprawdz config) dziala bez konfiguracji. Aby uruchomic pelny skan BOM/mojibake wszystkich plikow YAML, dodaj do <code>configuration.yaml</code>:'
-            : 'Basic scan (Check config) works without setup. To enable full BOM/mojibake scanning of all YAML files, add to <code>configuration.yaml</code>:'}
+          ${t.advancedScanDesc}
         </p>
         <div class="setup-code"><code>shell_command:
-  scan_encoding: "python3 /config/python_scripts/encoding_scanner.py"
+  scan_encoding: "python3 /config/python_scripts/encoding_scanner.py scan"
   fix_encoding: "python3 /config/python_scripts/encoding_scanner.py fix"</code></div>
         <p style="font-size:12px;color:var(--bento-text-secondary);margin-top:8px;">
           ${this._lang === 'pl'
-            ? 'Skrypt <code>encoding_scanner.py</code> jest dolaczony w repozytorium ha-tools-panel. Skopiuj go do <code>/config/python_scripts/</code> i zrestartuj HA.'
-            : 'The <code>encoding_scanner.py</code> script is included in the ha-tools-panel repository. Copy it to <code>/config/python_scripts/</code> and restart HA.'}
+            ? 'Skrypt <code>encoding_scanner.py</code> jest dolaczony w repozytorium ha-tools. Skopiuj go do <code>/config/python_scripts/</code> i zrestartuj HA.'
+            : 'The <code>encoding_scanner.py</code> script is included in the ha-tools repository. Copy it to <code>/config/python_scripts/</code> and restart HA.'}
         </p>
       </div>
     ` : '';
@@ -1573,15 +1811,18 @@ class HaEncodingFixer extends HTMLElement {
         <div class="scan-header">
           <h3>${t.yamlTitle}</h3>
           <div class="scan-buttons">
-            <button class="btn btn-primary" data-action="check-config" ${this._yamlScanning ? 'disabled' : ''}>
+            <button class="btn btn-primary" data-action="scan-api" ${this._yamlScanning ? 'disabled' : ''}>
+              ${t.scanApi}
+            </button>
+            <button class="btn btn-secondary" data-action="check-config" ${this._yamlScanning ? 'disabled' : ''}>
               ${this._lang === 'pl' ? 'Sprawdz config' : 'Check config'}
             </button>
-            ${hasDeepScan ? `<button class="btn btn-primary" data-action="scan-yaml-deep" ${this._yamlScanning ? 'disabled' : ''}>
+            ${hasDeepScan ? `<button class="btn btn-secondary" data-action="scan-yaml-deep" ${this._yamlScanning ? 'disabled' : ''}>
               ${this._lang === 'pl' ? 'Pelny skan BOM/mojibake' : 'Full BOM/mojibake scan'}
             </button>` : ''}
           </div>
         </div>
-        <p class="section-desc">${t.yamlDesc}</p>
+        <p class="section-desc">${t.apiScope}</p>
         ${scanStatus}
       </div>
       ${resultsHtml}
