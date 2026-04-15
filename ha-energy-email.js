@@ -654,9 +654,18 @@ class HAEnergyEmail extends HTMLElement {
 :host {
           font-family: 'Inter', sans-serif;
         }
-        @media (prefers-color-scheme: dark) {
-          :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
-        }
+        
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
         .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); box-sizing: border-box; max-width: 100%; overflow: hidden; }
         .header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
         .header-icon { font-size: 24px; }

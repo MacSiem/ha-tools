@@ -494,7 +494,6 @@ canvas {
           .column { min-width: unset; }
           h2 { font-size: 18px; }
           h3 { font-size: 15px; }
-        }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
           .tab-btn, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }

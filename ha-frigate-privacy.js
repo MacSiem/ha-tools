@@ -221,6 +221,7 @@ class HaFrigatePrivacy extends HTMLElement {
     // Update camera detection and status on EVERY hass update (not just once)
     // This ensures camera friendly_name changes are reflected, and status is always current
     this._detectCameras();
+    this._checkFrigateSupport();
     this._updateFrigateStatus();
 
     if (!this._firstHassRender) {
@@ -400,6 +401,93 @@ class HaFrigatePrivacy extends HTMLElement {
           name: this._hass.states[id].attributes.friendly_name || id
         }));
     }
+  }
+
+  // --- Frigate version check ---
+  // Minimum supported Frigate version. Below 0.14 the master switch
+  // `switch.{camera}_enabled` does not exist and the privacy toggle cannot
+  // fully disable the camera (detection/stream may keep running).
+  static get MIN_FRIGATE_VERSION() { return { major: 0, minor: 14 }; }
+  static get TESTED_FRIGATE_VERSION() { return '0.17.1'; }
+
+  _parseFrigateVersion(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    const m = raw.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
+    if (!m) return null;
+    return { major: parseInt(m[1]), minor: parseInt(m[2]), patch: parseInt(m[3] || '0'), raw: raw };
+  }
+
+  _detectFrigateVersion() {
+    if (!this._hass) return null;
+    // 1) update.* entity (most reliable — HA Frigate integration exposes one)
+    const updateEntity = Object.keys(this._hass.states).find(id =>
+      id.startsWith('update.') && id.includes('frigate')
+    );
+    if (updateEntity) {
+      const attrs = this._hass.states[updateEntity].attributes || {};
+      const v = this._parseFrigateVersion(attrs.installed_version || attrs.latest_version);
+      if (v) return v;
+    }
+    // 2) sensor.frigate_* with version attribute
+    for (const id of Object.keys(this._hass.states)) {
+      if (!id.includes('frigate')) continue;
+      const attrs = this._hass.states[id].attributes || {};
+      const v = this._parseFrigateVersion(attrs.version || attrs.sw_version || attrs.installed_version);
+      if (v) return v;
+    }
+    return null;
+  }
+
+  _checkFrigateSupport() {
+    if (!this._hass) return { supported: true, reason: null };
+    const t = this._t || {};
+    const version = this._detectFrigateVersion();
+    const min = this.constructor.MIN_FRIGATE_VERSION;
+    const tested = this.constructor.TESTED_FRIGATE_VERSION;
+
+    // Proxy check: does ANY detected camera have the _enabled master switch?
+    const hasEnabledSwitch = (this._cameras || []).some(c => {
+      const name = c.entity_id.replace('camera.', '');
+      return !!this._hass.states['switch.' + name + '_enabled'];
+    });
+
+    let supported = true;
+    let reason = null;
+
+    if (version) {
+      const tooOld = version.major < min.major ||
+                     (version.major === min.major && version.minor < min.minor);
+      if (tooOld) {
+        supported = false;
+        reason = 'Frigate ' + version.raw + ' nie jest wspierane. Minimum: ' +
+                 min.major + '.' + min.minor + ' (testowane: ' + tested + '). ' +
+                 'Brak master switcha switch.{name}_enabled \u2014 privacy toggle nie wy\u0142\u0105czy kamery w pe\u0142ni.';
+      }
+    } else if (!hasEnabledSwitch && (this._cameras || []).length > 0) {
+      // Couldn't read version AND no _enabled switch found -> likely pre-0.14
+      supported = false;
+      reason = 'Nie wykryto wersji Frigate i \u017Cadna kamera nie ma switch.{name}_enabled. ' +
+               'Wymagane Frigate ' + min.major + '.' + min.minor + '+ (testowane: ' + tested + ').';
+    }
+
+    this._frigateVersion = version;
+    this._frigateSupported = supported;
+    this._frigateUnsupportedReason = reason;
+
+    if (!supported && !this._unsupportedWarningShown) {
+      this._unsupportedWarningShown = true;
+      console.error('[Frigate Privacy] ' + reason);
+      try { this._showToast && this._showToast('\u26A0\uFE0F ' + reason, 'error'); } catch(_) {}
+      // Persistent notification so user sees it even if toast is missed
+      try {
+        this._hass.callService('persistent_notification', 'create', {
+          notification_id: 'frigate_privacy_unsupported',
+          title: '\u26A0\uFE0F Frigate Privacy \u2014 niewspierana wersja',
+          message: reason + '\n\nZaktualizuj Frigate lub zmie\u0144 konfiguracj\u0119.'
+        });
+      } catch(_) {}
+    }
+    return { supported: supported, reason: reason, version: version };
   }
 
   // --- Persistence via localStorage ---
@@ -750,16 +838,37 @@ class HaFrigatePrivacy extends HTMLElement {
     // Instead, we only toggle the Frigate switches (detect/recordings/snapshots/motion)
     // which pauses processing without stopping the camera stream or releasing the TPU.
     const switchAction = turnOn ? 'turn_on' : 'turn_off';
+    let toggledCount = 0;
+    const missingPerCam = [];
     for (const camId of camIds) {
       const camName = camId.replace('camera.', '');
-      for (const suffix of ['_detect', '_recordings', '_snapshots', '_motion']) {
+      let camToggled = 0;
+      // _enabled is the Frigate 0.14+ master switch — toggling this alone fully disables
+      // the camera in Frigate (no detection, no recording, no snapshots, no stream processing).
+      // Kept first so if it exists, it does the heavy lifting. The others remain for backwards
+      // compatibility with older Frigate versions and for partial-pause scenarios.
+      for (const suffix of ['_enabled', '_detect', '_recordings', '_snapshots', '_motion', '_audio']) {
         const switchId = 'switch.' + camName + suffix;
         if (this._hass.states[switchId]) {
-          try { await this._hass.callService('switch', switchAction, { entity_id: switchId }); } catch(e) {
+          try {
+            await this._hass.callService('switch', switchAction, { entity_id: switchId });
+            camToggled++;
+            toggledCount++;
+          } catch(e) {
             console.warn('[Frigate Privacy] switch.' + switchAction + ' failed for ' + switchId + ':', e.message || e);
           }
         }
       }
+      if (camToggled === 0) missingPerCam.push(camId);
+    }
+    if (toggledCount === 0) {
+      console.error('[Frigate Privacy] No Frigate switches found for cameras: ' + camIds.join(', ') +
+        '. Expected entities like switch.{name}_enabled / _detect / _recordings. Check entity naming.');
+      try { this._showToast && this._showToast('Frigate Privacy: nie znaleziono switchy dla kamer (' + camIds.join(', ') + ')', 'error'); } catch(_) {}
+    } else if (missingPerCam.length) {
+      console.warn('[Frigate Privacy] No switches found for: ' + missingPerCam.join(', '));
+    } else {
+      console.info('[Frigate Privacy] Toggled ' + toggledCount + ' switches (' + switchAction + ') for ' + camIds.length + ' camera(s)');
     }
   }
 
@@ -767,6 +876,14 @@ class HaFrigatePrivacy extends HTMLElement {
   async _pauseFrigate(minutes) {
     const t = this._t;
     if (!this._hass) return;
+    // Guard: block pause if Frigate version is unsupported — otherwise privacy
+    // toggle gives false sense of security (camera keeps working silently).
+    if (this._frigateSupported === false) {
+      const msg = this._frigateUnsupportedReason || 'Niewspierana wersja Frigate';
+      console.error('[Frigate Privacy] Pause blocked: ' + msg);
+      try { this._showToast && this._showToast('\u26A0\uFE0F ' + msg, 'error'); } catch(_) {}
+      return;
+    }
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
     try {
       // Pause selected cameras
@@ -1500,6 +1617,11 @@ tap_action:
   margin: 0 auto;
   padding: 20px;
   color: var(--bento-text);
+  background: var(--bento-card) !important;
+  border: 1px solid var(--bento-border) !important;
+  border-radius: var(--bento-radius-md) !important;
+  box-shadow: var(--bento-shadow-sm);
+  overflow: hidden;
 }
 
 .header {
@@ -2075,7 +2197,7 @@ tap_action:
 
   setActiveTab(tabId) {
     this._activeTab = tabId;
-    this._render();
+    this._updateUI();
   }
 }
 
@@ -2100,6 +2222,18 @@ class HaFrigatePrivacyEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
             :host { display:block; padding:16px; }
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
             h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
             input { outline:none; transition:border-color .2s; }
             input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }

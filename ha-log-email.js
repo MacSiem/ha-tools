@@ -295,7 +295,7 @@ class HALogEmail extends HTMLElement {
       return;
     }
     this._smtpTesting = true;
-    this._update();
+    this._render();
     try {
       await this._hass.callService('ha_tools_email', 'test', {});
       this._smtpStatus = { ok: true, service: 'ha_tools_email', time: new Date().toLocaleTimeString((this._lang === 'pl' ? 'pl-PL' : 'en-US')) };
@@ -303,7 +303,7 @@ class HALogEmail extends HTMLElement {
       this._smtpStatus = { ok: false, error: e.message || 'Unknown error' };
     }
     this._smtpTesting = false;
-    this._update();
+    this._render();
   }
 
   _renderSmtpSection() {

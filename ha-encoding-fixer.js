@@ -39,6 +39,12 @@ class HaEncodingFixer extends HTMLElement {
     this._restoreFilePick = null;
     this._restoreStep = 1;
     this._restorePreview = null;
+    // Batch fix state machine
+    this._fixState = 'idle'; // idle | running | done
+    this._fixProgress = 0;
+    this._fixTotal = 0;
+    this._fixResults = []; // [{entity_id, status: 'success'|'failed', error?}]
+    this._fixCurrentLabel = '';
   }
 
   static getConfigElement() {
@@ -349,9 +355,96 @@ class HaEncodingFixer extends HTMLElement {
       '\u00C2\u00A7': '\u00A7', // Â§
       '\u00C2\u00AB': '\u00AB', // Â«
       '\u00C2\u00BB': '\u00BB', // Â»
-      '\u00C2\u00B2': '\u00B2', // Â˛
-      '\u00C2\u00B3': '\u00B3', // Âł
-      '\u00C2\u00BD': '\u00BD', // Â˝
+      '\u00C2\u00B2': '\u00B2', // Â²
+      '\u00C2\u00B3': '\u00B3', // Â³
+      '\u00C2\u00B5': '\u00B5', // Âµ (micro)
+      '\u00C2\u00B1': '\u00B1', // Â± (plus-minus)
+      '\u00C2\u00B9': '\u00B9', // Â¹
+      '\u00C2\u00BD': '\u00BD', // Â½
+      '\u00C2\u00BC': '\u00BC', // Â¼
+      '\u00C2\u00BE': '\u00BE', // Â¾
+      '\u00C2\u00A9': '\u00A9', // Â© (copyright)
+      '\u00C2\u00AE': '\u00AE', // Â® (registered)
+      '\u00C2\u00A0': ' ',      // Â  (nbsp from UTF-8)
+      // Warning emoji U+26A0 FE0F → UTF-8 E2 9A A0 EF B8 8F decoded as Latin-1
+      '\u00E2\u009A\u00A0\u00EF\u00B8\u008F': '\u26A0\uFE0F', // â\u009A  â\u008F ⚠\uFE0F
+      '\u00E2\u009A\u00A0': '\u26A0', // â\u009A  ⚠
+      // Common BMP symbol emoji
+      '\u00E2\u009C\u0085': '\u2705', // âœ\u0085 ✅ (check mark button)
+      '\u00E2\u009D\u008C': '\u274C', // âŒ ❌
+      '\u00E2\u009A\u00A1': '\u26A1', // ⚡
+      '\u00E2\u0098\u0081': '\u2601', // ☁
+      '\u00E2\u0098\u0080': '\u2600', // ☀
+      '\u00E2\u0098\u0094': '\u2614', // ☔
+      '\u00E2\u009D\u0084': '\u2744', // ❄
+      '\u00E2\u0086\u0092': '\u2192', // → (right arrow)
+      '\u00E2\u0086\u0090': '\u2190', // ←
+      '\u00E2\u0086\u0091': '\u2191', // ↑
+      '\u00E2\u0086\u0093': '\u2193', // ↓
+      // --- CP1250/CP1252 re-interpretation (HA common) ---
+      // UTF-8 bytes like C5 82 displayed where high byte 0x82 -> smart-quote U+201A
+      // and 0xC5 -> CP1250 U+0139 (Ĺ) or CP1252 U+00C5 (Å). Cover both.
+      // ł: C5 82
+      '\u0139\u201A': '\u0142',  // Ĺ‚ -> ł (CP1250)
+      '\u00C5\u201A': '\u0142',  // Å‚ -> ł (CP1252 high + CP1252 quote)
+      // ń: C5 84
+      '\u0139\u201E': '\u0144',  // Ĺ„ -> ń (CP1250)
+      '\u00C5\u201E': '\u0144',  // Å„
+      // ś: C5 9B
+      '\u0139\u203A': '\u015B',  // Ĺ› -> ś
+      '\u00C5\u203A': '\u015B',  // Å›
+      // ż: C5 BC (CP1250 0xBC = U+013C Ľ)
+      '\u0139\u00BC': '\u017C',  // CP1252 fallback
+      '\u0139\u013C': '\u017C',  // Ĺ¼ -> ż (CP1250 0xBC)
+      '\u0139\u013D': '\u017C',  // ĹĽ -> ż (CP1250 0xBD)
+      '\u00C5\u00BC': '\u017C',  // Å¼ (already existed above but reinforce)
+      // ź: C5 BA (CP1250 0xBA = U+00BA º... no, 0xBA = U+00BA actually). Keep CP1252 form.
+      '\u0139\u00BA': '\u017A',  // Ĺş -> ź
+      '\u0139\u017A': '\u017A',  // alt Slovak-ish
+      // Em-dash double-encoded: "â€"" survives round-1 and becomes "â€\"" etc
+      '\u00E2\u20AC\u201C': '\u2013',  // â\u20AC" -> –
+      '\u00E2\u20AC\u201D': '\u2014',  // â\u20AC" -> —
+      '\u00E2\u20AC\u0153': '\u201C',  // â\u20AC\u0153 -> "
+      '\u00E2\u20AC\u009D': '\u201D',  // â\u20AC\u009D -> "
+      '\u00E2\u20AC\u2122': '\u2019',  // â\u20AC\u2122 -> '
+      '\u00E2\u20AC\u0161': '\u201A',  // "
+      '\u00E2\u20AC\u00A6': '\u2026',  // …
+      // Baby emoji etc: "đź‘¶" = U+0111 U+017A U+2018 U+00B6 (or similar runs)
+      '\u0111\u017A\u2018\u00B6': '\uD83D\uDC76', // đź‘¶ baby
+      '\u0111\u017A\u2018\u008D': '\uD83D\uDC4D', // thumbs up
+      '\u0111\u017A\u201D\u2019': '\uD83D\uDD12', // lock
+      '\u0111\u017A\u201D\u00A5': '\uD83D\uDD25', // fire
+      // Ł: C5 81
+      '\u0139\u0081': '\u0141',
+      '\u00C5\u0081': '\u0141',
+      // Ń: C5 83
+      '\u0139\u0083': '\u0143',
+      // Ś: C5 9A
+      '\u0139\u0161': '\u015A',  // Ĺš
+      '\u00C5\u0161': '\u015A',  // Åš
+      // Ż: C5 BB
+      '\u0139\u00BB': '\u017B',
+      // ą: C4 85 (CP1252 0x85 = U+2026, CP1250 0x85 = U+2026)
+      '\u00C4\u2026': '\u0105',  // Ä… -> ą
+      // ć: C4 87 (CP1252 0x87 = U+2021)
+      '\u00C4\u2021': '\u0107',  // Ä‡ -> ć
+      // ę: C4 99 (CP1252 0x99 = U+2122 TM)
+      '\u00C4\u2122': '\u0119',  // Ä™ -> ę
+      // Ą: C4 84 (0x84 = U+201E)
+      '\u00C4\u201E': '\u0104',
+      // Ć: C4 86 (0x86 = U+2020 dagger)
+      '\u00C4\u2020': '\u0106',
+      // Ę: C4 98 (0x98 = U+02DC small tilde)
+      '\u00C4\u02DC': '\u0118',
+      // ó: C3 B3 already in map
+      // Literal double-encoded ascii tails that show up re-mapped
+      '\u00C4\u201A': '\u0105',   // Ä‚ alt
+      // CP1250 low-byte re-mapping: C2 B3 (³) read as CP1250 -> Â + ł (U+0142)
+      '\u00C2\u0142': '\u00B3',   // Âł -> ³
+      '\u00C2\u0105': '\u00B1',   // Âą -> ± (C2 B1 via CP1250 where 0xB1 = U+0105)
+      '\u00C2\u02DB': '\u00B2',   // Â˛ -> ² (C2 B2 via CP1250 where 0xB2 = U+02DB ogonek)
+      '\u00C2\u00B5': '\u00B5',   // duplicate safety
+      // Double-layer prefix "Â" leaking through: strip isolated Â before ascii (conservative)
       '\u00E2\u0080\u0093': '\u2013', // â€“ (en dash)
       '\u00E2\u0080\u0094': '\u2014', // â€” (em dash)
       '\u00E2\u0080\u009C': '\u201C', // " (left double quote)
@@ -388,11 +481,17 @@ class HaEncodingFixer extends HTMLElement {
     } catch(e) { /* not double-encoded */ }
 
     // Method 2: Pattern replacement for known mojibake sequences
-    for (const [bad, good] of Object.entries(HaEncodingFixer.MOJIBAKE_MAP)) {
-      if (fixed.includes(bad)) {
-        fixed = fixed.split(bad).join(good);
-        hasMojibake = true;
+    // Iterate up to 3 passes to collapse multi-layer mojibake
+    for (let pass = 0; pass < 3; pass++) {
+      let changed = false;
+      for (const [bad, good] of Object.entries(HaEncodingFixer.MOJIBAKE_MAP)) {
+        if (fixed.includes(bad)) {
+          fixed = fixed.split(bad).join(good);
+          hasMojibake = true;
+          changed = true;
+        }
       }
+      if (!changed) break;
     }
 
     if (hasMojibake) {
@@ -592,56 +691,85 @@ class HaEncodingFixer extends HTMLElement {
   }
 
   // --- Fix actions ---
-  async _fixEntityName(entityId, fixedName) {
-    if (!this._hass) return;
+  // Single-entity fix — marks result in place (does NOT remove from list anymore).
+  // Returns true on success, false on failure.
+  async _fixEntityName(entityId, fixedName, opts = {}) {
+    if (!this._hass) return false;
     const t = this._t;
     const orig = this._scanResults.find(r => r.entity_id === entityId && r.attribute === 'friendly_name');
-    if (orig) this._createBackup('entity', [{ entity_id: entityId, attribute: 'friendly_name', original: orig.original, fixed: fixedName }]);
+    if (orig && !opts.noBackup) this._createBackup('entity', [{ entity_id: entityId, attribute: 'friendly_name', original: orig.original, fixed: fixedName }]);
     try {
-      // Use entity registry to update friendly_name
       await this._hass.callWS({
         type: 'config/entity_registry/update',
         entity_id: entityId,
         name: fixedName
       });
       this._addFixLog('entity', entityId, 'success', fixedName);
-      // Remove from results
-      this._scanResults = this._scanResults.filter(r => !(r.entity_id === entityId && r.attribute === 'friendly_name'));
+      // Mark in place instead of filtering out — prevents list "disappearing"
+      if (orig) { orig._fixStatus = 'success'; orig._fixedAt = Date.now(); }
       this._selectedIssues.delete(entityId);
-      this._updateUI();
+      if (!opts.suppressRender) this._updateUI();
+      return true;
     } catch(e) {
       console.warn('[Encoding Fixer]', e);
-      this._addFixLog('entity', entityId, 'failed', e.message);
-      this._showToast(t.errorFixing + ': ' + entityId, 'error');
+      this._addFixLog('entity', entityId, 'failed', e && e.message ? e.message : String(e));
+      if (orig) { orig._fixStatus = 'failed'; orig._fixError = e && e.message ? e.message : String(e); }
+      if (!opts.suppressRender) this._showToast(t.errorFixing + ': ' + entityId, 'error');
+      return false;
     }
+  }
+
+  async _runBatchFix(entitiesToFix, batchType) {
+    if (!entitiesToFix.length) return;
+    // Enter running state
+    this._fixState = 'running';
+    this._fixProgress = 0;
+    this._fixTotal = entitiesToFix.length;
+    this._fixResults = [];
+    this._fixCurrentLabel = '';
+    this._createBackup(batchType, entitiesToFix.map(r => ({ entity_id: r.entity_id, original: r.original, fixed: r.fixed })));
+    this._updateUI();
+
+    for (let i = 0; i < entitiesToFix.length; i++) {
+      const item = entitiesToFix[i];
+      this._fixProgress = i;
+      this._fixCurrentLabel = item.entity_id;
+      this._updateUI();
+      const ok = await this._fixEntityName(item.entity_id, item.fixed, { noBackup: true, suppressRender: true });
+      this._fixResults.push({ entity_id: item.entity_id, status: ok ? 'success' : 'failed', error: ok ? null : (item._fixError || null) });
+      await new Promise(r => setTimeout(r, 300));
+    }
+    this._fixProgress = this._fixTotal;
+    this._fixState = 'done';
+    this._fixCurrentLabel = '';
+    this._updateUI();
   }
 
   async _fixSelectedEntities() {
     const entitiesToFix = this._scanResults.filter(r =>
-      this._selectedIssues.has(r.entity_id) && r.attribute === 'friendly_name' && r.fixed
+      this._selectedIssues.has(r.entity_id) && r.attribute === 'friendly_name' && r.fixed && !r._fixStatus
     );
     if (!entitiesToFix.length) return;
     if (!confirm(this._lang === 'pl' ? 'Naprawic ' + entitiesToFix.length + ' zaznaczonych encji?\nKopia zapasowa zostanie utworzona automatycznie.' : 'Fix ' + entitiesToFix.length + ' selected entities?\nA backup will be created automatically.')) return;
-    this._createBackup('entity-batch', entitiesToFix.map(r => ({ entity_id: r.entity_id, original: r.original, fixed: r.fixed })));
-    for (const item of entitiesToFix) {
-      await this._fixEntityName(item.entity_id, item.fixed);
-      await new Promise(r => setTimeout(r, 300)); // Rate limit
-    }
-    this._showRestartHint();
+    await this._runBatchFix(entitiesToFix, 'entity-batch');
   }
 
   async _fixAllEntities() {
     const entitiesToFix = this._scanResults.filter(r =>
-      r.attribute === 'friendly_name' && r.fixed && r.fixed !== r.original
+      r.attribute === 'friendly_name' && r.fixed && r.fixed !== r.original && !r._fixStatus
     );
     if (!entitiesToFix.length) return;
     if (!confirm(this._lang === 'pl' ? '\u26A0\uFE0F Naprawic WSZYSTKIE ' + entitiesToFix.length + ' encji?\nKopia zapasowa zostanie utworzona automatycznie.\nPo naprawie zalecany restart HA.' : '\u26A0\uFE0F Fix ALL ' + entitiesToFix.length + ' entities?\nA backup will be created.\nHA restart recommended after fix.')) return;
-    this._createBackup('entity-all', entitiesToFix.map(r => ({ entity_id: r.entity_id, original: r.original, fixed: r.fixed })));
-    for (const item of entitiesToFix) {
-      await this._fixEntityName(item.entity_id, item.fixed);
-      await new Promise(r => setTimeout(r, 300));
-    }
-    this._showRestartHint();
+    await this._runBatchFix(entitiesToFix, 'entity-all');
+  }
+
+  _fixBackToList() {
+    this._fixState = 'idle';
+    this._fixProgress = 0;
+    this._fixTotal = 0;
+    this._fixResults = [];
+    this._fixCurrentLabel = '';
+    this._updateUI();
   }
 
   async _fixLovelaceResource(issue) {
@@ -764,31 +892,72 @@ class HaEncodingFixer extends HTMLElement {
 
     // Results
     let resultsHtml = '';
-    if (!this._scanning && this._scanResults.length > 0) {
+
+    // Batch fix overlays take precedence
+    if (this._fixState === 'running') {
+      const pct = this._fixTotal > 0 ? Math.round((this._fixProgress / this._fixTotal) * 100) : 0;
+      resultsHtml = `
+        <div class="section">
+          <div class="fix-progress-panel">
+            <h3>${this._lang === 'pl' ? 'Naprawianie\u2026' : 'Fixing\u2026'}</h3>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="progress-text">${this._fixProgress}/${this._fixTotal} (${pct}%)</div>
+            <div class="progress-current">${this._escapeHtml(this._fixCurrentLabel || '')}</div>
+          </div>
+        </div>`;
+    } else if (this._fixState === 'done') {
+      const okCount = this._fixResults.filter(r => r.status === 'success').length;
+      const failCount = this._fixResults.filter(r => r.status === 'failed').length;
+      const failRows = this._fixResults.filter(r => r.status === 'failed').map(r => `<li><code>${r.entity_id}</code> \u2014 ${this._escapeHtml(r.error || '')}</li>`).join('');
+      resultsHtml = `
+        <div class="section">
+          <div class="fix-done-panel">
+            <h3>${this._lang === 'pl' ? 'Gotowe' : 'Done'}</h3>
+            <div class="done-stats">
+              <span class="stat-ok">\u2705 ${okCount} ${this._lang === 'pl' ? 'naprawionych' : 'fixed'}</span>
+              ${failCount > 0 ? `<span class="stat-fail">\u274C ${failCount} ${this._lang === 'pl' ? 'b\u0142\u0119d\u00F3w' : 'failed'}</span>` : ''}
+            </div>
+            ${failCount > 0 ? `<details class="fail-details"><summary>${this._lang === 'pl' ? 'Szczeg\u00F3\u0142y b\u0142\u0119d\u00F3w' : 'Error details'}</summary><ul>${failRows}</ul></details>` : ''}
+            <div class="done-actions">
+              <button class="btn btn-sm btn-primary" data-action="fix-back">${this._lang === 'pl' ? 'Wr\u00F3\u0107 do listy' : 'Back to list'}</button>
+            </div>
+          </div>
+        </div>`;
+    } else if (!this._scanning && this._scanResults.length > 0) {
+      const pending = this._scanResults.filter(r => !r._fixStatus);
+      const selectablePending = pending.filter(r => r.attribute === 'friendly_name' && r.fixed);
       const rows = this._scanResults.map((r, i) => {
         const selected = this._selectedIssues.has(r.entity_id);
-        return `<div class="result-row">
-          <label class="result-check">
-            <input type="checkbox" data-select="${i}" ${selected ? 'checked' : ''} />
-          </label>
+        const statusCls = r._fixStatus ? ` status-${r._fixStatus}` : '';
+        const statusBadge = r._fixStatus === 'success'
+          ? `<span class="row-status ok">\u2705</span>`
+          : r._fixStatus === 'failed'
+            ? `<span class="row-status err" title="${this._escapeHtml(r._fixError || '')}">\u274C</span>`
+            : '';
+        const checkbox = r._fixStatus
+          ? ''
+          : `<input type="checkbox" data-select="${i}" ${selected ? 'checked' : ''} />`;
+        return `<div class="result-row${statusCls}">
+          <label class="result-check">${checkbox}${statusBadge}</label>
           <div class="result-entity">${r.entity_id}</div>
           <div class="result-attr">${r.attribute}</div>
           <div class="result-original">${this._escapeHtml(r.original)}</div>
           <div class="result-arrow">\u2192</div>
           <div class="result-fixed">${this._escapeHtml(r.fixed)}</div>
-          <button class="btn btn-sm btn-primary" data-fix="${i}">${t.fix}</button>
         </div>`;
       }).join('');
 
+      const doneCount = this._scanResults.filter(r => r._fixStatus === 'success').length;
+      const failedCount = this._scanResults.filter(r => r._fixStatus === 'failed').length;
       resultsHtml = `
         <div class="section">
           <div class="results-header">
-            <h3>${this._scanResults.length} ${t.issuesFound}</h3>
+            <h3>${pending.length} ${t.issuesFound}${doneCount ? ` \u2014 \u2705 ${doneCount}` : ''}${failedCount ? ` \u2014 \u274C ${failedCount}` : ''}</h3>
             <div class="results-actions">
               <button class="btn btn-sm btn-secondary" data-action="select-all">${t.selectAll}</button>
               <button class="btn btn-sm btn-secondary" data-action="deselect-all">${t.deselectAll}</button>
               <button class="btn btn-sm btn-primary" data-action="fix-selected" ${this._selectedIssues.size === 0 ? 'disabled' : ''}>${t.fixSelected} (${this._selectedIssues.size})</button>
-              <button class="btn btn-sm btn-danger" data-action="fix-all">${t.fixAll}</button>
+              <button class="btn btn-sm btn-danger" data-action="fix-all" ${selectablePending.length === 0 ? 'disabled' : ''}>${t.fixAll}</button>
             </div>
           </div>
           <div class="results-list">${rows}</div>
@@ -1064,16 +1233,9 @@ class HaEncodingFixer extends HTMLElement {
       });
     }
 
-    // Fix individual entity
-    sr.querySelectorAll('[data-fix]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.fix);
-        const item = this._scanResults[idx];
-        if (item && item.attribute === 'friendly_name') {
-          this._fixEntityName(item.entity_id, item.fixed);
-        }
-      });
-    });
+    // "Back to list" after batch-fix completion
+    const fixBack = sr.querySelector('[data-action="fix-back"]');
+    if (fixBack) fixBack.addEventListener('click', () => this._fixBackToList());
 
     // Fix lovelace
     sr.querySelectorAll('[data-fix-lovelace]').forEach(btn => {
@@ -1841,6 +2003,10 @@ class HaEncodingFixer extends HTMLElement {
   color: var(--bento-text);
   box-sizing: border-box;
   overflow: hidden;
+  background: var(--bento-card) !important;
+  border: 1px solid var(--bento-border) !important;
+  border-radius: var(--bento-radius-md) !important;
+  box-shadow: var(--bento-shadow-sm);
 }
 
 .header {
@@ -2048,6 +2214,24 @@ class HaEncodingFixer extends HTMLElement {
 }
 
 .result-row:last-child { border-bottom: none; }
+.result-row.status-success { opacity: 0.55; background: var(--bento-success-light, rgba(16,185,129,0.06)); }
+.result-row.status-failed  { background: var(--bento-error-light, rgba(239,68,68,0.08)); }
+.row-status { display: inline-block; font-size: 14px; margin-left: 4px; }
+.fix-progress-panel, .fix-done-panel {
+  padding: 16px 20px;
+  border: 1px solid var(--bento-border);
+  border-radius: var(--bento-radius-sm, 10px);
+  background: var(--bento-card, var(--bento-bg));
+}
+.fix-progress-panel h3, .fix-done-panel h3 { margin: 0 0 12px; font-size: 15px; }
+.fix-progress-panel .progress-text { margin: 8px 0 4px; font-size: 13px; color: var(--bento-text-secondary, var(--bento-fg-muted)); }
+.fix-progress-panel .progress-current { font-family: monospace; font-size: 12px; color: var(--bento-text, var(--bento-fg)); }
+.fix-done-panel .done-stats { display: flex; gap: 16px; margin: 8px 0 12px; font-size: 14px; }
+.fix-done-panel .stat-ok { color: var(--bento-success, #10B981); font-weight: 500; }
+.fix-done-panel .stat-fail { color: var(--bento-error, #EF4444); font-weight: 500; }
+.fix-done-panel .fail-details { margin: 8px 0; font-size: 12px; }
+.fix-done-panel .fail-details ul { margin: 6px 0 0 0; padding-left: 18px; }
+.fix-done-panel .done-actions { margin-top: 12px; display: flex; gap: 8px; }
 .result-check { flex-shrink: 0; }
 .result-check input { width: 16px; height: 16px; accent-color: var(--bento-primary); }
 .result-entity { font-weight: 500; min-width: 150px; flex: 1; word-wrap: break-word; overflow-wrap: break-word; min-width: 0; }
@@ -2277,6 +2461,18 @@ class HaEncodingFixerEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; padding:16px; }
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
         h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
         input { outline:none; transition:border-color .2s; }
         input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }

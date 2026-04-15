@@ -1195,14 +1195,13 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
   --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
-  color-scheme: light !important;
+  color-scheme: light dark;
 }
 * { box-sizing: border-box; }
 
@@ -1674,7 +1673,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
         const page = parseInt(e.target.dataset.page);
         if (tab && page > 0) {
           this._currentPage[tab] = page;
-          this._render ? this._render() : (this.render ? this.render() : this.renderCard());
+          this._updateUI();
         }
       });
     });
@@ -1683,7 +1682,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
         this._pageSize = parseInt(e.target.value);
         // Reset all pages to 1
         Object.keys(this._currentPage).forEach(k => this._currentPage[k] = 1);
-        this._render ? this._render() : (this.render ? this.render() : this.renderCard());
+        this._updateUI();
       });
     });
   }
@@ -1694,7 +1693,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 
   setActiveTab(tabId) {
     this._activeTab = tabId;
-    this._render();
+    this._updateUI();
   }
 }
 
@@ -1756,6 +1755,7 @@ class HaBackupManagerEditor extends HTMLElement {
           this._dispatch();
         });
   }
+  set hass(h) { this._hass = h; this._render(); }
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-backup-manager-editor')) { customElements.define('ha-backup-manager-editor', HaBackupManagerEditor); }

@@ -1384,13 +1384,13 @@ class HAAutomationAnalyzer extends HTMLElement {
           <h2 class="card-title">${this._t.executionTimeDistribution}</h2>
           ${hasExecData
             ? '<div class="canvas-wrap"><canvas id="exec-dist-chart"></canvas></div>'
-            : '<div class="chart-empty">${this._t.noExecutionTimeData}</div>'}
+            : `<div class="chart-empty">${this._t.noExecutionTimeData}</div>`}
         </div>
         <div class="card">
           <h2 class="card-title">${this._t.triggerTypesTitle}</h2>
           ${hasTriggerData
             ? '<div class="canvas-wrap"><canvas id="trigger-type-chart"></canvas></div>'
-            : '<div class="chart-empty">${this._t.noTriggerData}</div>'}
+            : `<div class="chart-empty">${this._t.noTriggerData}</div>`}
         </div>
         <div class="card">
           <h2 class="card-title">${this._t.dailyExecutions}</h2>
@@ -1529,6 +1529,17 @@ class HAAutomationAnalyzer extends HTMLElement {
       <style>${window.HAToolsBentoCSS || ""}
 ${styles}
 /* === DARK MODE === */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
 @media (prefers-color-scheme: dark) {
   :host {
     --aa-warn-bg: rgba(245,158,11,0.15); --aa-warn-border: rgba(245,158,11,0.3); --aa-warn-text: #fbbf24;

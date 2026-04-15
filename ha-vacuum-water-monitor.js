@@ -1853,7 +1853,11 @@ class HAVacuumWaterMonitor extends HTMLElement {
   --vwm-overlay-light: var(--bento-primary-light);
   --vwm-overlay-medium: rgba(0,0,0,0.08);
 }
-        .card { background: var(--bento-bg); border-radius: 16px; padding: 16px; color: var(--bento-text); ; }
+        .card { background: var(--bento-card) !important; border-radius: 16px; padding: 16px; color: var(--bento-text); ;
+  border: 1px solid var(--bento-border) !important;
+  border-radius: var(--bento-radius-md) !important;
+  box-shadow: var(--bento-shadow-sm);
+}
         .card-title { font-size: 15px; font-weight: 700; color: var(--bento-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         .device-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .device-name { font-weight: 600; font-size: 14px; }
@@ -1964,7 +1968,19 @@ class HAVacuumWaterMonitor extends HTMLElement {
 .tip-banner.hidden { display: none; }
 
       
-/* === DARK MODE === */
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+/* === DARK MODE ADDED - old comment below === */
 
 
 </style>

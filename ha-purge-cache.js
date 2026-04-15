@@ -84,6 +84,9 @@ class HAPurgeCache extends HTMLElement {
         logSwError: (msg) => `\u274C B\u0142\u0105d SW: ${msg}`,
         logCsDeleted: (n) => `\u2705 ${n} Cache Storage usuni\u0119tych`,
         logCsError: (msg) => `\u274C B\u0142\u0105d Cache: ${msg}`,
+        logSwUnavailable: '\u2139\uFE0F Service Workers niedost\u0119pne (HA na HTTP \u2014 wymaga HTTPS/localhost). Pomini\u0119to.',
+        logCsUnavailable: '\u2139\uFE0F Cache Storage API niedost\u0119pne (HA na HTTP \u2014 wymaga HTTPS/localhost). Pomini\u0119to.',
+        statUnavailable: 'n/d (HTTP)',
         logNoPanel: '\u274C Nie znaleziono HA Tools Panel',
         logToolsReloaded: (n, t) => `\u2705 Prze\u0142adowano ${n}/${t} skrypt\u00F3w narz\u0119dzi (cache: no-store)`,
         logPurgeStart: '\u{1F9F9} Rozpoczynam pe\u0142ne czyszczenie...',
@@ -139,6 +142,9 @@ class HAPurgeCache extends HTMLElement {
         logSwError: (msg) => `\u274C SW error: ${msg}`,
         logCsDeleted: (n) => `\u2705 ${n} Cache Storage(s) deleted`,
         logCsError: (msg) => `\u274C Cache error: ${msg}`,
+        logSwUnavailable: '\u2139\uFE0F Service Workers unavailable (HA on HTTP \u2014 requires HTTPS/localhost). Skipped.',
+        logCsUnavailable: '\u2139\uFE0F Cache Storage API unavailable (HA on HTTP \u2014 requires HTTPS/localhost). Skipped.',
+        statUnavailable: 'n/a (HTTP)',
         logNoPanel: '\u274C HA Tools Panel not found',
         logToolsReloaded: (n, t) => `\u2705 Reloaded ${n}/${t} tool scripts (cache: no-store)`,
         logPurgeStart: '\u{1F9F9} Starting full purge...',
@@ -189,15 +195,22 @@ class HAPurgeCache extends HTMLElement {
       stats.sessionStorage = { count: 0, sizeKB: '0', error: e.message };
     }
 
-    // Service Workers
-    try {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      stats.serviceWorkers = { count: regs.length, scopes: regs.map(r => r.scope) };
-    } catch (e) {
-      stats.serviceWorkers = { count: 0, scopes: [], error: e.message };
+    // Service Workers (requires secure context)
+    if (!('serviceWorker' in navigator)) {
+      stats.serviceWorkers = { count: 0, scopes: [], unavailable: true };
+    } else {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        stats.serviceWorkers = { count: regs.length, scopes: regs.map(r => r.scope) };
+      } catch (e) {
+        stats.serviceWorkers = { count: 0, scopes: [], error: e.message };
+      }
     }
 
-    // Cache Storage API
+    // Cache Storage API (requires secure context)
+    if (typeof caches === 'undefined' || !caches || typeof caches.keys !== 'function') {
+      stats.cacheStorage = { count: 0, caches: [], unavailable: true };
+    } else {
     try {
       const names = await caches.keys();
       let totalSize = 0;
@@ -210,6 +223,7 @@ class HAPurgeCache extends HTMLElement {
       stats.cacheStorage = { count: names.length, caches: cacheDetails };
     } catch (e) {
       stats.cacheStorage = { count: 0, caches: [], error: e.message };
+    }
     }
 
     // HA Tools scripts info (count registered ha-* custom elements)
@@ -271,13 +285,21 @@ class HAPurgeCache extends HTMLElement {
 
     const swEl = root.querySelector('#stat-sw');
     if (swEl && s.serviceWorkers) {
-      swEl.innerHTML = `<span class="stat-num">${s.serviceWorkers.count}</span> ${t.statRegistered}`;
+      if (s.serviceWorkers.unavailable) {
+        swEl.innerHTML = `<span class="stat-num stat-unavail">\u2014</span> <span class="stat-sub">${t.statUnavailable}</span>`;
+      } else {
+        swEl.innerHTML = `<span class="stat-num">${s.serviceWorkers.count}</span> ${t.statRegistered}`;
+      }
     }
 
     const csEl = root.querySelector('#stat-cs');
     if (csEl && s.cacheStorage) {
+      if (s.cacheStorage.unavailable) {
+        csEl.innerHTML = `<span class="stat-num stat-unavail">\u2014</span> <span class="stat-sub">${t.statUnavailable}</span>`;
+      } else {
       const total = s.cacheStorage.caches.reduce((sum, c) => sum + c.entries, 0);
       csEl.innerHTML = `<span class="stat-num">${s.cacheStorage.count}</span> ${t.statCaches} <span class="stat-sub">(${total} ${t.statEntries})</span>`;
+      }
     }
 
     const tsEl = root.querySelector('#stat-ts');
@@ -349,6 +371,11 @@ class HAPurgeCache extends HTMLElement {
   }
 
   async _purgeServiceWorkers() {
+    if (!('serviceWorker' in navigator)) {
+      this._addLog(this._t.logSwUnavailable, 'info');
+      await this._collectStats();
+      return;
+    }
     try {
       const regs = await navigator.serviceWorker.getRegistrations();
       let count = 0;
@@ -364,6 +391,11 @@ class HAPurgeCache extends HTMLElement {
   }
 
   async _purgeCacheStorage() {
+    if (typeof caches === 'undefined' || !caches || typeof caches.keys !== 'function') {
+      this._addLog(this._t.logCsUnavailable, 'info');
+      await this._collectStats();
+      return;
+    }
     try {
       const names = await caches.keys();
       let count = 0;
@@ -487,7 +519,12 @@ class HAPurgeCache extends HTMLElement {
         }
 
         * { box-sizing: border-box; }
-        .card { max-width: 900px; margin: 0 auto; padding: 16px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
+        .card { max-width: 900px; margin: 0 auto; padding: 16px; box-sizing: border-box; max-width: 100%; overflow: hidden;
+  background: var(--bento-card) !important;
+  border: 1px solid var(--bento-border) !important;
+  border-radius: var(--bento-radius-md) !important;
+  box-shadow: var(--bento-shadow-sm);
+}
         h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
         .subtitle { color: var(--bento-text-secondary); font-size: 13px; margin-bottom: 20px; }
         .ha-ver { font-size: 12px; color: var(--bento-text-secondary); font-weight: 400; }
@@ -691,13 +728,18 @@ class HAPurgeCache extends HTMLElement {
 
         /* Dark mode */
         @media (prefers-color-scheme: dark) {
-          :host {
-            --pc-bg: #1e1e2e;
-            --pc-border: #313244;
-            --pc-text: #cdd6f4;
-            --pc-text-sec: #6c7086;
-          }
-          .log-success { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+
+.log-success { background: rgba(16, 185, 129, 0.12); color: #6ee7b7;
+}
           .log-error { background: rgba(239, 68, 68, 0.12); color: #fca5a5; }
           .log-info { background: rgba(59, 130, 246, 0.1); color: #93c5fd; }
           .btn-sm { background: #1e1e2e; }

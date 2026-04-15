@@ -565,7 +565,7 @@ class HADeviceHealth extends HTMLElement {
         --shadow-md: var(--bento-shadow-md);
         --tr: var(--bento-transition);
         display: block;
-        color-scheme: light !important;
+        color-scheme: light dark;
       }
 
       * { box-sizing: border-box; }
@@ -1397,7 +1397,19 @@ class HADeviceHealth extends HTMLElement {
     const restoreScroll = !this._domBuilt;
     this.shadowRoot.innerHTML = `<style>${window.HAToolsBentoCSS || ""}
 ${style}
-/* === DARK MODE === */
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+/* === DARK MODE ADDED - old comment below === */
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {

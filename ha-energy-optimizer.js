@@ -184,6 +184,7 @@ class HaEnergyOptimizer extends HTMLElement {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
+    if (!this._config) return; // wait for setConfig
     const now = Date.now();
     if (!this._firstHassRender) {
       this._firstHassRender = true;
@@ -736,9 +737,18 @@ class HaEnergyOptimizer extends HTMLElement {
 :host {
           font-family: 'Inter', sans-serif;
         }
-        @media (prefers-color-scheme: dark) {
-          :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
-        }
+        
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
         .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); }
         .card-title { font-size: 17px; font-weight: 700; color: var(--bento-text); margin: 0 0 4px; }
         .data-source-badge { font-size: 11px; color: var(--bento-text-muted); margin-bottom: 14px; }
@@ -852,7 +862,7 @@ class HaEnergyOptimizer extends HTMLElement {
   _getTemplate() {
     return `
       <div class="card">
-        <h2 class="card-title" style="position:relative;">${this._config.title || 'Energy Optimizer'}
+        <h2 class="card-title" style="position:relative;">${this._config?.title || 'Energy Optimizer'}
           <button class="settings-btn" data-action="open-settings">
             \u2699\uFE0F Rates
           </button>

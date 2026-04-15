@@ -989,7 +989,19 @@ class HAYamlChecker extends HTMLElement {
     if (!this._hass) return;
     this.shadowRoot.innerHTML = `<style>${window.HAToolsBentoCSS || ""}
 ${this._css()}
-/* === DARK MODE === */
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+/* === DARK MODE ADDED - old comment below === */
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
@@ -1024,7 +1036,7 @@ ${this._css()}
           <span class="version-badge">v3.0</span>
         </div>
         <div class="tabs" id="tabs">
-          ${['config-check','entity-validator','paste-validate','template-tester','common-issues'].map(t => `
+          ${['config-check','entity-validator','file-scanner','paste-validate','template-tester','common-issues'].map(t => `
             <button class="tab-btn${t===this._activeTab?' active':''}" data-tab="${t}">
               ${{
                 'config-check': '✅ Config',
@@ -1046,6 +1058,7 @@ ${this._css()}
     switch (this._activeTab) {
       case 'config-check': return this._renderConfigCheck();
       case 'entity-validator': return this._renderEntityValidator();
+      case 'file-scanner': return this._renderFileScan();
       case 'paste-validate': return this._renderPasteValidate();
       case 'template-tester': return this._renderTemplateTester();
       case 'common-issues': return this._renderCommonIssues();

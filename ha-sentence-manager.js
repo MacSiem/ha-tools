@@ -2075,14 +2075,13 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
   --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
-  color-scheme: light !important;
+  color-scheme: light dark;
 }
 * { box-sizing: border-box; }
 
@@ -2388,7 +2387,19 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .tip-banner .tip-dismiss:hover { opacity: 1; }
 .tip-banner.hidden { display: none; }
 
-/* === DARK MODE === */
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+/* === DARK MODE ADDED - old comment below === */
 
 /* B8: voice section added */
 
@@ -2481,43 +2492,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     // Cleanup any active event listeners or timers
   }
 
-  setActiveTab(tabId) {
-    this.currentTab = tabId;
-    this._render();
-  }
-
-}
-
-if (!customElements.get('ha-sentence-manager')) { customElements.define('ha-sentence-manager', HASentenceManager); }
-;
-
-class HASentenceManagerEditor extends HTMLElement {
-  setConfig(config) {
-    this.config = config;
-  }
-
-  connectedCallback() {
-    this.innerHTML = `
-      <div style="padding: 20px;">
-  _sanitize(str) {
-    if (!str) return str;
-    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
-  }
-        <h2>Sentence Manager Configuration</h2>
-        <p>Basic card configuration. Most settings are managed within the card interface.</p>
-        <div style="margin: 20px 0;">
-          <label style="display: block; margin-bottom: 10px;">
-            Title:
-            <input type="text" id="title" placeholder="Sentence Manager" value="${this.config?.title || 'Sentence Manager'}">
-          </label>
-          <label style="display: block; margin-bottom: 10px;">
-            Language:
-            <input type="text" id="language" placeholder="en" value="${this.config?.language || 'en'}">
-          </label>
-        </div>
-      </div>
-    `;
-  }
   // --- Pagination helper ---
   _renderPagination(tabName, totalItems) {
     if (!this._currentPage[tabName]) this._currentPage[tabName] = 1;
@@ -2550,7 +2524,7 @@ class HASentenceManagerEditor extends HTMLElement {
         const page = parseInt(e.target.dataset.page);
         if (tab && page > 0) {
           this._currentPage[tab] = page;
-          this._render ? this._render() : (this.render ? this.render() : this.renderCard());
+          this._render();
         }
       });
     });
@@ -2559,7 +2533,7 @@ class HASentenceManagerEditor extends HTMLElement {
         this._pageSize = parseInt(e.target.value);
         // Reset all pages to 1
         Object.keys(this._currentPage).forEach(k => this._currentPage[k] = 1);
-        this._render ? this._render() : (this.render ? this.render() : this.renderCard());
+        this._render();
       });
     });
   }
@@ -2575,6 +2549,42 @@ class HASentenceManagerEditor extends HTMLElement {
       h ^= h >>> 16;
       return (h >>> 0) / 4294967296;
     };
+  }
+
+
+
+  setActiveTab(tabId) {
+    this.currentTab = tabId;
+    this._render();
+  }
+
+}
+
+if (!customElements.get('ha-sentence-manager')) { customElements.define('ha-sentence-manager', HASentenceManager); }
+;
+
+class HASentenceManagerEditor extends HTMLElement {
+  setConfig(config) {
+    this.config = config;
+  }
+
+  connectedCallback() {
+    this.innerHTML = `
+      <div style="padding: 20px;">
+        <h2>Sentence Manager Configuration</h2>
+        <p>Basic card configuration. Most settings are managed within the card interface.</p>
+        <div style="margin: 20px 0;">
+          <label style="display: block; margin-bottom: 10px;">
+            Title:
+            <input type="text" id="title" placeholder="Sentence Manager" value="${this.config?.title || 'Sentence Manager'}">
+          </label>
+          <label style="display: block; margin-bottom: 10px;">
+            Language:
+            <input type="text" id="language" placeholder="en" value="${this.config?.language || 'en'}">
+          </label>
+        </div>
+      </div>
+    `;
   }
 
 }

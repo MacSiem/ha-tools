@@ -1,5 +1,5 @@
 /**
- * HA Tools Panel - Dynamic Loader v6
+ * HA Tools Panel - Dynamic Loader v8 (2026-04-15)
  * Loads ha-tools-panel.js + all individual tool JS files.
  * All tools are loaded in parallel for speed, each independently.
  * Cache-bust timestamp ensures latest versions are always loaded.
@@ -64,7 +64,7 @@
   Promise.all(allFiles.map(loadScript)).then(function(results) {
     var loaded = results.filter(Boolean).length;
     console.info(
-      '%c HA Tools %c v3.7.6 \u2014 ' + loaded + '/' + allFiles.length + ' loaded ',
+      '%c HA Tools %c v3.7.7 \u2014 ' + loaded + '/' + allFiles.length + ' loaded ',
       'background:#3b82f6;color:#fff;font-weight:bold;padding:2px 6px;border-radius:4px 0 0 4px;',
       'background:#e0f2fe;color:#1e40af;font-weight:bold;padding:2px 6px;border-radius:0 4px 4px 0;'
     );

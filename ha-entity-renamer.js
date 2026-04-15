@@ -698,7 +698,7 @@ class HAEntityRenamer extends HTMLElement {
                     <span class="entity-name">${e.name || e.original_name || ''}</span>
                     ${inQueue
                       ? '<button class="btn btn-sm btn-danger" data-remove-queue="' + e.entity_id + '" aria-label="Remove">✕</button>'
-                      : '<button class="btn btn-sm btn-outline" data-add-single="' + e.entity_id + '">+ ${t.queue}</button>'
+                      : `<button class="btn btn-sm btn-outline" data-add-single="${e.entity_id}">+ ${t.queue}</button>`
                     }
                   </div>`;
                 }).join('')}
@@ -726,7 +726,7 @@ class HAEntityRenamer extends HTMLElement {
 
   _renderQueueTab() {
     const t = this._t;
-    if (!this._renameQueue.length) {
+    if (!this._renameQueue.length && !Object.keys(this._deviceRenameQueue || {}).length) {
       return `<div class="empty-state"><div class="icon">📋</div>${t.queueEmpty}</div>`;
     }
     const devEntries = Object.entries(this._deviceRenameQueue);

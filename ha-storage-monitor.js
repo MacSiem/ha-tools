@@ -419,7 +419,7 @@ class HAStorageMonitor extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-btn {
+.tab, .tab-btn, .tab-button {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -579,14 +579,13 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
   --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
-  color-scheme: light !important;
+  color-scheme: light dark;
 }
 * { box-sizing: border-box; }
 
@@ -600,7 +599,7 @@ canvas {
 .card-title, .title, .header-title, .pan-title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; overflow-x: auto; padding-bottom: 0; }
-.tab, .tab-btn, .tab-btn { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
+.tab, .tab-btn, .tab-button { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
 .tab.active, .tab-btn.active, .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab:hover, .tab-btn:hover, .tab-btn:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab-icon { margin-right: 6px; }
@@ -894,12 +893,24 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 .suggestion-desc { font-size: 13px; color: var(--bento-text-secondary); }
 .suggestion-savings { font-size: 12px; color: var(--bento-primary); font-weight: 500; margin-top: 6px; }
 
-/* === DARK MODE === */
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+/* === DARK MODE ADDED - old comment below === */
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
           .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
-          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tab, .tab-btn, .tab-button { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -915,7 +926,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-btn, .tab-btn { padding: 5px 6px; font-size: 10px; }
+          .tab, .tab-btn, .tab-button { padding: 5px 6px; font-size: 10px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
           .disk-gauge { flex-direction: column; gap: 12px; text-align: center; }

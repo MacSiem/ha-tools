@@ -846,7 +846,6 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
-  --bento-radius-sm: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
   --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);

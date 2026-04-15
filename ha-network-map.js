@@ -876,7 +876,8 @@ class HaNetworkMap extends HTMLElement {
     '--btxt2: var(--bento-text-secondary); --brmd: var(--bento-radius-md); ' +
     'font-family: Inter, -apple-system, sans-serif; }' +
     '.card { background: var(--bento-card); border: 1px solid var(--bento-border); ' +
-    'border-radius: var(--bento-radius-md); box-shadow: var(--bento-shadow-sm); ' +
+
+    '@media (prefers-color-scheme: dark) { :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-text: var(--primary-text-color, #e2e8f0); --bento-text-secondary: var(--secondary-text-color, #94a3b8); --bento-border: var(--divider-color, #334155); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); } }' +    'border-radius: var(--bento-radius-md); box-shadow: var(--bento-shadow-sm); ' +
     'padding: 20px; color: var(--bento-text); position: relative; }' +
     '.card-header-wrapper { border-bottom: 1px solid var(--bento-border); ' +
     'padding-bottom: 12px; margin-bottom: 16px; }' +

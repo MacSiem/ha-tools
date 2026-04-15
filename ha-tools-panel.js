@@ -426,14 +426,16 @@ class HAToolsPanel extends HTMLElement {
     const unavailContainer = this.shadowRoot?.querySelector('.nav-unavail-list');
     if (toolsContainer) {
       // Build grouped sidebar with collapse/expand
-      // Filter children by dashboardCard setting
-      const children = available.filter(t => t.group && this._getSetting(t.id + '.dashboardCard', true));
-      // Show parent groups only if they have visible children (or are standalone visible tools)
-      const parents = available.filter(t => !t.group).filter(p => {
+      // Filter children by dashboardCard setting — use full TOOLS (not just available) so tag:null group headers appear
+      const allTools = HAToolsPanel.TOOLS;
+      const availableIds = new Set(available.map(t => t.id));
+      const children = allTools.filter(t => t.group && availableIds.has(t.id) && this._getSetting(t.id + '.dashboardCard', true));
+      // Parents = top-level entries; include tag:null group headers
+      const parents = allTools.filter(t => !t.group).filter(p => {
         const hasVisibleChildren = children.some(c => c.group === p.id);
         if (hasVisibleChildren) return true;
-        // Standalone tool (no children) — check own dashboardCard
-        if (p.tag) return this._getSetting(p.id + '.dashboardCard', true);
+        // Standalone tool (no children) — must be available + enabled
+        if (p.tag && availableIds.has(p.id)) return this._getSetting(p.id + '.dashboardCard', true);
         return false;
       });
       let html = '';
@@ -1247,7 +1249,8 @@ class HAToolsPanel extends HTMLElement {
 
   _getToolStatus() {
     const tools = HAToolsPanel.TOOLS;
-    const available = tools.filter(t => !t.tag || customElements.get(t.tag));
+    // Only count entries with a tag (skip group/category headers like { tag: null })
+    const available = tools.filter(t => t.tag && customElements.get(t.tag));
     const unavailable = tools.filter(t => t.tag && !customElements.get(t.tag));
     return { tools, available, unavailable };
   }
@@ -1545,7 +1548,7 @@ ${HAToolsPanel.CSS}
           </div>
           <div class="sidebar-search">
             <div class="sidebar-search-wrap">
-              <input type="text" id="sidebarSearch" placeholder="${this._lang === 'pl' ? 'Szukaj narz\\u0119dzia...' : 'Search tools...'}" autocomplete="off" />
+              <input type="text" id="sidebarSearch" placeholder="${this._lang === 'pl' ? 'Szukaj narz\u0119dzia...' : 'Search tools...'}" autocomplete="off" />
             </div>
           </div>
           <div class="sidebar-scroll">
@@ -1558,13 +1561,21 @@ ${HAToolsPanel.CSS}
             <div class="nav-section nav-section-tools">${this._lang === 'pl' ? 'Narzędzia' : 'Tools'} (${available.filter(t => t.tag).length})</div>
             <div class="nav-tools-list">
               ${(() => {
-                const parents = available.filter(t => !t.group);
-                const children = available.filter(t => t.group);
+                const allTools = HAToolsPanel.TOOLS;
+                const availableIds = new Set(available.map(t => t.id));
+                // Parents = top-level tools (no `group`). Includes tag:null group headers.
+                const parents = allTools.filter(t => !t.group);
+                // Only render available children
+                const children = allTools.filter(t => t.group && availableIds.has(t.id));
                 let h = '';
                 for (const t of parents) {
                   const myChildren = children.filter(c => c.group === t.id);
+                  // Skip parent if: has tag but not available, AND no available children
+                  if (t.tag && !availableIds.has(t.id) && myChildren.length === 0) continue;
+                  // Skip tag:null group header if no available children
+                  if (!t.tag && myChildren.length === 0) continue;
                   const chevron = myChildren.length ? '<span class="nav-expand">&#9662;</span>' : '';
-                  h += `<div class="nav-item${myChildren.length ? ' has-children' : ''}" data-tool="${t.id}" data-tag="${t.tag || ''}">
+                  h += `<div class="nav-item${myChildren.length ? ' has-children' : ''}${!t.tag ? ' group-header' : ''}" data-tool="${t.id}" data-tag="${t.tag || ''}">
                     <span class="nav-icon">${t.icon}</span>
                     <span>${t.name}</span>
                     ${chevron}
@@ -2271,10 +2282,29 @@ ${HAToolsPanel.CSS}
             <span class="chevron">&#x25BC;</span>
           </div>
           <div class="settings-group-body" data-body="visibility">
-            ${available.filter(t => t.tag).map(t => {
-              const dc = this._getSetting(t.id + '.dashboardCard', true);
-              return '<div class="setting-row"><div class="setting-info"><div class="setting-label">' + t.icon + ' ' + t.name + '</div></div><div class="setting-control"><label class="setting-toggle"><input type="checkbox" data-setting="' + t.id + '.dashboardCard"' + (dc ? ' checked' : '') + '><span class="slider"></span></label></div></div>';
-            }).join('')}
+            ${(() => {
+              const allTools = HAToolsPanel.TOOLS;
+              const availableIds = new Set(available.map(t => t.id));
+              const parents = allTools.filter(t => !t.group);
+              const children = allTools.filter(t => t.group && availableIds.has(t.id));
+              const row = (t, isChild) => {
+                const dc = this._getSetting(t.id + '.dashboardCard', true);
+                return '<div class="setting-row' + (isChild ? ' setting-row-child' : '') + '" style="' + (isChild ? 'padding-left:32px;' : '') + '"><div class="setting-info"><div class="setting-label">' + t.icon + ' ' + t.name + '</div></div><div class="setting-control"><label class="setting-toggle"><input type="checkbox" data-setting="' + t.id + '.dashboardCard"' + (dc ? ' checked' : '') + '><span class="slider"></span></label></div></div>';
+              };
+              let h = '';
+              for (const p of parents) {
+                const myChildren = children.filter(c => c.group === p.id);
+                if (p.tag && availableIds.has(p.id)) {
+                  // Regular top-level tool (may also have children grouped under it)
+                  h += row(p, false);
+                } else if (!p.tag && myChildren.length) {
+                  // tag:null group header — render as subheading
+                  h += '<div class="settings-subheader" style="padding:10px 0 6px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;opacity:0.6;">' + p.icon + ' ' + p.name + '</div>';
+                }
+                for (const c of myChildren) h += row(c, true);
+              }
+              return h;
+            })()}
           </div>
         </div>
 
