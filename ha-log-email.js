@@ -7,14 +7,7 @@ window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: 
 /**
  * HA Log Email Card v1.0
  * Send periodic email summaries of HA errors and warnings.
- * Part of HA Tools Panel – Smart Reports
- * Author: Jeff (AI) for MacSiem
- */
-
-/**
- * HA Log Email Card v1.0
- * Send periodic email summaries of HA errors and warnings.
- * Part of HA Tools Panel — Smart Reports
+ * Part of HA Tools Panel - Smart Reports
  * Author: Jeff (AI) for MacSiem
  */
 
@@ -203,7 +196,7 @@ class HALogEmail extends HTMLElement {
     this._savePollingConfig();
     // Snapshot current errors as baseline
     if (this._logData?.errors) {
-      this._lastErrorKeys = new Set(this._logData.errors.map(e => e.message + '|' + e.domain));
+      this._lastErrorKeys = new Set(this._logData.errors.map(e => (Array.isArray(e.message) ? e.message.join(' ') : String(e.message || '')) + '|' + (e.name || '')));
       this._lastErrorCount = this._logData.errors.length;
     }
     this._pollingTimer = setInterval(() => this._pollForNewErrors(), this._pollingIntervalSec * 1000);
@@ -457,8 +450,10 @@ class HALogEmail extends HTMLElement {
     const statusLabel = totalErrors > 0 ? `${totalErrors} error${totalErrors > 1 ? 's' : ''}` :
                         totalWarnings > 0 ? `${totalWarnings} warning${totalWarnings > 1 ? 's' : ''}` : 'Clean';
 
-    const dailyAuto = 'unavailable';
-    const weeklyAuto = 'unavailable';
+    const dailyEntityId = 'automation.ha_tools_log_email_daily';
+    const weeklyEntityId = 'automation.ha_tools_log_email_weekly';
+    const dailyAuto = this._getScheduleState(dailyEntityId);
+    const weeklyAuto = this._getScheduleState(weeklyEntityId);
 
     const tabs = [
       { id: 'overview', label: 'Overview', icon: '\uD83D\uDCCA' },
@@ -892,7 +887,11 @@ max: 3</pre>
     const btnRefreshPreview = this.shadowRoot.getElementById('btn-refresh-preview');
     if (btnRefreshPreview) btnRefreshPreview.addEventListener('click', () => this._fetchLogData());
 
-    // Daily/weekly schedule removed - using direct SMTP
+    // Schedule toggle buttons
+    const btnDailyToggle = this.shadowRoot.getElementById('btn-daily-toggle');
+    if (btnDailyToggle) btnDailyToggle.addEventListener('click', () => this._toggleAutomation('automation.ha_tools_log_email_daily'));
+    const btnWeeklyToggle = this.shadowRoot.getElementById('btn-weekly-toggle');
+    if (btnWeeklyToggle) btnWeeklyToggle.addEventListener('click', () => this._toggleAutomation('automation.ha_tools_log_email_weekly'));
 
     
 
