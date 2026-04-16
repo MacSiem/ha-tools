@@ -457,8 +457,9 @@ class HASentenceManager extends HTMLElement {
   }
 
   highlightSlots(text) {
+    const safe = _esc(text);
     const slotRegex = /\{([^}]+)\}/g;
-    return text.replace(slotRegex, '<span class="slot-highlight">{$1}</span>');
+    return safe.replace(slotRegex, '<span class="slot-highlight">{$1}</span>');
   }
 
   testSentenceMatching(testInput) {
@@ -1018,7 +1019,7 @@ class HASentenceManager extends HTMLElement {
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0;">
               <select id="sentence-selector" style="min-width:220px;padding:8px 12px;font-size:13px;border-radius:var(--bento-radius-sm);border:1.5px solid var(--bento-border);background:var(--bento-card);color:var(--bento-text);">
                 <option value="">Wybierz zdanie do edycji...</option>
-                ${this.sentences.map((s, i) => `<option value="${i}">${s.trigger.substring(0, 50)}${s.trigger.length > 50 ? '...' : ''} [${s.intent}]</option>`).join('')}
+                ${this.sentences.map((s, i) => `<option value="${i}">${_esc(s.trigger.substring(0, 50))}${s.trigger.length > 50 ? '...' : ''} [${_esc(s.intent)}]</option>`).join('')}
               </select>
               <button class="btn btn-secondary" id="new-sentence-btn" style="white-space:nowrap;">+ Nowe</button>
             </div>
@@ -1076,12 +1077,12 @@ class HASentenceManager extends HTMLElement {
             ${this.sentences.length === 0 ? '<p class="empty-state">No sentences yet. Create one in the editor!</p>' : ''}
             ${grouped.map(group => `
               <div class="sentence-group">
-                <h3 class="group-header">${group.intent}</h3>
+                <h3 class="group-header">${_esc(group.intent)}</h3>
                 ${group.sentences.map((s, idx) => `
                   <div class="sentence-item">
                     <div class="sentence-content">
                       <div class="sentence-trigger">${this.highlightSlots(s.trigger)}</div>
-                      ${s.response ? `<div class="sentence-response">Response: ${s.response}</div>` : ''}
+                      ${s.response ? `<div class="sentence-response">Response: ${_esc(s.response)}</div>` : ''}
                     </div>
                     <div class="sentence-actions">
                       <button class="btn btn-small" data-edit="${this.sentences.indexOf(s)}">Edit</button>

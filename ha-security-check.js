@@ -4,6 +4,8 @@
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
+const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+
 /**
  * HA Security Check - Security audit tool for Home Assistant
  * Checks for common security issues: exposed ports, SSL, outdated addons, insecure integrations, etc.
@@ -41,7 +43,7 @@ class HASecurityCheck extends HTMLElement {
     try {
       const data = { lastScan: this._lastScan ? this._lastScan.toISOString() : null, lastScore: this._lastScore || null };
       localStorage.setItem(this._scKey(), JSON.stringify(data));
-    } catch(e) {}
+    } catch(e) { console.debug('[security-check]', e.message); }
   }
   _loadScanData() {
     try {
@@ -51,7 +53,7 @@ class HASecurityCheck extends HTMLElement {
         if (data.lastScan) this._lastScan = new Date(data.lastScan);
         if (data.lastScore !== undefined) this._lastScore = data.lastScore;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[security-check]', e.message); }
   }
 
   set hass(hass) {
@@ -121,10 +123,10 @@ class HASecurityCheck extends HTMLElement {
 
     try {
       let hostInfo = null, osInfo = null, supervisorInfo = null, coreInfo = null;
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/host/info', method: 'get' }); hostInfo = r?.data || r; } catch(e) {}
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/os/info', method: 'get' }); osInfo = r?.data || r; } catch(e) {}
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/supervisor/info', method: 'get' }); supervisorInfo = r?.data || r; } catch(e) {}
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/core/info', method: 'get' }); coreInfo = r?.data || r; } catch(e) {}
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/host/info', method: 'get' }); hostInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/os/info', method: 'get' }); osInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/supervisor/info', method: 'get' }); supervisorInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/core/info', method: 'get' }); coreInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
 
       // Detect non-supervised HA installation
       if (!hostInfo && !osInfo && !supervisorInfo && !coreInfo) {
@@ -162,7 +164,7 @@ class HASecurityCheck extends HTMLElement {
       try {
         const addonList = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/addons', method: 'get' });
         addons = addonList?.addons || addonList?.data?.addons || [];
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       const installedAddons = addons.filter(a => a.installed);
 
@@ -214,7 +216,7 @@ class HASecurityCheck extends HTMLElement {
           } else {
             findings.info.push({ id: 'ssl_cert_check', title: 'Verify SSL certificate expiry', desc: `Hostname: ${hostname} — ensure your cert is auto-renewed (Let''s Encrypt, Cloudflare, etc.)`, fix: 'Use certbot with auto-renewal or a Cloudflare tunnel for hassle-free SSL' });
           }
-        } catch(e) {}
+        } catch(e) { console.debug('[security-check]', e.message); }
       }
 
       // DNS rebinding protection
@@ -224,14 +226,14 @@ class HASecurityCheck extends HTMLElement {
         if (!hasCors) {
           findings.pass.push({ id: 'dns_rebind', title: 'No CORS component detected', desc: 'Lower risk of DNS rebinding attacks' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
 
       let users = [];
       try {
         const userList = await this._hass.callWS({ type: 'config/auth/list' });
         users = userList || [];
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       if (users.length > 0) {
         const activeUsers = users.filter(u => u.is_active !== false);
@@ -299,7 +301,7 @@ class HASecurityCheck extends HTMLElement {
         } else if (llat && llat.length > 0) {
           findings.info.push({ id: 'access_tokens', title: `${llat.length} long-lived access token(s)`, desc: 'Review periodically for unused tokens' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // Camera exposure check
       const cameraEntities = allEntities.filter(e => e.startsWith('camera.'));
@@ -322,7 +324,7 @@ class HASecurityCheck extends HTMLElement {
             findings.info.push({ id: 'hacs_custom_repos', title: `${customRepos.length} custom HACS repository(ies) installed`, desc: customRepos.slice(0, 3).map(r => r.repository || r).join(', ') + (customRepos.length > 3 ? '...' : ''), fix: 'Review custom repositories for trust and source quality' });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Trusted networks / Auth providers
       try {
@@ -335,7 +337,7 @@ class HASecurityCheck extends HTMLElement {
         if (hasLegacyApiPassword) {
           findings.critical.push({ id: 'legacy_api_password', title: 'Legacy API password enabled', desc: 'Legacy API passwords are deprecated and less secure than long-lived access tokens', fix: 'Remove api_password from configuration.yaml and use long-lived access tokens instead' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: IP bans
       try {
@@ -343,7 +345,7 @@ class HASecurityCheck extends HTMLElement {
         if (banData?.banned_ips && banData.banned_ips.length > 0) {
           findings.info.push({ id: 'ip_bans', title: `${banData.banned_ips.length} IP(s) are banned`, desc: 'Failed login attempts have resulted in IP bans', fix: 'Review failed login attempts in the System Log' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: HTTP configuration
       try {
@@ -359,7 +361,7 @@ class HASecurityCheck extends HTMLElement {
             findings.warning.push({ id: 'x_forwarded_for_unprotected', title: 'X-Forwarded-For enabled without trusted proxies', desc: 'This can allow IP spoofing if not behind a trusted proxy', fix: 'Either set trusted_proxies or disable use_x_forwarded_for' });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Privileged addons
       try {
@@ -367,7 +369,7 @@ class HASecurityCheck extends HTMLElement {
         if (privilegedAddons.length > 0) {
           findings.warning.push({ id: 'privileged_addons', title: `${privilegedAddons.length} addon(s) with privileged access`, desc: privilegedAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Privileged addons have root-level access. Verify they are trustworthy and necessary.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Exposed addon ports
       try {
@@ -383,7 +385,7 @@ class HASecurityCheck extends HTMLElement {
           }).join('; ');
           findings.info.push({ id: 'exposed_addon_ports', title: `${exposedAddons.length} addon(s) expose port(s)`, desc: portList, fix: 'Ensure exposed ports are not accessible from the internet. Use firewall rules if needed.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Ingress vs exposed addons
       try {
@@ -391,7 +393,7 @@ class HASecurityCheck extends HTMLElement {
         if (nonIngressAddons.length > 0) {
           findings.info.push({ id: 'non_ingress_addons', title: `${nonIngressAddons.length} addon(s) not using Ingress`, desc: nonIngressAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Consider using Ingress for safer addon access (only through HA UI)' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Webhooks
       try {
@@ -406,7 +408,7 @@ class HASecurityCheck extends HTMLElement {
         if (webhookCount > 0) {
           findings.info.push({ id: 'webhooks', title: `${webhookCount} automation(s)/script(s) with webhook(s)`, desc: 'Webhooks expose endpoints that can be triggered from the internet', fix: 'Ensure webhook URLs are not shared publicly. Use strong secrets in webhook URLs.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Long-lived access tokens
       try {
@@ -414,7 +416,7 @@ class HASecurityCheck extends HTMLElement {
         if (tokenCount > 0) {
           findings.info.push({ id: 'access_tokens', title: `${tokenCount} user(s) with long-lived access token(s)`, desc: 'Access tokens should be rotated regularly and kept secure', fix: 'Rotate tokens periodically. Remove unused tokens from Settings \u2192 Users' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Camera entities
       try {
@@ -422,7 +424,7 @@ class HASecurityCheck extends HTMLElement {
         if (cameraEntities.length > 0) {
           findings.info.push({ id: 'camera_count', title: `${cameraEntities.length} camera(s) configured`, desc: 'Camera streams should not be exposed directly to the internet', fix: 'Use Secure (SSL/TLS) connection. Do not expose camera ports directly. Use Nabu Casa or tunnel.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Media source / proxy exposure
       try {
@@ -430,7 +432,7 @@ class HASecurityCheck extends HTMLElement {
         if (mediaEntities.length > 0) {
           findings.info.push({ id: 'media_exposure', title: `${mediaEntities.length} media player(s) configured`, desc: 'Ensure media sources are not serving public content', fix: 'Use local media libraries. Do not expose media over the internet unless necessary.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Recorder / history purge settings
       try {
@@ -442,7 +444,7 @@ class HASecurityCheck extends HTMLElement {
             findings.info.push({ id: 'recorder_retention', title: `Recorder keeping data for ${purgeKeepDays} days`, desc: 'Long retention can be a privacy concern if you have guests or visitors', fix: 'Consider reducing purge_keep_days in configuration.yaml if privacy is a concern' });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Supervisor security (debug mode)
       try {
@@ -452,7 +454,7 @@ class HASecurityCheck extends HTMLElement {
         if (supervisorInfo?.debug_block === true) {
           findings.info.push({ id: 'supervisor_debug_block', title: 'Supervisor debug block is enabled', desc: 'This is a development/testing feature', fix: 'Ensure this is intentional and not left enabled in production' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: HACS addon integrity
       try {
@@ -464,7 +466,7 @@ class HASecurityCheck extends HTMLElement {
             findings.pass.push({ id: 'hacs_update', title: 'HACS addon is up to date', desc: `Version: ${hacsAddon.version}` });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Bluetooth / USB exposure in addons
       try {
@@ -475,14 +477,14 @@ class HASecurityCheck extends HTMLElement {
         if (btUsbAddons.length > 0) {
           findings.info.push({ id: 'bt_usb_addons', title: `${btUsbAddons.length} addon(s) with Bluetooth/USB access`, desc: btUsbAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Verify that these addons are trustworthy. USB/Bluetooth access provides direct hardware access.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Firewall / Network isolation
       try {
         if (hostInfo?.chassis && hostInfo.chassis !== 'embedded') {
           findings.warning.push({ id: 'non_haos', title: 'Running on non-HAOS system', desc: `Detected chassis: ${hostInfo.chassis}. Missing Supervisor network isolation.`, fix: 'Use Home Assistant OS for built-in network security features. Manual firewall configuration required on generic Linux.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Backup encryption
       try {
@@ -494,7 +496,7 @@ class HASecurityCheck extends HTMLElement {
             findings.warning.push({ id: 'unencrypted_backups', title: `${unencryptedBackups.length} backup(s) without encryption`, desc: 'Unencrypted backups expose sensitive data', fix: 'Create new backups with a password. Set a backup password in Settings \u2192 System \u2192 Backups' });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: MQTT anonymous access
       try {
@@ -512,7 +514,7 @@ class HASecurityCheck extends HTMLElement {
             findings.info.push({ id: 'mqtt_config', title: 'Could not verify MQTT configuration', desc: 'Unable to read Mosquitto addon settings', fix: 'Manually verify MQTT authentication settings' });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Dangerous template sensors
       try {
@@ -520,7 +522,7 @@ class HASecurityCheck extends HTMLElement {
         if (templateEntities.length > 10) {
           findings.info.push({ id: 'template_sensors', title: `${templateEntities.length} template/command_line entities`, desc: 'Large number of template entities may indicate complex configs that need review', fix: 'Periodically review template sensors for security implications' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: HTTP configuration (CORS)
       try {
@@ -528,7 +530,7 @@ class HASecurityCheck extends HTMLElement {
         if (httpConfig?.components?.includes('cors') || httpConfig?.allowlist_external_urls?.length > 0) {
           findings.info.push({ id: 'cors_config', title: 'CORS or external URL allowlist configured', desc: 'Cross-origin requests or external URLs are permitted', fix: 'Review allowed origins and URLs to ensure they are trusted' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Port 8123 direct exposure
       try {
@@ -536,7 +538,7 @@ class HASecurityCheck extends HTMLElement {
         if (externalUrl && externalUrl.includes(':8123')) {
           findings.warning.push({ id: 'port_exposure', title: 'Default port 8123 exposed externally', desc: `External URL uses default HA port: ${externalUrl}`, fix: 'Use a reverse proxy (NGINX, Caddy) or Nabu Casa instead of direct port forwarding. Change default port if exposing directly.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       // NEW CHECK: Person tracking entities
       try {
@@ -544,7 +546,7 @@ class HASecurityCheck extends HTMLElement {
         if (personEntities.length > 0) {
           findings.info.push({ id: 'person_tracking', title: `${personEntities.length} person(s) tracked`, desc: 'Location data is sensitive PII', fix: 'Ensure only trusted users have access to person entities. Review recorder include/exclude.' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       const critCount = findings.critical.length;
       const warnCount = findings.warning.length;
@@ -585,7 +587,7 @@ class HASecurityCheck extends HTMLElement {
       try {
         const entries = await this._hass.callWS({type: 'config_entries/list'});
         cfgEntries = entries || [];
-      } catch(e) {}
+      } catch(e) { console.debug('[security-check]', e.message); }
 
       this._auditData = { findings, score, critCount, warnCount, passCount, infoCount, totalChecks, users, addons: installedAddons, integrations: cfgEntries, entities: allEntities.length, networkInterfaces: networkInfo, hostInfo: hostInfo };
       this._lastScan = new Date();
@@ -1255,7 +1257,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const content = this.shadowRoot.getElementById('content');
     if (!content) return;
     if (this._loading) { content.innerHTML = '<div class="loading"><div class="spinner"></div>Running security audit...</div>'; return; }
-    if (!this._auditData || this._auditData.error) { content.innerHTML = `<div class="error">\u26A0\uFE0F ${this._auditData?.error || 'Audit failed'}</div>`; return; }
+    if (!this._auditData || this._auditData.error) { content.innerHTML = `<div class="error">\u26A0\uFE0F ${_esc(this._auditData?.error || 'Audit failed')}</div>`; return; }
     const d = this._auditData;
     switch (this._activeTab) {
       case 'overview': content.innerHTML = this._renderOverview(d); break;
