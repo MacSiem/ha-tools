@@ -1,6 +1,10 @@
 (function() {
 'use strict';
 
+// XSS protection helper (global singleton — tools reuse via window._haToolsEsc)
+window._haToolsEsc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+const _esc = window._haToolsEsc;
+
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
@@ -814,8 +818,8 @@ class HAEnergyEmail extends HTMLElement {
         <div class="header">
           <div class="header-icon">\u{1F4E7}</div>
           <div>
-            <div class="header-title">${this._config.title}</div>
-            <div class="header-sub">${recipientDisplay} \u00A0\u2022\u00A0 <span id="price-display" style="cursor:pointer;color:var(--bento-primary);border-bottom:1px dashed var(--bento-primary)" title="${L ? 'Kliknij aby zmieni\u0107' : 'Click to change'}">${this._config.currency} ${this._getTariffLabel()} \u270E</span></div>
+            <div class="header-title">${_esc(this._config.title)}</div>
+            <div class="header-sub">${recipientDisplay} \u00A0\u2022\u00A0 <span id="price-display" style="cursor:pointer;color:var(--bento-primary);border-bottom:1px dashed var(--bento-primary)" title="${L ? 'Kliknij aby zmieni\u0107' : 'Click to change'}">${_esc(this._config.currency)} ${this._getTariffLabel()} \u270E</span></div>
           </div>
         </div>
         <div class="tabs">
@@ -899,7 +903,7 @@ class HAEnergyEmail extends HTMLElement {
       const container = priceEl.parentElement;
       const origHtml = container.innerHTML;
       const inputHtml = `<span style="display:inline-flex;align-items:center;gap:4px">
-        <span>${this._config.currency}</span>
+        <span>${_esc(this._config.currency)}</span>
         <input type="number" id="price-input" value="${cur}" step="0.01" min="0" style="width:70px;padding:3px 6px;border:1.5px solid var(--bento-primary);border-radius:4px;font-size:12px;background:var(--bento-card);color:var(--bento-text);font-family:'Inter',sans-serif;text-align:center">
         <span>/kWh</span>
         <button id="price-save" class="btn btn-primary" style="padding:3px 10px;font-size:11px;margin:0" aria-label="Save">\u2714</button>
@@ -1044,7 +1048,7 @@ class HAEnergyEmail extends HTMLElement {
         </div>
         <div class="stat">
           <div class="stat-value" style="color:#3B82F6">${totalCost.toFixed(2)}</div>
-          <div class="stat-label">${this._config.currency} ${L ? 'Koszt' : 'Cost'}</div>
+          <div class="stat-label">${_esc(this._config.currency)} ${L ? 'Koszt' : 'Cost'}</div>
           <div class="stat-sub">@ ${this._getTariffLabel()}</div>
         </div>
         <div class="stat">
@@ -1198,10 +1202,10 @@ class HAEnergyEmail extends HTMLElement {
         <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:10px">\u{1F4E7} ${recipientLine} \u00A0\u2022\u00A0 ${range} \u00A0\u2022\u00A0 ${devData.length} ${L ? 'urz.' : 'dev.'}</div>
         <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
           <div><span style="font-size:18px;font-weight:700;color:#F59E0B">${totalEnergy.toFixed(1)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">kWh</span></div>
-          <div><span style="font-size:18px;font-weight:700;color:#3B82F6">${totalCost.toFixed(2)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">${this._config.currency}</span></div>
+          <div><span style="font-size:18px;font-weight:700;color:#3B82F6">${totalCost.toFixed(2)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">${_esc(this._config.currency)}</span></div>
         </div>
         <table class="preview-table">
-          <thead><tr><th>${L ? 'Urz\u0105dzenie' : 'Device'}</th><th>kWh</th><th>${L ? 'Koszt' : 'Cost'} (${this._config.currency})</th></tr></thead>
+          <thead><tr><th>${L ? 'Urz\u0105dzenie' : 'Device'}</th><th>kWh</th><th>${L ? 'Koszt' : 'Cost'} (${_esc(this._config.currency)})</th></tr></thead>
           <tbody>${top5.map(d => `<tr><td>${d.name}</td><td>${d.current.toFixed(2)}</td><td>${d.cost.toFixed(2)}</td></tr>`).join('')}
           ${devData.length > 5 ? `<tr><td colspan="3" style="text-align:center;color:var(--bento-text-secondary);font-size:11px">+ ${devData.length - 5} ${L ? 'wi\u0119cej urz\u0105dze\u0144' : 'more devices'}...</td></tr>` : ''}</tbody>
         </table>
@@ -1743,17 +1747,17 @@ class HaEnergyEmailEditor extends HTMLElement {
       <h3>Energy Email Reports</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Energy Email Reports'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Energy Email Reports')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>
-              <input type="text" id="cf_currency" value="${this._config?.currency || 'PLN'}"
+              <input type="text" id="cf_currency" value="${_esc(this._config?.currency || 'PLN')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Energy price</label>
-              <input type="text" id="cf_energy_price" value="${this._config?.energy_price || '0.65'}"
+              <input type="text" id="cf_energy_price" value="${_esc(this._config?.energy_price || '0.65')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

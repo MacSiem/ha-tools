@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// -- HA Tools Escape Function --
+const _esc = window._haToolsEsc || (s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
+
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
@@ -1078,7 +1081,7 @@ class HADeviceHealth extends HTMLElement {
 
     let html = `
       <div class="card">
-        <div class="card-header">${this._config.title}</div>
+        <div class="card-header">${_esc(this._config.title)}</div>
         <div class="tabs">
           <button class="tab-btn ${this._activeTab === "devices" ? "active" : ""}" data-tab="devices">${this._t('devices')}</button>
           <button class="tab-btn ${this._activeTab === "batteries" ? "active" : ""}" data-tab="batteries">${this._t('batteries')}</button>
@@ -1147,11 +1150,11 @@ class HADeviceHealth extends HTMLElement {
                 .map(
                   (device) =>
                     `<tr>
-                      <td>${device.name}</td>
-                      <td>${device.type}</td>
+                      <td>${_esc(device.name)}</td>
+                      <td>${_esc(device.type)}</td>
                       <td><span class="status-badge status-${device.status}">${device.status.toUpperCase()}</span></td>
                       <td>${new Date(device.lastSeen).toLocaleString()}</td>
-                      <td>${device.uptime}</td>
+                      <td>${_esc(device.uptime)}</td>
                     </tr>`
                 )
                 .join("")}
@@ -1208,7 +1211,7 @@ class HADeviceHealth extends HTMLElement {
                     <div class="battery-card">
                       <div class="battery-icon">🔋</div>
                       <div class="battery-info">
-                        <div class="battery-name">${battery.name}</div>
+                        <div class="battery-name">${_esc(battery.name)}</div>
                         <div class="battery-label">${this._t('lastChanged')}: ${new Date(battery.lastChanged).toLocaleDateString()}</div>
                       </div>
                       <div class="battery-right">
@@ -1281,7 +1284,7 @@ class HADeviceHealth extends HTMLElement {
       paginatedNet.forEach((device) => {
         if (device.protocol !== lastProto) {
           lastProto = device.protocol;
-          html += `<div class="section-title">${device.protocol} Network</div>`;
+          html += `<div class="section-title">${_esc(device.protocol)} Network</div>`;
         }
         const hasRssi = device.rssi !== null && device.rssi !== undefined && !isNaN(device.rssi);
         const color = hasRssi ? this._getSignalColor(device.rssi) : '#94a3b8';
@@ -1289,15 +1292,15 @@ class HADeviceHealth extends HTMLElement {
 
         // Build detail line with MAC/IP/SSID
         const details = [];
-        if (device.mac) details.push('<code style="font-size:11px;background:var(--bg);padding:2px 6px;border-radius:3px;">' + device.mac + '</code>');
-        if (device.ip) details.push('IP: ' + device.ip);
-        if (device.ssid) details.push('\u{1F4F6} ' + device.ssid);
-        if (device.connectionType) details.push(device.connectionType);
+        if (device.mac) details.push('<code style="font-size:11px;background:var(--bg);padding:2px 6px;border-radius:3px;">' + _esc(device.mac) + '</code>');
+        if (device.ip) details.push('IP: ' + _esc(device.ip));
+        if (device.ssid) details.push('\u{1F4F6} ' + _esc(device.ssid));
+        if (device.connectionType) details.push(_esc(device.connectionType));
 
         html += `
           <div style="margin-bottom: 10px; padding: 8px; border: 1px solid var(--dc); border-radius: 8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <span style="font-size:13px;font-weight:600;color:var(--tc);">${device.name}</span>
+              <span style="font-size:13px;font-weight:600;color:var(--tc);">${_esc(device.name)}</span>
               ${hasRssi ? '<span style="font-size:12px;color:' + color + ';font-weight:500;">' + device.rssi + ' dBm</span>' : ''}
             </div>
             ${details.length > 0 ? '<div style="font-size:11px;color:var(--ts);display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">' + details.join(' &middot; ') + '</div>' : ''}
@@ -1354,8 +1357,8 @@ class HADeviceHealth extends HTMLElement {
           html += `
             <div class="alert-item alert-${alert.severity}">
               <div class="alert-text">
-                <div class="alert-type">${alert.type.toUpperCase().replace(/_/g, " ")}</div>
-                <div>${alert.name}</div>
+                <div class="alert-type">${_esc(alert.type.toUpperCase().replace(/_/g, " "))}</div>
+                <div>${_esc(alert.name)}</div>
                 <div class="alert-time">${new Date(alert.timestamp).toLocaleString()}</div>
               </div>
               <div class="alert-actions">
@@ -1383,7 +1386,7 @@ class HADeviceHealth extends HTMLElement {
           .map(
             (alert) =>
               `<div style="padding: 8px 12px; border-left: 3px solid; border-color: ${alert.severity === "critical" ? "var(--ec)" : alert.severity === "warning" ? "var(--wc)" : "var(--pc)"}; margin-bottom: 4px; border-radius: var(--radius-xs); background: var(--bg);">
-                <div style="font-size: 12px; font-weight: 500; color: var(--tc);">${alert.type.replace(/_/g, ' ')} — ${alert.name}</div>
+                <div style="font-size: 12px; font-weight: 500; color: var(--tc);">${_esc(alert.type.replace(/_/g, ' '))} — ${_esc(alert.name)}</div>
                 <div style="font-size: 11px; color: var(--ts); margin-top: 2px;">${new Date(alert.timestamp).toLocaleString()}</div>
               </div>`
           )

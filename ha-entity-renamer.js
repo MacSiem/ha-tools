@@ -1,6 +1,10 @@
 (function() {
 'use strict';
 
+// XSS protection helper (global singleton — tools reuse via window._haToolsEsc)
+window._haToolsEsc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+const _esc = window._haToolsEsc;
+
 /**
  * HA Entity Renamer – Device & Entity Rename Tool
  * Renames devices/entities and propagates changes across dashboards, automations, scripts, config.
@@ -666,7 +670,7 @@ class HAEntityRenamer extends HTMLElement {
     const t = this._t;
     return `
       <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="🔍 ${t.searchPlaceholder}" value="${this._searchQuery}">
+        <input type="text" id="searchInput" placeholder="🔍 ${t.searchPlaceholder}" value="${_esc(this._searchQuery)}">
       </div>
       <div class="stats-row">
         <div class="stat-card"><div class="num">${this._devices.length}</div><div class="label">${t.devices}</div></div>
@@ -707,14 +711,14 @@ class HAEntityRenamer extends HTMLElement {
               <div class="prefix-section">
                 <h3>📱 ${t.newDeviceName}</h3>
                 <div class="prefix-row" style="margin-bottom:12px">
-                  <input type="text" id="deviceName" value="${this._deviceRenameQueue[d.id] || this._getDeviceName(d)}" placeholder="${t.newDeviceName}" style="width:300px;font-family:inherit">
+                  <input type="text" id="deviceName" value="${_esc(this._deviceRenameQueue[d.id] || this._getDeviceName(d))}" placeholder="${t.newDeviceName}" style="width:300px;font-family:inherit">
                   <button class="btn btn-primary btn-sm" id="applyDeviceName" data-device-id="${d.id}">${t.changeName}</button>
                 </div>
                 <h3>📄 ${t.prefixChange}</h3>
                 <div class="prefix-row">
-                  <input type="text" id="prefixOld" value="${this._prefixOld || ''}" placeholder="${t.oldPrefix}">
+                  <input type="text" id="prefixOld" value="${_esc(this._prefixOld || '')}" placeholder="${t.oldPrefix}">
                   <span class="arrow">→</span>
-                  <input type="text" id="prefixNew" value="${this._prefixNew || ''}" placeholder="${t.newPrefix}">
+                  <input type="text" id="prefixNew" value="${_esc(this._prefixNew || '')}" placeholder="${t.newPrefix}">
                   <button class="btn btn-primary btn-sm" id="applyPrefix">${t.apply}</button>
                 </div>
               </div>` : ''}
@@ -954,7 +958,7 @@ class HaEntityRenamerEditor extends HTMLElement {
       <h3>Entity Renamer</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Entity Renamer'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Entity Renamer')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

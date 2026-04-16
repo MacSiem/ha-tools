@@ -265,6 +265,10 @@ class HAPurgeCache extends HTMLElement {
     try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
   }
 
+  _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   _updateDisplay() {
     const root = this.shadowRoot;
     if (!root) return;
@@ -333,16 +337,17 @@ class HAPurgeCache extends HTMLElement {
 
     container.innerHTML = keys.map(k => `
       <div class="key-row">
-        <span class="key-name" title="${k.key}">${k.key.length > 40 ? k.key.substring(0, 37) + '...' : k.key}</span>
+        <span class="key-name" title="${this._esc(k.key)}">${this._esc(k.key.length > 40 ? k.key.substring(0, 37) + '...' : k.key)}</span>
         <span class="key-size">${k.sizeKB} KB</span>
-        <button class="btn-sm btn-danger" data-key="${k.key}" title="${t.deleteKey}">\u2715</button>
+        <button class="btn-sm btn-danger" data-key="${this._esc(k.key)}" title="${t.deleteKey}">\u2715</button>
       </div>
     `).join('');
 
     container.querySelectorAll('.btn-danger[data-key]').forEach(btn => {
       btn.addEventListener('click', () => {
-        localStorage.removeItem(btn.dataset.key);
-        this._addLog(`${this._t.deleteKey}: ${btn.dataset.key}`, 'success');
+        const keyToDelete = btn.getAttribute('data-key');
+        localStorage.removeItem(keyToDelete);
+        this._addLog(`${this._t.deleteKey}: ${this._esc(keyToDelete)}`, 'success');
         this._collectStats();
       });
     });

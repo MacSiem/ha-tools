@@ -396,6 +396,10 @@ class HAYamlChecker extends HTMLElement {
 
   _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
 
+  _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   // ── HA Config Check ──────────────────────────────────────────────────────
   async _runConfigCheck() {
     if (this._checkLoading) return;
@@ -1093,14 +1097,14 @@ ${this._css()}
         <span class="result-icon">${icon}</span>
         <div>
           <strong>${label}</strong>
-          <small>${r.ts}${r.note ? ' · ' + r.note : ''}</small>
+          <small>${this._esc(r.ts)}${r.note ? ' · ' + this._esc(r.note) : ''}</small>
         </div>
       </div>
       ${r.errors.length ? `<div class="issue-section"><h3>${this._t.errors} (${r.errors.length})</h3>
-        ${r.errors.map(e => `<div class="issue-item error"><span class="issue-icon">\u274C</span><div>${e.component ? '<strong>[' + e.component + ']</strong> ' : ''}${e.detail || e.message || JSON.stringify(e)}</div></div>`).join('')}
+        ${r.errors.map(e => `<div class="issue-item error"><span class="issue-icon">\u274C</span><div>${e.component ? '<strong>[' + this._esc(e.component) + ']</strong> ' : ''}${this._esc(e.detail || e.message || JSON.stringify(e))}</div></div>`).join('')}
       </div>` : ''}
       ${r.warnings.length ? `<div class="issue-section"><h3>${this._t.warnings} (${r.warnings.length})</h3>
-        ${r.warnings.map(w => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div>${w.message || JSON.stringify(w)}</div></div>`).join('')}
+        ${r.warnings.map(w => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div>${this._esc(w.message || JSON.stringify(w))}</div></div>`).join('')}
       </div>` : ''}
       ${r.ok && !r.errors.length && !r.warnings.length ? `<div class="all-good">✅ ${this._t.allOk}</div>` : ''}
     `;
@@ -1150,26 +1154,26 @@ ${this._css()}
       ${r.dupIds.length ? `
         <div class="issue-section">
           <h3>⚠️ Duplikaty ID automatyzacji (${r.dupIds.length})</h3>
-          ${r.dupIds.map(d => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${d.id}</strong> — ${this._sanitize(d.alias)}</div></div>`).join('')}
+          ${r.dupIds.map(d => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${this._esc(d.id)}</strong> — ${this._esc(d.alias)}</div></div>`).join('')}
         </div>
       ` : ''}
       ${r.broken.length ? `
         <div class="issue-section">
           <h3>❌ ${this._t.brokenRefsTitle} (${r.broken.length})</h3>
-          ${r.broken.map(b => `<div class="issue-item error"><span class="issue-icon">❌</span><div><strong>${b.entity}</strong> <span style="color:var(--text-secondary);font-size:11px;">w ${b.type}: ${b.in}</span></div></div>`).join('')}
+          ${r.broken.map(b => `<div class="issue-item error"><span class="issue-icon">❌</span><div><strong>${this._esc(b.entity)}</strong> <span style="color:var(--text-secondary);font-size:11px;">w ${this._esc(b.type)}: ${this._esc(b.in)}</span></div></div>`).join('')}
         </div>
       ` : '<div class="all-good">✅ ' + this._t.noRefs + '</div>'}
       ${r.problemStates?.length ? `
         <div class="issue-section">
           <h3>⚠️ ${this._t.unavailableTitle} (${r.problemStates.length})</h3>
-          ${r.problemStates.slice(0, 30).map(p => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${p.entity}</strong> — ${this._sanitize(p.name)} <span class="badge ${p.state === 'unavailable' ? 'error' : 'warning'}">${p.state}</span></div></div>`).join('')}
+          ${r.problemStates.slice(0, 30).map(p => `<div class="issue-item warning"><span class="issue-icon">⚠️</span><div><strong>${this._esc(p.entity)}</strong> — ${this._esc(p.name)} <span class="badge ${p.state === 'unavailable' ? 'error' : 'warning'}">${this._esc(p.state)}</span></div></div>`).join('')}
           ${r.problemStates.length > 30 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">${this._t.moreCount.replace('{count}', r.problemStates.length - 30)}</div>` : ''}
         </div>
       ` : ''}
       ${r.autoNoDesc?.length ? `
         <div class="issue-section">
           <h3>ℹ️ ${this._t.noDescTitle} (${r.autoNoDesc.length})</h3>
-          ${r.autoNoDesc.slice(0, 20).map(a => `<div class="issue-item info"><span class="issue-icon">ℹ️</span><div><strong>${this._sanitize(a.alias)}</strong> <span style="color:var(--bento-text-secondary);font-size:11px;">ID: ${a.id}</span></div></div>`).join('')}
+          ${r.autoNoDesc.slice(0, 20).map(a => `<div class="issue-item info"><span class="issue-icon">ℹ️</span><div><strong>${this._esc(a.alias)}</strong> <span style="color:var(--bento-text-secondary);font-size:11px;">ID: ${this._esc(a.id)}</span></div></div>`).join('')}
           ${r.autoNoDesc.length > 20 ? `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">${this._t.moreCount.replace('{count}', r.autoNoDesc.length - 20)}</div>` : ''}
         </div>
       ` : ''}
@@ -1177,7 +1181,7 @@ ${this._css()}
         <div class="issue-section">
           <h3>ℹ️ ${this._t.entitiesWithoutFriendlyName} (${r.noFriendlyName.length})</h3>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
-            ${r.noFriendlyName.map(e => `<span class="badge warning" style="font-size:11px;">${e}</span>`).join('')}
+            ${r.noFriendlyName.map(e => `<span class="badge warning" style="font-size:11px;">${this._esc(e)}</span>`).join('')}
           </div>
         </div>
       ` : ''}
@@ -1210,21 +1214,21 @@ ${this._css()}
 
   _renderScanResult(r) {
     return `
-      ${r.error ? `<div class="error-box">⚠️ ${this._t.partialError}: ${r.error}</div>` : ''}
+      ${r.error ? `<div class="error-box">⚠️ ${this._t.partialError}: ${this._esc(r.error)}</div>` : ''}
       ${r.haVersion ? `
         <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
-          <div class="stat-card"><div class="stat-value">${r.haVersion}</div><div class="stat-label">HA Version</div></div>
-          <div class="stat-card"><div class="stat-value">${r.entityCount}</div><div class="stat-label">${this._t.entities}</div></div>
-          <div class="stat-card"><div class="stat-value">${r.deviceCount}</div><div class="stat-label">${this._t.devices}</div></div>
-          <div class="stat-card"><div class="stat-value">${r.areaCount}</div><div class="stat-label">${this._t.areas}</div></div>
-          <div class="stat-card"><div class="stat-value">${r.components}</div><div class="stat-label">${this._t.components}</div></div>
+          <div class="stat-card"><div class="stat-value">${this._esc(r.haVersion)}</div><div class="stat-label">HA Version</div></div>
+          <div class="stat-card"><div class="stat-value">${this._esc(r.entityCount)}</div><div class="stat-label">${this._t.entities}</div></div>
+          <div class="stat-card"><div class="stat-value">${this._esc(r.deviceCount)}</div><div class="stat-label">${this._t.devices}</div></div>
+          <div class="stat-card"><div class="stat-value">${this._esc(r.areaCount)}</div><div class="stat-label">${this._t.areas}</div></div>
+          <div class="stat-card"><div class="stat-value">${this._esc(r.components)}</div><div class="stat-label">${this._t.components}</div></div>
           <div class="stat-card ${r.logErrors > 0 ? 'stat-error' : ''}">
-            <div class="stat-value ${r.logErrors > 0 ? 'error-val' : ''}">${r.logErrors}</div>
+            <div class="stat-value ${r.logErrors > 0 ? 'error-val' : ''}">${this._esc(r.logErrors)}</div>
             <div class="stat-label">${this._t.logErrors}</div>
           </div>
         </div>
-        ${r.configDir ? `<div class="note-box">📁 ${this._t.configDirLabel}: <code>${r.configDir}</code></div>` : ''}
-        ${r.logWarnings > 0 ? `<div class="note-box">⚠️ ${this._t.logWarnings}: ${r.logWarnings}</div>` : ''}
+        ${r.configDir ? `<div class="note-box">📁 ${this._t.configDirLabel}: <code>${this._esc(r.configDir)}</code></div>` : ''}
+        ${r.logWarnings > 0 ? `<div class="note-box">⚠️ ${this._t.logWarnings}: ${this._esc(r.logWarnings)}</div>` : ''}
       ` : ''}
       <div class="file-list-header" style="margin-top:12px;">${this._t.configFilesNote}</div>
       <div class="file-list">
@@ -1232,8 +1236,8 @@ ${this._css()}
           <div class="file-item">
             <span class="file-icon">📔</span>
             <div class="file-info">
-              <div class="file-path">${f.path}${f.critical ? '<span class="badge critical">' + this._t.critical + '</span>' : ''}</div>
-              <div class="file-desc">${f.desc}</div>
+              <div class="file-path">${this._esc(f.path)}${f.critical ? '<span class="badge critical">' + this._t.critical + '</span>' : ''}</div>
+              <div class="file-desc">${this._esc(f.desc)}</div>
             </div>
             <span class="file-status-icon" title="${this._lang === 'pl' ? 'Nieznany (HA API nie zwraca listy plik\u00F3w YAML)' : 'Unknown (HA API does not return YAML file list)'}">\u2753</span>
           </div>

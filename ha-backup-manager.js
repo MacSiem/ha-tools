@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// -- HA Tools Escape Function --
+const _esc = window._haToolsEsc || (s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
+
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
@@ -402,7 +405,7 @@ class HaBackupManager extends HTMLElement {
           </button>
         </div>
 
-        ${this._error ? `<div class="error-banner">${this._error}</div>` : ''}
+        ${this._error ? `<div class="error-banner">${_esc(this._error)}</div>` : ''}
 
         <div class="backups-list">
           ${this._backups.length === 0
@@ -420,11 +423,11 @@ class HaBackupManager extends HTMLElement {
                       <tr class="compact-backup-row ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
                           data-slug="${backup.slug}">
                         <td class="compact-date">${this._formatDate(backup.date)}</td>
-                        <td class="compact-name" title="${this._sanitizeName(backup.name)}${backup.is_protected ? ' 🔒' : ''}">
-                          ${this._sanitizeName(backup.name)}
+                        <td class="compact-name" title="${_esc(this._sanitizeName(backup.name))}${backup.is_protected ? ' 🔒' : ''}">
+                          ${_esc(this._sanitizeName(backup.name))}
                           ${backup.is_protected ? ' \uD83D\uDD12' : ''}
                         </td>
-                        <td><span class="backup-type ${backup.type}">${backup.type}</span></td>
+                        <td><span class="backup-type ${_esc(backup.type)}">${_esc(backup.type)}</span></td>
                         <td class="compact-location">${this._getBackupLocation(backup)}</td>
                         <td class="compact-size">${backup.size_bytes ? this._formatBytes(backup.size_bytes) : (backup.size ? this._formatMB(backup.size) : '?')}</td>
                       </tr>
@@ -1519,7 +1522,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 </style>
 
       <div class="card">
-        <h1 class="card-title">${this._config.title || 'Backup Manager'}</h1>
+        <h1 class="card-title">${_esc(this._config.title || 'Backup Manager')}</h1>
 
         <div class="tabs">
           <button class="tab-btn ${this._activeTab === 'backups' ? 'active' : ''}"
@@ -1725,17 +1728,17 @@ class HaBackupManagerEditor extends HTMLElement {
       <h3>Backup Manager</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Backup Manager'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Backup Manager')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Warning after (days)</label>
-              <input type="text" id="cf_warn_after_days" value="${this._config?.warn_after_days || '3'}"
+              <input type="text" id="cf_warn_after_days" value="${_esc(this._config?.warn_after_days || '3')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Max backups</label>
-              <input type="text" id="cf_max_backups" value="${this._config?.max_backups || '10'}"
+              <input type="text" id="cf_max_backups" value="${_esc(this._config?.max_backups || '10')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

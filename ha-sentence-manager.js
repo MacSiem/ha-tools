@@ -686,7 +686,7 @@ class HASentenceManager extends HTMLElement {
     container.className = 'card';
     container.innerHTML = `
       <div class="card-header">
-        <h1 class="card-title">${this.config.title || 'Sentence Manager'}</h1>
+        <h1 class="card-title">${_esc(this.config.title) || 'Sentence Manager'}</h1>
       </div>
 
       <div class="tip-banner ${tipDismissed ? 'hidden' : ''}" id="tip-banner">
@@ -797,8 +797,8 @@ class HASentenceManager extends HTMLElement {
               </h3>
               ${catIntents.map(([name, sentences]) => `
                 <div class="intent-group">
-                  <div class="intent-header" style="cursor:pointer;" data-toggle-intent="${name}">
-                    <span class="intent-name">${name}</span>
+                  <div class="intent-header" style="cursor:pointer;" data-toggle-intent="${_esc(name)}">
+                    <span class="intent-name">${_esc(name)}</span>
                     <span class="badge badge-info">${sentences.length} ${this._lang === 'pl' ? 'zdań' : 'sentences'}</span>
                     <span class="toggle-arrow" style="margin-left:auto;font-size:12px;color:var(--bento-text-muted);">\u25BC</span>
                   </div>
@@ -817,13 +817,13 @@ class HASentenceManager extends HTMLElement {
               ${lists.map(([name, values]) => `
                 <div class="intent-group">
                   <div class="intent-header">
-                    <span class="intent-name">{${name}}</span>
+                    <span class="intent-name">{${_esc(name)}}</span>
                     <span class="badge badge-info">${values.length} ${this._lang === 'pl' ? 'wartości' : 'values'}</span>
                   </div>
                   <div class="slot-values">
                     ${values.map(v => {
-                      if (v.value) return `<span class="slot-badge">${v.value}</span>`;
-                      return `<span class="slot-badge">${v.in} \u2192 ${v.out || ''}</span>`;
+                      if (v.value) return `<span class="slot-badge">${_esc(v.value)}</span>`;
+                      return `<span class="slot-badge">${_esc(v.in)} \u2192 ${_esc(v.out || '')}</span>`;
                     }).join(' ')}
                   </div>
                 </div>
@@ -2481,7 +2481,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (customActions.length > 0) {
       html += '<div class="section-title" style="margin-top:24px;">💾 Saved Actions (' + customActions.length + ')</div>';
       customActions.forEach((a, idx) => {
-        html += `<div style="padding:10px 14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><div><strong style="font-size:13px;">"${a.trigger}"</strong> <span style="font-size:12px;color:var(--bento-text-secondary,#64748b);">⚡ ${a.service} (${a.entity})</span></div><button class="btn-danger-sm" data-remove-action="${idx}" style="padding:4px 10px;font-size:11px;border-radius:6px;background:var(--bento-error,#ef4444);color:white;border:none;cursor:pointer;">🗑️</button></div>`;
+        html += `<div style="padding:10px 14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><div><strong style="font-size:13px;">"${_esc(a.trigger)}"</strong> <span style="font-size:12px;color:var(--bento-text-secondary,#64748b);">⚡ ${_esc(a.service)} (${_esc(a.entity)})</span></div><button class="btn-danger-sm" data-remove-action="${idx}" style="padding:4px 10px;font-size:11px;border-radius:6px;background:var(--bento-error,#ef4444);color:white;border:none;cursor:pointer;">🗑️</button></div>`;
       });
     }
 
