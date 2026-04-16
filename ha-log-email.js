@@ -11,6 +11,13 @@ window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: 
  * Author: Jeff (AI) for MacSiem
  */
 
+/**
+ * HA Log Email Card v1.0
+ * Send periodic email summaries of HA errors and warnings.
+ * Part of HA Tools Panel — Smart Reports
+ * Author: Jeff (AI) for MacSiem
+ */
+
 class HALogEmail extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-log-email-editor'); }
   constructor() {
