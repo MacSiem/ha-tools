@@ -1138,7 +1138,7 @@ canvas {
       const count = Object.keys(this._hass.states).filter(id => id.startsWith(d + '.')).length;
       const opt = document.createElement('option');
       opt.value = d;
-      opt.textContent = d + ' (' + count + ')';
+      opt.textContent = _esc(d) + ' (' + count + ')';
       if (d === currentDomain) opt.selected = true;
       domainFilter.appendChild(opt);
     });
@@ -1174,7 +1174,7 @@ canvas {
         tr.innerHTML = `
           <td class="checkbox-cell"><input type="checkbox" data-entity="${ent.entity_id}" ${checked} /></td>
           <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes" aria-label="Show attributes">▶</button></td>
-          <td class="entity-id" title="${ent.entity_id}">${ent.entity_id}</td>
+          <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
           <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
           <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
           <td>${ent.domain}</td>
@@ -1208,7 +1208,7 @@ canvas {
             const isComplex = typeof v === 'object' && v !== null;
             const displayVal = isComplex ? JSON.stringify(v) : String(v);
             const valClass = isComplex ? 'attr-val complex' : 'attr-val';
-            attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${displayVal.replace(/"/g, '&quot;')}">${displayVal}</span></div>`;
+            attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${_esc(displayVal).replace(/"/g, '&quot;')}">${_esc(displayVal)}</span></div>`;
           });
         }
         attrHtml += '</div>';
@@ -1461,7 +1461,7 @@ canvas {
       this._historyCache[entityId] = { data: changes, ts: Date.now() };
       this._renderHistory(container, changes, entityId);
     } catch (err) {
-      container.innerHTML = '<span class="history-loading">' + this._t.loadHistoryError + ' ' + err.message + '</span>';
+      container.innerHTML = '<span class="history-loading">' + this._t.loadHistoryError + ' ' + _esc(err.message) + '</span>';
     }
   }
 
@@ -1478,7 +1478,7 @@ canvas {
       html += '<div class="history-item' + (isCurrent ? '' : '') + '">';
       html += '<span class="history-time">' + timeStr + '</span>';
       if (i > 0) html += '<span class="history-arrow">\u2192</span>';
-      html += '<span class="history-state">' + (ch.state || '?') + '</span>';
+      html += '<span class="history-state">' + _esc(ch.state || '?') + '</span>';
       if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(' + this._t.now + ')</span>';
       html += '</div>';
     });

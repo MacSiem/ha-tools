@@ -628,8 +628,8 @@ class HASentenceManager extends HTMLElement {
       const slotElement = document.createElement('div');
       slotElement.className = 'slot-item';
       slotElement.innerHTML = `
-        <label>${slotName}:</label>
-        <input type="text" class="slot-input" data-slot-name="${slotName}" placeholder="e.g., string, number, area">
+        <label>${_esc(slotName)}:</label>
+        <input type="text" class="slot-input" data-slot-name="${_esc(slotName)}" placeholder="e.g., string, number, area">
         <button class="remove-slot-btn">Remove</button>
       `;
       slotElement.querySelector('.remove-slot-btn').addEventListener('click', () => slotElement.remove());
@@ -1357,14 +1357,14 @@ class HASentenceManager extends HTMLElement {
         <h3>${results.length} match(es) found:</h3>
         ${results.map(r => `
           <div class="test-match-item">
-            <div class="match-intent">${r.intent}</div>
-            <div class="match-trigger">Pattern: ${this.highlightSlots(r.sentence)}</div>
+            <div class="match-intent">${_esc(r.intent)}</div>
+            <div class="match-trigger">Pattern: ${this.highlightSlots(_esc(r.sentence))}</div>
             ${Object.keys(r.slots).length > 0 ? `
               <div class="match-slots">
-                Extracted: ${Object.entries(r.slots).map(([k, v]) => `<span class="slot-badge">${k}=${v}</span>`).join(' ')}
+                Extracted: ${Object.entries(r.slots).map(([k, v]) => `<span class="slot-badge">${_esc(k)}=${_esc(v)}</span>`).join(' ')}
               </div>
             ` : ''}
-            ${r.response ? `<div class="match-response">Response: ${r.response}</div>` : ''}
+            ${r.response ? `<div class="match-response">Response: ${_esc(r.response)}</div>` : ''}
           </div>
         `).join('')}
       </div>

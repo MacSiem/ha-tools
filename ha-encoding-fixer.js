@@ -1226,7 +1226,7 @@ class HaEncodingFixer extends HTMLElement {
         if (!e.target.value) {
           resultEl.innerHTML = '';
         } else if (result && result.fixed !== result.original) {
-          resultEl.innerHTML = `<div class="test-found">\u26A0\uFE0F ${t.mojibakeFound}:<br><strong>${this._escapeHtml(result.fixed)}</strong><br><small>${result.method}</small></div>`;
+          resultEl.innerHTML = `<div class="test-found">\u26A0\uFE0F ${t.mojibakeFound}:<br><strong>${this._escapeHtml(result.fixed)}</strong><br><small>${this._escapeHtml(result.method)}</small></div>`;
         } else {
           resultEl.innerHTML = `<div class="test-ok">\u2705 ${t.noMojibake}</div>`;
         }

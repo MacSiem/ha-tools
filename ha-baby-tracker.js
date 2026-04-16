@@ -2118,7 +2118,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${f.time}</div>
-          <div class="list-item-title">${icons[f.type]} ${f.type.charAt(0).toUpperCase() + f.type.slice(1)}${f.linkedId ? ' \uD83D\uDD17' : ''}</div>
+          <div class="list-item-title">${icons[f.type]} ${_esc(f.type.charAt(0).toUpperCase() + f.type.slice(1))}${_esc(f.linkedId) ? ' \uD83D\uDD17' : ''}</div>
           <div class="list-item-subtitle">${_esc(f.amount)}${f.notes ? ' • ' + _esc(f.notes) : ''}</div>
         </div>
       </div>
@@ -2157,7 +2157,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       <div class="list-item">
         <div class="list-item-content">
           <div class="list-item-time">${d.time}</div>
-          <div class="list-item-title">${icons[d.type]} ${d.type.charAt(0).toUpperCase() + d.type.slice(1)}</div>
+          <div class="list-item-title">${icons[d.type]} ${_esc(d.type.charAt(0).toUpperCase() + d.type.slice(1))}</div>
           ${d.notes ? `<div class="list-item-subtitle">${_esc(d.notes)}</div>` : ''}
         </div>
       </div>
@@ -2604,10 +2604,10 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     listEl.innerHTML = entries.slice(0, 20).map(e => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:13px">
         <div>
-          <strong>${typeLabels[e.type] || e.type}</strong>${e.linkedId ? ' \uD83D\uDD17' : ''} — ${sideLabels[e.side] || e.side}
+          <strong>${_esc(typeLabels[e.type] || e.type)}</strong>${_esc(e.linkedId) ? ' \uD83D\uDD17' : ''} — ${_esc(sideLabels[e.side] || e.side)}
           ${e.duration ? ` \u2022 ${e.duration} min` : ''}
           ${e.amount ? ` \u2022 ${e.amount} ml` : ''}
-          <div style="font-size:11px;color:var(--bento-text-secondary,#64748b)">${e.notes || ''}</div>
+          <div style="font-size:11px;color:var(--bento-text-secondary,#64748b)">${_esc(e.notes || '')}</div>
         </div>
         <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);white-space:nowrap">${e.time} ${e.date !== today ? e.date : ''}</div>
       </div>
