@@ -1,0 +1,102 @@
+Audit results for ha-network-map.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function(){ 'use strict'; ... })();` starting at line 1 and ending at line 1017.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Both custom elements are defined only if not already defined:  
+   - `ha-network-map` at line 1011  
+   - `ha-network-map-editor` at line 1059
+
+3. **HASS GUARD**:  
+   OK — All calls to Home Assistant API are guarded by `if (!this._hass) return;` or similar checks:  
+   - `_loadDeviceRegistry()` at line 95  
+   - `_buildDeviceList()` checks `this._hass?.states` at line 213  
+   - `_startAutoScan()` at line 142  
+   - `_pingIp()` uses no direct hass calls but is async fetch  
+   - Editor component also checks `_hass` before rendering (line 1075)
+
+4. **SHADOW DOM**:  
+   OK — Shadow DOM is attached in constructors:  
+   - `HaNetworkMap` constructor at line 7  
+   - `HaNetworkMapEditor` constructor at line 1023
+
+5. **BENTO CSS**:  
+   OK — Uses `window.HAToolsBentoCSS` in `_css()` method at line 900.
+
+6. **XSS**:  
+   Found all `.innerHTML =` or `.innerHTML +=` assignments:  
+   - Line 899: `this.shadowRoot.innerHTML = html;` — `html` is constructed from multiple concatenated strings including user/device data (e.g., device names, IPs, MACs).  
+     However, no explicit escaping function like `window._haToolsEsc()` is used here.  
+     User data inserted includes: device names, IPs, MACs, manufacturer, entity IDs, binding keys, etc.  
+     These come from device registry, HA states, user input (search, filters), and localStorage.  
+     **Verdict: UNSAFE** — No escaping on user/device data in HTML construction. Potential XSS risk if device names or other fields contain malicious strings.  
+   
+   - Line 1046: Editor component sets `innerHTML` with template literal including config values (title, router_ip). These come from user config. No escaping used.  
+     **Verdict: UNSAFE** — User config values inserted directly into input `value` attributes without escaping. Could lead to attribute injection if config is maliciously crafted.  
+   
+   No other `.innerHTML` assignments found.  
+   
+   **Summary for XSS:**  
+   - Line 899: UNSAFE  
+   - Line 1046: UNSAFE
+
+7. **LANGUAGE**:  
+   OK — Supports both English and Polish via `_translations` static getter (lines 17-74).  
+   Most UI strings use `_t()` translation method.  
+   Hardcoded strings found in prompts:  
+   - Line 669: `prompt('Select entity ID:\n\n' + trackerEntities.join('\n'))` — hardcoded English prompt, no translation.  
+   - Line 1012: `prompt('Enter device IP or name:')` — hardcoded English prompt, no translation.  
+   These should be translated for full bilingual support.  
+   
+   Verdict: ISSUE — hardcoded prompt strings not translated (lines 669, 1012).
+
+8. **ERROR HANDLING**:  
+   - All `callWS` calls wrapped in try/catch (line 95).  
+   - `fetch` in `_pingIp` (line 157) wrapped in try/catch inside loop.  
+   - LocalStorage JSON parsing wrapped in try/catch (lines 104, 112, 120).  
+   - Some catch blocks swallow errors silently (empty catch blocks):  
+     - `_saveSubnets()` at line 109  
+     - `_saveBindings()` at line 116  
+     - `_persistScanResults()` at line 171  
+   - Silent catch blocks are acceptable for localStorage failures but could log warnings for debugging.  
+   
+   Verdict: OK — errors caught, some silent catches acceptable here.
+
+9. **MEMORY**:  
+   - Event listeners are attached to shadowRoot children after each render (line 904).  
+   - No listeners attached to window/document or `this` without cleanup.  
+   - No `setInterval` used, only `setTimeout` (line 67).  
+   - No disconnectedCallback implemented, but no persistent listeners on global objects.  
+   
+   Verdict: OK — no memory leaks detected.
+
+10. **SETTINGS**:  
+    - Uses localStorage keys:  
+      - `'ha-tools-net-subnets'` (load/save at lines 102/108)  
+      - `'ha-tools-net-bindings'` (load/save at lines 114/115)  
+      - `'ha-tools-net-scan'` (save at line 170) but no load from this key (only save).  
+    - No explicit `_getSetting` or `_setSetting` methods, but localStorage usage consistent.  
+    - `'ha-tools-net-scan'` data saved but never loaded back — orphaned setting.  
+   
+    Verdict: ISSUE — `'ha-tools-net-scan'` saved but never loaded (line 170).
+
+11. **EDGE CASES**:  
+    - Empty states handled:  
+      - Devices tab shows "No devices found" message if no devices (line 572).  
+      - Subnets tab shows message if no subnets (line 765).  
+    - Loading states: no explicit loading spinner except scan overlay during scanning (line 545).  
+    - Pagination edge cases handled:  
+      - Current page clamped to max pages (line 536).  
+      - Prev/Next buttons disabled appropriately (line 565).  
+   
+    Verdict: OK — edge cases handled well.
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- 6: XSS risk due to unescaped user/device data in innerHTML assignments (lines 899, 1046)  
+- 7: Hardcoded English prompt strings not translated (lines 669, 1012)  
+- 10: Orphaned localStorage setting `'ha-tools-net-scan'` saved but never loaded (line 170)

@@ -1,0 +1,10 @@
+Here's the audit report for `ha-frigate-privacy.js`:
+
+1.  CARD VS CONTAINER: Uses .card (correct).
+2.  DARK MODE: Does CSS reference --bento-* variables or prefers-color-scheme? Yes, it uses `--bento-*` variables and the `prefers-color-scheme` media query.
+3.  RESPONSIVE: Has @media breakpoints for 768px, 480px? What breakpoints exist: ['480', '800', '768'].  Yes, it includes breakpoints for 480px, 768px, and 800px.
+4.  BENTO TOKENS: Does CSS use --bento-bg, --bento-card, --bento-text etc. or hardcoded colors? Yes, it heavily relies on `--bento-*` variables.
+5.  INLINE STYLES: 11 inline styles found. Should minimize inline styles. This is a significant issue and should be addressed.
+6.  FONT: Does it use Inter font or reference font-family correctly? The code doesn't explicitly define the font family. It relies on `var(--primary-text-color,#1e293b)` which is a Bento token.  It's assumed to be Inter, but this isn't explicitly stated.
+
+SUMMARY: 5/6 OK, 1 issues.

@@ -1,0 +1,14 @@
+Here's the audit checklist based on the provided JSON data for `ha-energy-insights.js`:
+
+1. IIFE WRAPPER: OK - The file has a standard IIFE wrapper with `'use strict';`.
+2. CUSTOM ELEMENT GUARD: OK - The `has_ce_guard` flag is set to `true`, indicating a check for customElements.get() before define().
+3. HASS GUARD: OK - The `has_hass_guard` flag is set to `true`, suggesting a check for `!this._hass` before API calls.
+4. SHADOW DOM: OK - The `has_shadow_dom` flag is set to `true`, confirming the use of attachShadow.
+5. BENTO CSS: OK - The `has_bento_css` flag is set to `true`, indicating the import of window.HAToolsBentoCSS.
+6. XSS SAFETY: OK - `innerHTML_count=6, xss_escape_calls=0`.  The low count and zero escape calls suggest a reasonable level of XSS safety.
+7. LANGUAGE: OK - The `translation_keys_sample` includes both "PL" and "EN", demonstrating support for multiple languages.
+8. ERROR HANDLING: OK - 7 try/catch blocks and 1 console.error call. This appears sufficient for the 2 WS calls and 0 service calls, providing basic error handling.
+9. MEMORY LEAKS: OK - 3 addEventListener vs 0 removeEventListener, and `has_disconnectedCallback` is true. This addresses potential memory leaks by handling element removal.
+10. SETTINGS CONSISTENCY: OK - The `get_settings` and `set_settings` arrays are empty, indicating a controlled and consistent approach to settings management.
+
+SUMMARY: 10/10 OK, 0 issues found.

@@ -1,0 +1,29 @@
+ISSUE: Localization Hardcoded alert strings not translated at lines 361, 411, 540  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Replace hardcoded English alert strings with localized strings from `_t` getter, e.g. `alert(this._t.someKey)` or add new keys for these messages.
+
+---
+
+ISSUE: CSS Hardcoded colors used instead of Bento tokens (lines ~240, ~400, ~600, ~700+)  
+VERDICT: REAL (minor visual consistency issue)  
+SEVERITY: info  
+FIX: Replace hardcoded hex and rgba colors with corresponding Bento CSS variables or add new Bento tokens if needed.
+
+---
+
+ISSUE: CSS Inline styles heavily used in template literals (40+ occurrences, lines ~260-400)  
+VERDICT: REAL (maintainability issue)  
+SEVERITY: info  
+FIX: Move repeated inline styles into CSS classes within the component's style block to improve maintainability and reduce template clutter.
+
+---
+
+ISSUE: Accessibility Missing ARIA roles and attributes on tabs and tab panels (no `role="tablist"`, `role="tab"`, `aria-selected`, etc.)  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add appropriate ARIA roles and attributes to tab buttons and panels to improve screen reader support and keyboard navigation.
+
+---
+
+TOTAL: 4 real issues (0 critical, 2 warning, 2 info), 0 false positives.

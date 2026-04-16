@@ -1,0 +1,141 @@
+Audit of ha-sentence-manager.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- The main wrapper used is `.card` (correct per Bento design system).
+- `.container` is not used as a main wrapper anywhere.
+- Some other container-like classes appear (e.g., `.card-container` in CSS only, not in HTML templates).
+- **Count**: `.card` used multiple times as main wrapper; `.container` not used as main wrapper.
+- **Verdict**: Correct usage of `.card` wrapper.
+
+---
+
+### 2. BENTO TOKENS
+
+- The CSS extensively uses `--bento-*` CSS variables for colors, borders, shadows, radii, transitions, fonts.
+- Examples: `var(--bento-primary)`, `var(--bento-border)`, `var(--bento-text)`, `var(--bento-bg)`, etc.
+- Hardcoded colors found in CSS (mostly in inline styles or some static HTML strings):
+  - `#3B82F6` (bento primary color) used directly in some inline styles (e.g., line ~1000 in `_renderActionsTab` for table borders and colors).
+  - `#1e293b` (dark background in generated YAML block) line ~1010.
+  - `#e2e8f0` (border color) line ~1000.
+  - `#64748b` (text-muted color) line ~1000.
+  - `rgba(244,67,54,0.1)` and similar for `.remove-slot-btn` background (line ~850).
+  - Some inline styles use `rgba(59, 130, 246, 0.04)` and similar hardcoded rgba colors repeatedly.
+- These hardcoded colors mostly match Bento palette colors, but are not always replaced with CSS variables.
+- **Verdict**: Mostly uses Bento tokens, but some hardcoded colors remain in inline styles and static HTML strings, especially in `_renderActionsTab` and `.remove-slot-btn` styles.
+
+---
+
+### 3. DARK MODE
+
+- There is a `@media (prefers-color-scheme: dark)` block starting line ~7000 in the CSS string.
+- It overrides Bento tokens for dark mode:
+  - `--bento-bg`, `--bento-card`, `--bento-text`, `--bento-text-secondary`, `--bento-border`, `--bento-shadow-sm`, `--bento-shadow-md`.
+- The CSS variables are used throughout, so dark mode colors apply correctly.
+- No other explicit dark mode CSS found.
+- **Verdict**: Proper dark mode support via prefers-color-scheme and Bento tokens.
+
+---
+
+### 4. RESPONSIVE
+
+- Media queries present for max-width 768px and 480px (lines ~7200 and ~7220).
+- Adjustments include:
+  - Padding reduction on `.card`.
+  - Grid columns reduced.
+  - Flex direction changes to column for `.panels` and `.board`.
+  - Font size reductions for headings and inputs.
+  - `.slot-item` grid changes to single column on very small screens.
+- No 360px breakpoint found.
+- No obvious content that would overflow on mobile; inputs and containers use flexible widths and box-sizing.
+- Tabs have `overflow-x: auto` for horizontal scrolling on small widths.
+- Inline styles with fixed widths are minimal and mostly avoided.
+- **Verdict**: Responsive design implemented well for 768px and 480px breakpoints, no overflow issues detected.
+
+---
+
+### 5. INLINE STYLES
+
+- Inline styles appear in template literals in multiple places.
+- Count of inline style attributes: approx. 20+ occurrences.
+- Top 5 longest inline style attribute strings with approximate line numbers:
+
+  1. Line ~650: `<div style="margin-top:20px;padding:16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:10px">` (HA Sentences tab voice control box)
+  2. Line ~670: `<div style="margin-top:8px;font-size:12px;line-height:1.8;color:var(--bento-text-secondary,#64748b)">` (HA Sentences tab example commands)
+  3. Line ~680: `<div style="margin-top:8px"><strong>...</strong></div>` (HA Sentences tab configuration notes)
+  4. Line ~1000: Multiple inline styles in `_renderActionsTab` for table cells, e.g. `style="padding:6px 8px;border-bottom:1px solid var(--bento-border,#e2e8f0);font-size:12px;color:var(--bento-text-secondary,#64748b);"`
+  5. Line ~1010: `<pre id="action-yaml-code" style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:10px;font-size:12px;overflow-x:auto;line-height:1.6;"></pre>` (dark background for YAML code block)
+
+- These inline styles are mostly for layout and color, some use hardcoded fallback colors.
+- **Verdict**: Inline styles are used but mostly for small layout tweaks; no critical issues but could be improved by moving to CSS classes.
+
+---
+
+### 6. FONT
+
+- The CSS imports and uses the 'Inter' font family explicitly (line ~7000 in CSS).
+- Font-family is consistently set to `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` in host and many selectors.
+- No fallback to HA theme fonts explicitly, but Bento tokens and font-family are consistent.
+- **Verdict**: Uses Inter font consistently, no font inconsistencies.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons use `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-small` classes consistently.
+- Cards use `.card` wrapper with consistent padding, border, radius, and shadow.
+- Tables use consistent styling with border, padding, font, hover effects.
+- Badges use `.badge`, `.badge-success`, `.badge-error`, `.badge-info`, `.badge-warning` consistently.
+- Inline styles occasionally break consistency (e.g., `.remove-slot-btn` uses rgba hardcoded colors).
+- Tab buttons use `.tab-btn` with consistent active and hover states.
+- Overall UI elements have consistent spacing, font sizes, and colors.
+- **Verdict**: Good visual consistency across UI elements with minor exceptions in inline styles.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+  - Bento tokens chosen have good contrast in light and dark modes.
+  - Some inline styles with low opacity or light colors (e.g., `.tip-banner` background) might be borderline but generally acceptable.
+- Aria labels:
+  - The tip dismiss button has `aria-label="Dismiss"` (line ~600).
+  - Tab buttons lack explicit aria roles or aria-selected attributes.
+  - Buttons generally have text content or icons with text, no missing labels detected.
+  - Some interactive elements like remove slot buttons have only text "Remove" without aria-label, which is acceptable but could be improved.
+- Keyboard focus:
+  - Buttons and inputs are standard HTML elements, so keyboard accessible.
+- No explicit roles or landmarks defined.
+- **Verdict**: Basic accessibility is present; aria-label on tip dismiss is good. Could improve tab buttons with aria roles and states.
+
+---
+
+## SUMMARY
+
+| Checkpoint               | Result                      |
+|-------------------------|-----------------------------|
+| 1. CARD VS CONTAINER    | OK - `.card` used correctly |
+| 2. BENTO TOKENS         | Minor issues - some hardcoded colors remain in inline styles and static HTML |
+| 3. DARK MODE            | OK - prefers-color-scheme with Bento tokens |
+| 4. RESPONSIVE           | OK - media queries for 768px and 480px, no overflow issues |
+| 5. INLINE STYLES        | Minor issue - ~20 inline styles, some long and hardcoded colors |
+| 6. FONT                 | OK - consistent use of Inter font |
+| 7. CONSISTENCY          | OK - consistent styling except minor inline style exceptions |
+| 8. ACCESSIBILITY        | Minor issue - basic aria-labels present, tab buttons lack aria roles |
+
+**Overall: 5/8 OK, 3 minor issues found.**
+
+---
+
+### Recommendations:
+
+- Replace hardcoded colors in inline styles with Bento CSS variables or CSS classes.
+- Reduce inline styles by moving styles to CSS classes where possible.
+- Add aria roles and aria-selected attributes to tab buttons for better accessibility.
+- Consider adding more explicit accessibility landmarks and keyboard focus styles.
+
+---
+
+This concludes the CSS and visual consistency audit of ha-sentence-manager.js.

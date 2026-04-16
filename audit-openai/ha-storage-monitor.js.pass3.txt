@@ -1,0 +1,22 @@
+ISSUE: XSS innerHTML injection at line 170: `_updateContent()` sets `content.innerHTML = '<div class="error">⚠️ ' + (this._storageData?.error || 'No data') + '</div>';` without escaping `this._storageData.error` which may contain attacker-controlled error messages.  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Use `window._haToolsEsc()` to escape `this._storageData.error` before inserting into innerHTML, e.g. `window._haToolsEsc(this._storageData.error)`.
+
+---
+
+ISSUE: XSS innerHTML injection in multiple render functions at lines 182, 220, 290, 784, 840: `_renderOverview()`, `_renderAddonsAndIntegrations()`, `_renderBackups()`, `_renderFiles()`, `_renderCleanup()` interpolate user/API data directly into HTML template strings without escaping.  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Apply `window._haToolsEsc()` or equivalent escaping to all interpolated user/API data before embedding into innerHTML templates.
+
+---
+
+ISSUE: Attribute injection / XSS at line 1015 in `HaStorageMonitorEditor._render()`: user config value `this._config?.title` interpolated directly into input `value` attribute without escaping, allowing injection of malicious attributes or scripts.  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape `this._config?.title` with `window._haToolsEsc()` or use safer DOM property assignment instead of innerHTML string interpolation.
+
+---
+
+TOTAL: 3 real issues (0 critical, 3 warning, 0 info), 0 false positives.

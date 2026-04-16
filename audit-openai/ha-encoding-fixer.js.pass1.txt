@@ -1,0 +1,131 @@
+Audit results for ha-encoding-fixer.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function() { 'use strict'; ... })();` starting at line 1 and ending at line 1050.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Custom elements are defined only if not already defined:  
+   - `ha-encoding-fixer` at line 1029  
+   - `ha-encoding-fixer-editor` at line 1047
+
+3. **HASS GUARD**:  
+   OK — All calls to `this._hass` APIs (callWS, callApi, callService) check `if (!this._hass)` early and return, e.g.:  
+   - `_scanEntities()` line 210  
+   - `_scanLovelace()` line 262  
+   - `_fixEntityName()` line 388  
+   - `_fixLovelaceResource()` line 463  
+   - `_scanViaApi()` line 587  
+   - `_fixConfigIssueByIdx()` line 651  
+   - `_fixAllConfigIssues()` line 676  
+   - `_checkConfig()` line 711  
+   - `_fixYamlFile()` line 732  
+   - `_fixYamlAll()` line 755  
+   - `_scanYamlDeep()` line 774  
+   - `_scanForMissingResources()` line 887  
+   - `_createResourceSnapshot()` line 927  
+   - `_scanRestoreLive()` line 949  
+   - `_restoreResources()` line 978
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({mode: 'open'})` in constructor at line 15 and in editor at line 1035.
+
+5. **BENTO CSS**:  
+   OK — Uses `${window.HAToolsBentoCSS || ''}` in `_buildHTML()` at line 520.
+
+6. **XSS**:  
+   Find all `.innerHTML =` or `.innerHTML +=` assignments and check if user data is escaped:
+
+   - Line 523: `this.shadowRoot.innerHTML = html;` where `html` is from `_buildHTML()`.  
+     `_buildHTML()` uses `${this._escapeHtml(...)}` for all user data inserted in innerHTML (e.g. line 547, 554, 559).  
+     The `_escapeHtml()` method at line 1023 properly escapes &, <, >, and ".  
+     **SAFE**
+
+   - Line 577: `_buildScanTab()` returns HTML with user data escaped via `_escapeHtml()` for all dynamic fields (entity IDs, original/fixed values, errors).  
+     **SAFE**
+
+   - Line 650: `_buildLovelaceTab()` uses `_escapeHtml()` for all user data inserted (URLs, types, issues).  
+     **SAFE**
+
+   - Line 693: `_buildLogTab()` uses `_escapeHtml()` for all user data (targets, details).  
+     **SAFE**
+
+   - Line 1029: Editor component sets `innerHTML` with user input escaped via template literals, no direct user data inserted without escaping.  
+     **SAFE**
+
+   - Line 1004: `_showToast()` sets `toast.textContent = msg;` (not innerHTML) — safe.
+
+   - Line 1007: `toast.className = ...` no user data.
+
+   - Line 1017: `_testDecode()` returns object, no DOM manipulation.
+
+   - Line 1025: `_escapeHtml()` used consistently.
+
+   - Line 1009: `_showToast()` uses `textContent` not innerHTML.
+
+   - Line 1010: Timeout resets className, no user data.
+
+   - Line 1016: `_attachEvents()` attaches event listeners, no innerHTML.
+
+   - Line 1020: Event handlers update UI via `_updateUI()` which uses `_buildHTML()` with escaping.
+
+   - Line 1013: `_updateUI()` replaces shadowRoot.innerHTML with fully escaped content.
+
+   **No unsafe innerHTML assignments found.**
+
+7. **LANGUAGE**:  
+   OK — Full bilingual support for Polish and English in `_t` getter at line 41.  
+   All user-facing strings are from `_t`.  
+   Hardcoded strings in confirm dialogs (e.g. line 414, 426, 456, 983) are also localized with ternary checks on `this._lang`.  
+   No untranslated hardcoded strings found.
+
+8. **ERROR HANDLING**:  
+   Mostly OK — All async calls to `callWS`, `callApi`, `callService`, and `fetch` are wrapped in try/catch blocks, e.g.:  
+   - `_scanLovelace()` line 270  
+   - `_fixEntityName()` line 393  
+   - `_fixLovelaceResource()` line 468  
+   - `_scanViaApi()` line 590  
+   - `_fixConfigIssueByIdx()` line 654  
+   - `_fixAllConfigIssues()` line 680  
+   - `_checkConfig()` line 714  
+   - `_fixYamlFile()` line 735  
+   - `_fixYamlAll()` line 758  
+   - `_scanYamlDeep()` line 778  
+   - `_scanForMissingResources()` line 895  
+   - `_createResourceSnapshot()` line 933  
+   - `_scanRestoreLive()` line 952  
+   - `_restoreResources()` line 985  
+
+   However, some empty catch blocks swallow errors silently:  
+   - Persistence stub at line 6: `catch(e) {}` in `save` and `load` methods. This is acceptable for persistence fallback.  
+   - `_scanEntities()` line 223: no try/catch around loop but no async calls inside loop except `await new Promise` which is safe.  
+   - `_fixAllEntities()` line 434: no try/catch around confirm but no async calls outside `_runBatchFix`.  
+   - `_runBatchFix()` line 406: no try/catch inside loop but calls `_fixEntityName()` which has try/catch.  
+   - `_fixBackToList()` line 445: no async calls.  
+   - `_attachEvents()` line 1009: no try/catch but only event listener setup.  
+   - `_deepDetectMojibake()` and `_deepFixStrings()` lines 763 and 776: no try/catch but no async calls.  
+   - `_hasShellCommand()` line 757: no try/catch but no async calls.  
+   - `disconnectedCallback()` line 1044: empty, no cleanup needed.  
+   These are acceptable.
+
+9. **MEMORY**:  
+   OK — All event listeners are attached to shadowRoot children that get replaced on render, so no leaks.  
+   No event listeners attached to window/document or `this` without cleanup.  
+   No `setInterval` or timers except `setTimeout` in `_updateUI()` throttling (line 88) which is cleared by flag, no leak.  
+   No `removeEventListener` needed due to Shadow DOM pattern.
+
+10. **SETTINGS**:  
+    Not applicable — No `_getSetting` or `_setSetting` methods or similar found in code.  
+    No orphaned settings.
+
+11. **EDGE CASES**:  
+    OK —  
+    - Empty states handled: `_scanEntities()` skips entities with no friendly_name or short state (line 220).  
+    - Loading states shown: progress bars and spinners shown during scanning (e.g. lines 570, 600, 780).  
+    - Pagination: no pagination needed as lists are limited or scrollable.  
+    - Confirm dialogs prevent accidental mass fixes.  
+    - Disabled buttons during scanning prevent race conditions.
+
+---
+
+**SUMMARY:** 11/11 OK, 0 issues found.  
+No security or quality problems detected. Code is well-structured, secure against XSS, properly localized, and robust in error handling and memory management.

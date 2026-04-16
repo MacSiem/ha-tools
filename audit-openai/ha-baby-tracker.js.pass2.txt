@@ -1,0 +1,168 @@
+Audit of ha-baby-tracker.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- The main wrapper uses `.card` class consistently (e.g. line ~230: `<div class="card">`).
+- No `.container` or `.card-container` wrappers are used as main card wrappers in the template.
+- `.card-container` appears only in CSS but not in the template HTML.
+- **Count**: `.card` used multiple times as main wrapper; `.container` or `.card-container` not used as main wrapper.
+- **Verdict**: Correct usage per Bento design system.
+
+---
+
+### 2. BENTO TOKENS
+
+- CSS extensively uses `--bento-*` CSS variables for colors, borders, backgrounds, shadows, radii, transitions.
+- Examples: `var(--bento-primary)`, `var(--bento-border)`, `var(--bento-card)`, `var(--bento-text-secondary)`, etc.
+- Hardcoded colors found (with line approx.):
+
+  - `#3B82F6` (blue primary) in several places, e.g. line ~240 (in `:host`), line ~400+ in inline styles.
+  - `#2563EB` (hover blue) in `--bento-primary-hover` (line ~240).
+  - `#10B981` (green success) and variants (line ~240).
+  - `#EF4444` (red error) and variants (line ~240).
+  - `#F59E0B` (yellow warning) and variants (line ~240).
+  - `#F44336` (btn-danger background) line ~600.
+  - `#1e293b` (dark text) in inline styles (e.g. line ~400+).
+  - `#e2e8f0` (divider) in inline styles and CSS (line ~240+).
+  - `#1e293b` and `#64748B` used in inline styles for text colors.
+  - `rgba(59, 130, 246, 0.1)` and similar rgba hardcoded in CSS (line ~240+).
+  - Dark mode colors hardcoded in `@media (prefers-color-scheme: dark)` (line ~700+).
+
+- Inline styles in template literals also contain hardcoded colors (e.g. `background: rgba(59,130,246,0.1)`).
+
+- **Verdict**: Mostly uses Bento tokens, but some hardcoded hex and rgba colors are present, especially for primary brand colors and inline styles.
+
+---
+
+### 3. DARK MODE
+
+- There is a `@media (prefers-color-scheme: dark)` block starting around line ~700.
+- It overrides `--bento-bg`, `--bento-card`, `--bento-text`, `--bento-text-secondary`, `--bento-border`, and shadows for dark mode.
+- The CSS variables used in the rest of the CSS adapt accordingly.
+- No explicit dark mode inline styles; dark mode handled via CSS variables.
+- **Verdict**: Dark mode is properly supported with Bento tokens and prefers-color-scheme media query.
+
+---
+
+### 4. RESPONSIVE
+
+- There are two `@media` breakpoints:
+
+  - `@media (max-width: 768px)` (line ~750)
+  - `@media (max-width: 480px)` (line ~760)
+
+- No 360px breakpoint found.
+- Responsive adjustments include:
+
+  - Padding reduction on `.card`.
+  - Grid columns reduced for `.stats-grid` and similar.
+  - `.panels` and `.board` flex direction changed to column.
+  - `.column` min-width unset for smaller widths.
+  - Tabs have smaller padding and font sizes on smaller screens.
+
+- Inline styles do not appear to cause overflow; most layout uses flex/grid with wrapping or scroll.
+
+- Some tab bars have `overflow-x: auto` and `-webkit-overflow-scrolling: touch` for mobile scroll.
+
+- **Verdict**: Responsive design is implemented for 768px and 480px breakpoints, no obvious overflow issues on mobile.
+
+---
+
+### 5. INLINE STYLES
+
+- Count of `style="..."` in template literals: approximately 40+ occurrences.
+
+- Top 5 longest inline style attribute values with approximate line numbers:
+
+  1. Line ~260-280: `.baby-btn` buttons inside tabs with complex inline styles including border, background, color, font-size, font-weight, cursor, font-family. (Length ~230 chars)
+  2. Line ~290-310: Breastfeeding timer buttons `.bf-breast-btn` with inline styles for flex, padding, border, background, border-radius, font-weight, cursor, font-size. (Length ~150 chars)
+  3. Line ~320-340: Breastfeeding timer display container with inline styles for background, border, border-radius, padding, text-align, margin-bottom. (Length ~120 chars)
+  4. Line ~350-370: Breastfeeding timer display text with font-size, font-weight, font-family, letter-spacing, color, margin-bottom. (Length ~110 chars)
+  5. Line ~380-400: Breastfeeding timer label with font-size, color, font-weight, text-transform, letter-spacing. (Length ~90 chars)
+
+- These inline styles are repeated in multiple places for layout and styling of key UI elements.
+
+- **Verdict**: Inline styles are heavily used for layout and styling of buttons, timer displays, and form elements. While not ideal, they are localized and manageable. No critical issues but could be improved by moving to CSS classes.
+
+---
+
+### 6. FONT
+
+- The CSS uses `'Inter'` font family extensively (line ~240+ in Bento CSS, and in custom CSS).
+- Fallbacks include `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`.
+- The font is applied globally in `:host` and `.card` and other elements.
+- No explicit font loading in this file, assuming Inter is loaded globally or via Bento CSS.
+- **Verdict**: Uses Inter font consistently, matching HA theme style.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons use `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-small` classes with consistent styling.
+- Cards use `.card` or `.stat-card` with consistent background, border, radius, shadow.
+- Tables use `.table` and related classes with consistent padding, borders, and hover styles.
+- Badges and status indicators use `.badge`, `.status-badge`, `.badge-success`, `.badge-error` etc. consistently.
+- Inline styles for buttons and timer displays are consistent in padding, border-radius, font size.
+- Tabs use `.tab-button` with consistent active and hover states.
+- Theming uses Bento tokens consistently across all UI elements.
+- **Verdict**: UI elements are styled consistently throughout the file.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+
+  - Uses Bento tokens which are designed for good contrast.
+  - Primary colors (#3B82F6) on white backgrounds have good contrast.
+  - Disabled buttons have opacity 0.4 and cursor not-allowed.
+  - Text colors use primary and secondary text colors from HA theme variables.
+
+- Aria labels:
+
+  - The tip dismiss button has `aria-label="Dismiss"` (line ~280).
+  - Baby buttons and tab buttons lack explicit aria-labels but have visible text.
+  - Some buttons have `title` attributes (e.g. remove child button has title with localized "Remove" text).
+  - No explicit roles or aria attributes on tabs or tab panels.
+  - Keyboard focus styles are not explicitly visible but likely inherited from Bento CSS.
+
+- Potential issues:
+
+  - Tabs do not have `role="tablist"`, `role="tab"`, or `aria-selected` attributes for accessibility.
+  - Tab panels do not have `role="tabpanel"` or `aria-labelledby`.
+  - Some buttons rely on emoji + text, which may not be fully accessible to screen readers.
+  - Inline styles do not affect accessibility but lack of semantic roles on tabs is a mild issue.
+
+- **Verdict**: Color contrast is good; minor accessibility issues with missing ARIA roles on tabs and tab panels.
+
+---
+
+## SUMMARY
+
+| Checkpoint            | Result                         | Notes                                      |
+|-----------------------|--------------------------------|--------------------------------------------|
+| 1. CARD VS CONTAINER   | OK                             | Uses `.card` wrapper correctly             |
+| 2. BENTO TOKENS       | Minor issues                   | Some hardcoded colors present               |
+| 3. DARK MODE          | OK                             | Proper prefers-color-scheme and tokens      |
+| 4. RESPONSIVE        | OK                             | Responsive for 768px and 480px breakpoints |
+| 5. INLINE STYLES      | Minor issue                    | Many inline styles, some quite long         |
+| 6. FONT              | OK                             | Consistent Inter font usage                  |
+| 7. CONSISTENCY       | OK                             | Consistent styling of UI elements            |
+| 8. ACCESSIBILITY     | Minor issues                  | Missing ARIA roles on tabs; color contrast OK |
+
+**Overall: 5/8 OK, 3 minor issues**
+
+---
+
+### Recommendations:
+
+- Move inline styles to CSS classes where possible for maintainability.
+- Replace hardcoded colors with Bento tokens or CSS variables.
+- Add ARIA roles and attributes for tabs and tab panels to improve accessibility.
+- Consider adding keyboard navigation support for tabs.
+
+---
+
+This concludes the CSS and visual consistency audit of ha-baby-tracker.js.

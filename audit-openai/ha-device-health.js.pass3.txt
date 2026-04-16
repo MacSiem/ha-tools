@@ -1,0 +1,18 @@
+ISSUE: XSS [security] User/API data inserted into innerHTML without proper escaping (line 552 and related interpolations at lines 572, 617, 670, 720)  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Use `window._haToolsEsc()` or equivalent HTML escaping on all user/API data interpolated into innerHTML templates to prevent XSS.
+
+ISSUE: LANGUAGE [i18n] Minor untranslated hardcoded "Show:" label in controls (lines ~583, 628, 678)  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Add "Show:" label to `_translations` and replace hardcoded strings with `_t('show')` or equivalent.
+
+ISSUE: ERROR HANDLING [robustness] Empty catch blocks silently swallowing errors (lines 7, 91, 597)  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Log caught errors to console or handle gracefully instead of empty catch blocks to aid debugging.
+
+---
+
+TOTAL: 3 real issues (1 critical, 1 warning, 1 info), 0 false positives.

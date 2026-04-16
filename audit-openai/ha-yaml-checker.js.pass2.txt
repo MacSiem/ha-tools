@@ -1,0 +1,158 @@
+Audit of ha-yaml-checker.js CSS and visual consistency:
+
+---
+
+1. **CARD VS CONTAINER**  
+- Uses `.card` wrapper consistently for main container (e.g. line ~720: `<div class="card">`).  
+- `.container` class is not used anywhere in the CSS or templates.  
+- Also uses `.card-container` in media queries (line ~830) but no actual element with `.card-container` class in templates. This is harmless but unused.  
+**Result:** Correct use of `.card` wrapper, no `.container` usage.  
+**Count:** `.card` used 1+ times, `.container` used 0 times.
+
+---
+
+2. **BENTO TOKENS**  
+- CSS variables mostly use `--bento-*` tokens (lines ~740-780).  
+- Hardcoded colors found:  
+  - `.version-badge` background: `rgba(59,130,246,0.1)` and border: `rgba(59,130,246,0.3)` (line ~785) — these are rgba but consistent with bento blue.  
+  - `.info-box` background and border: `rgba(59,130,246,0.06)` and `rgba(59,130,246,0.2)` (line ~850) — consistent with bento primary color.  
+  - `.yaml-textarea` background: `rgba(0,0,0,0.02)` (line ~870) — very light black, no variable used.  
+  - `.loading-wrap` spinner border colors: uses `var(--border)` and `var(--primary)` (line ~875).  
+  - `.issue-item.error` background: `rgba(239,68,68,0.06)` and border-left: uses `var(--error)` (line ~900).  
+  - `.issue-item.warning` background: `rgba(245,158,11,0.06)` and border-left: `var(--warning)` (line ~901).  
+  - `.issue-item.info` background: `rgba(59,130,246,0.06)` and border-left: `var(--primary)` (line ~902).  
+  - `.file-item` background: `rgba(0,0,0,0.02)` (line ~940) — again hardcoded light black.  
+  - `.file-item` border: `var(--border)` (line ~940).  
+  - `.badge` backgrounds: rgba with bento colors (lines ~950-955).  
+- Summary: Mostly uses `--bento-*` variables, but some very light backgrounds use hardcoded `rgba(0,0,0,0.02)` which could be replaced with a variable for consistency.  
+**Hardcoded colors found:**  
+  - `rgba(0,0,0,0.02)` (multiple places: `.yaml-textarea`, `.file-item`)  
+  - `rgba(59,130,246,0.1)` and similar (close to bento primary, acceptable)  
+  - `rgba(239,68,68,0.06)` and `rgba(245,158,11,0.06)` (error/warning backgrounds) — consistent with bento colors.  
+**Verdict:** Minor inconsistency with very light black backgrounds hardcoded.
+
+---
+
+3. **DARK MODE**  
+- Has `@media (prefers-color-scheme: dark)` block at line ~700.  
+- Inside, overrides `:host` CSS variables with dark variants (e.g. `--bento-bg`, `--bento-card`, `--bento-text`, etc.).  
+- Comment at line ~710: "DARK MODE ADDED - old comment below".  
+- No explicit dark mode CSS outside variables.  
+**Verdict:** Proper dark mode support via CSS variables and media query.
+
+---
+
+4. **RESPONSIVE**  
+- Has `@media (max-width: 768px)` and `@media (max-width: 480px)` blocks at lines ~715-740.  
+- No 360px breakpoint.  
+- Adjusts `.tabs` to nowrap and scroll horizontally, reduces padding and font sizes for tabs and cards.  
+- Changes grid templates for `.stats`, `.summary-grid`, etc. to 2 columns on mobile.  
+- `.panels` and `.board` flex direction column on mobile.  
+- No obvious fixed widths or large elements that would overflow on mobile.  
+- Textareas and buttons use width 100% or flexible sizing.  
+**Verdict:** Responsive design present and appropriate for 768px and 480px breakpoints. No overflow issues detected.
+
+---
+
+5. **INLINE STYLES**  
+- Inline styles appear in template literals, mostly in `_html()` and tab render methods.  
+- Counting style="..." occurrences and longest inline styles:
+
+  - Line ~730 (in `_html()`):  
+    `<div style="margin-top:16px;">` — short inline style.  
+  - Line ~890 (in `_renderConfigCheck()`):  
+    `<div style="margin-top:16px;">` — short inline style.  
+  - Line ~1020 (in `_renderEntityValidator()`):  
+    `<div style="margin-top:16px;">` — short inline style.  
+  - Line ~1080 (in `_renderEntityResult()`):  
+    Multiple inline styles:  
+    - `<span style="color:var(--text-secondary);font-size:11px;">` (line ~1095) — short.  
+    - `<div style="padding:8px;color:var(--bento-text-secondary);font-size:12px;">` (line ~1100) — short.  
+    - `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">` (line ~1110) — short.  
+    - `<div style="margin-top:12px;">` (line ~1120) — short.  
+    - `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">` (line ~1121) — short.  
+  - Line ~1170 (in `_renderFileScan()`):  
+    `<div style="margin-top:16px;">` — short.  
+  - Line ~1185 (in `_renderScanResult()`):  
+    `<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">` — short but notable.  
+    `<div class="note-box" style="margin-top:12px;">` — short.  
+    `<div class="file-list-header" style="margin-top:12px;">` — short.  
+    `<div class="note-box" style="margin-top:12px;">` — short.  
+  - Line ~1260 (in `_renderPasteValidate()`):  
+    `<div class="paste-wrap">` no inline style.  
+  - Line ~1290 (in `_renderTemplateTester()`):  
+    `<div style="display:flex;flex-direction:column;gap:12px;">` — short.  
+    `<div style="margin-bottom:6px;">` — short.  
+    `<textarea ... style="min-height:120px;"` — short.  
+    `<div style="background:rgba(0,0,0,0.04);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;word-break:break-all;">` — **long inline style**, line ~1310.  
+    `<div style="display:flex;gap:8px;align-items:center;">` — short.  
+    `<div style="display:flex;gap:6px;flex-wrap:wrap;">` — short.  
+  - Line ~1340 (in `_renderCommonIssues()`): no inline styles.  
+
+**Top 5 longest inline styles with line numbers:**  
+1. Line ~1310: `<div style="background:rgba(0,0,0,0.04);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;word-break:break-all;">` (very long, 130+ chars)  
+2. Line ~1080: `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">` (shorter but notable)  
+3. Line ~1121: `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">`  
+4. Line ~1290: `<div style="display:flex;flex-direction:column;gap:12px;">`  
+5. Line ~1340: `<div style="display:flex;gap:8px;align-items:center;">`  
+
+All others are short margin or padding adjustments.  
+
+**Verdict:** Inline styles are mostly short and used for layout spacing or minor tweaks. Only one notably long inline style for the template result box (line ~1310). This could be moved to CSS for consistency.
+
+---
+
+6. **FONT**  
+- The `.card` uses font-family: `'Inter', -apple-system, sans-serif;` (line ~775).  
+- Textareas use `'Fira Code','Consolas',monospace` (line ~870) for code input.  
+- No other font references.  
+- Uses Inter font explicitly, which is consistent with modern HA custom panels.  
+**Verdict:** Font usage is consistent and appropriate.
+
+---
+
+7. **CONSISTENCY**  
+- Buttons: `.btn`, `.btn-primary`, `.btn-sm` classes used consistently with same padding, font sizes, border-radius, hover effects (lines ~860-875).  
+- Cards: `.card`, `.stat-card`, `.issue-item` all have consistent border-radius, padding, and color usage.  
+- Badges: `.badge` with modifiers `.critical`, `.warning`, `.info` use consistent background and text colors (lines ~945-955).  
+- Issue items use `.issue-item` with `.error`, `.warning`, `.info` modifiers for background and border-left color.  
+- Result headers use `.result-header` with `.success`, `.error`, `.warning` modifiers consistently.  
+- Overall, UI elements are styled consistently throughout the file.  
+**Verdict:** Good visual consistency.
+
+---
+
+8. **ACCESSIBILITY**  
+- Color contrast:  
+  - Uses semantic colors for error (red), warning (orange), success (green) with light backgrounds and colored borders. Contrast likely acceptable but not explicitly tested here.  
+  - Text on badges and labels uses `var(--text-secondary)` or `var(--primary)` which should have sufficient contrast in HA themes.  
+- Interactive elements:  
+  - Tabs are buttons with visible focus styles (not explicitly defined but likely inherited).  
+  - Buttons have clear text labels and icons.  
+  - No ARIA labels or roles explicitly set on tabs or buttons.  
+  - Tabs use `<button>` elements, which is good for accessibility.  
+  - No `aria-selected` or `role="tablist"` etc. on tabs container or buttons, which could improve screen reader support.  
+- Missing aria attributes on tab buttons and tab panels (e.g., `aria-selected`, `role="tab"`, `role="tabpanel"`).  
+- No visible focus outlines overridden, so default browser focus likely present.  
+**Verdict:** Basic accessibility is present (semantic buttons), but ARIA roles and states for tabs are missing, which is a mild issue.
+
+---
+
+### SUMMARY:
+
+| Check                  | Result                              |
+|------------------------|-----------------------------------|
+| 1. CARD VS CONTAINER   | OK - uses `.card`, no `.container` |
+| 2. BENTO TOKENS        | Minor issue - some hardcoded rgba(0,0,0,0.02) backgrounds instead of variables |
+| 3. DARK MODE           | OK - uses prefers-color-scheme and variables |
+| 4. RESPONSIVE          | OK - 768px and 480px breakpoints, no overflow |
+| 5. INLINE STYLES       | OK - mostly short inline styles; one long inline style (~line 1310) could be moved to CSS |
+| 6. FONT                | OK - uses Inter and monospace fonts appropriately |
+| 7. CONSISTENCY         | OK - consistent styling of buttons, cards, badges, issues |
+| 8. ACCESSIBILITY       | Mild issue - missing ARIA roles/states on tabs; otherwise semantic buttons used |
+
+**Overall:** 6/8 OK, 2 minor issues (hardcoded light backgrounds, missing ARIA roles on tabs).
+
+---
+
+If you want, I can suggest improvements for the minor issues.

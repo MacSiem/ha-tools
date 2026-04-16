@@ -1,0 +1,11 @@
+ISSUE: Accessibility Missing ARIA roles and labels on tabs and controls (lines ~210 template, tab buttons and period select)
+VERDICT: REAL
+SEVERITY: warning
+FIX: Add appropriate ARIA roles (`role="tablist"` on tabs container, `role="tab"` and `aria-selected` on tab buttons) and associate labels or aria-labels with the period select dropdown and export buttons for screen reader clarity.
+
+ISSUE: Bento Tokens Some hardcoded semantic colors used instead of Bento CSS variables (lines ~140, ~160, ~290, ~350, ~620, ~670)
+VERDICT: FALSE_POSITIVE
+SEVERITY: info
+FIX: None strictly required; these hardcoded colors correspond to semantic meanings consistent with Bento palette and are used for dynamic or chart colors where tokens may not exist.
+
+TOTAL: 1 real issue (0 critical, 1 warning, 0 info), 1 false positive.

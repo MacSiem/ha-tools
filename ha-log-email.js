@@ -7,7 +7,7 @@ window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: 
 /**
  * HA Log Email Card v1.0
  * Send periodic email summaries of HA errors and warnings.
- * Part of HA Tools Panel — Smart Reports
+ * Part of HA Tools Panel – Smart Reports
  * Author: Jeff (AI) for MacSiem
  */
 

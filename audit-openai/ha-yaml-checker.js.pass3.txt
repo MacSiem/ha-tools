@@ -1,0 +1,18 @@
+ISSUE 1: [ha-yaml-checker.js] XSS [Unescaped user/API data inserted into innerHTML at lines 383, 388, 394, 417, 423, 564, 573]  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Replace weak `_sanitize()` with proper HTML escaping using `window._haToolsEsc()` on all user/API data interpolated into innerHTML templates to prevent XSS.
+
+ISSUE 2: [ha-yaml-checker.js] ERROR HANDLING [Silent catch blocks swallowing errors without logging at lines 209, 220, 228]  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add minimal logging (e.g., `console.warn` or `console.debug`) inside catch blocks to aid debugging while preserving silent failure intent.
+
+ISSUE 3: [ha-yaml-checker.js] ERROR HANDLING [No explicit `if (!this._hass)` guard in some async methods before API calls (e.g., lines 142, 199, 398, 483)]  
+VERDICT: FALSE_POSITIVE  
+SEVERITY: info (if considered)  
+FIX: Optional: add explicit `if (!this._hass) return;` guards at start of async methods for clarity and safety, though current usage is acceptable.
+
+---
+
+TOTAL: 2 real issues (1 critical, 1 warning), 1 false positive.

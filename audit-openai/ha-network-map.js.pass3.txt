@@ -1,0 +1,18 @@
+ISSUE 1: XSS [security] Unescaped user/device data inserted into innerHTML at lines 899 and 1046  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Use `window._haToolsEsc()` or equivalent escaping on all user/device data before inserting into HTML templates to prevent XSS.
+
+ISSUE 2: i18n [usability] Hardcoded English prompt strings not translated at lines 669 and 1012  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Replace hardcoded prompt strings with calls to `_t()` translation method and add corresponding keys to `_translations`.
+
+ISSUE 3: settings [maintainability] Orphaned localStorage setting `'ha-tools-net-scan'` saved at line 170 but never loaded  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Either implement loading logic for `'ha-tools-net-scan'` or remove saving of this unused setting to avoid confusion and wasted storage.
+
+---
+
+TOTAL: 3 real issues (0 critical, 1 warning, 2 info), 0 false positives.

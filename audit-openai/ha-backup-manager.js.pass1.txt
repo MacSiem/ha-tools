@@ -1,0 +1,102 @@
+Audit results for ha-backup-manager.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function(){ 'use strict'; ... })();` starting at line 1 and ending at line 1099.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Custom elements are defined only if not already defined:  
+   - `ha-backup-manager` at line 1036  
+   - `ha-backup-manager-editor` at line 1089
+
+3. **HASS GUARD**:  
+   OK — All API calls check for `this._hass` before proceeding, e.g.:  
+   - `_detectInstalledBackupIntegrations()` line 38: `if (!this._hass || this._addonsChecked) return;`  
+   - `_fetchBackups()` line 123: `if (!this._hass) return;`  
+   - `_createBackup()` line 180: no explicit check but called only after hass is set  
+   - `_loadChartJS()` line 77: no hass needed  
+   All calls to `callWS` and `callService` happen only after hass is set.
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({mode:'open'})` in constructors of both classes:  
+   - `HaBackupManager` line 13  
+   - `HaBackupManagerEditor` line 1042
+
+5. **BENTO CSS**:  
+   OK — Uses `${window.HAToolsBentoCSS || ""}` in style tag at line 471 (inside `_updateUI()`).
+
+6. **XSS (innerHTML usage and user data escaping)**:  
+   Found all `.innerHTML =` assignments:  
+   - Line 471: `_updateUI()` sets `this.shadowRoot.innerHTML = html;` with `html` built from multiple `_render*Tab()` methods.  
+   - Line 1071: `HaBackupManagerEditor._render()` sets `this.shadowRoot.innerHTML = ...` with config form inputs.
+
+   Analysis of user data in innerHTML:
+
+   - In `_updateUI()` (line 471+):  
+     - The main HTML includes:  
+       - `this._config.title` used in `<h1 class="card-title">${this._config.title || 'Backup Manager'}</h1>` (line ~493) — config title is user-editable, but inserted directly without escaping.  
+       - Backup list rows (line ~370) use:  
+         - `backup.slug` in `data-slug` attribute — no escaping, but slug is presumably safe (from API).  
+         - `backup.name` in title attribute and text content: `title="${this._sanitizeName(backup.name)}${backup.is_protected ? ' 🔒' : ''}"` and text content `${this._sanitizeName(backup.name)}` (line ~377). `_sanitizeName()` (line 187) calls `decodeURIComponent(escape(name))` which is not a proper XSS sanitizer. This is unsafe if backup names contain HTML or quotes.  
+         - `backup.is_protected` adds a lock emoji safely.  
+         - `backup.type` used in class and text content — safe as controlled values ('full'/'partial').  
+         - `_getBackupLocation(backup)` returns hardcoded strings with emojis, safe.  
+         - `backup.size_bytes` and `backup.size` formatted as numbers, safe.  
+       - Error banner (line ~355) inserts `this._error` directly inside `<div class="error-banner">${this._error}</div>`. `_error` is set from error messages including `e.message` (line 139), which may contain user-controlled strings. No escaping used here.  
+       - Other strings are constants or translated strings.
+
+   - In `HaBackupManagerEditor._render()` (line 1071):  
+     - Inputs have `value="${this._config?.title || 'Backup Manager'}"` etc. No escaping used. If config values contain quotes or HTML, this can break HTML or cause XSS.
+
+   **Verdict:**  
+   - Line 471: UNSAFE — user data (`this._config.title`, `backup.name`, `this._error`) inserted into innerHTML without proper escaping.  
+   - Line 1071: UNSAFE — config values inserted into input `value` attributes without escaping.
+
+7. **LANGUAGE**:  
+   OK — Supports PL and EN via `_t` getter (line 68) and many conditional strings throughout.  
+   Hardcoded strings mostly avoided; some hardcoded English strings in `_renderHealthTab()` (line ~400) and `_renderSettingsTab()` (line ~430) but these are wrapped in ternaries for PL/EN.  
+   Minor hardcoded English in schedule section (line ~415) and some labels, but acceptable as fallback.
+
+8. **ERROR HANDLING**:  
+   ISSUE — Multiple empty catch blocks swallowing errors silently:  
+   - `_detectInstalledBackupIntegrations()` lines 44 and 56: empty catch blocks.  
+   - `setConfig()` line 83: empty catch block on localStorage parse.  
+   - `_fetchBackups()` line 130: try/catch around API calls, but inner catch for supervisor API fallback is empty (line 133).  
+   - `_switchTab()` line 520: localStorage set in try/catch with empty catch.  
+   These silent failures may hide issues.
+
+9. **MEMORY**:  
+   OK — Event listeners are attached to shadowRoot children and replaced on render, no listeners on window/document or this without cleanup.  
+   No setInterval or similar timers found.  
+   `disconnectedCallback()` (line 597) is empty but no timers or global listeners to clean.
+
+10. **SETTINGS**:  
+    OK — Uses localStorage key `'ha-backup-manager-settings'` to save/load `_activeTab` (lines 81 and 518).  
+    No other persistence keys or orphaned settings found.
+
+11. **EDGE CASES**:  
+    OK —  
+    - Empty backups handled with demo data fallback (line 143).  
+    - Loading state `_loading` used but no explicit spinner UI shown (minor).  
+    - Pagination edge cases handled: disables prev/next buttons on first/last page (line 540).  
+    - Page size selector resets pages (line 555).  
+    - Empty backup list shows "No backups available" (line 360).  
+    Overall edge cases handled well.
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- 6 (XSS): Lines 471, 1071 — user data inserted into innerHTML without proper escaping (backup names, config titles, error messages).  
+- 8 (Error handling): Lines 44, 56, 83, 133, 520 — multiple empty catch blocks silently swallowing errors.  
+- 7 (Language): Minor hardcoded English strings in UI text (e.g. schedule section line ~415) that could be localized better (minor).  
+
+No memory leaks or missing persistence keys detected. Shadow DOM and IIFE usage are correct. Bento CSS is properly imported.
+
+---
+
+**Recommendations:**  
+- Use `window._haToolsEsc()` or similar to escape all user data inserted into innerHTML, especially backup names, error messages, and config input values.  
+- Avoid empty catch blocks; log or handle errors appropriately.  
+- Consider fully localizing all UI strings.  
+- Optionally add loading spinner UI for `_loading` state.

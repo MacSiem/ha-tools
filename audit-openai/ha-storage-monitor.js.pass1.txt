@@ -1,0 +1,80 @@
+Audit results for ha-storage-monitor.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function() { 'use strict'; ... })();` starting at line 1 and ending at line 1020.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Both custom elements are defined only if not already defined:  
+   - `ha-storage-monitor` at line 1007  
+   - `ha-storage-monitor-editor` at line 1017
+
+3. **HASS GUARD**:  
+   OK — All API calls check `if (!this._hass) return;` before proceeding, e.g.:  
+   - `_loadStorageData()` at line 105  
+   - `set hass(hass)` setter at line 60  
+   - `_render()` at line 350  
+   - `_renderFiles()` at line 784
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({ mode: 'open' })` in constructors:  
+   - `HAStorageMonitor` constructor at line 37  
+   - `HaStorageMonitorEditor` constructor at line 1011
+
+5. **BENTO CSS**:  
+   OK — Imports `window.HAToolsBentoCSS` in the style block inside `_render()` at line 352.
+
+6. **XSS - innerHTML assignments and safety**:  
+   Found `.innerHTML =` or `.innerHTML +=` assignments at:  
+   - Line 157: `_updateContent()` sets `content.innerHTML = '<div class="loading"><div class="spinner"></div>Loading storage info...</div>';` — SAFE (static string)  
+   - Line 162: `_updateContent()` sets `content.innerHTML = ... requires supervisor message ...` — SAFE (uses only translations, no user data)  
+   - Line 170: `_updateContent()` sets `content.innerHTML = '<div class="error">⚠️ ' + (this._storageData?.error || 'No data') + '</div>';` — UNSAFE: `this._storageData.error` is from caught error messages, could be attacker-controlled if backend is compromised, but low risk in this context. No escaping used.  
+   - Line 175: `_updateContent()` sets content via calls to `_renderOverview()`, `_renderAddonsAndIntegrations()`, `_renderBackups()`, `_renderFiles()`, `_renderCleanup()` which return template strings with embedded data.  
+     - In these render functions, user/API data is interpolated directly into HTML without explicit escaping, e.g.:  
+       - `_renderOverview()` at line 182: uses `d.hostname`, `d.osVersion` directly in HTML (no escaping).  
+       - `_renderAddonsAndIntegrations()` at line 220: uses addon names, slugs, versions, integration titles, domains, states directly in HTML without escaping.  
+       - `_renderBackups()` at line 290: uses backup names, slugs, dates directly.  
+       - `_renderFiles()` at line 784: uses paths, descriptions, sizes directly.  
+       - `_renderCleanup()` at line 840: uses suggestion titles and descriptions directly.  
+     - No use of `window._haToolsEsc()` or other escaping functions on these interpolated values.  
+     - This is a potential XSS vector if any API data or user input contains malicious HTML or scripts.  
+   - Line 1015: `HaStorageMonitorEditor._render()` sets `this.shadowRoot.innerHTML = ...` with user input `this._config?.title` interpolated directly into input value attribute without escaping. This can lead to attribute injection or XSS if config.title is attacker-controlled.  
+   Verdict:  
+   - Lines 170, 182, 220, 290, 784, 840, 1015 — UNSAFE due to unescaped user/API data in innerHTML.  
+   - Other innerHTML assignments with static strings or translations are SAFE.
+
+7. **LANGUAGE**:  
+   OK — Supports PL and EN via `_t` getter at line 50.  
+   Hardcoded strings outside `_t` are minimal and mostly UI labels or icons.  
+   Some hardcoded English strings in `_renderBackups()` (line 290) and `_renderIntegrations()` (line 310) but these are minor and could be improved.  
+   Overall bilingual support is implemented.
+
+8. **ERROR HANDLING**:  
+   OK with minor issues — All `callWS` calls are wrapped in try/catch blocks, e.g.:  
+   - `_loadStorageData()` lines 110-160.  
+   However, some catch blocks are empty or only log warnings, e.g.:  
+   - Lines 114, 117, 124, 130, 137, 144, 151 — catch blocks mostly empty or only console.warn.  
+   This is acceptable for best-effort data fetching but swallowing errors silently may hinder debugging.
+
+9. **MEMORY**:  
+   OK — Event listeners are attached to shadowRoot children which get replaced on render, no leaks.  
+   No listeners attached to window/document or `this` without cleanup.  
+   No `setInterval` or timers used.  
+   `disconnectedCallback()` is empty but no cleanup needed.
+
+10. **SETTINGS**:  
+    OK — Only one persisted setting `_activeTab` is loaded from localStorage at line 77 and saved implicitly via localStorage usage.  
+    No orphaned or unmatched settings found.
+
+11. **EDGE CASES**:  
+    OK — Loading states shown (line 157), empty states handled (e.g., no backups at line 288), pagination edge cases handled with disabling buttons (line 720).  
+    Pagination state is reset on page size change (line 735).  
+    Overall edge cases are well managed.
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- Line 170: innerHTML error message injection without escaping (potential XSS).  
+- Lines 182, 220, 290, 784, 840: multiple innerHTML renderings interpolate unescaped user/API data (potential XSS).  
+- Line 1015: editor input value interpolates unescaped config.title (potential attribute injection / XSS).

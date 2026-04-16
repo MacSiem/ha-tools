@@ -1,0 +1,36 @@
+ISSUE: XSS Line 313: Unescaped user config title inserted into innerHTML `<h2>` without escaping  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape `this._config.title` with `_esc()` before inserting into innerHTML to prevent XSS.
+
+---
+
+ISSUE: XSS Line 471: `ent.domain` inserted unescaped into table cell innerHTML  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape `ent.domain` with `_esc()` before inserting into innerHTML to avoid potential injection, even if low risk.
+
+---
+
+ISSUE: XSS Line 503: Snapshot history state inserted unescaped into innerHTML  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape `h.state` with `_esc()` before inserting into innerHTML to prevent XSS from malicious state values.
+
+---
+
+ISSUE: I18N Line 438, 471, 474, 480, 524: Several UI strings hardcoded in English, missing translation support (e.g. "All domains", table headers, button titles)  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Add these strings to the `_t` translation object and use `_t` getter to render them for proper bilingual support.
+
+---
+
+ISSUE: XSS Line 636: Editor input value uses unescaped user config title in input value attribute  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape `this._config?.title` with `_esc()` or set as `.value` property instead of via innerHTML to prevent HTML injection.
+
+---
+
+TOTAL: 5 real issues (3 critical, 1 warning, 1 info), 0 false positives.

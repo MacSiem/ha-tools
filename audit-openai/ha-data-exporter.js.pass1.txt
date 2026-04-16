@@ -1,0 +1,108 @@
+Audit results for ha-data-exporter.js:
+
+1. **IIFE WRAPPER**:  
+   - Wrapped in `(function(){'use strict'; ... })();` at line 1 and line 594.  
+   - **OK**
+
+2. **CUSTOM ELEMENT GUARD**:  
+   - Checks `customElements.get('ha-data-exporter')` before define at line 594.  
+   - Checks `customElements.get('ha-data-exporter-editor')` before define at line 629.  
+   - **OK**
+
+3. **HASS GUARD**:  
+   - Multiple checks for `if (!this._hass) return;` before API calls and rendering, e.g. lines 127, 254, 420, 576.  
+   - **OK**
+
+4. **SHADOW DOM**:  
+   - Uses `this.attachShadow({ mode: 'open' });` in constructor at line 19 and editor at line 615.  
+   - **OK**
+
+5. **BENTO CSS**:  
+   - Uses `${window.HAToolsBentoCSS || ""}` in style tag at line 269.  
+   - **OK**
+
+6. **XSS**:  
+   - `.innerHTML =` or `.innerHTML +=` found at lines:  
+     - 274 (style + HTML template) - static except `${this._config.title}` (line 313) escaped? No explicit escape here, but title is user config (line 313). It is inserted as `${this._config.title}` without escaping → **UNSAFE** (line 313)  
+     - 438: `domainFilter.innerHTML = '<option value="all">All domains (' + Object.keys(this._hass.states).length + ')</option>';` - no user data, safe.  
+     - 448: creates option elements with `opt.textContent = _esc(d) + ' (' + count + ')';` safe.  
+     - 467: `tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No entities found</td></tr>';` static string, safe.  
+     - 471: `tr.innerHTML = ...` contains multiple `${_esc(ent.entity_id)}`, `${_esc(ent.name)}`, `${_esc(ent.state)}`, and `${ent.domain}` (domain not escaped). Domain is derived from entity_id split, so controlled by HA, low risk but ideally escaped.  
+       - Domain is inserted as `${ent.domain}` without escaping → **UNSAFE** (line 471)  
+     - 488: `attrHtml += ...` uses `_esc(displayVal)` and `_esc(displayVal).replace(/"/g, '&quot;')` for attribute values → safe.  
+     - 498: `attrHtml += ...` snapshot history states and counts inserted without escaping:  
+       - `h.state` inserted as is (line 503) → **UNSAFE** (line 503)  
+       - `h.attrs` is a number, safe.  
+     - 524: `pagination.innerHTML = ...` static except numbers, safe.  
+     - 579: `container.innerHTML = '<span class="history-loading">' + this._t.loadingHistory + '</span>';` safe.  
+     - 594: `container.innerHTML = '<span class="history-loading">' + this._t.loadHistoryError + ' ' + _esc(err.message) + '</span>';` safe.  
+     - 602: `_renderHistory` sets `container.innerHTML = html;` where `html` is built with `_esc(ch.state || '?')` and other escaped content → safe.  
+     - 636: Editor innerHTML with user config title inserted as `${this._config?.title || 'Data Exporter'}` without escaping → **UNSAFE** (line 636)  
+
+   Summary of unsafe innerHTML usage:  
+   - Line 313: `${this._config.title}` inserted unescaped in `<h2>`.  
+   - Line 471: `${ent.domain}` inserted unescaped in table cell.  
+   - Line 503: `${h.state}` inserted unescaped in snapshot history.  
+   - Line 636: Editor input value `${this._config?.title}` unescaped in input value attribute.
+
+   All other user data inserted is escaped with `_esc()`.
+
+7. **LANGUAGE**:  
+   - Supports PL and EN in `_t` getter (lines 78-120).  
+   - All UI strings use `_t` except:  
+     - Line 313: title uses `this._config.title` directly (user config, not translated). OK.  
+     - Line 327: domain filter option "All domains" hardcoded in English (line 438, 439). No translation here → **ISSUE** (line 438)  
+     - Line 471: table header "Entity ID", "Name", "State", "Domain", "Attrs" hardcoded in English → **ISSUE** (line 471)  
+     - Line 474: checkbox title "Select all" hardcoded → **ISSUE** (line 474)  
+     - Line 480: expand button title "Show attributes" hardcoded → **ISSUE** (line 480)  
+     - Pagination buttons "Prev", "Next" hardcoded → **ISSUE** (line 524)  
+     - Editor heading "Data Exporter" hardcoded → **OK** (config editor, less critical)  
+     - Editor label "Title" hardcoded → **OK** (config editor)  
+   - So some UI strings are hardcoded in English and not translated.  
+
+8. **ERROR HANDLING**:  
+   - `fetch` in `_fetchHistory` wrapped in try/catch (lines 579-594).  
+   - localStorage calls wrapped in try/catch (lines 37-46, 52-62).  
+   - Empty catch blocks swallow errors silently (lines 37, 41, 46, 52, 56, 61). This is acceptable for localStorage but no logging or fallback.  
+   - No other callWS or callService usage.  
+   - **OK** (empty catch blocks acceptable here)  
+
+9. **MEMORY**:  
+   - Event listeners attached to shadowRoot children replaced on render, no leaks (per pattern).  
+   - `setInterval` for snapshots started in `_startAutoSnapshot` (line 75) and cleared in `_stopAutoSnapshot` (line 83).  
+   - `disconnectedCallback` calls `_stopAutoSnapshot` (line 95).  
+   - No event listeners on window/document without cleanup.  
+   - **OK**
+
+10. **SETTINGS**:  
+    - Snapshot settings keys: `_settingsKey()` used for load/save (lines 33, 39, 44, 50, 55).  
+    - No other settings keys found.  
+    - No orphaned settings.  
+    - **OK**
+
+11. **EDGE CASES**:  
+    - Empty entities handled with "No entities found" row (line 467).  
+    - Loading states shown for history loading (line 579).  
+    - Pagination edge cases handled: disables prev/next buttons when at first/last page (line 525).  
+    - Page size changes reset page to 0 (line 533).  
+    - Snapshot trimming on storage full (lines 59-65).  
+    - **OK**
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- Line 313: Unescaped user config title inserted into innerHTML `<h2>`, risk of XSS if config is malicious.  
+- Line 471: `ent.domain` inserted unescaped into table cell innerHTML, minor risk but should be escaped.  
+- Line 503: Snapshot history state inserted unescaped, risk if state contains malicious content.  
+- Line 438, 471, 474, 480, 524: Several UI strings hardcoded in English, missing translation support (e.g. "All domains", table headers, button titles).  
+- Line 636: Editor input value uses unescaped user config title in input value attribute, risk of HTML injection.
+
+---
+
+**Recommendations:**  
+- Escape all user-controlled strings inserted via innerHTML, including `this._config.title` and `ent.domain`.  
+- Use `_esc()` or equivalent for snapshot history states.  
+- Add translation support for all UI strings, especially table headers, filter options, and button titles.  
+- Escape user config values in editor input value attribute to prevent injection.

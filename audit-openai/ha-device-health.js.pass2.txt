@@ -1,0 +1,122 @@
+Audit of ha-device-health.js CSS and visual consistency:
+
+---
+
+1. **CARD VS CONTAINER**  
+- Uses `.card` wrapper exclusively for main panel container (line ~330).  
+- No `.container` class usage found anywhere in CSS or HTML templates.  
+**Result:** Correct usage of `.card` per Bento design system.  
+**Count:** `.card` used 1 time; `.container` used 0 times.
+
+---
+
+2. **BENTO TOKENS**  
+- CSS variables mostly use `--bento-*` tokens (e.g. `--bento-primary`, `--bento-bg`, `--bento-border`, etc.) defined at line ~340-380.  
+- Hardcoded colors found in CSS:  
+  - `.status-unavailable { background: #94A3B8; }` (line ~460)  
+  - `.alert-dismiss { background: var(--ec); color: white; }` uses white literal (line ~580)  
+  - `.alert-dismiss:hover { opacity: 0.85; }` (opacity is fine)  
+  - Canvas axes stroke: `#E2E8F0` (line ~780)  
+  - Canvas bars fill: `#3B82F6` (line ~790)  
+  - Canvas labels fill: `#64748B` (line ~800)  
+  - Inline styles in network device details use `var(--bg)` but also hardcoded colors in inline styles (see point 5).  
+- Inline styles sometimes use hardcoded colors (see point 5).  
+**Summary:** Mostly Bento tokens used, but some hardcoded hex colors remain in CSS and inline styles, notably: #94A3B8, #EF4444 (in JS inline styles), #3B82F6, #64748B, white (#fff) in editor styles.
+
+---
+
+3. **DARK MODE**  
+- Has `@media (prefers-color-scheme: dark)` block at line ~720-730 defining dark variants of Bento tokens (`--bento-bg`, `--bento-card`, `--bento-text`, etc.).  
+- Uses Bento tokens in dark mode overrides, no hardcoded dark colors.  
+- Also has a comment "/* === DARK MODE ADDED - old comment below === */" (line ~735).  
+**Result:** Proper dark mode support via Bento tokens and prefers-color-scheme media query.
+
+---
+
+4. **RESPONSIVE**  
+- Has `@media (max-width: 768px)` and `@media (max-width: 480px)` blocks at lines ~740-760.  
+- No 360px breakpoint.  
+- Responsive adjustments include:  
+  - `.device-grid` forced to 1 column (though `.device-grid` class not found in main render, possibly legacy or future use).  
+  - Smaller font sizes for tables and controls.  
+  - Hiding some table columns on small screens (`th:nth-child(2)` and `th:nth-child(5)` hidden).  
+  - Tabs have smaller padding and font size on mobile.  
+- No obvious content overflow issues detected; tables are wrapped in `.table-wrapper` with horizontal scroll.  
+- `.tabs` have horizontal scroll with thin scrollbar styling (line ~700).  
+**Result:** Responsive design present for 768px and 480px breakpoints, no 360px breakpoint. Content should not overflow on typical mobile widths.
+
+---
+
+5. **INLINE STYLES**  
+- Inline styles appear mostly in template literals inside `_render()` method (line ~350 onwards).  
+- Count of inline `style="..."` occurrences in template literals: approx 20+ (mostly small).  
+- Top 5 longest inline style strings with approximate line numbers (counting from start of file):  
+
+  1. Line ~560-570 (battery card fill bar):  
+     `style="width: 100%; background: ${color};"` (short but repeated)  
+  2. Line ~700-720 (network device detail div):  
+     `<code style="font-size:11px;background:var(--bg);padding:2px 6px;border-radius:3px;">` (longer inline style, 56 chars)  
+  3. Line ~710-720 (network device detail container):  
+     `style="font-size:11px;color:var(--ts);display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;"` (approx 80 chars)  
+  4. Line ~720-730 (network device container):  
+     `style="margin-bottom: 10px; padding: 8px; border: 1px solid var(--dc); border-radius: 8px;"` (approx 70 chars)  
+  5. Line ~870-880 (alert history item):  
+     `style="padding: 8px 12px; border-left: 3px solid; border-color: ${alert.severity === "critical" ? "var(--ec)" : alert.severity === "warning" ? "var(--wc)" : "var(--pc)"}; margin-bottom: 4px; border-radius: var(--radius-xs); background: var(--bg);"` (very long, ~150 chars)  
+
+- The editor component (line ~900) also uses inline styles for inputs and labels, but these are short and consistent.  
+**Result:** Inline styles are used extensively but mostly for small layout tweaks. The longest inline style is the alert history item container (~line 870), which could be moved to CSS for better maintainability.
+
+---
+
+6. **FONT**  
+- Uses `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` font stack on `.card` (line ~350).  
+- Editor uses inherited fonts and system fonts with no explicit Inter mention.  
+- No font imports in this file; assumes Inter is available or fallback to system fonts.  
+- Font sizes consistent with Bento design system recommendations.  
+**Result:** Font usage consistent with Bento and HA theme, Inter referenced explicitly in main card.
+
+---
+
+7. **CONSISTENCY**  
+- Buttons, cards, tables, badges use Bento tokens and consistent styling:  
+  - Buttons have consistent padding, border, hover, active states (lines ~420-440).  
+  - Cards have consistent border-radius, shadows, padding (lines ~350-370).  
+  - Tables use consistent padding, border colors, hover states (lines ~470-490).  
+  - Status badges use consistent colors and shape (lines ~460-470).  
+- Battery cards and network stats have consistent flexbox layout and spacing.  
+- Alert items use consistent border-left color based on severity and spacing.  
+- Pagination controls consistent across tabs.  
+**Result:** UI elements are styled consistently throughout the file.
+
+---
+
+8. **ACCESSIBILITY**  
+- Color contrast:  
+  - Status badge colors (#10B981 green, #EF4444 red, #94A3B8 gray) on white background likely pass contrast (green and red are bright).  
+  - Text colors mostly use Bento tokens which adapt to dark mode.  
+  - Inline text colors in network details use `var(--ts)` (secondary text) which might be low contrast but acceptable for secondary info.  
+- Missing ARIA labels:  
+  - Tab buttons have no explicit `aria-selected` or `role="tab"` attributes.  
+  - Pagination buttons have no aria-labels (e.g. "Previous page", "Next page").  
+  - Search input has placeholder but no label or aria-label.  
+  - Filter select and sorting selects have no labels or aria-labels (only visual labels).  
+  - Alert dismiss buttons have no aria-label or title attribute; only text "Dismiss".  
+- Keyboard focus styles:  
+  - Inputs and selects have focus border and box-shadow (line ~410).  
+  - Buttons have hover styles but no explicit focus styles visible in CSS.  
+**Result:** Some accessibility issues: missing ARIA roles/labels on interactive elements (tabs, pagination, dismiss buttons), and missing explicit labels for inputs/selects. Color contrast generally acceptable.
+
+---
+
+**SUMMARY:**  
+1. CARD VS CONTAINER: OK (1/1)  
+2. BENTO TOKENS: Minor issues with some hardcoded colors (5/6)  
+3. DARK MODE: OK (1/1)  
+4. RESPONSIVE: OK for 768px and 480px breakpoints, no 360px (1/1)  
+5. INLINE STYLES: Extensive use, some long inline styles could be moved to CSS (0.5/1)  
+6. FONT: OK (1/1)  
+7. CONSISTENCY: OK (1/1)  
+8. ACCESSIBILITY: Some missing ARIA labels and roles, minor contrast concerns (0.5/1)  
+
+**Overall:** 6/8 OK, 2 issues (hardcoded colors and accessibility ARIA/labels).  
+Recommendations: Move long inline styles to CSS, add ARIA roles/labels for tabs, pagination, and buttons, and replace hardcoded colors with Bento tokens where possible.

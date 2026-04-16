@@ -1,0 +1,11 @@
+ISSUE: CSS Bento Tokens Hardcoded colors found in component CSS (lines ~900, ~1080, ~1110, ~1170, ~1310) including rgba(59,130,246,0.06), rgba(245,158,11,0.08), #10B981, #EF4444, rgba(239,68,68,0.1), #ef4444, rgba(245,158,11,0.1), #fff  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Replace hardcoded colors with appropriate Bento CSS tokens (e.g., --bento-primary-light, --bento-success, --bento-error, --bento-warning, --bento-text-on-primary) to ensure full theming and dark mode consistency.
+
+ISSUE: Accessibility Missing ARIA roles and attributes on tabs and toast notifications (no role="tablist", role="tab", aria-selected on tab buttons; no role="alert" on toast)  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add ARIA roles and attributes for tabs (role="tablist" on container, role="tab" and aria-selected on buttons) and add role="alert" or aria-live="assertive" on toast elements for screen reader announcements.
+
+TOTAL: 2 real issues (0 critical, 1 warning, 1 info), 0 false positives.

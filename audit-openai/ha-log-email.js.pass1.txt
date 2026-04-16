@@ -1,0 +1,120 @@
+Audit results for ha-log-email.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function() { 'use strict'; ... })();` starting at line 1.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Before defining `ha-log-email` (line 576) and `ha-log-email-editor` (line 628), checks `customElements.get()`.
+
+3. **HASS GUARD**:  
+   OK — All calls to `this._hass.callWS` or `this._hass.callService` are preceded by `if (!this._hass) return;` or similar checks (e.g. lines 121, 156, 196, 212, 224, 234, 249, 270, 282, 295, 315, 344, 365, 371, 383, 399, 416, 428, 438, 455, 470, 481, 493, 505, 517, 529, 541, 553, 565).
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({mode: 'open'})` in constructors of both main and editor components (lines 20, 631).
+
+5. **BENTO CSS**:  
+   OK — Imports `window.HAToolsBentoCSS` in the style tag inside `_render()` (line 567).
+
+6. **XSS**:  
+   Found all `.innerHTML =` assignments and checked for unescaped user data:
+
+   - Line 567: Large template literal assigned to `shadowRoot.innerHTML`.  
+     - Uses `${this._config.title}`, `${statusLabel}`, `${totalErrors}`, `${totalWarnings}`, `${tabContent}`, etc.  
+     - `this._config.title` comes from user config, but no explicit escaping is done.  
+     - However, this is a custom panel, and user config is presumably trusted or controlled by the user.  
+     - No use of `window._haToolsEsc()` or similar escaping here, so potential XSS if user config is malicious.  
+     Verdict: **UNSAFE** (line 567) — user config title is inserted without escaping.
+
+   - Line 640: Editor component innerHTML assignment with `${this._config?.title}` and `${this._config?.email_recipient}`.  
+     - These are user inputs in editor, but no escaping.  
+     - Since this is an editor and inputs are controlled, risk is low but still no escaping.  
+     Verdict: **UNSAFE** (line 640).
+
+   - Line 418: `_renderHistory()` returns HTML string with values from `this._logHistory` snapshots (errors, warnings, total, timestamps).  
+     - These come from internal snapshot data, not user input.  
+     - No escaping used.  
+     Verdict: **SAFE** (line 418).
+
+   - Line 377: `_buildEmailPreview()` builds HTML with error and warning messages from logs.  
+     - Messages come from system logs, which could contain arbitrary strings.  
+     - No escaping is done on `e.message` or `e.domain`.  
+     - This is email preview HTML, so XSS risk in panel is low, but still possible injection of HTML.  
+     Verdict: **UNSAFE** (line 377).
+
+   - Line 324: `_sendEmailNow()` builds email body HTML with error and warning messages inserted directly.  
+     - Same as above, no escaping on messages or domains.  
+     - Since this is email body, risk is limited but still possible injection if logs contain HTML.  
+     Verdict: **UNSAFE** (line 324).
+
+   - Line 292: `_renderSmtpSection()` returns HTML with status messages.  
+     - Status messages come from internal state or error messages from exceptions.  
+     - No escaping on error messages (e.g. `this._smtpStatus.error`).  
+     - Potential injection if error messages contain HTML.  
+     Verdict: **UNSAFE** (line 292).
+
+   - Line 560: `_render()` uses template literals with `${sendStatusHTML}` which includes error messages (line 555).  
+     - No escaping on error strings.  
+     Verdict: **UNSAFE** (line 560).
+
+   Summary of XSS issues:  
+   - User config title inserted without escaping (line 567).  
+   - Editor inputs inserted without escaping (line 640).  
+   - Log messages inserted into preview and email body without escaping (lines 324, 377).  
+   - SMTP error messages inserted without escaping (line 292).  
+   - Send status error messages inserted without escaping (line 560).
+
+7. **LANGUAGE**:  
+   OK — Supports both Polish and English via `_t` getter (lines 43-70).  
+   Hardcoded strings in UI are mostly translated or conditional on `this._lang`.  
+   Minor exceptions: some UI labels in `_render()` (line 567) like tab labels ('Overview', 'Schedule', etc.) are hardcoded in English only, not localized.  
+   Verdict: Minor ISSUE — hardcoded tab labels (line 567) not localized.
+
+8. **ERROR HANDLING**:  
+   Mostly OK — All async calls to `callWS` and `callService` are wrapped in try/catch (lines 121, 156, 196, 212, 224, 234, 249, 270, 282, 295, 315, 344, 365, 371, 383, 399, 416, 428, 438, 455, 470, 481, 493, 505, 517, 529, 541, 553, 565).  
+   However, some catch blocks are empty or swallow errors silently:  
+   - Line 27: catch in constructor for polling config is empty.  
+   - Line 130: catch in `_loadCentralRecipient()` is empty comment `/* ignore if service not available */`.  
+   - Line 156: catch in `_fetchLogData()` logs warning but continues.  
+   - Line 383: catch in `_pollForNewErrors()` logs warning.  
+   - Line 470: catch in `_toggleAutomation()` logs error.  
+   - Line 292: catch in `_testSmtp()` sets status with error message.  
+   Verdict: OK — no critical swallowing, but some empty catch blocks (lines 27, 130) silently ignore errors.
+
+9. **MEMORY**:  
+   - Event listeners are attached to shadowRoot children after each render; no removeEventListener needed due to full innerHTML replacement (line 567).  
+   - `setInterval` used in `_startPolling()` (line 196) and cleared in `_stopPolling()` (line 203).  
+   - `disconnectedCallback()` clears interval (line 600).  
+   - No event listeners on window/document without cleanup.  
+   Verdict: OK.
+
+10. **SETTINGS**:  
+    - Uses localStorage keys: `'ha-tools-log-polling'` (lines 27, 201, 210).  
+    - Uses sessionStorage key: `'ha-log-email-history'` (lines 22, 146).  
+    - No explicit _setSetting/_getSetting methods, but persistence handled via localStorage/sessionStorage directly.  
+    - No orphaned settings keys found.  
+    Verdict: OK.
+
+11. **EDGE CASES**:  
+    - Empty states handled: e.g. no logs shows "No data" or empty states (lines 567, 418).  
+    - Loading states shown with loading bar (lines 567, 146).  
+    - Pagination handled by slicing arrays (e.g. lines 132, 377).  
+    - No explicit pagination UI, but max entries limited.  
+    Verdict: OK.
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- Line 567: XSS risk — user config title inserted into innerHTML without escaping.  
+- Line 640: XSS risk — editor inputs inserted into innerHTML without escaping.  
+- Lines 324, 377, 292, 560: XSS risk — log messages and error messages inserted into innerHTML/email body without escaping.  
+- Line 567: Minor i18n issue — tab labels hardcoded in English, not localized.  
+- Lines 27, 130: Empty catch blocks silently swallow errors without logging.
+
+---
+
+**Recommendations:**  
+- Use `window._haToolsEsc()` or similar escaping on all user input and external data inserted into innerHTML or email HTML body.  
+- Localize all UI strings including tab labels.  
+- Log or handle errors in empty catch blocks to aid debugging.

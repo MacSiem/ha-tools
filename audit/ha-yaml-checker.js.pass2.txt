@@ -1,0 +1,16 @@
+Here's an audit of the `ha-yaml-checker.js` CSS, based on your checklist:
+
+1.  **CARD VS CONTAINER:** Uses .card (correct). No .container class is present.
+
+2.  **DARK MODE:** Does CSS reference --bento-* variables or prefers-color-scheme? Yes. It utilizes `--bento-*` variables extensively and includes a `@media (prefers-color-scheme: dark)` block.
+
+3.  **RESPONSIVE:** Has @media breakpoints for 768px, 480px? What breakpoints exist: ['480', '768']. Yes, it has breakpoints for both 768px and 480px.
+
+4.  **BENTO TOKENS:** Does CSS use --bento-bg, --bento-card, --bento-text etc. or hardcoded colors? Yes, it heavily relies on `--bento-*` variables, demonstrating adherence to the Bento design system.
+
+5.  **INLINE STYLES:** 14 inline styles found. Should minimize inline styles. There are 14 inline styles detected.  This is a significant area for potential improvement.
+
+6.  **FONT:** Does it use Inter font or reference font-family correctly? The CSS references `font-family: Inter, sans-serif;` which is correct.
+
+
+SUMMARY: 5/6 OK, 1 issues.

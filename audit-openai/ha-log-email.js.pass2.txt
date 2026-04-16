@@ -1,0 +1,142 @@
+Audit of ha-log-email.js CSS and visual consistency:
+
+---
+
+1. **CARD VS CONTAINER**  
+- Uses `.card` wrapper consistently (correct per Bento).  
+- No `.container` class usage found in the main card wrapper or content containers.  
+- Confirmed in `_render()` method (lines ~600-670): `<ha-card class="card">` is used as main wrapper.  
+- No `.container` class usage anywhere in the CSS or HTML templates.  
+**Count:** `.card` used 1x, `.container` used 0x.  
+**Verdict:** Correct usage.
+
+---
+
+2. **BENTO TOKENS**  
+- CSS variables mostly use `--bento-*` tokens, e.g. `--bento-primary`, `--bento-bg`, `--bento-text`, etc. (lines ~620-700).  
+- Hardcoded colors found in CSS:  
+  - `#ef4444` (red error color) and variants with opacity, e.g. `#ef444408`, `#ef444420` (lines ~660, 680, 700).  
+  - `#f59e0b` (warning orange) and variants with opacity, e.g. `#f59e0b08`, `#f59e0b20` (lines ~660, 680, 700).  
+  - `#10b981` (green success) and variants with opacity, e.g. `#10b98108`, `#10b98120` (lines ~660, 700).  
+  - `#3b82f6` (blue primary) and variants (lines ~620, 700).  
+  - Dark mode overrides use hardcoded hex colors (lines ~630-640): `#0f172a`, `#1e293b`, `#334155`, `#f1f5f9`, `#94a3b8`, `#64748b`.  
+- Inline styles in template literals also use hardcoded colors (e.g. lines ~480-520, ~540-570).  
+- Some inline styles use CSS variables properly (e.g. `color: var(--bento-text-secondary)`), but many inline styles use hardcoded hex colors.  
+**List of hardcoded colors (CSS + inline):**  
+  - #ef4444, #ef444408, #ef444420  
+  - #f59e0b, #f59e0b08, #f59e0b20  
+  - #10b981, #10b98108, #10b98120  
+  - #3b82f6, #2563eb  
+  - #0f172a, #1e293b, #334155, #f1f5f9, #94a3b8, #64748b  
+  - #e2e8f0 (border color in CSS variables fallback)  
+- These colors correspond to Bento palette colors, but are hardcoded rather than using tokens everywhere.  
+**Verdict:** Mostly uses Bento tokens but with many hardcoded colors matching Bento palette. Could improve by replacing hardcoded colors with tokens for consistency.
+
+---
+
+3. **DARK MODE**  
+- Has `@media (prefers-color-scheme: dark)` block (lines ~630-640) defining dark variants of Bento tokens:  
+  - `--bg`, `--card`, `--border`, `--text`, `--text2`, `--text3` set to dark mode colors.  
+- Uses `color-scheme: light dark` on `:host` (line ~620).  
+- Inline styles and hardcoded colors in templates do not have dark mode variants, so some inline colored elements may not adapt perfectly to dark mode.  
+- Overall, dark mode support is present but could be improved by avoiding hardcoded colors in inline styles.  
+**Verdict:** Dark mode supported via Bento tokens and media query, but inline styles with hardcoded colors may cause minor inconsistencies.
+
+---
+
+4. **RESPONSIVE**  
+- Has `@media` breakpoints at 768px and 480px (lines ~720-760).  
+- No 360px breakpoint found.  
+- Responsive adjustments include:  
+  - `.card` overflow hidden, `.content` padding adjustments.  
+  - `.log-entry` font-size and flex-wrap changes.  
+  - Grid layouts adjust columns (e.g. `.overview-grid`, `.send-grid`, `.schedule-grid`).  
+  - Tabs become horizontally scrollable with smaller padding/font sizes.  
+  - Preformatted text wraps and scrolls horizontally.  
+- No obvious content overflow issues on mobile detected.  
+- Scrollbars for tabs are styled for mobile (lines ~710-715).  
+**Verdict:** Responsive design implemented for 768px and 480px breakpoints, no overflow issues apparent.
+
+---
+
+5. **INLINE STYLES**  
+- Count of `style="..."` in template literals: approximately 20+ occurrences scattered in `_render()` and other template methods.  
+- Top 5 longest inline styles with approximate line numbers:  
+  1. Line ~480-520: Email preview container div:  
+     `style="font-family:Arial,sans-serif;background:#1a1a2e;color:#e2e8f0;padding:16px;border-radius:8px;font-size:13px;max-height:300px;overflow-y:auto"` (very long, 110+ chars)  
+  2. Line ~490-510: Error entry div inside email preview:  
+     `style="background:#2d1b1b;border-left:3px solid #ef4444;padding:6px 8px;margin-bottom:4px;border-radius:0 4px 4px 0"` (~90 chars)  
+  3. Line ~520-540: Warning entry div inside email preview:  
+     `style="background:#2d2410;border-left:3px solid #f59e0b;padding:6px 8px;margin-bottom:4px;border-radius:0 4px 4px 0"` (~90 chars)  
+  4. Line ~600-670: In `_render()`, header badge style:  
+     `style="background:${totalErrors > 0 ? '#ef444420' : '#10b98120'};color:${totalErrors > 0 ? '#ef4444' : '#10b981'}"` (~70 chars)  
+  5. Line ~670-700: Various inline styles on buttons and badges, e.g.  
+     `style="width:auto;padding:8px 16px"` on SMTP test button (line ~670), shorter but notable.  
+- Many inline styles are used for dynamic color or layout adjustments.  
+**Verdict:** Inline styles are numerous and sometimes long, especially in email preview and dynamic color badges. Could be improved by moving styles to CSS classes or Bento tokens.
+
+---
+
+6. **FONT**  
+- Uses `font-family: Inter, sans-serif` on `:host` (line ~623).  
+- Email preview uses inline style `font-family:Arial,sans-serif` (line ~480).  
+- Other text inherits from Bento tokens or HA theme variables.  
+- No font imports or references beyond these.  
+**Verdict:** Font usage consistent with Inter for main UI, Arial for email preview (reasonable fallback). Acceptable.
+
+---
+
+7. **CONSISTENCY**  
+- Buttons: `.send-btn`, `.toggle-btn`, `.refresh-btn` share similar styling (rounded corners, padding, font sizes, hover effects).  
+- Cards: `.card`, `.stat-card`, `.schedule-card`, `.send-card`, `.info-card` all use Bento background, border, radius tokens consistently.  
+- Badges: `.count-badge`, `.badge-ok`, `.badge-er` use consistent font sizes, colors, and border-radius.  
+- Tables in history use inline styles for borders and padding but consistent with Bento border colors.  
+- Some inline styles break consistency (e.g. email preview uses hardcoded colors and fonts).  
+- Overall, UI elements are visually consistent except for email preview section which uses distinct styling (dark background, Arial font).  
+**Verdict:** Mostly consistent styling for UI elements; email preview intentionally styled differently for email format.
+
+---
+
+8. **ACCESSIBILITY**  
+- Color contrast:  
+  - Error red (#ef4444) on light backgrounds (#ef444408) is low contrast but used for emphasis, acceptable as status color.  
+  - Warning orange (#f59e0b) similarly used with light backgrounds.  
+  - Text colors mostly use Bento tokens which adapt to dark mode.  
+  - Inline styles with hardcoded colors may cause contrast issues in dark mode (e.g. email preview's dark background with light text is good).  
+- ARIA labels:  
+  - Tab buttons have no explicit aria-label or role attributes (lines ~650). Could improve accessibility by adding `role="tab"` and `aria-selected`.  
+  - Buttons like send, toggle, refresh have no aria-labels but have visible text, which is acceptable.  
+  - The automation YAML `<pre>` block lacks aria attributes but is non-interactive content.  
+- Keyboard focus styles:  
+  - Buttons have hover styles but no explicit focus styles visible in CSS. Could improve focus visibility for keyboard users.  
+**Verdict:** Minor accessibility issues: missing ARIA roles/labels on tabs, no explicit focus styles on buttons, potential color contrast issues with hardcoded colors in dark mode.
+
+---
+
+### SUMMARY:
+
+| Point                  | Status           | Notes                                      |
+|------------------------|------------------|--------------------------------------------|
+| 1. CARD VS CONTAINER    | OK               | Uses `.card` correctly, no `.container`.  |
+| 2. BENTO TOKENS         | Minor issue      | Many hardcoded colors matching Bento palette; could use tokens fully. |
+| 3. DARK MODE            | OK with caveats  | Dark mode supported via tokens and media query; inline styles may cause minor inconsistencies. |
+| 4. RESPONSIVE          | OK               | Responsive at 768px and 480px; no overflow issues. |
+| 5. INLINE STYLES        | Minor issue      | Numerous and sometimes long inline styles; could be moved to CSS classes. |
+| 6. FONT                 | OK               | Uses Inter font consistently; email preview uses Arial appropriately. |
+| 7. CONSISTENCY          | OK               | Mostly consistent styling; email preview intentionally distinct. |
+| 8. ACCESSIBILITY        | Minor issues     | Missing ARIA roles/labels on tabs; no focus styles; some color contrast concerns. |
+
+**Overall:** 5/8 OK, 3 minor issues (Bento tokens usage, inline styles, accessibility).
+
+---
+
+**Recommendations:**  
+- Replace hardcoded colors with Bento tokens where possible for better theme consistency.  
+- Move inline styles to CSS classes to reduce duplication and improve maintainability.  
+- Add ARIA roles and aria-selected attributes to tab buttons for accessibility.  
+- Add visible focus styles for keyboard navigation on buttons and tabs.  
+- Review inline styles in email preview for dark mode adaptability if preview is shown in dark mode.
+
+---
+
+This concludes the CSS and visual consistency audit of ha-log-email.js.

@@ -1,0 +1,87 @@
+Audit results for ha-energy-optimizer.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function() { 'use strict'; ... })();` starting line 1 and ending line 1023.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Both custom elements are defined with guards:  
+   - `if (!customElements.get('ha-energy-optimizer')) { customElements.define('ha-energy-optimizer', HaEnergyOptimizer); }` line 1018  
+   - `if (!customElements.get('ha-energy-optimizer-editor')) { customElements.define('ha-energy-optimizer-editor', HaEnergyOptimizerEditor); }` line 1059
+
+3. **HASS GUARD**:  
+   OK — All calls to `this._hass` or `this._hass.callWS` are guarded:  
+   - `set hass(hass)` checks `if (!hass) return;` line 159  
+   - `_fetchEnergyStats()` checks `if (!this._hass || !this._hass.callWS) return;` line 176  
+   - `_updateEnergyData()` checks `if (!this._hass) return;` line 312
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({ mode: 'open' });` in constructors of both classes: line 10 and line 1024.
+
+5. **BENTO CSS**:  
+   OK — Uses `${window.HAToolsBentoCSS || ""}` in `_getStyles()` method line 406.
+
+6. **XSS (innerHTML usage and data escaping)**:  
+   Found `.innerHTML =` assignments:  
+   - line 172: `_haToolsPersistence` stub uses `localStorage.setItem` but no innerHTML here.  
+   - line 474: `this.shadowRoot.innerHTML = html;` where `html` is from `_getStyles()` + `_getTemplate()` (line 406 and 470).  
+     - `_getTemplate()` (line 470) includes interpolations of `this._config` values such as `title`, `currency`, numeric values, and some strings from `_getTariffLabel()`.  
+     - These config values come from user config or localStorage but are not escaped.  
+     - However, these values are mostly controlled by the user or config, not external API data.  
+     - No direct user input is inserted without escaping in innerHTML except config strings.  
+   - line 605: `cmpBody.innerHTML = this._renderCompareBody();`  
+     - `_renderCompareBody()` (line 354) returns a template string with interpolated numbers and strings from `_comparisonData` and `_lang`.  
+     - Data comes from internal calculations, no direct user input or API data inserted raw.  
+   - line 849: `container.innerHTML = this._recommendations.map(...).join('');`  
+     - `_recommendations` is generated internally (line 290) with hardcoded strings and numeric values, no user input or API data.  
+   - line 1007: `body.innerHTML = this._renderCompareBody();` (event listener)  
+     - Same as above, safe.  
+
+   No use of `window._haToolsEsc()` for escaping interpolated strings in templates. However, all interpolated data in innerHTML are either:  
+   - Config values (user-provided but limited to strings like title, currency)  
+   - Internally generated numeric data or hardcoded strings  
+   - No direct insertion of entity IDs, states, or API responses into innerHTML without sanitization.  
+
+   Verdict:  
+   - Line 474: innerHTML with config strings — **SAFE** (user config, low risk, no script injection vectors)  
+   - Line 605: innerHTML with comparison data — **SAFE** (internal numeric data)  
+   - Line 849: innerHTML with recommendations — **SAFE** (hardcoded strings)  
+   - Line 1007: innerHTML with comparison data — **SAFE**  
+
+7. **LANGUAGE**:  
+   OK — Supports PL and EN via `_t` getter (line 43).  
+   - Most UI strings are translated or conditionally rendered based on `this._lang`.  
+   - Some hardcoded strings in `_renderCompareBody()` and `_getTemplate()` are in Polish (e.g. 'Ten tydzień', 'Poprzedni tydz.', 'Ostatnie 8 tygodni'). These are not translated.  
+   - Minor issue: some UI labels in `_renderCompareBody()` and `_getTemplate()` are hardcoded in Polish without fallback or translation (lines 354, 470).  
+   - Overall bilingual support is present but some hardcoded Polish strings remain untranslated.
+
+8. **ERROR HANDLING**:  
+   ISSUE —  
+   - `_fetchEnergyStats()` (line 176) wraps main WS calls in try/catch, but catch block is empty except for a console.warn (line 282). This is acceptable.  
+   - LocalStorage calls in `setConfig()` (line 58) and settings save (line 683) have empty catch blocks — silently swallow errors.  
+   - Some async chart drawing functions catch errors and log them (e.g. line 758, 787, 819, 849, 880) — OK.  
+   - Overall, some empty catch blocks silently swallow errors without user feedback (lines 60, 683).  
+
+9. **MEMORY**:  
+   OK —  
+   - Event listeners are attached to shadowRoot children and replaced on DOM rebuild, no leaks.  
+   - No event listeners on window/document without cleanup.  
+   - No setInterval used, only setTimeout which is one-off.  
+   - `disconnectedCallback()` cleans up charts (line 16).  
+
+10. **SETTINGS**:  
+    OK —  
+    - Settings keys read from localStorage in `setConfig()` (line 58) match keys saved in settings save handler (line 683).  
+    - No orphaned settings keys found.  
+
+11. **EDGE CASES**:  
+    OK —  
+    - Empty states handled: `_fetchEnergyStats()` handles empty sensor list (line 191).  
+    - Loading states shown with badges (line 479).  
+    - Pagination edge cases handled with disabling buttons and bounds checks (lines 931-951).  
+
+---
+
+**SUMMARY:** 9/11 OK, 2 issues.  
+**Issues:**  
+- #7 LANGUAGE: Some hardcoded Polish strings in UI without translation (lines 354, 470).  
+- #8 ERROR HANDLING: Some empty catch blocks silently swallow errors without user feedback (lines 60, 683).

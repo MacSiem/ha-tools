@@ -1,0 +1,18 @@
+ISSUE: ERROR HANDLING Many empty catch blocks silently swallow errors without logging or user feedback (lines ~324-1086)  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add minimal error logging (e.g. `console.error(e)`) or user-visible feedback inside catch blocks to improve debugging and visibility.
+
+ISSUE: BENTO TOKENS Minor hardcoded rgba colors used for status backgrounds and hover effects instead of Bento CSS tokens (lines ~700-800 approx)  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Replace hardcoded rgba colors with appropriate Bento CSS variables or extend Bento tokens to cover these semantic colors for better theming consistency.
+
+ISSUE: ACCESSIBILITY Missing ARIA roles and labels on tabs and interactive elements (e.g. no `role="tablist"`, `role="tab"`, `aria-selected`, missing aria-labels on camera cards and quick pause buttons) (lines ~1000-1150 approx)  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Add ARIA roles and attributes to tab container and buttons; add descriptive aria-labels to interactive elements for improved screen reader support.
+
+---
+
+TOTAL: 3 real issues (0 critical, 1 warning, 2 info), 0 false positives.

@@ -1,0 +1,158 @@
+Audit of ha-frigate-privacy.js CSS and visual consistency:
+
+---
+
+**1. CARD VS CONTAINER**
+
+- The main wrapper uses `<div class="card">` (line ~650 in _buildHTML).
+- No `.container` class usage found anywhere in the CSS or HTML templates.
+- **Result:** Uses `.card` wrapper correctly per Bento design system.
+
+---
+
+**2. BENTO TOKENS**
+
+- CSS extensively uses `var(--bento-*)` variables for colors, borders, backgrounds, shadows, radius, transitions.
+- Hardcoded colors found (with line references approximate to CSS start ~line 700):
+
+  - `.status-running` background: `rgba(16,185,129,0.12)` and color `#10B981`
+  - `.status-stopped` background: `rgba(239,68,68,0.12)` and color `#EF4444`
+  - `.status-unknown` background: `rgba(148,163,184,0.12)` and color `#94a3b8`
+  - `.privacy-active-banner` background: `linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.15))`
+  - `.privacy-active-banner` border: `1px solid rgba(239,68,68,0.25)`
+  - `.btn-extend` border: `1px solid rgba(59,130,246,0.3)` and background `rgba(59,130,246,0.08)` and hover background `rgba(59,130,246,0.15)`
+  - `.btn-extend` color: `var(--bento-primary)` (good)
+  - `.btn-extend:hover` border-color: `var(--bento-primary)`
+  - `.camera-card:hover` background: `rgba(59,130,246,0.04)`
+  - `.camera-card.selected` background: `rgba(59,130,246,0.08)`
+  - `.btn-quick:hover` background: `rgba(59,130,246,0.06)` and color `var(--bento-primary)`
+  - `.btn-icon:hover` background: `rgba(59,130,246,0.08)`
+  - `.btn-icon-danger:hover` background: `rgba(239,68,68,0.08)`
+  - `.notify-info` background: `rgba(59,130,246,0.05)` and border: `1px solid rgba(59,130,246,0.1)`
+
+- These hardcoded colors are mostly semi-transparent blues or reds for states and hover effects.
+- No direct use of pure hex colors outside of these status colors.
+- **Result:** Mostly uses Bento tokens, but some hardcoded rgba colors for status and hover highlights.
+
+---
+
+**3. DARK MODE**
+
+- There is a `prefers-color-scheme: dark` media query in the editor component (line ~1200).
+- The main card CSS does not have explicit dark mode overrides but relies on Bento CSS variables like `--bento-card`, `--bento-bg`, `--bento-text` which presumably adapt to dark mode.
+- The editor component defines dark mode Bento variables explicitly.
+- **Result:** Dark mode support is present via Bento tokens and explicit dark mode CSS in editor.
+
+---
+
+**4. RESPONSIVE**
+
+- Two media queries present:
+
+  - `@media (max-width: 768px)` (line ~1150)
+    - Adjusts `.card` padding, `.camera-grid` columns to 2, `.time-row` flex direction, `.header` layout, `.privacy-active-banner` layout, `.history-row` wrapping, `.day-btn` size/font.
+  - `@media (max-width: 480px)` (line ~1170)
+    - `.camera-grid` single column, `.quick-buttons` vertical, `.btn-quick` full width, `.custom-pause` vertical and stretch, `.input-minutes` full width.
+
+- No `360px` breakpoint found.
+- Layout uses grid and flexbox with wrapping and overflow-x auto on tabs.
+- No obvious content overflow on mobile; scrollbars for tabs are styled.
+- **Result:** Responsive design covers 768px and 480px breakpoints well, no overflow issues detected.
+
+---
+
+**5. INLINE STYLES**
+
+- Inline styles appear in template literals mainly in:
+
+  - Editor component (line ~1100-1150):
+    - `:host { display:block; padding:16px; }` (style tag)
+    - Inputs have inline styles for width, padding, border, border-radius, background, color, font-size, box-sizing (line ~1115-1135)
+  - Settings tab code blocks (line ~900-950):
+    - `<pre>` tags with inline styles: `background:var(--bento-card);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--bento-text);`
+    - Multiple code blocks with similar inline styles.
+  - Settings tab paragraph (line ~960):
+    - `<p>` with inline styles: `margin:8px 0 0 0;font-size:0.85em;color:var(--bento-text-secondary);`
+  - Settings tab div with inline style (line ~970):
+    - `<div>` with `padding:10px 12px;background:var(--bento-bg);border-radius:6px;font-size:0.9em;line-height:1.8;color:var(--bento-text);`
+  - Schedule tab form label input placeholders (line ~760):
+    - Placeholder text is localized but no inline styles.
+  - History tab date formatting uses JS, no inline styles.
+
+- **Top 5 longest inline styles with approximate line numbers:**
+
+  1. Editor input fields (line ~1115-1135): multiple inputs with ~6-7 CSS properties each.
+  2. Settings tab code blocks `<pre>` (line ~900-950): ~6 CSS properties inline.
+  3. Settings tab code block container div (line ~970): ~6 CSS properties inline.
+  4. Settings tab paragraph `<p>` (line ~960): 4 CSS properties inline.
+  5. Toast container (line ~1200 in CSS): no inline styles, uses class-based styles.
+
+- Inline styles are mostly for code blocks and editor inputs, which is acceptable for isolated components.
+
+---
+
+**6. FONT**
+
+- No explicit font-family set in CSS.
+- Relies on Bento CSS variables and inherits from HA theme.
+- No reference to Inter font or any other font.
+- **Result:** Font inherits from Home Assistant theme, consistent with Bento design.
+
+---
+
+**7. CONSISTENCY**
+
+- Buttons use `.btn` base class with modifiers `.btn-primary`, `.btn-success`, `.btn-danger`, `.btn-secondary`, `.btn-quick`, `.btn-full`.
+- Cards use `.card` and `.camera-card` with consistent border-radius, shadows, and hover states.
+- Tabs use `.tab-btn` with active and hover states.
+- Tables and lists (history, schedule) use consistent spacing, font sizes, and colors.
+- Status badges use `.status-badge` with color-coded classes `.status-running`, `.status-stopped`, `.status-unknown`.
+- Toast messages use `.toast` with modifiers `.toast-success`, `.toast-error`, `.toast-info`.
+- Overall styling is consistent in colors, spacing, font sizes, and interactive states.
+- **Result:** UI elements are styled consistently throughout.
+
+---
+
+**8. ACCESSIBILITY**
+
+- Color contrast:
+
+  - Uses semantic colors for statuses (green, red, gray) with semi-transparent backgrounds and solid text colors.
+  - Text colors use Bento tokens which are designed for good contrast.
+  - Privacy banner uses red text on light red background, likely sufficient contrast.
+  - Buttons have hover and focus states with color changes.
+  - Disabled buttons have opacity 0.5 and cursor not-allowed.
+
+- Aria labels:
+
+  - Tabs have no explicit `aria-selected` or roles, but buttons have clear text.
+  - Schedule toggle buttons have `title` and `aria-label` attributes (line ~800 in _buildScheduleTab).
+  - Other interactive elements (camera cards, quick buttons) lack explicit aria labels.
+  - Some buttons use emoji icons without aria-labels (e.g., camera status icons).
+  - No keyboard focus styles explicitly defined, but buttons are native elements and should be focusable.
+  - No role attributes on tablist or tab panels.
+
+- Potential improvements:
+
+  - Add `role="tablist"` on tabs container and `role="tab"` on tab buttons with `aria-selected`.
+  - Add aria-labels on camera cards and quick pause buttons for screen readers.
+  - Ensure focus styles are visible (not overridden).
+
+- **Result:** Basic accessibility present, but missing some ARIA roles and labels for full screen reader support.
+
+---
+
+### SUMMARY:
+
+| Point                 | Status          | Notes                                                                                     |
+|-----------------------|-----------------|-------------------------------------------------------------------------------------------|
+| 1. CARD VS CONTAINER   | OK              | Uses `.card` wrapper correctly.                                                          |
+| 2. BENTO TOKENS       | Minor issue     | Mostly Bento tokens, some hardcoded rgba colors for statuses and hover effects.           |
+| 3. DARK MODE           | OK              | Dark mode supported via Bento tokens and editor dark CSS.                                |
+| 4. RESPONSIVE          | OK              | Responsive at 768px and 480px, no overflow issues.                                       |
+| 5. INLINE STYLES       | OK              | Inline styles limited to editor inputs and code blocks, acceptable.                      |
+| 6. FONT                | OK              | Inherits from HA theme, no explicit font set.                                            |
+| 7. CONSISTENCY         | OK              | Consistent styling of buttons, cards, badges, tables.                                    |
+| 8. ACCESSIBILITY       | Minor issues    | Some missing ARIA roles/labels on tabs and interactive elements; color contrast likely OK.|
+
+**Overall: 6/8 OK, 2 minor issues (hardcoded colors, accessibility ARIA).**

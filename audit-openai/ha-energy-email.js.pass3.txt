@@ -1,0 +1,18 @@
+ISSUE: XSS Editor input attribute injection (line 1030) — Editor `_render()` sets innerHTML with config values (title, currency, energy_price) inserted directly into input `value` attributes without escaping quotes or special chars.  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape attribute values (e.g., replace `"` with `&quot;`) before inserting into input `value` attributes to prevent XSS.
+
+ISSUE: XSS Entity/device names and IDs inserted into HTML attributes without escaping (lines ~380, 579) — Device names and entity IDs used in `title` attributes and labels without escaping, e.g., in `_tabOverview()` and `_tabConfig()`. If HA states are compromised, malicious HTML could be injected.  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape all entity/device names and IDs before inserting into HTML attributes (e.g., `title`, `id`, `for`) to prevent injection.
+
+ISSUE: Error handling empty catch blocks (lines 164, 171, 183, 253, 260, 269, 280, 287, 294, 301, 309, 315, 324, 333, 350, 358, 366, 374, 382, 390, 398, 406, 414, 422, 430, 438, 446, 454, 462, 470, 478, 486, 494, 502, 510, 518, 526, 534, 542, 550, 558, 566, 574, 582, 590, 598, 606, 614, 622, 630, 638, 646, 654, 662, 670, 678, 686, 694, 702, 710, 718, 726, 734, 742, 750, 758, 766, 774, 782, 790, 798, 806, 814, 822, 830, 838, 846, 854, 862, 870, 878, 886, 894, 902, 910, 918, 926, 934, 942, 950, 958, 966, 974, 982, 990, 998, 1006, 1014) — Errors swallowed silently without logging or user feedback, hindering debugging and security incident detection.  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add error logging (e.g., `console.error(e)`) or user-visible error feedback inside catch blocks to improve observability and debugging.
+
+---
+
+TOTAL: 3 real issues (1 critical, 2 warning), 0 false positives.

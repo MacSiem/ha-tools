@@ -1,0 +1,29 @@
+ISSUE 1: ha-energy-insights.js XSS Unescaped entity_id in HTML attribute title at line 269  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape entity_id with `window._haToolsEsc()` before inserting into `title` attribute to prevent XSS.
+
+---
+
+ISSUE 2: ha-energy-insights.js XSS Weak sanitization of device names with `_sanitize()` at lines 183 & 266  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Replace `_sanitize()` with proper escaping using `window._haToolsEsc()` or set device names via `textContent` instead of innerHTML to prevent injection.
+
+---
+
+ISSUE 3: ha-energy-insights.js XSS Unescaped error message inserted into innerHTML at line 277  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape `this._error` (which may contain `err.message`) with `window._haToolsEsc()` before inserting into innerHTML.
+
+---
+
+ISSUE 4: ha-energy-insights.js XSS Unescaped config values (title, currency) inserted into innerHTML at line 300  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape config values like `this._config.title` and `this._config.currency` with `window._haToolsEsc()` before insertion.
+
+---
+
+TOTAL: 4 real issues (0 critical, 4 warning, 0 info), 0 false positives.

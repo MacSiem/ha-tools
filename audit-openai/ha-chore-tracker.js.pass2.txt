@@ -1,0 +1,185 @@
+Audit of ha-chore-tracker.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- Uses `.card` wrapper extensively for main container and sub-containers (e.g. `.card`, `.card-header`, `.chore-card`, `.stat-card`, `.leaderboard`, `.column`).
+- No usage of `.container` class found anywhere in CSS or template.
+- **Count**: `.card` used multiple times (main container and cards), `.container` used 0 times.
+- **Verdict**: Correct per Bento design system.
+
+---
+
+### 2. BENTO TOKENS
+
+- The CSS heavily uses `--bento-*` CSS variables for colors, borders, shadows, radius, transitions, text colors, backgrounds, etc.
+- Hardcoded colors found (examples):
+
+  - `#4CAF50` (green) in JS member default colors (lines ~40, 109)
+  - `#2196F3` (blue) in JS member default colors (lines ~40, 109)
+  - Priority border-left colors in `.chore-card.priority-*`:
+    - `#ff5252` (red) on line ~230 (old style)
+    - `#ffa726` (orange) on line ~231 (old style)
+    - `#66bb6a` (green) on line ~232 (old style)
+  - Later overridden by Bento tokens:
+    - `.chore-card.priority-high` uses `var(--bento-error)` (line ~450+)
+    - `.chore-card.priority-medium` uses `var(--bento-warning)`
+    - `.chore-card.priority-low` uses `var(--bento-success)`
+  - Inline styles in template:
+    - Background color for `.chore-assignee` uses member color hex codes (JS, line ~530)
+  - Some hardcoded colors in inline styles for empty states (e.g. `color: var(--bento-text,#333)` fallback) (lines ~460+)
+  - Emoji colors are Unicode, no color issues.
+
+- No hardcoded RGB or HSL colors in CSS blocks; all colors are either Bento tokens or fallback variables.
+
+- **Summary**: Mostly uses Bento tokens; some legacy hardcoded hex colors in old CSS blocks (lines ~230-240), but these are overridden by later Bento-based styles.
+
+---
+
+### 3. DARK MODE
+
+- Has explicit `@media (prefers-color-scheme: dark)` block starting line ~430.
+- Dark mode overrides Bento tokens for background, card, text, border, shadows.
+- Uses Bento tokens with dark variants for colors.
+- No inline styles or hardcoded colors bypassing dark mode tokens.
+- **Verdict**: Dark mode support present and consistent.
+
+---
+
+### 4. RESPONSIVE
+
+- Multiple `@media` breakpoints:
+
+  - `@media (max-width: 768px)` (lines ~470, ~900)
+  - `@media (max-width: 480px)` (lines ~480, ~910)
+  - `@media (max-width: 360px)` (line ~300)
+
+- Adjustments include:
+
+  - Tabs padding and font size reduction
+  - Cards and containers padding reduction
+  - Grid columns reduced (e.g. stats grid from auto-fit to 2 columns)
+  - Board and panels flex-direction changes to column
+  - Column min-width unset for smaller screens
+
+- No obvious content that would overflow horizontally on mobile due to these adjustments.
+
+- Scrollable tabs with `overflow-x: auto` and `-webkit-overflow-scrolling: touch` for smooth scrolling on mobile.
+
+- **Verdict**: Responsive design well implemented with appropriate breakpoints and no visible overflow issues.
+
+---
+
+### 5. INLINE STYLES
+
+- Inline styles appear in template literals mostly for:
+
+  - `.tab-content` divs: `style="display:${condition ? 'block' : 'none'}"` (lines ~430-470)
+  - Empty state elements: e.g. `<h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">` (lines ~460, ~480, ~500, ~520)
+  - Empty state paragraph: `style="margin:0 0 16px;max-width:280px;"` (lines ~460, ~480, ~500)
+  - Board container: `style="display:none;"` (line ~455)
+  - Chore-assignee background color inline style (JS, line ~530)
+  - Button aria-label attribute (not style, line ~540)
+
+- **Count of inline style attributes**: ~10 occurrences.
+
+- **Top 5 longest inline styles with line numbers:**
+
+  1. Line ~460 (empty-board h3): `margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);` (approx 50 chars)
+  2. Line ~460 (empty-board p): `margin:0 0 16px;max-width:280px;` (~30 chars)
+  3. Line ~480 (empty-schedule h3): same as above (~50 chars)
+  4. Line ~480 (empty-schedule p): same as above (~30 chars)
+  5. Line ~500 (empty-stats h3): same as above (~50 chars)
+
+- These inline styles are short, mostly margin, font-size, color, max-width for layout and color fallback.
+
+- No very long or complex inline styles.
+
+---
+
+### 6. FONT
+
+- Uses `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` font stack consistently in CSS (lines ~20, ~100, ~400+).
+- Font-family applied to `:host`, `.card`, buttons, inputs, tables, badges, etc.
+- No conflicting or missing font-family declarations.
+- Inherits from HA theme variables for colors and backgrounds but uses explicit font stack for consistent appearance.
+- **Verdict**: Font usage consistent and appropriate.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons:
+
+  - `.btn-primary`, `.btn-small`, `.btn-secondary`, `.btn-danger` all use Bento tokens and consistent padding, font size, border-radius.
+  - Hover and active states consistent with Bento design.
+
+- Cards:
+
+  - `.card`, `.chore-card`, `.stat-card`, `.leaderboard` use Bento tokens for background, border, radius, shadow.
+  - Priority border-left colors use Bento tokens consistently.
+
+- Tables:
+
+  - `.table`, `.device-table`, `.entity-table` share styles with Bento tokens for borders, colors, hover states.
+
+- Badges:
+
+  - `.badge`, `.status-badge`, `.chip` use Bento tokens for background and text colors.
+
+- Tabs:
+
+  - `.tab-btn`, `.tab`, `.tab-button` share styles and active/hover states consistent with Bento.
+
+- Empty states:
+
+  - `.empty-state` uses Bento tokens for text color and layout.
+
+- Overall, UI elements are styled consistently throughout the file.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+
+  - Uses Bento tokens which are designed for good contrast.
+  - Text colors vs backgrounds appear sufficient (e.g. dark text on light backgrounds, light text on dark backgrounds).
+  - Buttons and badges have distinct colors and hover states.
+
+- Aria labels:
+
+  - Delete chore button has `aria-label="${this._t.delete}"` (line ~540) — good for screen readers.
+  - Other buttons (Next, Back) lack aria-labels but have visible text.
+  - Tabs have clear text labels and icons.
+  - Inputs have associated `<label>` elements.
+
+- Keyboard focus:
+
+  - Inputs and buttons have focus styles (border-color and box-shadow) for accessibility.
+
+- Potential issues:
+
+  - The "Next" and "Back" buttons inside chore cards do not have aria-labels; they rely on visible text "Next →" and "← Back" which is acceptable but could be improved with aria-label for clarity.
+  - The tab buttons do not have `role="tab"` or ARIA tablist roles; this could be improved for screen reader users.
+  - No explicit focus management on tab switch.
+
+- **Verdict**: Mostly accessible, minor improvements possible on ARIA roles and labels.
+
+---
+
+## SUMMARY
+
+| Checkpoint              | Result                   |
+|------------------------|--------------------------|
+| 1. CARD VS CONTAINER    | OK (only `.card` used)   |
+| 2. BENTO TOKENS         | OK (mostly tokens, minor legacy hex colors overridden) |
+| 3. DARK MODE            | OK (prefers-color-scheme present) |
+| 4. RESPONSIVE          | OK (breakpoints 768px, 480px, 360px; no overflow) |
+| 5. INLINE STYLES        | OK (few short inline styles, no major offenders) |
+| 6. FONT                 | OK (consistent Inter font stack) |
+| 7. CONSISTENCY          | OK (UI elements styled consistently) |
+| 8. ACCESSIBILITY        | Mostly OK (good contrast, labels; minor ARIA improvements possible) |
+
+**Overall: 8/8 OK with minor accessibility ARIA role/label improvements suggested.**

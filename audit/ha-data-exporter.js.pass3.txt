@@ -1,0 +1,9 @@
+ISSUE: XSS SAFETY - innerHTML count=12, escape calls=1
+VERDICT: REAL
+SEVERITY: critical
+FIX: Implement more robust escaping mechanisms for all innerHTML calls, potentially using a templating engine or a dedicated escaping function.
+
+ISSUE: INLINE STYLES - 14 inline styles found. Should minimize inline styles.
+VERDICT: REAL
+SEVERITY: warning
+FIX: Move all 14 inline styles to a CSS stylesheet for better maintainability and performance.

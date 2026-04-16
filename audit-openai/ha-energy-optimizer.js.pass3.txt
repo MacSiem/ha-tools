@@ -1,0 +1,13 @@
+ISSUE: LANGUAGE Some hardcoded Polish strings in UI without translation (lines 354, 470)  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Extract hardcoded Polish strings into the translation object `_t` and use the `_t` getter to render UI text for full bilingual support.
+
+ISSUE: ERROR HANDLING Some empty catch blocks silently swallow errors without user feedback (lines 60, 683)  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add minimal user feedback or error logging inside empty catch blocks, e.g. console.error or UI error badges, to avoid silent failures and aid debugging.
+
+---
+
+TOTAL: 2 real issues (0 critical, 1 warning, 1 info), 0 false positives.

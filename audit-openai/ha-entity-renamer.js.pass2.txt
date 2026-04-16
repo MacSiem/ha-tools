@@ -1,0 +1,182 @@
+Audit of ha-entity-renamer.js CSS and visual consistency:
+
+---
+
+**1. CARD VS CONTAINER**
+
+- The main wrapper uses a `.card` class (line ~195 in render method template literal).
+- No `.container` class usage found anywhere.
+- **Count:** `.card` used 1 time, `.container` used 0 times.
+- **Verdict:** Correct per Bento design system.
+
+---
+
+**2. BENTO TOKENS**
+
+- CSS uses many `--bento-*` CSS custom properties extensively (lines ~200-350 in style block).
+- Hardcoded colors found (not using tokens):
+  - `.btn-danger` background: `#EF4444` (line ~260)
+  - `.btn-danger:hover` opacity: 0.85 (not color)
+  - `.queue-table .old` color: `#FCA5A5` (line ~320)
+  - `.queue-table .new` color: `#86EFAC` (line ~321)
+  - `.impact-badge.automation` color: `#C084FC` (line ~325)
+  - `.impact-badge.script` color: `#FCD34D` (line ~326)
+  - `.impact-badge.dashboard` color: `#93C5FD` (line ~327)
+  - `.impact-badge.scene` color: `#6EE7B7` (line ~328)
+  - `.log-ok` color: `#86EFAC` (line ~335)
+  - `.log-err` color: `#FCA5A5` (line ~336)
+  - Inline styles in template literals also use hardcoded colors (e.g. `color:#93C5FD`, `color:#FCA5A5`, `color:#86EFAC`).
+- Background colors for `.btn-danger` and impact badges are hardcoded rgba or hex.
+- **Verdict:** Mostly uses Bento tokens, but some hardcoded colors remain, especially for semantic colors (danger, success, impact badges).
+
+---
+
+**3. DARK MODE**
+
+- Has a `@media (prefers-color-scheme: dark)` block (line ~350).
+- Defines dark variants of Bento tokens:
+  - `--bento-bg`, `--bento-card`, `--bento-text`, `--bento-text-secondary`, `--bento-border`, shadows.
+- No separate dark mode hardcoded colors outside tokens.
+- **Verdict:** Proper dark mode support with Bento token overrides.
+
+---
+
+**4. RESPONSIVE**
+
+- Has a `@media (max-width: 600px)` block (line ~370).
+- Adjusts padding, font sizes, grid columns, gaps, and widths for smaller screens.
+- No 768px, 480px, or 360px breakpoints, only 600px max-width.
+- Content that might overflow on mobile:
+  - `.device-name` uses `overflow: hidden; text-overflow: ellipsis; white-space: nowrap;` so no overflow.
+  - `.entity-id` uses monospace font and `word-break: break-all;` which helps prevent overflow.
+  - `.prefix-row input` width reduced on mobile.
+  - `.queue-table` font size reduced on mobile.
+- Overall, no obvious horizontal overflow issues.
+- **Verdict:** Responsive at 600px breakpoint, no smaller breakpoints but no obvious overflow.
+
+---
+
+**5. INLINE STYLES**
+
+Count of `style="..."` in template literals (render method and sub-render methods):
+
+- Found at least 12 inline style attributes.
+
+Top 5 longest inline styles with approximate line numbers (in render method template literals):
+
+1. Line ~230 (in _renderDevicesTab):  
+   `<div class="prefix-row" style="margin-bottom:12px">` — short, ignore.
+
+2. Line ~240 (in _renderDevicesTab):  
+   `<input ... style="width:300px;font-family:inherit">` — length ~30 chars.
+
+3. Line ~290 (in _renderQueueTab):  
+   `<div style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);">`  
+   Length ~100 chars — 1st worst offender.
+
+4. Line ~300 (in _renderQueueTab):  
+   `<div style="font-size:12px;margin-top:4px;">` — short, ignore.
+
+5. Line ~310 (in _renderQueueTab):  
+   `<div style="border:1px solid var(--bento-border,#334155);border-radius:8px;padding:12px;margin-bottom:8px;">`  
+   Length ~70 chars — 2nd worst offender.
+
+6. Line ~315 (in _renderQueueTab):  
+   `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">`  
+   Length ~50 chars — 3rd worst offender.
+
+7. Line ~320 (in _renderQueueTab):  
+   `<span class="old" style="flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;">`  
+   Length ~70 chars — 4th worst offender.
+
+8. Line ~325 (in _renderQueueTab):  
+   `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);">`  
+   Length ~70 chars — 5th worst offender.
+
+9. Line ~370 (in _renderLogTab):  
+   `<div class="log-entry" style="padding:8px 0;${hasImpact ? 'padding-bottom:12px;' : ''}">`  
+   Length ~40 chars, ignore.
+
+10. Line ~380 (in _renderLogTab):  
+    `<small style="color:#FCA5A5">` — short, ignore.
+
+11. Line ~385 (in _renderLogTab):  
+    `<div style="margin-top:4px;padding-left:24px;">` — short, ignore.
+
+**Summary top 5 worst inline styles:**
+
+| Line approx | Inline style snippet                                                                                  | Length |
+|-------------|-----------------------------------------------------------------------------------------------------|--------|
+| ~290        | margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2); | ~100   |
+| ~310        | border:1px solid var(--bento-border,#334155);border-radius:8px;padding:12px;margin-bottom:8px;       | ~70    |
+| ~320        | flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;                                        | ~70    |
+| ~325        | margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05);                           | ~70    |
+| ~315        | display:flex;align-items:center;gap:8px;margin-bottom:4px;                                           | ~50    |
+
+**Verdict:** Inline styles are used moderately, mostly for layout tweaks and spacing. Could be moved to CSS classes for better maintainability.
+
+---
+
+**6. FONT**
+
+- `:host` sets font-family: `'Inter', var(--paper-font-body1_-_font-family, sans-serif);` (line ~205).
+- Entity IDs use monospace fonts `'JetBrains Mono', 'Fira Code', monospace` (line ~280).
+- Prefix inputs also use monospace `'JetBrains Mono', monospace` (line ~300).
+- Buttons inherit font-family from host.
+- No hardcoded font sizes outside CSS variables or reasonable defaults.
+- **Verdict:** Uses Inter font for main text, monospace for code-like text, consistent with HA theme.
+
+---
+
+**7. CONSISTENCY**
+
+- Buttons use `.btn` base class with variants `.btn-primary`, `.btn-danger`, `.btn-outline`, `.btn-sm`.
+- Cards use `.card` class consistently.
+- Tables use `.queue-table` with consistent styling.
+- Impact badges use `.impact-badge` with modifier classes for automation, script, dashboard, scene.
+- Color usage consistent for success, error, warning, info messages using Bento tokens or hardcoded semantic colors.
+- Spacing and border-radius consistent across cards, buttons, badges.
+- Hover and focus states consistent for buttons and device headers.
+- **Verdict:** UI elements styled consistently throughout.
+
+---
+
+**8. ACCESSIBILITY**
+
+- Color contrast:
+  - Uses Bento tokens which are designed for good contrast.
+  - Hardcoded colors like `#EF4444` (red) and `#10B981` (green) are bright and likely sufficient contrast.
+  - Some text uses muted colors like `var(--bento-text-secondary)` and `var(--bento-text-muted)` which may be borderline but typical for secondary text.
+- Aria labels:
+  - Buttons for removing entities/devices from queue have `aria-label="Remove"` (line ~280).
+  - Add single entity buttons do not have explicit aria-label but have visible text "+ Queue".
+  - Tab buttons have no aria roles or aria-selected attributes.
+  - No keyboard focus styles beyond default.
+- Missing:
+  - Tabs lack ARIA roles (`tablist`, `tab`, `tabpanel`).
+  - No keyboard navigation hints for tabs.
+  - No aria-labels on tab buttons.
+- **Verdict:** Basic accessibility present, but ARIA roles and keyboard navigation support for tabs missing.
+
+---
+
+### SUMMARY:
+
+| Checkpoint             | Status          | Notes                                                                                      |
+|-----------------------|-----------------|--------------------------------------------------------------------------------------------|
+| 1. CARD VS CONTAINER   | OK              | Uses `.card` only, no `.container`                                                        |
+| 2. BENTO TOKENS        | Minor issues    | Mostly tokens, some hardcoded semantic colors remain                                      |
+| 3. DARK MODE           | OK              | Proper dark mode with Bento token overrides                                               |
+| 4. RESPONSIVE          | OK              | Responsive at 600px breakpoint, no overflow detected                                     |
+| 5. INLINE STYLES       | Minor issues    | Moderate inline styles, some long inline styles could be moved to CSS                     |
+| 6. FONT                | OK              | Uses Inter and monospace fonts consistently                                              |
+| 7. CONSISTENCY         | OK              | Consistent styling of buttons, cards, tables, badges                                     |
+| 8. ACCESSIBILITY       | Minor issues    | Basic aria-labels present, but tabs lack ARIA roles and keyboard navigation support      |
+
+**Overall: 5/8 OK, 3 minor issues:**
+
+- Hardcoded colors for semantic elements (2).
+- Inline styles usage (5).
+- Accessibility ARIA roles and keyboard support for tabs (8).
+
+No critical CSS or visual consistency issues found. The component follows Bento design system well and supports dark mode and responsiveness adequately. Accessibility could be improved with ARIA roles on tabs and better keyboard navigation support.

@@ -1,0 +1,273 @@
+{
+  "pass1": {
+    "ha-automation-analyzer.js": {
+      "done": true,
+      "time": "2026-04-16 01:57:31"
+    },
+    "ha-baby-tracker.js": {
+      "done": true,
+      "time": "2026-04-16 01:58:55"
+    },
+    "ha-backup-manager.js": {
+      "done": true,
+      "time": "2026-04-16 02:00:21"
+    },
+    "ha-chore-tracker.js": {
+      "done": true,
+      "time": "2026-04-16 02:01:40"
+    },
+    "ha-data-exporter.js": {
+      "done": true,
+      "time": "2026-04-16 02:03:02"
+    },
+    "ha-device-health.js": {
+      "done": true,
+      "time": "2026-04-16 02:04:25"
+    },
+    "ha-encoding-fixer.js": {
+      "done": true,
+      "time": "2026-04-16 02:05:53"
+    },
+    "ha-energy-email.js": {
+      "done": true,
+      "time": "2026-04-16 02:07:16"
+    },
+    "ha-energy-insights.js": {
+      "done": true,
+      "time": "2026-04-16 02:08:36"
+    },
+    "ha-energy-optimizer.js": {
+      "done": true,
+      "time": "2026-04-16 02:09:53"
+    },
+    "ha-entity-renamer.js": {
+      "done": true,
+      "time": "2026-04-16 02:11:09"
+    },
+    "ha-frigate-privacy.js": {
+      "done": true,
+      "time": "2026-04-16 02:12:32"
+    },
+    "ha-log-email.js": {
+      "done": true,
+      "time": "2026-04-16 02:13:42"
+    },
+    "ha-network-map.js": {
+      "done": true,
+      "time": "2026-04-16 02:15:00"
+    },
+    "ha-purge-cache.js": {
+      "done": true,
+      "time": "2026-04-16 02:16:05"
+    },
+    "ha-security-check.js": {
+      "done": true,
+      "time": "2026-04-16 02:17:19"
+    },
+    "ha-sentence-manager.js": {
+      "done": true,
+      "time": "2026-04-16 02:18:37"
+    },
+    "ha-smart-reports.js": {
+      "done": true,
+      "time": "2026-04-16 02:19:45"
+    },
+    "ha-storage-monitor.js": {
+      "done": true,
+      "time": "2026-04-16 02:20:59"
+    },
+    "ha-trace-viewer.js": {
+      "done": true,
+      "time": "2026-04-16 02:22:17"
+    },
+    "ha-vacuum-water-monitor.js": {
+      "done": true,
+      "time": "2026-04-16 02:23:35"
+    },
+    "ha-yaml-checker.js": {
+      "done": true,
+      "time": "2026-04-16 02:24:48"
+    }
+  },
+  "pass2": {
+    "ha-automation-analyzer.js": {
+      "done": true,
+      "time": "2026-04-16 02:26:16"
+    },
+    "ha-baby-tracker.js": {
+      "done": true,
+      "time": "2026-04-16 02:27:27"
+    },
+    "ha-backup-manager.js": {
+      "done": true,
+      "time": "2026-04-16 02:28:50"
+    },
+    "ha-chore-tracker.js": {
+      "done": true,
+      "time": "2026-04-16 02:30:14"
+    },
+    "ha-data-exporter.js": {
+      "done": true,
+      "time": "2026-04-16 02:31:41"
+    },
+    "ha-device-health.js": {
+      "done": true,
+      "time": "2026-04-16 02:33:06"
+    },
+    "ha-encoding-fixer.js": {
+      "done": true,
+      "time": "2026-04-16 02:34:12"
+    },
+    "ha-energy-email.js": {
+      "done": true,
+      "time": "2026-04-16 02:35:38"
+    },
+    "ha-energy-insights.js": {
+      "done": true,
+      "time": "2026-04-16 02:37:00"
+    },
+    "ha-energy-optimizer.js": {
+      "done": true,
+      "time": "2026-04-16 02:38:18"
+    },
+    "ha-entity-renamer.js": {
+      "done": true,
+      "time": "2026-04-16 02:39:41"
+    },
+    "ha-frigate-privacy.js": {
+      "done": true,
+      "time": "2026-04-16 02:40:35"
+    },
+    "ha-log-email.js": {
+      "done": true,
+      "time": "2026-04-16 02:41:56"
+    },
+    "ha-network-map.js": {
+      "done": true,
+      "time": "2026-04-16 02:43:17"
+    },
+    "ha-purge-cache.js": {
+      "done": true,
+      "time": "2026-04-16 02:44:33"
+    },
+    "ha-security-check.js": {
+      "done": true,
+      "time": "2026-04-16 02:45:58"
+    },
+    "ha-sentence-manager.js": {
+      "done": true,
+      "time": "2026-04-16 02:47:07"
+    },
+    "ha-smart-reports.js": {
+      "done": true,
+      "time": "2026-04-16 02:48:24"
+    },
+    "ha-storage-monitor.js": {
+      "done": true,
+      "time": "2026-04-16 02:49:46"
+    },
+    "ha-trace-viewer.js": {
+      "done": true,
+      "time": "2026-04-16 02:51:17"
+    },
+    "ha-vacuum-water-monitor.js": {
+      "done": true,
+      "time": "2026-04-16 02:52:42"
+    },
+    "ha-yaml-checker.js": {
+      "done": true,
+      "time": "2026-04-16 02:53:54"
+    }
+  },
+  "pass3": {
+    "ha-automation-analyzer.js": {
+      "done": true,
+      "time": "2026-04-16 02:54:44"
+    },
+    "ha-baby-tracker.js": {
+      "done": true,
+      "time": "2026-04-16 02:55:39"
+    },
+    "ha-backup-manager.js": {
+      "done": true,
+      "time": "2026-04-16 02:56:28"
+    },
+    "ha-chore-tracker.js": {
+      "done": true,
+      "time": "2026-04-16 02:57:14"
+    },
+    "ha-data-exporter.js": {
+      "done": true,
+      "time": "2026-04-16 02:58:00"
+    },
+    "ha-device-health.js": {
+      "done": true,
+      "time": "2026-04-16 02:58:49"
+    },
+    "ha-encoding-fixer.js": {
+      "done": true,
+      "time": "2026-04-16 02:59:52"
+    },
+    "ha-energy-email.js": {
+      "done": true,
+      "time": "2026-04-16 03:00:42"
+    },
+    "ha-energy-insights.js": {
+      "done": true,
+      "time": "2026-04-16 03:01:30"
+    },
+    "ha-energy-optimizer.js": {
+      "done": true,
+      "time": "2026-04-16 03:02:14"
+    },
+    "ha-entity-renamer.js": {
+      "done": true,
+      "time": "2026-04-16 03:02:58"
+    },
+    "ha-frigate-privacy.js": {
+      "done": true,
+      "time": "2026-04-16 03:04:00"
+    },
+    "ha-log-email.js": {
+      "done": true,
+      "time": "2026-04-16 03:04:52"
+    },
+    "ha-network-map.js": {
+      "done": true,
+      "time": "2026-04-16 03:05:36"
+    },
+    "ha-purge-cache.js": {
+      "done": true,
+      "time": "2026-04-16 03:06:38"
+    },
+    "ha-security-check.js": {
+      "done": true,
+      "time": "2026-04-16 03:07:25"
+    },
+    "ha-sentence-manager.js": {
+      "done": true,
+      "time": "2026-04-16 03:08:27"
+    },
+    "ha-smart-reports.js": {
+      "done": true,
+      "time": "2026-04-16 03:09:03"
+    },
+    "ha-storage-monitor.js": {
+      "done": true,
+      "time": "2026-04-16 03:09:49"
+    },
+    "ha-trace-viewer.js": {
+      "done": true,
+      "time": "2026-04-16 03:10:36"
+    },
+    "ha-vacuum-water-monitor.js": {
+      "done": true,
+      "time": "2026-04-16 03:11:28"
+    },
+    "ha-yaml-checker.js": {
+      "done": true,
+      "time": "2026-04-16 03:12:07"
+    }
+  },
+  "status": "completed"
+}

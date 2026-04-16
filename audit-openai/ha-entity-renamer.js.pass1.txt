@@ -1,0 +1,85 @@
+Audit results for ha-entity-renamer.js:
+
+1. **IIFE WRAPPER**:  
+   - Wrapped in `(function(){'use strict'; ... })();` at line 1 and line 308 (end).  
+   - Verdict: OK
+
+2. **CUSTOM ELEMENT GUARD**:  
+   - Checks `customElements.get('ha-entity-renamer')` before define at line 304.  
+   - Checks `customElements.get('ha-entity-renamer-editor')` before define at line 323.  
+   - Verdict: OK
+
+3. **HASS GUARD**:  
+   - Before API calls (e.g. callWS), no explicit `if (!this._hass) return` guard inside async methods, but `_init()` calls `_loadData()` only after `this._hass` is set (line 73-77).  
+   - `render()` early returns if `!this._hass` (line 249).  
+   - Event handlers and other methods assume `_hass` is set after init.  
+   - Verdict: OK (guarded by design, no direct calls without `_hass`)
+
+4. **SHADOW DOM**:  
+   - Uses `this.attachShadow({mode:'open'})` in constructor (line 18).  
+   - Verdict: OK
+
+5. **BENTO CSS**:  
+   - Uses `${window.HAToolsBentoCSS || ""}` inside style tag in render() (line 251).  
+   - Verdict: OK
+
+6. **XSS**:  
+   - `.innerHTML =` assignments found at:  
+     - line 249: `this.shadowRoot.innerHTML = \`<style>...</style><div class="card">...</div>\``  
+       - Contains many interpolations of user data: device names, entity IDs, friendly names, queue entries, logs, etc.  
+       - No explicit escaping function used here.  
+       - User data from API: device names (`_getDeviceName(d)`), entity IDs (`e.entity_id`), friendly names (`e.name`), rename queue entries (`r.oldId`, `r.newId`, `r.newName`), rename log entries (`l.oldId`, `l.newId`, `l.error`).  
+       - No calls to `window._haToolsEsc()` or similar escaping on these interpolations.  
+       - This is a potential XSS risk if device/entity names or IDs contain malicious content.  
+     - line 378: `_renderDevicesTab()` returns HTML string with interpolations of device/entity names and IDs, no escaping.  
+     - line 426: `_renderQueueTab()` returns HTML string with interpolations of queue entries and impact badges, no escaping.  
+     - line 466: `_renderLogTab()` returns HTML string with log entries, no escaping.  
+     - line 480: `_render()` in editor uses `${this._config?.title || 'Entity Renamer'}` unescaped.  
+   - No usage of `window._haToolsEsc()` or other escaping on any user/API data before inserting into innerHTML.  
+   - Verdict: ISSUE (lines 249, 378, 426, 466, 480) — UNSAFE innerHTML assignments with unescaped user/API data, potential XSS.
+
+7. **LANGUAGE**:  
+   - Supports PL and EN via `_t` getter (lines 38-97).  
+   - All UI strings are translated except:  
+     - In render(), tab buttons have hardcoded emojis and tab names (line 269): e.g. `📱 ${t.devices}`, which is translated.  
+     - In `_renderDevicesTab()`, section headers like `📱 ${t.newDeviceName}`, `📄 ${t.prefixChange}` are translated.  
+     - Some hardcoded emojis are used as icons, which is acceptable.  
+     - No hardcoded English-only strings visible in UI.  
+   - Verdict: OK
+
+8. **ERROR HANDLING**:  
+   - All `callWS` calls wrapped in try/catch or `.catch()`: e.g. `_loadData()` (line 81), `_analyzeImpact()` (line 154), `_loadLovelaceConfigs()` (line 190), `_executeRenames()` (line 207).  
+   - Some empty catch blocks swallowing errors silently:  
+     - `_loadHistoryFromStorage()` fallback catch at line 30 and 35 are empty.  
+     - `_loadLovelaceConfigs()` inner try/catch blocks at lines 195, 199 are empty.  
+     - `_analyzeImpact()` catch at line 176 is empty.  
+     - `_executeRenames()` catch at line 232 is empty.  
+   - Verdict: ISSUE — multiple empty catch blocks silently swallowing errors (lines 30, 35, 176, 195, 199, 232).
+
+9. **MEMORY**:  
+   - Event listeners are attached to shadowRoot children in `_attachEvents()` (line 475).  
+   - No listeners attached to window/document/this.  
+   - No setInterval or timers used.  
+   - `disconnectedCallback()` is empty (line 512), but no cleanup needed as no global listeners or timers.  
+   - Verdict: OK
+
+10. **SETTINGS**:  
+    - Only persistence used is `_renameLog` saved/loaded via `window._haToolsPersistence` or localStorage (lines 25-41).  
+    - No explicit `_getSetting` or `_setSetting` methods.  
+    - No orphaned settings keys.  
+    - Verdict: OK
+
+11. **EDGE CASES**:  
+    - Empty states handled: e.g. empty device list shows "No results" (line 386), empty queue shows empty state (line 427), empty log shows empty state (line 467).  
+    - Loading states shown with spinner and message (lines 78, 155, 210).  
+    - Pagination not applicable (all devices/entities loaded at once).  
+    - Search query empty handled (line 101).  
+    - Verdict: OK
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.  
+**Issues:**  
+- XSS risk: unsafe innerHTML assignments with unescaped user/API data (lines 249, 378, 426, 466, 480).  
+- Empty catch blocks silently swallowing errors (lines 30, 35, 176, 195, 199, 232).  
+- (No other issues found.)

@@ -1,0 +1,122 @@
+Audit results for ha-security-check.js:
+
+1. **IIFE WRAPPER**:  
+   OK. The entire code is wrapped in `(function() { 'use strict'; ... })();` starting at line 1 and ending at line 1000+.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK. The custom element is defined only if not already defined:  
+   ```js
+   if (!customElements.get('ha-security-check')) { customElements.define('ha-security-check', HASecurityCheck); }
+   ```  
+   at line ~974. Similarly for the editor element at line ~991.
+
+3. **HASS GUARD**:  
+   OK. Before any API calls, there is a check `if (!this._hass) return;` in `_runAudit()` (line ~70) and in `set hass(hass)` (line ~56). All calls to `this._hass.callWS` or `this._hass.callApi` are guarded by this.
+
+4. **SHADOW DOM**:  
+   OK. Shadow DOM is attached in constructor:  
+   ```js
+   this.attachShadow({ mode: 'open' });
+   ```  
+   at line ~27.
+
+5. **BENTO CSS**:  
+   OK. The CSS includes `${window.HAToolsBentoCSS || ""}` at line ~130, importing the shared Bento CSS.
+
+6. **XSS**:  
+   Find all `.innerHTML =` or `.innerHTML +=` assignments and analyze for unescaped user data:
+
+   - Line ~108: `this.shadowRoot.innerHTML = html;` where `html` is a template literal with interpolations like `${this._config.title}`, `${this._activeTab}`, etc.  
+     - `this._config.title` is user-configurable but set via `setConfig()` and editor input. No explicit escaping here.  
+     - **Issue**: No escaping of `this._config.title` before insertion into innerHTML. Potential XSS if user sets malicious title.  
+     - Verdict: **UNSAFE** at line ~108.
+
+   - Line ~154: `content.innerHTML = '<div class="loading"><div class="spinner"></div>Running security audit...</div>';`  
+     - Static string, safe.
+
+   - Line ~155: `content.innerHTML = \`<div class="error">⚠️ ${this._auditData?.error || 'Audit failed'}</div>\`;`  
+     - `this._auditData.error` comes from caught exceptions, possibly user-influenced. No escaping.  
+     - **Issue**: Potential XSS if error message contains malicious content.  
+     - Verdict: **UNSAFE** at line ~155.
+
+   - Line ~158: `content.innerHTML = this._renderOverview(d);`  
+     - `_renderOverview()` returns HTML with interpolations of data from audit results.  
+     - Inside `_renderOverview` (line ~170+), interpolated values include:  
+       - `this._config.title` (unescaped)  
+       - `d.findings` titles, descriptions, fixes (all from API or sanitized via `_sanitize()` in some places)  
+       - However, `_renderFinding()` (line ~290) inserts `f.title`, `f.desc`, and `f.fix` directly without escaping.  
+       - `_sanitize()` is used only in some places for addon names and user names, but not consistently for all findings.  
+       - **Issue**: Potential XSS if any finding data contains malicious strings.  
+       - Verdict: **UNSAFE** at line ~170+ (multiple innerHTML insertions).
+
+   - Line ~200: `_renderFindings()` returns HTML with findings rendered via `_renderFinding()`. Same issue as above.  
+     - Verdict: **UNSAFE** at line ~200.
+
+   - Line ~230: `_renderAddonsAndIntegrations()` calls `_renderAddonsSection()` and `_renderIntegrationsSection()`.  
+     - Both render tables with addon and integration data.  
+     - Addon names and integration titles/domains are sanitized via `_sanitize()` before insertion.  
+     - Safe.
+
+   - Line ~260: `_renderUsers()` renders user table with user names sanitized via `_sanitize()`. Safe.
+
+   - Line ~280: `_renderNetwork()` renders network info and findings.  
+     - Addon names sanitized via `_sanitize()`.  
+     - Host info and URLs inserted directly, but these come from config or API, low risk.  
+     - Safe.
+
+   - Line ~350: `_renderTips()` returns static HTML string. Safe.
+
+   - Pagination HTML (line ~400) is static or numeric, safe.
+
+   - Editor component (line ~980) inserts user input into input value attribute, no innerHTML. Safe.
+
+   **Summary for XSS:**  
+   - Unsafe usage of `.innerHTML` with unescaped user or API data in:  
+     - Line ~108 (title in main template)  
+     - Line ~155 (error message)  
+     - Lines ~170-300 (findings rendering)  
+   - Other insertions sanitize addon and user names with `_sanitize()`.  
+   - No use of `window._haToolsEsc()` for escaping HTML entities, which is recommended.
+
+7. **LANGUAGE**:  
+   OK. Supports PL and EN via `_t` getter (line ~45).  
+   Some hardcoded strings exist in `_renderTips()` (line ~350) and other render methods, but mostly bilingual or neutral.  
+   Minor issue: some strings in `_renderTips()` are hardcoded English only (line ~350). No PL translation there.  
+   Verdict: Minor ISSUE - incomplete translation in tips (line ~350).
+
+8. **ERROR HANDLING**:  
+   - All `callWS` and `callApi` calls are wrapped in try/catch blocks (lines ~80-~600).  
+   - Many catch blocks are empty (`catch(e) {}`) swallowing errors silently (e.g., line ~85, ~90, ~100, ~110, ~120, ~130, ~140, ~150, ~160, ~170, ~180, ~190, ~200, ~210, ~220, ~230, ~240, ~250, ~260, ~270, ~280, ~290, ~300, ~310, ~320, ~330, ~340, ~350, ~360, ~370, ~380, ~390, ~400, ~410, ~420, ~430, ~440, ~450, ~460, ~470, ~480, ~490, ~500, ~510, ~520, ~530, ~540, ~550, ~560, ~570, ~580, ~590, ~600).  
+   - This is a common pattern but means errors are swallowed silently without logging or user feedback.  
+   - Only one catch block logs error to console (line ~650).  
+   Verdict: ISSUE - many empty catch blocks swallowing errors silently.
+
+9. **MEMORY**:  
+   - Event listeners are added on shadowRoot children after innerHTML replacement (line ~110).  
+   - No listeners added on window/document or `this` without cleanup.  
+   - No timers or intervals set.  
+   - `disconnectedCallback()` is empty (line ~700).  
+   Verdict: OK.
+
+10. **SETTINGS**:  
+    - Persistence methods `_saveScanData()` and `_loadScanData()` use key `_scKey()` (lines ~33-45).  
+    - No other settings getters/setters found.  
+    - No orphaned settings.  
+    Verdict: OK.
+
+11. **EDGE CASES**:  
+    - Loading state shown with spinner (line ~154).  
+    - Empty states handled with messages (e.g., no addons, no users, no findings).  
+    - Pagination edge cases handled: disabling prev/next buttons when at start/end (line ~400).  
+    - Pagination page size change resets pages (line ~420).  
+    Verdict: OK.
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- Line ~108: Unsafe insertion of user-configurable title into innerHTML without escaping (XSS risk).  
+- Line ~155 and ~170-300: Unsafe insertion of error messages and findings data into innerHTML without escaping (XSS risk).  
+- Line ~350: Hardcoded English strings in tips; incomplete bilingual support.  
+- Multiple lines (~85-~600): Empty catch blocks swallowing errors silently without logging or user feedback.

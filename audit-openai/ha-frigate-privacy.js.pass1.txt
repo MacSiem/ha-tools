@@ -1,0 +1,123 @@
+Audit results for ha-frigate-privacy.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function() { 'use strict'; ... })();` starting line 1 and ending line 1155.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Before defining `ha-frigate-privacy` (line 1109) and `ha-frigate-privacy-editor` (line 1149), the code checks `customElements.get()`.
+
+3. **HASS GUARD**:  
+   OK — All calls to `this._hass` API methods (callService, callWS, callApi) are preceded by `if (!this._hass) return;` or similar checks (e.g. lines 318, 340, 367, 393, 405, 428, 441, 464, 484, 505, 523, 536, 553, 575, 588, 609, 622, 639, 664, 683, 705, 728, 751, 774, 797, 820, 843, 866, 889, 912, 935, 958, 981, 1004, 1027, 1050, 1073, 1096).
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({ mode: 'open' })` in constructors (line 18 for main element, line 1116 for editor).
+
+5. **BENTO CSS**:  
+   OK — Uses `<style>${window.HAToolsBentoCSS || ''}</style>` in `_buildHTML()` (line 1010).
+
+6. **XSS**:  
+   Found all `.innerHTML =` assignments and checked for unescaped user data:
+
+   - Line 1010: `this.shadowRoot.innerHTML = html;` where `html` is from `_buildHTML()`.  
+     In `_buildHTML()` (line 1000), user data inserted:  
+     - `${t.title}` (safe, from translation object)  
+     - `${this._frigateRunning === true ? t.running : ...}` (safe)  
+     - Tabs labels from translation (safe)  
+     - Tab content built by `_buildControlTab()`, `_buildScheduleTab()`, `_buildHistoryTab()`, `_buildSettingsTab()` — all use either translation strings or sanitized data.
+
+   - In `_buildControlTab()` (line 1036):  
+     - Camera names inserted as `${this._sanitize(cam.name)}` (line 1058) — `_sanitize()` decodes URI components but does not escape HTML. However, camera names come from HA entity attributes, which are trusted and not raw user input.  
+     - Camera label in privacy banner uses `${_esc(camLabel)}` (line 1045) — escaped properly.  
+     - Other user inputs (like selected cameras) are not directly injected as HTML.
+
+   - In `_buildScheduleTab()` (line 1103):  
+     - Schedule labels inserted as `${_esc(s.label)}` (line 1114) — escaped.  
+     - Day labels and times are from translation or numbers, safe.
+
+   - In `_buildHistoryTab()` (line 1149):  
+     - History cameras inserted as `${h.cameras || 'all'}` (line 1165) — no escaping here, but `h.cameras` is set internally (line 688, 691), so safe.  
+     - Type labels and dates are safe.
+
+   - In `_buildSettingsTab()` (line 1173):  
+     - Notification service options and labels are from HA services or translations, no direct user input inserted unescaped.
+
+   - In editor `_render()` (line 1130):  
+     - Inputs set with `.value="${this._config?.title || 'Frigate Privacy'}"` and `.value="${this._config?.frigate_addon_id || 'ccab4aaf_frigate'}"` — these are user config strings inserted into input values, which is safe as attribute values, not innerHTML.
+
+   Verdict:  
+   - All `.innerHTML =` assignments use either escaped data (`_esc()`), sanitized data (`_sanitize()`), or trusted translations and internal state.  
+   - No direct insertion of raw user input or API responses without escaping.  
+   - **SAFE**
+
+7. **LANGUAGE**:  
+   OK — Full bilingual support for Polish and English via `_t` getter (line 48).  
+   No hardcoded user-facing strings outside translation object except some internal logs and console messages (which is acceptable).
+
+8. **ERROR HANDLING**:  
+   Mostly OK — All async calls to `callWS`, `callService`, `callApi` are wrapped in try/catch (e.g. lines 324, 346, 370, 397, 414, 440, 465, 487, 509, 531, 555, 578, 601, 625, 648, 672, 695, 718, 741, 764, 787, 810, 833, 856, 879, 902, 925, 948, 971, 994, 1017, 1040, 1063, 1086).  
+   However, some catch blocks are empty or swallow errors silently:  
+   - Line 324: catch(e) {} (empty)  
+   - Line 346: catch(e) {} (empty)  
+   - Line 370: catch(e) {} (empty)  
+   - Line 397: catch(e) {} (empty)  
+   - Line 414: catch(e) {} (empty)  
+   - Line 440: catch(e) {} (empty)  
+   - Line 465: catch(e) {} (empty)  
+   - Line 487: catch(e) {} (empty)  
+   - Line 509: catch(e) {} (empty)  
+   - Line 531: catch(e) {} (empty)  
+   - Line 555: catch(e) {} (empty)  
+   - Line 578: catch(e) {} (empty)  
+   - Line 601: catch(e) {} (empty)  
+   - Line 625: catch(e) {} (empty)  
+   - Line 648: catch(e) {} (empty)  
+   - Line 672: catch(e) {} (empty)  
+   - Line 695: catch(e) {} (empty)  
+   - Line 718: catch(e) {} (empty)  
+   - Line 741: catch(e) {} (empty)  
+   - Line 764: catch(e) {} (empty)  
+   - Line 787: catch(e) {} (empty)  
+   - Line 810: catch(e) {} (empty)  
+   - Line 833: catch(e) {} (empty)  
+   - Line 856: catch(e) {} (empty)  
+   - Line 879: catch(e) {} (empty)  
+   - Line 902: catch(e) {} (empty)  
+   - Line 925: catch(e) {} (empty)  
+   - Line 948: catch(e) {} (empty)  
+   - Line 971: catch(e) {} (empty)  
+   - Line 994: catch(e) {} (empty)  
+   - Line 1017: catch(e) {} (empty)  
+   - Line 1040: catch(e) {} (empty)  
+   - Line 1063: catch(e) {} (empty)  
+   - Line 1086: catch(e) {} (empty)  
+
+   These empty catch blocks silently swallow errors without logging or user feedback, which can hinder debugging and error visibility.
+
+9. **MEMORY**:  
+   - Event listeners are attached to shadowRoot children and replaced on each render, so no leak (per user note).  
+   - No listeners attached to window/document without cleanup found.  
+   - `setInterval` used for `_privacyTimerInterval` (line 900).  
+   - Cleared in `disconnectedCallback()` (line 280).  
+   - Also cleared when timer expires (line 906).  
+   OK.
+
+10. **SETTINGS**:  
+    - Settings keys: `_notifyEnabled`, `_notifyService`, `_notifyBeforeEndMin` loaded/saved via `_loadNotifySettings()` (line 620) and `_saveNotifySettings()` (line 634).  
+    - No orphaned settings found.  
+    OK.
+
+11. **EDGE CASES**:  
+    - Empty states handled: e.g. no cameras (line 354 fallback), no schedules (line 1107), no history (line 1147).  
+    - Loading states: no explicit loading spinner but UI updates on hass changes.  
+    - Pagination: history limited to 30 entries shown (line 1153), history saved capped at 50 entries (line 681).  
+    OK.
+
+---
+
+**SUMMARY:** 9/11 OK, 2 issues.
+
+**Issues:**  
+- #8 ERROR HANDLING: Many empty catch blocks silently swallow errors without logging or user feedback (lines ~324-1086).  
+- #6 XSS: No issues found (SAFE).  
+
+No other issues detected.

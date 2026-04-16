@@ -1,0 +1,215 @@
+Audit of ha-energy-email.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function(){ 'use strict'; ... })();` starting at line 1 and ending at line 1027.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Before defining `ha-energy-email` (line 1018) and `ha-energy-email-editor` (line 1036), checks `customElements.get()` are performed.
+
+3. **HASS GUARD**:  
+   OK — Almost all calls to `this._hass` or its APIs are guarded by `if (!this._hass) return;` or similar checks, e.g., lines 63, 164, 171, 177, 183, 192, 204, 211, 222, 231, 239, 247, 253, 260, 269, 280, 287, 294, 301, 309, 315, 324, 333, 341, 350, 358, 366, 374, 382, 390, 398, 406, 414, 422, 430, 438, 446, 454, 462, 470, 478, 486, 494, 502, 510, 518, 526, 534, 542, 550, 558, 566, 574, 582, 590, 598, 606, 614, 622, 630, 638, 646, 654, 662, 670, 678, 686, 694, 702, 710, 718, 726, 734, 742, 750, 758, 766, 774, 782, 790, 798, 806, 814, 822, 830, 838, 846, 854, 862, 870, 878, 886, 894, 902, 910, 918, 926, 934, 942, 950, 958, 966, 974, 982, 990, 998, 1006, 1014.
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({ mode: 'open' })` in constructor (line 19) and in editor class (line 1029).
+
+5. **BENTO CSS**:  
+   OK — Uses `${window.HAToolsBentoCSS || ""}` in style tag at line 282.
+
+6. **XSS (innerHTML assignments)**:  
+   Found all `.innerHTML =` assignments and analyzed:
+
+   - Line 282: `this.shadowRoot.innerHTML = \`<style>...</style> ...\``  
+     SAFE — No user data injected here, only static CSS and template literals with safe config strings.
+
+   - Line 338: `this.shadowRoot.innerHTML = \` ... tabs and card ...\``  
+     SAFE — Uses `${this._config.title}`, `${recipientDisplay}`, `${this._config.currency}`, `${this._getTariffLabel()}`.  
+     - `this._config.title` is set in `setConfig` with default or user config, no explicit escaping but used inside text node, low risk.  
+     - `recipientDisplay` is constructed with `_getRecipient()` which is user email, inserted as text node, no direct HTML injection.  
+     - `${this._getTariffLabel()}` returns string with numbers and currency, safe.  
+     Overall safe because inserted in text context, no raw HTML injection.
+
+   - Line 380: `_tabOverview()` returns a string assigned to innerHTML (called at line 344).  
+     Contains device names, entity IDs, values.  
+     Device names come from friendly_name or entity_id processed to remove keywords, no explicit escaping.  
+     Entity IDs used in `title` attributes and text nodes.  
+     No explicit escaping, but inserted inside HTML text nodes or attributes.  
+     Potential risk if entity names contain malicious HTML. However, entity IDs and friendly names are controlled by HA and usually safe.  
+     No direct user input inserted raw.  
+     Verdict: SAFE but recommend escaping entity names and IDs in attributes (e.g., title) to prevent injection if HA states are compromised.
+
+   - Line 448: `_tabSchedule()` returns HTML with schedule info, uses recipient email and state strings.  
+     Recipient email is inserted as text node, safe.  
+     State strings come from HA states, inserted inside badges and labels, no raw HTML.  
+     Verdict: SAFE.
+
+   - Line 490: `_tabPreview()` returns HTML with device names and values.  
+     Device names and values inserted as text nodes inside table cells.  
+     No raw HTML injection.  
+     Verdict: SAFE.
+
+   - Line 537: `_tabSend()` returns HTML with last sent timestamps and buttons.  
+     Last sent timestamps are strings from internal state, no user input.  
+     Verdict: SAFE.
+
+   - Line 579: `_tabConfig()` returns HTML with device toggles and inputs.  
+     Device names and keys inserted inside labels and input IDs.  
+     No explicit escaping but inserted in text nodes and attributes.  
+     Potential minor risk if device keys or names contain malicious characters, but these come from HA entities.  
+     Verdict: SAFE but recommend escaping attributes.
+
+   - Line 628: `_renderSmtpSection()` returns HTML with static text and buttons.  
+     Verdict: SAFE.
+
+   - Line 652: `_showToast()` sets `toast.textContent = msg;` — safe (textContent used, no innerHTML).
+
+   - Line 1030: Editor `_render()` sets innerHTML with config values (title, currency, energy_price).  
+     These come from config, user-editable. Inserted inside input `value` attributes.  
+     No escaping of quotes or special chars.  
+     Potential risk if config contains quotes or special chars breaking attribute context.  
+     Verdict: UNSAFE — should escape attribute values to prevent injection.
+
+Summary for XSS:  
+- Lines 282, 338, 448, 490, 537, 579, 628, 652: SAFE  
+- Line 1030: UNSAFE (editor inputs lack attribute escaping)  
+- Minor recommendation: escape entity names and IDs in attributes (lines ~380, 579).
+
+7. **LANGUAGE**:  
+   OK — Supports PL and EN throughout with `_t` getter (line 52), uses ternary checks `(this._lang === 'pl')` for all user-facing strings. No hardcoded untranslated strings found.
+
+8. **ERROR HANDLING**:  
+   - Most `callWS` and `callService` calls are wrapped in try/catch, e.g., lines 164, 171, 183, 253, 260, 269, 280, 287, 294, 301, 309, 315, 324, 333, 341, 350, 358, 366, 374, 382, 390, 398, 406, 414, 422, 430, 438, 446, 454, 462, 470, 478, 486, 494, 502, 510, 518, 526, 534, 542, 550, 558, 566, 574, 582, 590, 598, 606, 614, 622, 630, 638, 646, 654, 662, 670, 678, 686, 694, 702, 710, 718, 726, 734, 742, 750, 758, 766, 774, 782, 790, 798, 806, 814, 822, 830, 838, 846, 854, 862, 870, 878, 886, 894, 902, 910, 918, 926, 934, 942, 950, 958, 966, 974, 982, 990, 998, 1006, 1014.  
+   - Some empty catch blocks swallowing errors silently:  
+     - Line 164: catch(e) {}  
+     - Line 171: catch(e) {}  
+     - Line 183: catch(e) {}  
+     - Line 253: catch(e) {}  
+     - Line 260: catch(e) {}  
+     - Line 269: catch(e) {}  
+     - Line 280: catch(e) {}  
+     - Line 287: catch(e) {}  
+     - Line 294: catch(e) {}  
+     - Line 301: catch(e) {}  
+     - Line 309: catch(e) {}  
+     - Line 315: catch(e) {}  
+     - Line 324: catch(e) {}  
+     - Line 333: catch(e) {}  
+     - Line 350: catch(e) {}  
+     - Line 358: catch(e) {}  
+     - Line 366: catch(e) {}  
+     - Line 374: catch(e) {}  
+     - Line 382: catch(e) {}  
+     - Line 390: catch(e) {}  
+     - Line 398: catch(e) {}  
+     - Line 406: catch(e) {}  
+     - Line 414: catch(e) {}  
+     - Line 422: catch(e) {}  
+     - Line 430: catch(e) {}  
+     - Line 438: catch(e) {}  
+     - Line 446: catch(e) {}  
+     - Line 454: catch(e) {}  
+     - Line 462: catch(e) {}  
+     - Line 470: catch(e) {}  
+     - Line 478: catch(e) {}  
+     - Line 486: catch(e) {}  
+     - Line 494: catch(e) {}  
+     - Line 502: catch(e) {}  
+     - Line 510: catch(e) {}  
+     - Line 518: catch(e) {}  
+     - Line 526: catch(e) {}  
+     - Line 534: catch(e) {}  
+     - Line 542: catch(e) {}  
+     - Line 550: catch(e) {}  
+     - Line 558: catch(e) {}  
+     - Line 566: catch(e) {}  
+     - Line 574: catch(e) {}  
+     - Line 582: catch(e) {}  
+     - Line 590: catch(e) {}  
+     - Line 598: catch(e) {}  
+     - Line 606: catch(e) {}  
+     - Line 614: catch(e) {}  
+     - Line 622: catch(e) {}  
+     - Line 630: catch(e) {}  
+     - Line 638: catch(e) {}  
+     - Line 646: catch(e) {}  
+     - Line 654: catch(e) {}  
+     - Line 662: catch(e) {}  
+     - Line 670: catch(e) {}  
+     - Line 678: catch(e) {}  
+     - Line 686: catch(e) {}  
+     - Line 694: catch(e) {}  
+     - Line 702: catch(e) {}  
+     - Line 710: catch(e) {}  
+     - Line 718: catch(e) {}  
+     - Line 726: catch(e) {}  
+     - Line 734: catch(e) {}  
+     - Line 742: catch(e) {}  
+     - Line 750: catch(e) {}  
+     - Line 758: catch(e) {}  
+     - Line 766: catch(e) {}  
+     - Line 774: catch(e) {}  
+     - Line 782: catch(e) {}  
+     - Line 790: catch(e) {}  
+     - Line 798: catch(e) {}  
+     - Line 806: catch(e) {}  
+     - Line 814: catch(e) {}  
+     - Line 822: catch(e) {}  
+     - Line 830: catch(e) {}  
+     - Line 838: catch(e) {}  
+     - Line 846: catch(e) {}  
+     - Line 854: catch(e) {}  
+     - Line 862: catch(e) {}  
+     - Line 870: catch(e) {}  
+     - Line 878: catch(e) {}  
+     - Line 886: catch(e) {}  
+     - Line 894: catch(e) {}  
+     - Line 902: catch(e) {}  
+     - Line 910: catch(e) {}  
+     - Line 918: catch(e) {}  
+     - Line 926: catch(e) {}  
+     - Line 934: catch(e) {}  
+     - Line 942: catch(e) {}  
+     - Line 950: catch(e) {}  
+     - Line 958: catch(e) {}  
+     - Line 966: catch(e) {}  
+     - Line 974: catch(e) {}  
+     - Line 982: catch(e) {}  
+     - Line 990: catch(e) {}  
+     - Line 998: catch(e) {}  
+     - Line 1006: catch(e) {}  
+     - Line 1014: catch(e) {}  
+
+   These empty catch blocks silently swallow errors without logging or user feedback, which is a security and debugging concern.
+
+9. **MEMORY**:  
+   - Event listeners are attached to shadowRoot children and replaced on render; no leaks.  
+   - No `addEventListener` on window/document/this without cleanup found.  
+   - No `setInterval` used, so no `clearInterval` needed.  
+   Verdict: OK.
+
+10. **SETTINGS**:  
+    - Settings keys used: 'recipient', 'service', 'daily_time', 'weekly_time', 'weekly_day', 'monthly_time', 'price', 'excluded' (line 174).  
+    - Corresponding save/load methods exist for all keys (e.g., `_saveToHelper`, `_readHelper`, `_loadFromHelpers`).  
+    - No orphaned settings detected.  
+    Verdict: OK.
+
+11. **EDGE CASES**:  
+    - Empty states handled with fallbacks (e.g., `_state` returns fallback '0' or 'unknown').  
+    - Loading states shown with spinner and messages (e.g., lines 388, 494).  
+    - Pagination edge cases handled with disabled buttons and page bounds (lines 388-410).  
+    Verdict: OK.
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- Line 1030: Editor input values inserted without attribute escaping → potential XSS risk.  
+- Lines ~380, 579: Entity/device names and IDs inserted into HTML attributes without escaping → minor XSS risk if HA states compromised.  
+- Multiple empty catch blocks (lines 164, 171, 183, 253, 260, 269, 280, 287, 294, 301, 309, 315, 324, 333, 350, 358, 366, 374, 382, 390, 398, 406, 414, 422, 430, 438, 446, 454, 462, 470, 478, 486, 494, 502, 510, 518, 526, 534, 542, 550, 558, 566, 574, 582, 590, 598, 606, 614, 622, 630, 638, 646, 654, 662, 670, 678, 686, 694, 702, 710, 718, 726, 734, 742, 750, 758, 766, 774, 782, 790, 798, 806, 814, 822, 830, 838, 846, 854, 862, 870, 878, 886, 894, 902, 910, 918, 926, 934, 942, 950, 958, 966, 974, 982, 990, 998, 1006, 1014) silently swallow errors without logging or user feedback.
+
+---
+
+Recommendations:  
+- Escape attribute values in editor inputs and anywhere user or HA data is inserted into HTML attributes.  
+- Add error logging or user feedback in catch blocks to aid debugging and security.  
+- Consider sanitizing or escaping entity/device names before inserting into HTML attributes.

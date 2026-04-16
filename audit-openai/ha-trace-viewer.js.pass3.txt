@@ -1,0 +1,11 @@
+ISSUE: PASS 2 (visual) 2. BENTO TOKENS Hardcoded colors in CSS (lines ~580-740) for highlights and error states (e.g., #3B82F6, #DC2626, rgba(239,68,68,0.08), #059669, rgba(16,185,129,0.1)) instead of using only Bento tokens.  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Replace hardcoded colors with appropriate Bento CSS variables or extend Bento tokens to cover these highlight/error colors for full theming consistency.
+
+ISSUE: PASS 2 (visual) 8. ACCESSIBILITY Minimal aria attributes on interactive elements: dropdown button lacks aria-expanded/aria-haspopup; tabs lack aria roles and aria-selected; checkboxes use unicode without aria roles/labels; some buttons/spans only have title attributes (lines ~570-830).  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add appropriate ARIA roles, states, and labels to interactive elements such as dropdowns (aria-haspopup, aria-expanded), tabs (role="tablist", role="tab", aria-selected), and checkboxes (role="checkbox", aria-checked), improving screen reader accessibility.
+
+TOTAL: 2 real issues (0 critical, 2 warning, 0 info), 0 false positives.

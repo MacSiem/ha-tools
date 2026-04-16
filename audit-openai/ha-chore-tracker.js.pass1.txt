@@ -1,0 +1,105 @@
+1. **IIFE WRAPPER**: OK  
+- The entire code is wrapped in `(function() { 'use strict'; ... })();` starting at line 1 and ending at line 556.
+
+2. **CUSTOM ELEMENT GUARD**: OK  
+- Both custom elements are registered with guards:  
+  - `if (!customElements.get('ha-chore-tracker')) customElements.define('ha-chore-tracker', HaChoreTracker);` at line ~511  
+  - `if (!customElements.get('ha-chore-tracker-editor')) { customElements.define('ha-chore-tracker-editor', HaChoreTrackerEditor); }` at line ~544
+
+3. **HASS GUARD**: OK  
+- The setter for `hass` checks `if (!hass) return;` at line ~92  
+- The `render()` method checks `if (!this._hass) return;` at line ~154
+
+4. **SHADOW DOM**: OK  
+- `attachShadow({ mode: 'open' })` is called in constructors of both classes:  
+  - `HaChoreTracker` at line 42  
+  - `HaChoreTrackerEditor` at line 518
+
+5. **BENTO CSS**: OK  
+- The style tag in `render()` includes `${window.HAToolsBentoCSS || ""}` at line ~157
+
+6. **XSS**:  
+- Search for `.innerHTML =` or `.innerHTML +=` and check user data usage:
+
+  - Line ~154: `this.shadowRoot.innerHTML = html;`  
+    - `html` is constructed with user data escaped via `_esc()` for chore names, assignees, etc.  
+    - Example: `<option value="${_esc(m.name)}">${_esc(m.name)}</option>` (line ~183)  
+    - Chore card names and assignees are escaped:  
+      - `<h3 class="chore-title">${_esc(chore.name)}</h3>` (line ~388)  
+      - `<span class="chore-assignee" style="background-color: ${this.getMemberColor(chore.assignee)}">${_esc(chore.assignee)}</span>` (line ~390)  
+    - Schedule tab uses `_esc(chore.name)` at line ~466  
+    - Stats tab uses `_esc(entry[0])` at line ~512  
+    - Leaderboard names escaped similarly.
+
+  - Line ~466: `scheduleEl.innerHTML = html;`  
+    - `html` contains escaped chore names.
+
+  - Line ~512: `statsEl.innerHTML = ...` and `leaderboardEl.innerHTML = ...`  
+    - User data escaped with `_esc`.
+
+  - `HaChoreTrackerEditor` uses `.innerHTML =` at line ~530 for static content with no user data.
+
+Verdict: All user input or dynamic data inserted into innerHTML is escaped via `_esc`. No unsafe direct insertion of unescaped user data found.
+
+6. XSS: OK
+
+7. **LANGUAGE**:  
+- Supports PL and EN via `_t` getter at line ~70  
+- Uses `_lang` to select language strings.  
+- Some hardcoded strings in the UI are bilingual or use `_lang` to choose:  
+  - Tab "Settings" label uses `this._lang === 'pl' ? 'Ustawienia' : 'Settings'` (line ~176)  
+  - Empty board message uses `L ? 'Brak zadań' : 'No chores yet'` (line ~232)  
+- However, some strings are hardcoded only in English or Polish without translation:  
+  - Schedule tab empty state: "No Schedule Yet" and "Add chores with assigned days to see your weekly schedule here." (line ~277) - no PL alternative  
+  - Stats tab empty state: "No Stats Yet" and "Complete some chores and check back — your productivity stats will appear here." (line ~310) - no PL alternative  
+  - Settings tab: "Settings coming soon" and "Ustawienia będą dostępne wkrótce" (line ~339) - bilingual but hardcoded  
+  - Some labels in form (e.g. "Chore Name", "Assignee", "Room/Area", "Frequency", "Priority") are hardcoded in English only (lines ~180-210)  
+  - Frequency options in form are in Polish only (line ~196-203)  
+  - Priority options in English only (line ~205-210)  
+- So mixed approach: some UI strings are bilingual, others hardcoded in one language only.
+
+Verdict: ISSUE - partial bilingual support, many hardcoded strings without translation.
+
+8. **ERROR HANDLING**:  
+- No calls to `callWS`, `callService`, or `fetch` in this code.  
+- LocalStorage calls wrapped in try/catch with empty catch blocks at lines:  
+  - `_saveMembers()` line ~56  
+  - `_saveData()` line ~62  
+  - `_loadMembers()` line ~51  
+  - `_loadData()` line ~67  
+- These empty catch blocks silently swallow errors without logging or fallback.
+
+Verdict: ISSUE - swallowed errors in localStorage access with empty catch blocks (lines 51-56, 62-67).
+
+9. **MEMORY**:  
+- Event listeners added in `setupEventListeners()` on shadowRoot children (lines ~370-386).  
+- No listeners added on `window` or `document`.  
+- No `setInterval` used.  
+- `disconnectedCallback()` clears render scheduling flag only (line ~538), no event listener removal needed due to Shadow DOM replacement pattern.
+
+Verdict: OK
+
+10. **SETTINGS**:  
+- Uses localStorage keys via `_storageKey()` and `_membersKey()` (lines ~45-49).  
+- Saves and loads chores and members accordingly.  
+- No other settings or persistence keys found.  
+- No orphaned settings or unmatched get/set keys.
+
+Verdict: OK
+
+11. **EDGE CASES**:  
+- Empty states handled with empty-state divs shown/hidden for board (line ~234), schedule (line ~280), stats (line ~312).  
+- Loading state string exists in `_t` but no explicit loading UI shown.  
+- Pagination implemented but only helper functions `_renderPagination()`, `_paginateItems()`, `_setupPaginationListeners()` defined (lines ~520-536) but not used in main UI.  
+- Pagination edge cases handled in helper functions (e.g. disabling buttons on first/last page).  
+- No visible bugs in empty or pagination edge cases.
+
+Verdict: OK
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.  
+Issues:  
+- #7 LANGUAGE: Partial bilingual support; many hardcoded strings lack translation (lines ~180-210, 277, 310, 339).  
+- #8 ERROR HANDLING: Empty catch blocks silently swallow localStorage errors without logging or fallback (lines 51-56, 62-67).  
+- #6 XSS: None found; all dynamic user data is escaped properly (no issue).

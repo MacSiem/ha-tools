@@ -1,0 +1,163 @@
+Audit of ha-data-exporter.js CSS and visual consistency:
+
+---
+
+**1. CARD VS CONTAINER**
+
+- Uses `.card` wrapper consistently for main container (line ~230: `<div class="card">`).
+- No `.container` class usage found in the main template or CSS.
+- There is a `.card-container` mentioned in media queries (line ~460), but not used in template.
+- Conclusion: 1 `.card` used, 0 `.container` used. Correct per Bento design system.
+
+---
+
+**2. BENTO TOKENS**
+
+- The CSS extensively uses `--bento-*` CSS variables for colors, borders, shadows, radius, transitions.
+- Hardcoded colors found (with line references approximate within the style block starting ~line 230):
+
+  - Inline styles in template literals (see point 5) contain hardcoded colors, e.g.:
+    - `color: var(--bento-text-secondary,#64748b)` (fallback hex #64748b)
+    - `border:1px solid var(--bento-border,#e2e8f0)` (fallback #e2e8f0)
+    - `background:var(--bento-card,#fff)` (fallback #fff)
+    - `color:#ef4444` (red, line ~270)
+    - `color:#fff` for `.btn-primary` (line ~430)
+    - `color:#1e293b` fallback for `--bento-text` (line ~230)
+    - `background: rgba(0,0,0,0.03)` (line ~400, for `.attr-val.complex`)
+    - `box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25)` (line ~370)
+    - `background: rgba(59, 130, 246, 0.04)` (line ~350)
+    - `background: rgba(0,0,0,0.02)` (line ~420)
+    - `background: var(--primary-background-color, #1a1a2e)` dark mode fallback (line ~480)
+    - `background: var(--card-background-color, #16213e)` dark mode fallback (line ~481)
+    - `color: var(--primary-text-color, #e2e8f0)` dark mode fallback (line ~482)
+    - `color: var(--secondary-text-color, #94a3b8)` dark mode fallback (line ~483)
+    - `border-radius: 12px` (line ~240) - no variable used here
+    - `padding: 16px` (line ~240) - no variable used here
+
+- Most hardcoded colors are fallback values for Bento tokens or subtle RGBA backgrounds.
+- No blatant hardcoded colors overriding Bento tokens except a few fallback hexes and rgba for subtle backgrounds.
+- Overall, usage of Bento tokens is consistent with minor fallback hardcoded colors.
+
+---
+
+**3. DARK MODE**
+
+- Yes, has `@media (prefers-color-scheme: dark)` block (line ~480).
+- Defines dark variants for Bento tokens: `--bento-bg`, `--bento-card`, `--bento-text`, `--bento-text-secondary`, `--bento-border`, `--bento-shadow-sm`, `--bento-shadow-md`.
+- Also uses `var(--primary-background-color, ...)` and similar HA theme variables with dark mode fallback colors.
+- Dark mode support is implemented properly.
+
+---
+
+**4. RESPONSIVE**
+
+- Has `@media` breakpoints for max-width 768px and 480px (lines ~440 and ~460).
+- No 360px breakpoint found.
+- Responsive adjustments include:
+  - Reduced padding on `.card`
+  - Flex-wrap on `.card-header`, `.toolbar`, `.snapshot-bar`
+  - Font size reductions on tabs, buttons, tables
+  - Table container max-height reduced on smaller screens
+  - Tabs flex-wrap and overflow-x scroll on mobile
+- No obvious content that would overflow on mobile:
+  - Tables have word-break and ellipsis on cells
+  - Toolbar inputs and selects become full width on narrow screens
+  - Tabs scroll horizontally if needed
+- Responsive design is well handled for 768px and 480px breakpoints.
+
+---
+
+**5. INLINE STYLES**
+
+Count of inline `style="..."` in template literals:
+
+- 1) Line ~236: `<div style="display:flex;align-items:center;gap:8px">` (44 chars)
+- 2) Line ~270: `<button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">` (approx 180 chars)
+- 3) Line ~280: `<div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">` (approx 180 chars)
+- 4) Line ~300: `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">` (approx 70 chars)
+- 5) Line ~320: `<select id="snapshotInterval" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">` (approx 90 chars)
+- 6) Line ~330: `<select id="snapshotMax" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">` (approx 90 chars)
+- 7) Line ~350: `<span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">` (approx 50 chars)
+- 8) Line ~360: `<button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;"` (approx 110 chars)
+- 9) Line ~370: `<button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;"` (approx 120 chars)
+
+Top 5 worst offenders (longest inline styles):
+
+1. Line ~270: `#deGoSettingsBtn` button inline style (~180 chars)
+2. Line ~280: `.snapshot-bar` div inline style (~180 chars)
+3. Line ~370: `#snapshotClear` button inline style (~120 chars)
+4. Line ~360: `#snapshotNow` button inline style (~110 chars)
+5. Line ~320: `#snapshotInterval` select inline style (~90 chars)
+
+Note: These inline styles are mostly for layout and minor styling, but could be moved to CSS for better maintainability.
+
+---
+
+**6. FONT**
+
+- Uses `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` font-family explicitly in Bento CSS (line ~240).
+- Also uses `'Inter', sans-serif` in many places.
+- No direct inheritance from HA theme fonts, but uses common system fonts as fallback.
+- Font usage is consistent and uses Inter font as primary.
+
+---
+
+**7. CONSISTENCY**
+
+- Buttons: `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-sm` classes used consistently with Bento tokens.
+- Cards: `.card` class used consistently with Bento tokens.
+- Tables: `.entity-table` styled consistently with Bento tokens.
+- Badges: `.badge`, `.status-badge`, `.attr-count` styled consistently.
+- Inputs/selects: styled consistently with Bento tokens.
+- Expand buttons `.expand-btn` styled consistently.
+- Pagination controls have consistent styling.
+- Overall, UI elements are styled consistently throughout the file.
+
+---
+
+**8. ACCESSIBILITY**
+
+- Color contrast:
+
+  - Uses Bento tokens which are designed for good contrast.
+  - Some fallback colors like #64748b (gray) and #ef4444 (red) appear; these have decent contrast on white backgrounds.
+  - Buttons have hover states with color changes for clarity.
+  - Disabled buttons have reduced opacity and cursor not-allowed.
+
+- Aria labels:
+
+  - Expand buttons have `aria-label="Show attributes"` (line ~390).
+  - Snapshot buttons have `title` and `aria-label` attributes (lines ~360, ~370).
+  - Select all checkbox has `title="Select all"` (line ~350).
+  - Other buttons lack explicit aria-labels but have visible text.
+  - Search input has placeholder but no aria-label; could be improved.
+  - Domain filter select has no aria-label or label element; could be improved.
+  - Pagination buttons have visible text but no aria-labels; acceptable but could be enhanced.
+
+- Keyboard focus:
+
+  - Inputs and buttons have focus styles via CSS.
+  - Buttons and interactive elements have cursor pointer and focus outlines.
+
+- Overall accessibility is good with minor improvements possible on aria-labels for some inputs/selects.
+
+---
+
+### SUMMARY:
+
+| Checkpoint           | Result                          |
+|---------------------|--------------------------------|
+| 1. CARD VS CONTAINER | 1 `.card` used, 0 `.container` - OK |
+| 2. BENTO TOKENS      | Mostly Bento tokens, minor fallback hardcoded colors - OK |
+| 3. DARK MODE         | Proper dark mode with Bento tokens - OK |
+| 4. RESPONSIVE       | Responsive at 768px and 480px, no overflow issues - OK |
+| 5. INLINE STYLES     | 9 inline styles, top 5 offenders listed, could be improved - Minor issue |
+| 6. FONT             | Uses Inter font consistently - OK |
+| 7. CONSISTENCY      | UI elements styled consistently - OK |
+| 8. ACCESSIBILITY    | Good contrast, some aria-labels missing on inputs/selects - Minor issue |
+
+**Overall: 6/8 OK, 2 minor issues (inline styles and some aria-labels).**
+
+---
+
+If you want, I can suggest improvements for inline styles and accessibility.

@@ -1,0 +1,11 @@
+ISSUE: LANGUAGE partial bilingual support; many hardcoded UI strings lack translation (lines ~180-210, 277, 310, 339)  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Extract all hardcoded UI strings into the `_t` translation object and use `_t` getter for all UI text to ensure full bilingual support.
+
+ISSUE: ERROR HANDLING empty catch blocks silently swallow localStorage errors without logging or fallback (lines 51-56, 62-67)  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add minimal error logging (e.g. `console.warn`) or fallback handling inside catch blocks to aid debugging and improve robustness.
+
+TOTAL: 2 real issues (0 critical, 2 warning, 0 info), 0 false positives.

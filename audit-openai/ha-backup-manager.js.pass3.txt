@@ -1,0 +1,22 @@
+ISSUE: XSS (Security) User data inserted into innerHTML without proper escaping at lines 471 and 1071 (backup names, config titles, error messages)  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Use `window._haToolsEsc()` or equivalent escaping on all user-supplied strings before inserting into innerHTML or attribute values, including `this._config.title`, `backup.name`, and `this._error`. For input `value` attributes, escape quotes and special characters properly.
+
+---
+
+ISSUE: Error Handling (Quality) Multiple empty catch blocks silently swallowing errors at lines 44, 56, 83, 133, 520  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Replace empty catch blocks with logging (e.g. `console.warn(e)`) or proper error handling to avoid silent failures and aid debugging.
+
+---
+
+ISSUE: Accessibility (Quality) Missing ARIA roles and labels on tabs and buttons; no explicit focus management or aria-live regions (lines ~350-600 UI code)  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Add appropriate ARIA roles (`tablist`, `tab`, `tabpanel`) and `aria-label` attributes to tabs and buttons. Implement keyboard navigation support and aria-live regions for dynamic content like error banners.
+
+---
+
+TOTAL: 3 real issues (1 critical, 1 warning, 1 info), 0 false positives.

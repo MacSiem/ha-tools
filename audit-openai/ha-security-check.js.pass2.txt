@@ -1,0 +1,122 @@
+Audit of ha-security-check.js CSS and visual consistency:
+
+---
+
+1. **CARD VS CONTAINER**  
+- Uses `.card` wrapper extensively for main container and sub-containers (e.g. line ~370: `<div class="card">`).  
+- Also uses `.card-container` and `.reports-card` in CSS but not in template HTML.  
+- No use of `.container` class in template or CSS.  
+- **Count:** `.card` used multiple times (correct per Bento), `.container` not used (correct).  
+- **Verdict:** Correct usage of `.card` wrapper, no `.container` misuse.
+
+---
+
+2. **BENTO TOKENS**  
+- CSS uses `--bento-*` CSS variables almost exclusively for colors, borders, backgrounds, shadows, radii, transitions.  
+- Hardcoded colors found:  
+  - Critical red: `#f44336` (e.g. `.finding.critical` border-left, line ~700)  
+  - Warning orange: `#ff9800` (e.g. `.finding.warning` border-left, line ~701)  
+  - Info blue: `#03a9f4` (e.g. `.finding.info` border-left, line ~702)  
+  - Pass green: `#4caf50` (e.g. `.finding.pass` border-left, line ~703)  
+  - Status dots and badges use these hardcoded hex colors as well (lines ~720-730).  
+  - Inline styles in JS also use these hardcoded colors for badges and dots (e.g. line ~1000, `style="background:#4caf50"`).  
+- No raw rgb() or hsl() colors found outside Bento tokens except these semantic colors.  
+- **Verdict:** Mostly uses Bento tokens, but semantic colors for severity are hardcoded hex values consistently.
+
+---
+
+3. **DARK MODE**  
+- Has `@media (prefers-color-scheme: dark)` block (line ~380) defining dark variants of Bento tokens:  
+  - `--bento-bg`, `--bento-card`, `--bento-text`, `--bento-border`, `--bento-success`, `--bento-warning`, `--bento-error` etc.  
+- Uses `color-scheme: light dark;` on `:host` (line ~480) for native form controls.  
+- No dark mode specific overrides outside Bento tokens.  
+- **Verdict:** Proper dark mode support via Bento tokens and prefers-color-scheme media query.
+
+---
+
+4. **RESPONSIVE**  
+- Has `@media` breakpoints:  
+  - `@media (max-width: 768px)` (lines ~520 and ~900)  
+  - `@media (max-width: 480px)` (lines ~530 and ~910)  
+- No 360px breakpoint.  
+- Responsive adjustments include:  
+  - Tabs become smaller with less padding and font size.  
+  - Cards have reduced padding.  
+  - Grid columns reduce to 2 columns or 1fr.  
+  - Score ring shrinks in size.  
+  - Flex containers stack vertically.  
+- No obvious content overflow issues on mobile. Tables are wrapped in `.table-container` with `overflow-x: auto`.  
+- Tabs have `overflow-x: auto` with `-webkit-overflow-scrolling: touch` for horizontal scroll on small screens.  
+- **Verdict:** Responsive design well implemented for 768px and 480px breakpoints, no overflow issues detected.
+
+---
+
+5. **INLINE STYLES**  
+- Inline styles appear mostly in template literals inside `_render()` and `_renderOverview()` etc.  
+- Count of inline style attributes: approx 20+ occurrences.  
+- Top 5 longest inline style strings with approximate line numbers:  
+  1. Line ~430: `<style>${window.HAToolsBentoCSS || ""} ... entire Bento CSS block ... </style>` (very long, but this is CSS in template literal, not inline style attribute)  
+  2. Line ~1150: `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">` (about 70 chars)  
+  3. Line ~1170: Multiple `<div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center">` repeated (about 70 chars)  
+  4. Line ~1300: `<div style="font-weight:600;color:var(--bento-text-secondary)">Location name</div>` and similar repeated inline styles (about 50 chars)  
+  5. Line ~1340: `<code style="font-size:11px;background:var(--bento-bg);padding:4px 8px;border-radius:4px">` (about 70 chars)  
+- These inline styles are short, semantic, and used for layout or minor visual tweaks.  
+- No extremely long or complex inline style attributes found.  
+- **Verdict:** Inline styles are minimal, mostly for layout and minor styling, acceptable.
+
+---
+
+6. **FONT**  
+- Uses `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` font stack consistently in CSS (lines ~380, ~400, ~480, ~520).  
+- No direct font imports in this file (assumed loaded globally by Home Assistant or Bento CSS).  
+- Font-family applied on `:host`, `.card`, buttons, tables, inputs, etc.  
+- **Verdict:** Consistent use of Inter font family, inherits from HA theme as expected.
+
+---
+
+7. **CONSISTENCY**  
+- Buttons: `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-small` all share consistent padding, border-radius, font, transition, hover/focus states.  
+- Cards: `.card`, `.card-container`, `.reports-card` share background, border, radius, shadow, padding.  
+- Tables: `.entity-table`, `.table` share font, padding, border, hover effects, sorted column styles.  
+- Badges: `.badge-*`, `.status-*` use consistent background and text colors with semantic color coding.  
+- Tabs: `.tab`, `.tab-btn` consistent padding, font, border-bottom for active state, hover states.  
+- Severity indicators: `.finding` classes use consistent border-left colors and badges.  
+- Overall, UI elements are visually consistent and follow Bento design system.  
+- **Verdict:** UI elements styled consistently throughout.
+
+---
+
+8. **ACCESSIBILITY**  
+- Color contrast:  
+  - Uses semantic colors with sufficient contrast for text and backgrounds (e.g. dark text on light backgrounds, colored badges with light backgrounds).  
+  - Critical red (#f44336) and warning orange (#ff9800) used with light transparent backgrounds for badges and borders, likely sufficient contrast.  
+- Interactive elements:  
+  - Tabs are buttons with visible focus styles via CSS transitions but no explicit `:focus` styles or `aria-selected` attributes.  
+  - Buttons have cursor pointer and hover styles.  
+  - No ARIA labels or roles explicitly set on tabs or buttons.  
+  - Tabs have `data-tab` attributes but no `role="tablist"` or `role="tab"` semantics.  
+- Missing:  
+  - ARIA roles and states on tab buttons for screen reader accessibility.  
+  - Keyboard navigation support not evident (no tabindex or key handlers).  
+- **Verdict:** Color contrast likely OK; accessibility could be improved by adding ARIA roles and keyboard support for tabs.
+
+---
+
+### SUMMARY:
+
+| Check                | Result          | Notes                                      |
+|----------------------|-----------------|--------------------------------------------|
+| 1. CARD VS CONTAINER  | OK              | Uses `.card` correctly, no `.container`    |
+| 2. BENTO TOKENS       | Minor issue     | Mostly Bento tokens, but semantic colors hardcoded (#f44336 etc) consistently |
+| 3. DARK MODE          | OK              | Proper prefers-color-scheme dark variants  |
+| 4. RESPONSIVE        | OK              | Responsive at 768px and 480px, no overflow |
+| 5. INLINE STYLES      | OK              | Minimal, short inline styles only           |
+| 6. FONT               | OK              | Consistent Inter font usage                  |
+| 7. CONSISTENCY        | OK              | UI elements styled consistently             |
+| 8. ACCESSIBILITY      | Minor issue     | Missing ARIA roles/states on tabs, no keyboard nav |
+
+**Overall:** 6/8 OK, 2 minor issues (hardcoded semantic colors, accessibility ARIA roles missing).
+
+---
+
+No memory leaks or visual inconsistencies detected. Bento design system is well applied. Accessibility improvements recommended for ARIA roles on tabs and keyboard navigation. Hardcoded semantic colors are acceptable if consistent and meaningful.

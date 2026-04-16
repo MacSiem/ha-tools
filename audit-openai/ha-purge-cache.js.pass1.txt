@@ -1,0 +1,97 @@
+Audit results for ha-purge-cache.js:
+
+1. **IIFE WRAPPER**:  
+   - The entire code is wrapped in `(function() { 'use strict'; ... })();` starting at line 1 and ending at line ~700.  
+   - **Verdict: OK**
+
+2. **CUSTOM ELEMENT GUARD**:  
+   - For `ha-purge-cache`: line 676-678 checks `if (!customElements.get('ha-purge-cache')) { customElements.define(...) }`  
+   - For `ha-purge-cache-editor`: line 694-695 checks `if (!customElements.get('ha-purge-cache-editor')) { customElements.define(...) }`  
+   - **Verdict: OK**
+
+3. **HASS GUARD**:  
+   - In `_render()` (line ~480), first line is `if (!this._hass) return;`  
+   - `hass` setter (line ~120) sets `_lang` and `_hass` and calls `_render()` only if not rendered.  
+   - No other API calls without `_hass` check.  
+   - **Verdict: OK**
+
+4. **SHADOW DOM**:  
+   - Constructor (line ~40) calls `this.attachShadow({ mode: 'open' });`  
+   - All DOM manipulations are on `this.shadowRoot`.  
+   - **Verdict: OK**
+
+5. **BENTO CSS**:  
+   - In `_render()` (line ~480), style tag includes `${window.HAToolsBentoCSS || ""}`  
+   - So it imports Bento CSS if available.  
+   - **Verdict: OK**
+
+6. **XSS**:  
+   - Search for `.innerHTML =` or `.innerHTML +=`:
+
+     - Line ~250: `_updateDisplay()` sets `.innerHTML` on stat cards with data from `_stats` and translations. Data like counts and sizes are numbers or fixed strings, no user input.  
+       - Safe.
+
+     - Line ~272: localStorage keys detail rendering in `_renderLsKeys()` (line ~275):  
+       - `container.innerHTML = keys.map(k => \`<div class="key-row"> ... data-key="${k.key}" ... title="${t.deleteKey}">\u2715</button></div>\`).join('');`  
+       - `k.key` is from `localStorage.key(i)` which is user-controllable data (keys stored in localStorage).  
+       - The key is inserted into `title` attribute and `data-key` attribute, and also displayed inside a `<span>` with text content.  
+       - The key is inserted directly into HTML attributes without escaping.  
+       - This is a potential XSS vector if a malicious key contains quotes or HTML entities.  
+       - No escaping or sanitization is applied here.  
+       - **UNSAFE** at line ~277.
+
+     - Line ~350: `_addLog()` uses `entry.innerHTML = ... ${msg}` where `msg` is passed in.  
+       - `msg` is usually from translations or controlled strings, except in `_renderLsKeys()` where it logs `${this._t.deleteKey}: ${btn.dataset.key}` (line ~287).  
+       - `btn.dataset.key` is from localStorage keys, again user-controlled.  
+       - No escaping on `msg` in `_addLog()`.  
+       - Potential XSS if localStorage key contains malicious content.  
+       - **UNSAFE** at line ~350.
+
+     - Line ~480: `_render()` uses template literals with translations and no user input except for `this._lang` which is controlled by `hass.language` or navigator.language, but only used for language selection, not inserted raw.  
+       - Safe.
+
+   - Summary for XSS:  
+     - Unsafe usage of localStorage keys inserted into `.innerHTML` without escaping at lines ~277 and ~350.  
+     - No use of `window._haToolsEsc()` or similar escaping on these user-controllable strings.  
+     - Other innerHTML assignments are safe (translations or numeric stats).
+
+7. **LANGUAGE**:  
+   - Full bilingual support for 'pl' and 'en' in `_t` getter (lines ~50-180).  
+   - All UI strings come from `_t`.  
+   - No hardcoded UI strings outside `_t` except in editor component (lines ~680-700) where "Purge Cache" and "Title" labels are hardcoded in English only.  
+   - Editor component does not support bilingual strings.  
+   - **Minor ISSUE**: Editor panel hardcoded English strings (lines ~682-695).
+
+8. **ERROR HANDLING**:  
+   - All async calls to fetch, service worker APIs, caches, etc. are wrapped in try/catch (e.g. lines ~140-190, ~350-390).  
+   - Catch blocks log errors or ignore individual failures (e.g. line ~370).  
+   - No empty catch blocks swallowing errors silently except `_injectDiscovery()` (line ~620) which catches and ignores errors silently (acceptable for event dispatch).  
+   - **Verdict: OK**
+
+9. **MEMORY**:  
+   - Event listeners are added on shadowRoot children (lines ~520-540), no listeners on window/document.  
+   - No setInterval or setTimeout except `_hardReload()` uses `setTimeout` with no clear needed (line ~430).  
+   - `disconnectedCallback()` clears `_pendingConfirm` only (line ~630).  
+   - No memory leaks or missing cleanup.  
+   - **Verdict: OK**
+
+10. **SETTINGS**:  
+    - No usage of `_getSetting` or `_setSetting` methods in this code.  
+    - Only localStorage is accessed directly for tip banner dismissal (line ~510).  
+    - No orphaned settings or missing setters.  
+    - **Verdict: OK**
+
+11. **EDGE CASES**:  
+    - Empty localStorage/sessionStorage handled gracefully (counts 0).  
+    - Loading states shown as "•••" in stat cards (line ~250).  
+    - Pagination not applicable.  
+    - Errors in API calls handled and displayed in logs.  
+    - **Verdict: OK**
+
+---
+
+**SUMMARY:** 9/11 OK, 2 issues.
+
+**Issues:**  
+- Line ~277 and ~350: Unsafe insertion of localStorage keys into `.innerHTML` without escaping, potential XSS risk.  
+- Lines ~682-695: Editor component has hardcoded English strings, no bilingual support.

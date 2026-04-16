@@ -1,0 +1,36 @@
+ISSUE 1: XSS Unsafe insertion of user-configurable title into innerHTML without escaping at line ~108  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Use `window._haToolsEsc()` or equivalent HTML entity escaping on `this._config.title` before inserting into innerHTML.
+
+---
+
+ISSUE 2: XSS Unsafe insertion of error messages from `this._auditData.error` into innerHTML without escaping at line ~155  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape error message content with `window._haToolsEsc()` before inserting into innerHTML to prevent injection.
+
+---
+
+ISSUE 3: XSS Unsafe insertion of findings data (`f.title`, `f.desc`, `f.fix`) into innerHTML without escaping in `_renderOverview()` and `_renderFinding()` at lines ~170-300  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Sanitize or escape all dynamic findings data before insertion; ideally use `window._haToolsEsc()` on all user/API-derived strings.
+
+---
+
+ISSUE 4: Incomplete bilingual support - hardcoded English strings in `_renderTips()` at line ~350  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Add Polish translations for all tip strings and use `_t` getter for consistent bilingual support.
+
+---
+
+ISSUE 5: Error handling - multiple empty catch blocks swallowing errors silently without logging or user feedback at lines ~85-~600  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add console.error logging or user-visible error feedback inside catch blocks to aid debugging and transparency.
+
+---
+
+TOTAL: 5 real issues (2 critical, 2 warning, 1 info), 0 false positives.

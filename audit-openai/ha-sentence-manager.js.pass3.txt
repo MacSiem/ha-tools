@@ -1,0 +1,28 @@
+ISSUE: XSS line 352 config.title inserted into innerHTML without escaping  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape `this.config.title` using `_esc()` or similar before inserting into innerHTML to prevent XSS.
+
+ISSUE: XSS line 726 intent names, categories, slot list values inserted without escaping  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape all dynamic intent names, categories, and slot list values with `_esc()` or `_escapeHtml()` before inserting into innerHTML.
+
+ISSUE: XSS line 840 sentence responses and slot highlights inserted without escaping  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape `s.response` and slot names inside `highlightSlots()` before inserting into innerHTML to prevent XSS.
+
+ISSUE: XSS line 1045 custom actions user data inserted without escaping  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Escape all user-generated custom action fields (`a.trigger`, `a.service`, `a.entity`) before inserting into innerHTML.
+
+ISSUE: Error handling lines 183,195,209,237,243,269,275,282,288,294,300 empty catch blocks silently swallow errors  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add error logging or user feedback inside catch blocks to avoid silent failures and aid debugging.
+
+---
+
+TOTAL: 5 real issues (4 critical, 1 warning), 0 false positives.

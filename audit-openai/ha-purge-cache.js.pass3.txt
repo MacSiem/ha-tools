@@ -1,0 +1,22 @@
+ISSUE 1: XSS Unsafe insertion of localStorage keys into `.innerHTML` without escaping at lines ~277 and ~350  
+- At ~277: `_renderLsKeys()` inserts `k.key` (from localStorage.key(i), user-controllable) directly into HTML attributes (`data-key`, `title`) and inside a `<span>` via `.innerHTML = ...` without escaping.  
+- At ~350: `_addLog()` inserts `msg` which can include `btn.dataset.key` (localStorage key) into `.innerHTML` without escaping.  
+- No use of `window._haToolsEsc()` or other escaping on these user inputs.  
+- Shadow DOM pattern does not mitigate this since innerHTML is replaced wholesale and user data is directly injected into HTML attributes and content.  
+VERDICT: REAL  
+SEVERITY: critical (XSS vector allowing arbitrary script injection via crafted localStorage keys)  
+FIX: Apply `window._haToolsEsc()` or equivalent escaping to all user-controllable strings inserted into `.innerHTML`, especially localStorage keys in attributes and content, before insertion.
+
+---
+
+ISSUE 2: i18n Editor component hardcoded English strings without bilingual support at lines ~682-695  
+- Editor panel uses hardcoded English labels "Purge Cache" and "Title" with no `_t` translation or language detection.  
+- This breaks bilingual consistency of main component.  
+- No security impact, but UX inconsistency for Polish users.  
+VERDICT: REAL  
+SEVERITY: info (minor UX/i18n inconsistency)  
+FIX: Refactor editor component to use `_t` translations for all UI strings and respect `this._lang` for bilingual support.
+
+---
+
+TOTAL: 2 real issues (0 critical, 1 warning, 1 info), 0 false positives.

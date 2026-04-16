@@ -1,0 +1,109 @@
+Audit of ha-energy-email.js CSS and visual consistency:
+
+---
+
+1. **CARD VS CONTAINER**  
+- Uses `.card` wrapper exclusively for main card container (line ~233: `<div class="card">`).  
+- No `.container` class usage found in the CSS or template.  
+- Count: `.card` used 1 time, `.container` used 0 times.  
+- Verdict: Correct per Bento design system.
+
+---
+
+2. **BENTO TOKENS**  
+- CSS mostly uses `--bento-*` CSS variables for colors, borders, backgrounds, shadows, text colors, radius, and transitions (lines ~240-350).  
+- Hardcoded colors found inside inline styles and some CSS rules:  
+  - `.stat-value` colors: `#F59E0B` (orange), `#3B82F6` (blue), `#10B981` (green) (line ~308). These are hardcoded but correspond to Bento tokens colors (orange = bento-warning, blue = bento-primary, green = bento-success).  
+  - In `_tabOverview()` method (line ~1050+), inline styles use hardcoded colors:  
+    - `color:#F59E0B` (orange), `color:#3B82F6` (blue), `color:#10B981` (green) for stat values.  
+  - In `_tabSend()` method (line ~1300+), the HTML email template uses many hardcoded colors:  
+    - Backgrounds: `#fff`, `#fef3c7`, `#d97706`, `#92400e`, `#dbeafe`, `#1d4ed8`, `#1e40af`, `#d1fae5`, `#047857`, `#065f46`, `#e2e8f0`, `#64748b`, `#94a3b8`.  
+    - These are inline styles for email HTML content, which is external to the card UI, so hardcoded colors here are acceptable for email rendering.  
+  - In `_tabOverview()` device bars: `.device-bar` background is `var(--bento-primary)` (correct).  
+- Summary:  
+  - CSS uses Bento tokens almost exclusively for UI elements.  
+  - Hardcoded colors appear mainly in inline styles for stat values and email HTML content (which is external).  
+  - No hardcoded colors in main card CSS except for stat-value colors which match Bento palette.  
+- Verdict: Mostly good Bento token usage; hardcoded colors in email HTML are acceptable.
+
+---
+
+3. **DARK MODE**  
+- Has `@media (prefers-color-scheme: dark)` block defining dark variants of Bento tokens (lines ~270-280).  
+- Uses `--bento-*` variables for colors in dark mode.  
+- No explicit dark mode styles outside Bento tokens.  
+- Verdict: Dark mode support implemented correctly via Bento tokens.
+
+---
+
+4. **RESPONSIVE**  
+- Has `@media` breakpoints at 768px and 480px (lines ~350-370).  
+- Adjusts `.tabs` gap, `.tab-btn` padding and font-size, `.card` padding, `.grid3` and `.grid2` columns and gaps, `.stat-value` and `.stat-label` font sizes.  
+- No 360px breakpoint found.  
+- Content uses flexible grids (`grid-template-columns: repeat(auto-fit, minmax(...))`) and flex layouts with wrapping, minimizing overflow risk.  
+- `.tabs` has horizontal scroll with thin scrollbar and `-webkit-overflow-scrolling: touch` for smooth scrolling on mobile.  
+- Inline styles mostly use relative units or fixed widths that are small (e.g., 70px input width).  
+- No obvious content that would overflow on typical mobile widths.  
+- Verdict: Responsive design implemented well for 768px and 480px breakpoints; no 360px breakpoint but no overflow issues detected.
+
+---
+
+5. **INLINE STYLES**  
+- Count of `style="..."` in template literals: approximately 40+ occurrences across the file.  
+- Top 5 longest inline style blocks with approximate line numbers:  
+  1. Line ~1310: HTML email template `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">` and nested styles inside. (Very long inline styles for email layout)  
+  2. Line ~1050: `_tabOverview()` device rows: `<div class="device-bar" style="width:${pct}%"></div>` (short but repeated many times).  
+  3. Line ~1050: Stat value colors: `<div class="stat-value" style="color:#F59E0B">` etc.  
+  4. Line ~1110: Pagination buttons: inline styles for padding, font-size, border-radius, background, color.  
+  5. Line ~1150: Email input inline styles: `style="flex:1; padding:8px 12px; border:1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs); font-size:13px; font-family:'Inter', sans-serif; background: var(--bento-card); color: var(--bento-text); outline:none;"`  
+- Verdict: Inline styles are used extensively for dynamic or one-off styling, especially in email HTML and dynamic elements. This is acceptable given the Shadow DOM pattern and dynamic content. No major issues, but email HTML inline styles are very long (necessary for email clients).
+
+---
+
+6. **FONT**  
+- Uses `'Inter', sans-serif` font family explicitly in `:host` (line ~245) and on `.tab-btn`, `.btn`, `.config-input`, and inputs.  
+- Email HTML uses `'Segoe UI', Arial, sans-serif` (line ~1310) for email content, appropriate for emails.  
+- No conflicting font declarations.  
+- Verdict: Consistent use of Inter font for UI, inherits from HA theme variables for colors, good practice.
+
+---
+
+7. **CONSISTENCY**  
+- Buttons: `.btn`, `.btn-primary`, `.btn-ok` classes used consistently with Bento tokens for background, border, color, hover states.  
+- Cards: `.card`, `.schedule-card`, `.smtp-section`, `.preview-box` all use Bento tokens for background, border, radius, padding.  
+- Tables: `.preview-table`, email HTML tables use consistent padding, border-collapse, font sizes.  
+- Badges: `.badge`, `.badge-ok`, `.badge-er`, `.badge-wa`, `.badge-pr` use consistent background and text colors from Bento tokens.  
+- Toggles: `.toggle-switch` uses consistent styling with Bento tokens and smooth transitions.  
+- Overall, UI elements follow Bento design system and are visually consistent across tabs and sections.  
+- Verdict: UI styling is consistent throughout the file.
+
+---
+
+8. **ACCESSIBILITY**  
+- Color contrast:  
+  - Bento tokens use standard HA theme colors, which generally have good contrast.  
+  - Hardcoded colors for stat values (#F59E0B, #3B82F6, #10B981) have good contrast on white background.  
+  - Inline styles for email HTML colors are standard and readable.  
+- Aria labels:  
+  - Buttons have no explicit `aria-label` except for price save/cancel buttons (line ~860) which have `aria-label="Save"` and `aria-label="Cancel"`.  
+  - Other buttons rely on visible text or emoji icons, which may be insufficient for screen readers.  
+  - Tabs buttons have no `role="tab"` or `aria-selected` attributes; no keyboard navigation support visible.  
+  - Inputs have associated labels in config editor and schedule tab, good.  
+- Missing:  
+  - No explicit aria roles or labels on tabs for accessibility.  
+  - Buttons with only emoji icons (e.g. tab buttons) may be unclear for screen readers.  
+- Verdict: Minor accessibility issues due to missing ARIA roles/labels on tabs and some buttons; color contrast is acceptable.
+
+---
+
+**SUMMARY:**  
+1. CARD VS CONTAINER: OK (uses `.card` only)  
+2. BENTO TOKENS: OK (mostly tokens, hardcoded colors acceptable in email HTML)  
+3. DARK MODE: OK (prefers-color-scheme with Bento tokens)  
+4. RESPONSIVE: OK (768px and 480px breakpoints, no overflow)  
+5. INLINE STYLES: OK (extensive but justified, especially for email HTML)  
+6. FONT: OK (Inter font used consistently)  
+7. CONSISTENCY: OK (UI elements styled consistently)  
+8. ACCESSIBILITY: Minor issues (missing ARIA roles/labels on tabs and some buttons)  
+
+**Overall:** 7/8 OK, 1 minor issue (accessibility ARIA roles/labels missing on tabs and some buttons).

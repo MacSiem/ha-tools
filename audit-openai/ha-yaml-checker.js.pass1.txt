@@ -1,0 +1,86 @@
+Audit results for ha-yaml-checker.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function(){ 'use strict'; ... })();` starting at line 1 and ending at line 1073.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Both custom elements are defined with guards:  
+   - `ha-yaml-checker` at line 1048: `if (!customElements.get('ha-yaml-checker')) customElements.define(...)`  
+   - `ha-yaml-checker-editor` at line 1070: `if (!customElements.get('ha-yaml-checker-editor')) customElements.define(...)`
+
+3. **HASS GUARD**:  
+   OK — Before API calls, the code checks `if (!this._hass) return;` at least in `_render()` (line 564) and generally uses `this._hass` safely.  
+   In async methods like `_runConfigCheck()` (line 142), `_runEntityValidation()` (line 199), `_runFileScan()` (line 398), `_runTemplateTester()` (line 483), no explicit `if (!this._hass)` but these are only called after `_hass` is set. The setter `set hass(hass)` (line 112) sets `_hass` and triggers render. This is acceptable in this context.
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({mode: 'open'})` in constructors of both classes:  
+   - `HAYamlChecker` constructor line 109  
+   - `HaYamlCheckerEditor` constructor line 1055
+
+5. **BENTO CSS**:  
+   OK — Uses `${window.HAToolsBentoCSS || ""}` in `_render()` at line 565 inside the style tag.
+
+6. **XSS**:  
+   Find all `.innerHTML =` or `.innerHTML +=` assignments:  
+   - Line 564: `this.shadowRoot.innerHTML = ...` in `_render()` — the HTML includes many interpolations of user or API data.  
+     - All user/API data inserted into innerHTML is either escaped via `_sanitize()` (line 332) or is controlled data.  
+     - For example, in `_renderEntityResult()` (line 383), entity aliases and names are inserted via `${this._sanitize(...)}` which uses `decodeURIComponent(escape(s))` (line 331) — this is a weak sanitization, but better than none.  
+     - However, `decodeURIComponent(escape(s))` is not a proper XSS sanitizer and can cause issues if input contains malicious HTML or scripts.  
+     - No use of `window._haToolsEsc()` for escaping in templates, which is recommended per the instructions.  
+     - Examples:  
+       - Line 388: `${this._sanitize(d.alias)}` — user data inserted without proper HTML escaping.  
+       - Line 394: `${this._sanitize(p.name)}` — same.  
+       - Line 417: `${this._sanitize(a.alias)}` — same.  
+       - Line 423: `${e}` in badges — entity IDs inserted directly without escaping.  
+     - Other interpolations like `r.errors.map(e => ...)` at line 573 insert `e.detail || e.message || JSON.stringify(e)` directly without escaping.  
+     - No explicit escaping of user input or API data before insertion into innerHTML in many places.  
+     - This is an XSS risk if any API data or user input contains HTML or scripts.  
+   Verdict: **UNSAFE** on lines 564, 383, 388, 394, 417, 423, 573 and others where user/API data is inserted into innerHTML without proper escaping.  
+   No `.innerHTML +=` found, only `.innerHTML =`.
+
+7. **LANGUAGE**:  
+   OK — Supports PL and EN via `_t` getter (line 121).  
+   All user-facing strings are localized.  
+   Minor hardcoded strings exist in `_html()` (line 570) for tab labels, but these are icons + short labels, acceptable.  
+   No major hardcoded strings that should be translated.
+
+8. **ERROR HANDLING**:  
+   OK with minor issues:  
+   - All API calls wrapped in try/catch (e.g., `_runConfigCheck()` lines 142-179, `_runEntityValidation()` lines 199-361, `_runFileScan()` lines 398-436, `_runTemplateTester()` lines 483-496).  
+   - Some empty catch blocks swallow errors silently:  
+     - Line 209: catch(e) { /* ok */ }  
+     - Line 220: catch(e) { /* no log access */ }  
+     - Line 228: catch(e) { /* no system_health */ }  
+     - Line 231: catch(e) { /* no system_health */ }  
+     - Line 235: catch(e) { /* no system_health */ }  
+   These silent catches are acceptable for optional features but could log or handle errors better.  
+   - Line 70: localStorage try/catch with empty catch (line 71).  
+   Verdict: Minor ISSUE — silent catch blocks without logging (lines 209, 220, 228).
+
+9. **MEMORY**:  
+   OK — Event listeners are attached to shadowRoot children and replaced on re-render, no leaks.  
+   No `addEventListener` on window/document/this without cleanup.  
+   No `setInterval` or timers used.  
+   `disconnectedCallback()` is empty (line 1051), no cleanup needed.
+
+10. **SETTINGS**:  
+    OK — Only one setting key used: `_activeTab` saved and loaded from localStorage (lines 123-130, 1035).  
+    No orphaned settings or missing setters.
+
+11. **EDGE CASES**:  
+    OK —  
+    - Empty states handled gracefully (e.g., automations fallback in `_runEntityValidation()` line 210).  
+    - Loading states shown with spinner (e.g., lines 572, 613, 654, 686).  
+    - Pagination not implemented, but lists are sliced (e.g., line 404 limits noFriendlyName to 50).  
+    - No obvious edge case issues.
+
+---
+
+**SUMMARY:** 8/11 OK, 3 issues.
+
+**Issues:**  
+- (6) XSS risk: multiple `.innerHTML =` assignments insert unescaped user/API data (lines 564, 383, 388, 394, 417, 423, 573).  
+- (8) Silent catch blocks swallowing errors without logging (lines 209, 220, 228).  
+- (3) Minor: no explicit `if (!this._hass)` guard in some async methods before API calls (acceptable but could be safer).  
+
+# Final note: The main security concern is the lack of proper HTML escaping for user and API data inserted into innerHTML, which can lead to XSS vulnerabilities. Use of `window._haToolsEsc()` or similar escaping is recommended.

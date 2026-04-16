@@ -1,0 +1,83 @@
+{
+  "file": "ha-log-email.js",
+  "size_kb": 52.5,
+  "lines": 1037,
+  "has_iife": true,
+  "iife_closes": false,
+  "custom_element": "ha-log-email",
+  "has_ce_guard": true,
+  "class_name": "HALogEmail",
+  "has_shadow_dom": true,
+  "has_bento_css": true,
+  "has_hass_guard": true,
+  "uses_xss_escape": false,
+  "innerHTML_count": 2,
+  "xss_escape_calls": 0,
+  "has_pl": true,
+  "has_en": true,
+  "translation_keys_sample": [],
+  "tabs": [
+    "send",
+    "preview",
+    "overview",
+    "schedule",
+    "history"
+  ],
+  "ws_calls": [
+    "system_log/list"
+  ],
+  "service_calls": [
+    "automation",
+    "ha_tools_email",
+    "persistent_notification"
+  ],
+  "fetch_urls": [],
+  "get_settings": [],
+  "set_settings": [],
+  "localStorage_keys": [
+    "ha-tools-",
+    "ha-tools-log-polling"
+  ],
+  "uses_persistence": true,
+  "has_card_class": true,
+  "has_container_class": false,
+  "has_dark_mode": true,
+  "has_responsive": true,
+  "breakpoints": [
+    "480",
+    "768"
+  ],
+  "try_catch_count": 15,
+  "console_error_count": 1,
+  "addEventListener_count": 9,
+  "removeEventListener_count": 0,
+  "has_disconnectedCallback": true,
+  "methods_sample": [
+    "constructor",
+    "super",
+    "if",
+    "_sanitize",
+    "setConfig",
+    "getCardSize",
+    "return",
+    "_startPolling",
+    "_stopPolling",
+    "clearInterval",
+    "_savePollingConfig",
+    "_getLogFromSensor",
+    "_hasHaToolsEmail",
+    "_renderSmtpSection",
+    "_getScheduleState",
+    "setTimeout",
+    "_buildEmailPreview",
+    "_render",
+    "state_attr",
+    "requestAnimationFrame",
+    "_injectDiscovery",
+    "_renderHistory",
+    "disconnectedCallback",
+    "setActiveTab",
+    "_dispatch",
+    "connectedCallback"
+  ]
+}

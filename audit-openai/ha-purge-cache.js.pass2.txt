@@ -1,0 +1,253 @@
+Audit of ha-purge-cache.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- Uses `.card` wrapper exclusively for main container (line ~320: `<div class="card">`).
+- No `.container` class usage found.
+- **Count:** `.card` = 1, `.container` = 0 (correct per Bento design system).
+
+---
+
+### 2. BENTO TOKENS
+
+- CSS extensively uses `--bento-*` CSS variables for colors, borders, backgrounds, shadows, radius, text colors, etc.
+- Hardcoded colors found only in a few places, mostly in inline styles or specific warnings:
+
+  - Inline style on warning div (line ~390):
+
+    ```css
+    background:rgba(245,158,11,0.08);
+    border:1px solid rgba(245,158,11,0.25);
+    border-radius:10px;
+    padding:12px 14px;
+    margin:8px 0;
+    font-size:12px;
+    line-height:1.6;
+    color:var(--bento-text,#1e293b)
+    ```
+
+    Here, `rgba(245,158,11,0.08)` and `rgba(245,158,11,0.25)` are hardcoded (amber/yellow warning color).
+
+  - `.action-btn.danger:hover` background uses `rgba(239, 68, 68, 0.04)` (line ~250).
+
+  - `.action-btn.danger` border-color uses `rgba(239, 68, 68, 0.3)` (line ~249).
+
+  - `.btn-sm.btn-danger` border-color uses `rgba(239, 68, 68, 0.3)` (line ~306).
+
+  - `.key-row:hover` background uses `rgba(0,0,0,0.03)` (line ~299).
+
+  - Dark mode overrides use hardcoded rgba colors for backgrounds and text (lines ~360-370).
+
+- **Summary:** Mostly uses Bento tokens; a few hardcoded rgba colors for subtle backgrounds and borders, mostly for warnings and hover states.
+
+---
+
+### 3. DARK MODE
+
+- Has `@media (prefers-color-scheme: dark)` block starting line ~350.
+- Defines dark variants of Bento tokens:
+
+  ```css
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  ```
+
+- Also adjusts `.log-success`, `.log-error`, `.log-info`, `.btn-sm`, `.key-row:hover` colors for dark mode.
+- **Conclusion:** Dark mode is properly supported with Bento token overrides and some specific element color adjustments.
+
+---
+
+### 4. RESPONSIVE
+
+- Multiple `@media` breakpoints present:
+
+  - `@media (max-width: 768px)` (lines ~280, ~390):
+
+    - `.cache-grid` switches to 1 column.
+    - `.card` padding reduced.
+    - `.stats-grid` reduces columns and gap.
+    - `.actions` flex-wrap and button sizing adjusted.
+    - `.tabs` scrollable.
+    - `.keys-section` overflow-x auto.
+    - `.warning-banner` and `.tip-banner` font size and padding adjusted.
+
+  - `@media (max-width: 600px)` (line ~285):
+
+    - `.cache-grid` 1 column, gap 10px.
+    - `.stats-grid` 2 columns, gap 8px.
+    - `.stat-card` padding reduced.
+
+  - `@media (max-width: 480px)` (lines ~290, ~395):
+
+    - `.cache-grid` 1 column, gap 8px.
+    - `.stats-grid` 1 column, gap 8px.
+    - `.actions-grid` 1 column, gap 8px.
+    - `.action-btn` padding and font-size reduced.
+
+  - `@media (max-width: 360px)` (line ~295):
+
+    - `.stats-grid` 1 column, gap 6px.
+    - `.stat-card` padding reduced.
+    - `.action-btn` padding, font-size, gap reduced.
+    - `.action-icon` font-size smaller.
+
+- No obvious content overflow issues on mobile; scrollable areas (`#ls-keys`, `.keys-section`) have max heights and overflow-y auto.
+
+- **Conclusion:** Responsive design is well implemented with appropriate breakpoints and layout adjustments.
+
+---
+
+### 5. INLINE STYLES
+
+- Inline styles found in template literal at:
+
+  1. Warning div (line ~390):
+
+     ```html
+     <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:12px 14px;margin:8px 0;font-size:12px;line-height:1.6;color:var(--bento-text,#1e293b)">
+     ```
+
+     Lengthy inline style with 8 CSS properties.
+
+  2. Keys section header (line ~460):
+
+     ```html
+     <div class="keys-header" id="keys-toggle">
+     ```
+
+     No inline style here.
+
+  3. Editor input (line ~700):
+
+     ```html
+     <input type="text" id="cf_title" value="${this._config?.title || 'Purge Cache'}"
+       style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+     ```
+
+     Lengthy inline style with 8 CSS properties.
+
+- No other inline styles of comparable length found.
+
+- **Top 2 offenders:**
+
+  1. Line ~390: Warning div inline style (8 properties).
+
+  2. Line ~700: Editor input inline style (8 properties).
+
+- No other inline styles with multiple properties.
+
+- **Count of inline styles:** 2 (both reasonable, localized, and justified).
+
+---
+
+### 6. FONT
+
+- Uses `'Inter', sans-serif` font family explicitly on `:host` (line ~230):
+
+  ```css
+  font-family: 'Inter', sans-serif;
+  ```
+
+- Comment at line ~220:
+
+  ```css
+  /* Inter font loaded by ha-tools-loader.js - no @import needed */
+  ```
+
+- Editor input uses inherited font colors and no font-family override.
+
+- No other fonts referenced.
+
+- **Conclusion:** Uses Inter font explicitly, consistent with HA Tools design.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons:
+
+  - `.action-btn` class used consistently for all main action buttons with consistent padding, border, font size, colors.
+
+  - Variants `.danger` and `.primary` used consistently with color and hover states.
+
+  - Small buttons `.btn-sm` used consistently for localStorage key delete buttons.
+
+- Cards:
+
+  - `.card` used for main container.
+
+  - `.stat-card` used consistently for stats boxes.
+
+- Lists:
+
+  - `.key-row` used consistently for localStorage keys list.
+
+- Log entries:
+
+  - `.log-entry` with modifiers `.log-success`, `.log-error`, `.log-info` used consistently.
+
+- Overall, styling is consistent across similar UI elements.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+
+  - Uses Bento tokens which are designed for good contrast.
+
+  - Warning banner uses amber background with text color `var(--bento-text,#1e293b)` which is dark enough on light background.
+
+  - Buttons have visible focus styles via border color changes on hover/focus (e.g., `.action-btn:hover`).
+
+- ARIA labels:
+
+  - The tip banner dismiss button has `aria-label="Dismiss"` (line ~420).
+
+  - LocalStorage key delete buttons have `title` attributes but no explicit aria-labels; however, `title` is acceptable fallback.
+
+  - Confirm dialog buttons have visible text labels.
+
+- Keyboard accessibility:
+
+  - Buttons are native `<button>` elements, so keyboard focus and activation are supported.
+
+- No obvious accessibility issues detected.
+
+---
+
+### SUMMARY
+
+| Point                 | Status       | Notes                                                                                   |
+|-----------------------|--------------|-----------------------------------------------------------------------------------------|
+| 1. CARD VS CONTAINER   | OK           | Uses `.card` wrapper correctly, no `.container` usage.                                  |
+| 2. BENTO TOKENS       | Minor issue  | Mostly uses Bento tokens; few hardcoded rgba colors for warnings and hover states.      |
+| 3. DARK MODE          | OK           | Proper dark mode support with Bento token overrides and element color adjustments.      |
+| 4. RESPONSIVE         | OK           | Multiple breakpoints (768px, 600px, 480px, 360px) with no overflow issues.              |
+| 5. INLINE STYLES      | OK           | Only 2 inline styles, both localized and reasonable.                                    |
+| 6. FONT               | OK           | Uses Inter font explicitly, consistent with HA theme.                                   |
+| 7. CONSISTENCY        | OK           | Consistent styling of buttons, cards, logs, lists.                                     |
+| 8. ACCESSIBILITY      | OK           | Good color contrast, aria-label on dismiss button, keyboard accessible buttons.         |
+
+**Overall: 7/8 OK, 1 minor issue (hardcoded colors in a few places).**
+
+---
+
+# Final note:
+
+The hardcoded rgba colors for warning backgrounds and hover states are minor and acceptable given their subtlety and semantic meaning. If desired, these could be replaced with additional Bento tokens for full tokenization.
+
+No memory leaks or event listener issues related to CSS or visual consistency were found.
+
+---
+
+**Audit complete.**

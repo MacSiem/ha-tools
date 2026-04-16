@@ -1,0 +1,74 @@
+Audit results for ha-baby-tracker.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function() { 'use strict'; ... })();` at line 1 and end at line ~1100.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Before defining `ha-baby-tracker` and `ha-baby-tracker-editor`, the code checks `customElements.get()` (lines 1033-1034 and 1107-1108).
+
+3. **HASS GUARD**:  
+   OK — In setter `set hass(hass)`, it checks `if (!hass) return;` at line 81.
+
+4. **SHADOW DOM**:  
+   OK — Uses `this.attachShadow({ mode: 'open' })` in constructor at line 70.
+
+5. **BENTO CSS**:  
+   OK — Uses `${window.HAToolsBentoCSS || ""}` in style template literal at line 117.
+
+6. **XSS (innerHTML usage and escaping)**:  
+   Found `.innerHTML =` or `.innerHTML +=` usage at:  
+   - Line 432: `_bsl.innerHTML = ...` (breastfeeding sessions list) — uses template literals with `_esc()` on all user data (sideLabel, mins, secs). SAFE.  
+   - Line 488: `listContainer.innerHTML = ...` (feeding list) — uses `_esc()` on all user data (type, linkedId, amount, notes). SAFE.  
+   - Line 525: `listContainer.innerHTML = ...` (diapers list) — uses `_esc()` on all user data (type, notes). SAFE.  
+   - Line 565: `listContainer.innerHTML = ...` (sleep list) — no user input inserted except numbers and dates, no direct user input, no escaping needed. SAFE.  
+   - Line 597: `listContainer.innerHTML = ...` (growth list) — uses no user input except type and value, no escaping but values are numbers or fixed strings. SAFE.  
+   - Line 695: `listEl.innerHTML = ...` (lactation entries) — uses `_esc()` on all user data (typeLabels, sideLabels, notes, linkedId). SAFE.  
+   - Line 748: `_renderSentenceCheckboxes()` returns HTML string with no user input, only internal data. SAFE.  
+   - Line 773: `_generateSentencesYaml()` returns YAML string built from internal data only. SAFE.  
+   No `.innerHTML +=` found.  
+   **Verdict:** All innerHTML assignments properly escape or use safe data. No unsafe innerHTML usage found.
+
+7. **LANGUAGE**:  
+   OK — Supports PL and EN fully via `_t` getter (lines 13-64) and conditional rendering throughout.  
+   Minor hardcoded strings in some places (e.g., alert messages in `addFeeding()` line 361: `'Please fill in time and duration/amount'` not translated).  
+   Also in `addDiapers()` line 411: `'Please select a time'` not translated.  
+   Also in `addGrowth()` line 540: `'Please fill in value and date'` not translated.  
+   These should be translated or use `_t` strings.  
+   **Verdict:** Minor ISSUE: some hardcoded English alert strings not localized (lines 361, 411, 540).
+
+8. **ERROR HANDLING**:  
+   - No `callWS` or `callService` usage in this code.  
+   - `localStorage` access wrapped in try/catch with empty catch blocks (lines 7-14). This is acceptable for storage fallback.  
+   - `_saveData()` and `_loadData()` wrap JSON parse/stringify in try/catch and log warnings (lines 146-180). Good.  
+   - Other async calls (e.g., clipboard writeText) have `.catch()` handlers (line 1007).  
+   - No swallowed errors without logging except localStorage empty catches which are acceptable.  
+   **Verdict:** OK.
+
+9. **MEMORY**:  
+   - Event listeners are attached to shadowRoot children and replaced on render, no leak (line 1010+).  
+   - Intervals `_bfTimer`, `sleepTimer`, `_autoSaveTimer` are cleared in `disconnectedCallback()` (lines 1031-1035).  
+   - No event listeners on window/document without cleanup.  
+   **Verdict:** OK.
+
+10. **SETTINGS**:  
+    - No `_getSetting` or `_setSetting` methods or usage in this code.  
+    - Persistence is via localStorage keys directly.  
+    **Verdict:** OK (not applicable).
+
+11. **EDGE CASES**:  
+    - Empty states handled with empty-state divs and messages (e.g., feeding list line 488, diapers line 525, sleep line 565, growth line 597, lactation line 695).  
+    - Loading state: only a `loading` string in `_t` but no explicit loading UI shown. This is acceptable as data is local.  
+    - Pagination edge cases: `_renderPagination()` and `_paginateItems()` handle page bounds and disable buttons properly (lines 1020-1030).  
+    - Pagination listeners reset page and re-render (line 1032+).  
+    **Verdict:** OK.
+
+---
+
+**SUMMARY:** 9/11 OK, 2 issues.
+
+**Issues:**  
+- Line 361: Hardcoded alert string `'Please fill in time and duration/amount'` not localized.  
+- Line 411: Hardcoded alert string `'Please select a time'` not localized.  
+- Line 540: Hardcoded alert string `'Please fill in value and date'` not localized.
+
+(Note: These three are similar localization issues, counted as one category.)

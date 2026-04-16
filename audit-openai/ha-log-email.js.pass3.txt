@@ -1,0 +1,38 @@
+ISSUE: XSS Line 567 — User config title inserted into shadowRoot.innerHTML without escaping  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Use `window._haToolsEsc(this._config.title)` when inserting user config title into template literal at line 567.
+
+ISSUE: XSS Line 640 — Editor inputs (`this._config?.title`, `this._config?.email_recipient`) inserted into innerHTML without escaping  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape editor input values with `window._haToolsEsc()` before inserting into innerHTML at line 640.
+
+ISSUE: XSS Lines 324, 377 — Log messages and domains inserted into email body and preview HTML without escaping  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape all log message strings and domains with `window._haToolsEsc()` before inserting into email preview (line 377) and email body (line 324).
+
+ISSUE: XSS Line 292 — SMTP error messages inserted into innerHTML without escaping  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape error messages like `this._smtpStatus.error` with `window._haToolsEsc()` before inserting into innerHTML at line 292.
+
+ISSUE: XSS Line 560 — Send status error messages inserted without escaping  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Escape error strings included in `sendStatusHTML` before insertion at line 560.
+
+ISSUE: i18n Line 567 — Tab labels ('Overview', 'Schedule', etc.) hardcoded in English, not localized  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Localize tab labels using `_t` getter strings instead of hardcoded English at line 567.
+
+ISSUE: Error handling Lines 27, 130 — Empty catch blocks silently swallow errors without logging  
+VERDICT: REAL  
+SEVERITY: info  
+FIX: Add minimal logging (e.g. `console.warn`) or comments explaining silent ignore in catch blocks at lines 27 and 130.
+
+---
+
+TOTAL: 7 real issues (0 critical, 5 warning, 2 info), 0 false positives.

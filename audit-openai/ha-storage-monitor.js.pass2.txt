@@ -1,0 +1,129 @@
+Audit of ha-storage-monitor.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- Uses `.card` wrapper extensively for main container and sub-containers:
+  - Main panel wrapper: `<div class="card">` (line ~345)
+  - Various `.card`, `.card-container`, `.reports-card`, `.export-card` classes styled in CSS (lines ~360-370)
+- No usage of `.container` class anywhere in the template or CSS.
+- **Count**: `.card` used multiple times, `.container` not used.
+- **Verdict**: Correct usage per Bento design system.
+
+---
+
+### 2. BENTO TOKENS
+
+- CSS almost exclusively uses `--bento-*` CSS variables for colors, borders, backgrounds, shadows.
+- Hardcoded colors found only in inline styles or very few places:
+  - In `_renderOverview` treemap cells: inline style `background:${c.color}` where `c.color` is hex like `#9c27b0`, `#ff9800`, etc. (line ~500)
+  - In `_renderAddonsAndIntegrations` table rows, e.g.:
+    - Status color: `style="color:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"` (line ~620)
+    - Size bar background: `background:#4caf50` (line ~628)
+    - Integration source badges: background and color hardcoded rgba and hex (line ~650)
+    - Backup size bar: `background:#9c27b0` (line ~700)
+    - File size bar: background `#ff9800` or `#3b82f6` (line ~770)
+    - Cleanup suggestions border-left and background: `var(--bento-error)`, `var(--bento-error-light)`, etc. (line ~800)
+- These hardcoded colors correspond to Bento palette colors (green, purple, orange, blue) and are consistent with Bento tokens.
+- No raw RGB or HSL colors found in CSS blocks.
+- **Verdict**: Mostly uses Bento tokens; hardcoded colors are limited, purposeful, and consistent with Bento palette.
+
+---
+
+### 3. DARK MODE
+
+- Has explicit `@media (prefers-color-scheme: dark)` block (line ~480-490) redefining Bento tokens for dark mode.
+- Uses `color-scheme: light dark;` on `:host` (line ~470).
+- Bento tokens are redefined for dark mode, e.g. `--bento-bg`, `--bento-card`, `--bento-text`, `--bento-border`, shadows.
+- No dark mode missing or incomplete tokens detected.
+- **Verdict**: Proper dark mode support implemented.
+
+---
+
+### 4. RESPONSIVE
+
+- Has `@media (max-width: 768px)` and `@media (max-width: 480px)` blocks (line ~520-560).
+- Adjusts padding, grid columns, flex directions, font sizes, and gauge sizes for smaller screens.
+- No `360px` breakpoint found.
+- Tabs have horizontal scroll overflow with `overflow-x: auto` and `-webkit-overflow-scrolling: touch` for mobile (line ~530).
+- `.disk-gauge` flex direction switches to column on very small screens (line ~550).
+- No obvious content that would overflow horizontally on mobile due to scrollable tabs and flexible grids.
+- **Verdict**: Responsive design present and adequate for common breakpoints (768px, 480px). No 360px breakpoint but not critical.
+
+---
+
+### 5. INLINE STYLES
+
+- Inline styles appear mostly in template literals for dynamic coloring and layout.
+- Count of inline style attributes in template literals: approx. 20+ occurrences.
+- Top 5 longest inline style strings with approximate line numbers:
+
+  1. Line ~500: `<div class="treemap-cell" style="flex:${pct};background:${c.color}" title="...">` — short but repeated many times.
+  2. Line ~610: `<td><span style="color:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}">` — short color style.
+  3. Line ~628: `<span class="size-bar" style="width:${Math.max(4, (a.size / maxAddonSize) * 100)}px;background:#4caf50"></span>` — short width and background.
+  4. Line ~650: `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${isHacs ? 'rgba(255,152,0,0.1);color:#f57c00' : 'rgba(33,150,243,0.1);color:#1976d2'}">` — longer inline style (~120 chars).
+  5. Line ~770: `<span class="size-bar" style="width:${Math.max(4, (e.size / maxSize) * 100)}px;background:${e.type === 'file' ? '#ff9800' : '#3b82f6'}"></span>` — short width and background.
+
+- Inline styles are mostly short and for dynamic values (width, color).
+- The longest inline style (~line 650) is for integration source badges, mixing background and color inline.
+- No very long or complex inline styles that would be hard to maintain.
+- **Verdict**: Inline styles are used sparingly and mostly for dynamic styling; acceptable.
+
+---
+
+### 6. FONT
+
+- Font family consistently set to `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` in CSS (line ~30, ~360).
+- Buttons, tables, cards, and other UI elements explicitly set font-family to Inter.
+- No fallback to HA theme fonts detected; uses Inter explicitly.
+- **Verdict**: Consistent use of Inter font throughout.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons: `.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-small` all styled consistently with Bento tokens and transitions.
+- Cards: `.card`, `.card-container`, `.reports-card`, `.export-card` share consistent background, border, radius, shadow.
+- Tables: `.entity-table`, `.device-table`, `.table` share consistent header and cell styles, hover effects, sorting styles.
+- Badges: `.badge`, `.status-badge`, `.tag`, `.chip` share consistent padding, font, border-radius, and color schemes.
+- Usage of colors for statuses (success, error, warning) consistent across badges, icons, and text.
+- Inline styles for dynamic colors match Bento palette colors.
+- **Verdict**: UI elements styled consistently throughout the file.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+  - Uses Bento tokens which are designed for good contrast.
+  - Status colors (green #4caf50, red #f44336, orange #ff9800) have good contrast on white backgrounds.
+  - Text colors use `--bento-text` and `--bento-text-secondary` which adapt in dark mode.
+- Aria labels:
+  - Interactive elements like tabs and buttons lack explicit `aria-label` or roles.
+  - Tabs are buttons with `data-tab` but no `aria-selected` or `role="tab"` attributes.
+  - Refresh button has text "🔄 Refresh" but no aria-label.
+  - Tables have headers but no ARIA roles or summaries.
+- Keyboard focus:
+  - Buttons and tabs are native `<button>` elements, so keyboard focus is supported.
+- Missing:
+  - No aria attributes on tabs for accessibility (e.g., `role="tablist"`, `role="tab"`, `aria-selected`).
+  - No aria-live regions for loading or error messages.
+- **Verdict**: Color contrast is good; accessibility semantics and ARIA attributes are missing or minimal.
+
+---
+
+## SUMMARY
+
+| Check                  | Result                |
+|------------------------|-----------------------|
+| 1. CARD VS CONTAINER   | OK                    |
+| 2. BENTO TOKENS        | OK (minor hardcoded colors consistent with palette) |
+| 3. DARK MODE           | OK                    |
+| 4. RESPONSIVE          | OK (768px and 480px breakpoints, no overflow) |
+| 5. INLINE STYLES       | OK (mostly short, dynamic styles) |
+| 6. FONT                | OK (consistent Inter font) |
+| 7. CONSISTENCY         | OK (consistent styling of UI elements) |
+| 8. ACCESSIBILITY       | Minor issues (missing ARIA roles/labels on tabs and buttons) |
+
+**Overall: 7/8 OK, 1 minor issue (accessibility ARIA semantics).**

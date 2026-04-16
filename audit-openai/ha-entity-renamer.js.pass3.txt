@@ -1,0 +1,15 @@
+ISSUE: XSS Unsafe innerHTML assignments with unescaped user/API data at lines 249, 378, 426, 466, 480  
+VERDICT: REAL  
+SEVERITY: critical  
+FIX: Use `window._haToolsEsc()` or equivalent escaping on all user/API data interpolated into innerHTML to prevent XSS vulnerabilities.
+
+---
+
+ISSUE: ERROR HANDLING Empty catch blocks silently swallowing errors at lines 30, 35, 176, 195, 199, 232  
+VERDICT: REAL  
+SEVERITY: warning  
+FIX: Add logging or user-visible error reporting inside catch blocks to avoid silent failures and aid debugging.
+
+---
+
+TOTAL: 2 real issues (1 critical, 1 warning), 0 false positives.

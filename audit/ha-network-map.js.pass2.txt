@@ -1,0 +1,22 @@
+Here's the audit checklist based on the provided information and the CSS snippet:
+
+1.  **CARD VS CONTAINER:** Uses .card (correct) or .container (wrong)? Must use .card wrapper per Bento design system.
+    *   **Verdict:** Correct. The code utilizes the `.card` class as the primary wrapper.
+
+2.  **DARK MODE:** Does CSS reference `--bento-*` variables or `prefers-color-scheme`?
+    *   **Verdict:** Correct. The code includes a `@media (prefers-color-scheme: dark)` block that utilizes `--bento-*` variables to adjust styles for dark mode.
+
+3.  **RESPONSIVE:** Has `@media` breakpoints for 768px, 480px? What breakpoints exist: ['600']
+    *   **Verdict:** Partially Correct. While the code includes a `@media` query, the breakpoint is `600` which is not a standard breakpoint.  It should ideally use 768px (max-width) or 480px (min-width) for responsive design.
+
+4.  **BENTO TOKENS:** Does CSS use `--bento-*` variables or hardcoded colors?
+    *   **Verdict:** Correct. The code heavily relies on `--bento-*` variables for styling, aligning with the Bento design system.
+
+5.  **INLINE STYLES:** 16 inline styles found. Should minimize inline styles.
+    *   **Verdict:** Incorrect. The code has 16 inline styles. This is a significant issue and should be reduced.
+
+6.  **FONT:** Does it use Inter font or reference font-family correctly?
+    *   **Verdict:** Correct. The code explicitly sets `font-family: Inter, -apple-system, sans-serif;` which is a good practice.
+
+
+SUMMARY: 4/6 OK, 2 issues.

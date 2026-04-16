@@ -1,0 +1,203 @@
+Audit of ha-trace-viewer.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- Uses `.card` wrapper exclusively (correct per Bento design system).
+- No `.container` class usage found.
+
+Count:
+- `.card` usage: 1 (line ~560 in `_css()` method)
+- `.container` usage: 0
+
+**Verdict:** Correct usage of `.card` wrapper.
+
+---
+
+### 2. BENTO TOKENS
+
+- CSS extensively uses `--bento-*` CSS variables for colors, borders, backgrounds, shadows, radius, transitions.
+- Examples: `var(--bento-primary)`, `var(--bento-bg)`, `var(--bento-text-secondary)`, `var(--bento-border)`, etc.
+- Hardcoded colors found (list with line approx in `_css()`):
+
+  - `#3B82F6` (blue) used directly in SVG flow graph node colors (line ~460 in `_renderFlowGraph` method, but in CSS inside `_css()` no direct hex)
+  - In CSS, some hardcoded colors:
+
+    - `.tl-num` background color: `color: #fff;` (line ~700)
+    - `.tl-step.s-error` border-left-color: `var(--bento-error)` (no hardcoded)
+    - `.tl-err` background: `rgba(239, 68, 68, 0.08)` and color: `#DC2626` (line ~720)
+    - `.det-badge.s-success` background: `rgba(16, 185, 129, 0.1)` and color: `#059669` (line ~650)
+    - `.det-badge.s-error` background: `rgba(239, 68, 68, 0.1)` and color: `#DC2626` (line ~651)
+    - `.det-badge.s-aborted` background: `rgba(245, 158, 11, 0.1)` and color: `#B45309` (line ~652)
+    - `.det-badge.s-running` background: `rgba(59, 130, 246, 0.1)` and color: `var(--bento-primary)` (line ~653)
+    - `.spinner` border-top: `var(--bento-primary)` (line ~740)
+    - `.pag-btn:hover:not(:disabled)` background: `var(--bento-primary)` (line ~600)
+    - `.auto-item.sel` background: `rgba(59, 130, 246, 0.08)` and border-left: `3px solid var(--bento-primary)` (line ~580)
+    - `.auto-item.chk` background: `rgba(59, 130, 246, 0.06)` (line ~581)
+    - `.auto-item:hover` background: `rgba(59, 130, 246, 0.04)` (line ~579)
+    - `.tr-item.sel` background: `rgba(59, 130, 246, 0.08)` and border-left: `3px solid var(--bento-primary)` (line ~610)
+    - `.tr-item.chk` background: `rgba(59, 130, 246, 0.06)` (line ~611)
+    - `.tr-item:hover` background: `rgba(59, 130, 246, 0.04)` (line ~609)
+
+- These hardcoded colors are mostly semi-transparent blues or reds for highlights and error states.
+
+**Verdict:** Mostly uses Bento tokens, but some hardcoded colors (mostly blues and reds in rgba or hex) are present for highlights and error states.
+
+---
+
+### 3. DARK MODE
+
+- Has `@media (prefers-color-scheme: dark)` block (line ~800 in `_css()`).
+- Inside it, overrides Bento variables with dark variants:
+
+  ```
+  --bento-bg: var(--primary-background-color, #1a1a2e);
+  --bento-card: var(--card-background-color, #16213e);
+  --bento-text: var(--primary-text-color, #e2e8f0);
+  --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+  --bento-border: var(--divider-color, #334155);
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  ```
+
+- No direct dark mode hardcoded colors outside variables.
+
+**Verdict:** Proper dark mode support with Bento token overrides.
+
+---
+
+### 4. RESPONSIVE
+
+- Multiple `@media` breakpoints present:
+
+  - `@media (max-width: 1200px)` hides `.pan-right` panel (line ~770)
+  - `@media (max-width: 900px)` hides `.pan-left` panel and expands `.pan-center.expanded` (line ~773)
+  - `@media (max-width: 768px)` adjusts `.stats` grid, `.panels` flex direction to column, `.pan-left` to block with max-height 30vh and scroll, `.pan-center` and `.pan-right` widths and overflow (line ~776)
+  - `@media (max-width: 480px)` adjusts tabs gap and font sizes (line ~791)
+  - Also container queries for `.card.compact-*` classes to hide/show panels accordingly (line ~810)
+
+- No mention of 360px breakpoint.
+
+- Content overflow:
+
+  - `.det-flow` has `overflow-x: auto` for flow graph (line ~660)
+  - `.yaml-content` and `.json-content` have `overflow-x: auto` and max-height with vertical scroll (line ~730)
+  - `.list` has vertical scroll and hides horizontal overflow (line ~600)
+  - `.pan-left` on small screens has max-height and overflow-y auto (line ~779)
+
+- Overall, content is designed to avoid overflow on mobile with scrollbars and hiding side panels.
+
+**Verdict:** Responsive design with breakpoints at 1200px, 900px, 768px, 480px. No 360px breakpoint. Content uses scroll and hides panels to prevent overflow.
+
+---
+
+### 5. INLINE STYLES
+
+- Inline styles appear in template literals in `render()` method (line ~560+).
+
+- Counting `style="..."` occurrences in template literals:
+
+  Found inline styles in:
+
+  1. Line ~570: `<span class="trace-saved-badge" id="traceStorageInfo" title="..." style="font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--radius-xs);border:1px solid var(--bento-border);display:inline-flex;align-items:center;gap:4px">`
+     - Lengthy inline style with 7 properties.
+
+  2. Line ~571: `<span class="trace-settings-btn" id="goToSettingsBtn" title="..." style="font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--radius-xs);border:1px solid var(--bento-border);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:6px">`
+     - Even longer inline style with 8 properties.
+
+  3. Line ~830 (in `_renderDetail()`): `<div class="empty" style="height:auto;padding:24px">` (used twice)
+     - Short inline style with 2 properties.
+
+  4. Line ~890 (in `_renderDetail()`): `<div class="empty" style="height:auto;padding:24px">`
+     - Same as above.
+
+  5. Line ~1000 (in `_renderDetail()`): `<div class="json-bar" style="margin-bottom: 8px; display: flex; gap: 8px;">` (actually no inline style here, it's class only)
+
+- Top 5 worst offenders (longest inline styles) with approximate line numbers:
+
+  | Line | Inline style snippet (truncated) | Length (chars) |
+  |-------|---------------------------------|----------------|
+  | ~571 | `font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--radius-xs);border:1px solid var(--bento-border);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:6px` | ~150 |
+  | ~570 | `font-size:11px;color:var(--bento-text-secondary);padding:4px 8px;background:var(--bento-bg);border-radius:var(--radius-xs);border:1px solid var(--bento-border);display:inline-flex;align-items:center;gap:4px` | ~130 |
+  | ~830 | `height:auto;padding:24px` | ~20 |
+  | ~890 | `height:auto;padding:24px` | ~20 |
+
+- Only 4 inline styles found; no more than 5.
+
+**Verdict:** Few inline styles, mostly small and for badges/buttons. The two badges at lines ~570-571 have relatively long inline styles but mostly for layout and consistent appearance.
+
+---
+
+### 6. FONT
+
+- Uses `'Inter'` font family explicitly in `.card` and `.col-main` (line ~565).
+- Also used in buttons, lists, tabs, etc.
+- Fallbacks to system fonts: `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`.
+- No explicit override of HA theme fonts, but uses common system fonts plus Inter.
+- Consistent font usage across components.
+
+**Verdict:** Uses Inter font with good fallbacks, consistent with HA theme style.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons `.btn-s` have consistent padding, border, radius, font, and hover styles (line ~575).
+- Cards use `.card` with consistent border, radius, shadow (line ~560).
+- Lists `.list`, `.auto-item`, `.tr-item` have consistent padding, border, hover, selected, and checked styles (lines ~580-615).
+- Badges `.det-badge` have consistent background and color based on status (line ~645).
+- Tabs `.dtab` have consistent padding, font, border, and active styles (line ~670).
+- Pagination buttons `.pag-btn` consistent with `.btn-s` style (line ~600).
+- Scrollbars styled consistently.
+- Overall, similar UI elements share styles and tokens, no conflicting or inconsistent styles.
+
+**Verdict:** UI elements styled consistently throughout.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+
+  - Uses Bento tokens which are designed for good contrast.
+  - Some hardcoded colors like `#DC2626` (red) and `#059669` (green) have good contrast on white backgrounds.
+  - Backgrounds for badges and highlights use semi-transparent colors which may reduce contrast but are subtle.
+  - Text colors for primary and secondary text use Bento tokens linked to HA theme colors.
+
+- Aria labels:
+
+  - Pagination buttons have `aria-label` attributes (line ~590).
+  - Export button disabled state uses `disabled` attribute and opacity.
+  - Other buttons and interactive elements lack explicit aria-labels.
+  - Some interactive spans (checkboxes) use unicode characters but no aria roles or labels.
+  - The export dropdown button uses a button element with text and arrow, no aria-expanded or aria-haspopup attributes.
+  - The trace storage info badge and settings button have `title` attributes but no aria-labels.
+  - Tabs have no aria roles or aria-selected attributes.
+  - Overall, minimal accessibility attributes beyond basic titles and aria-labels on pagination buttons.
+
+**Verdict:** Color contrast generally good due to Bento tokens; accessibility could be improved with more aria attributes on interactive elements (dropdown, tabs, checkboxes).
+
+---
+
+## SUMMARY
+
+| Point                 | Status          | Notes                                      |
+|-----------------------|-----------------|--------------------------------------------|
+| 1. CARD VS CONTAINER   | OK              | Uses `.card` wrapper correctly             |
+| 2. BENTO TOKENS       | Minor issues    | Mostly tokens, some hardcoded colors (blues, reds) for highlights |
+| 3. DARK MODE          | OK              | Proper dark mode with Bento token overrides|
+| 4. RESPONSIVE         | OK              | Breakpoints at 1200, 900, 768, 480px; no overflow issues |
+| 5. INLINE STYLES      | OK              | Few inline styles, mostly small badges/buttons |
+| 6. FONT               | OK              | Uses Inter font consistently                |
+| 7. CONSISTENCY        | OK              | Consistent styling for buttons, cards, lists, badges |
+| 8. ACCESSIBILITY      | Minor issues    | Good color contrast; lacks aria attributes on some interactive elements |
+
+**Overall:** 6/8 OK, 2 minor issues (hardcoded colors, accessibility aria attributes).
+
+---
+
+# Final notes:
+
+- Hardcoded colors are limited and mostly for subtle highlights; consider replacing with Bento tokens for full theming consistency.
+- Accessibility can be improved by adding aria roles, aria-expanded, aria-selected, and proper labels on dropdowns, tabs, and checkboxes for screen readers.

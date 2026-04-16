@@ -1,0 +1,84 @@
+Audit results for ha-energy-insights.js:
+
+1. **IIFE WRAPPER**:  
+   OK — The entire code is wrapped in `(function() { 'use strict'; ... })();` starting at line 1.
+
+2. **CUSTOM ELEMENT GUARD**:  
+   OK — Both custom elements check `customElements.get()` before defining:  
+   - `ha-energy-insights` at line 495  
+   - `ha-energy-insights-editor` at line 561
+
+3. **HASS GUARD**:  
+   OK — The setter `set hass(hass)` checks `if (!hass) return;` at line 132 and `_fetchData()` checks `if (!this._hass || !this._hass.callWS) return;` at line 190.
+
+4. **SHADOW DOM**:  
+   OK — Both elements use `this.attachShadow({ mode: 'open' })`:  
+   - `HAEnergyInsights` constructor at line 23  
+   - `HaEnergyInsightsEditor` constructor at line 536
+
+5. **BENTO CSS**:  
+   OK — Uses `${window.HAToolsBentoCSS || ""}` in `_getStyles()` at line 310.
+
+6. **XSS (innerHTML assignments and user data escaping)**:  
+   Found `.innerHTML =` or `.innerHTML +=` at:  
+   - Line 201: `this._updateLoadingState()` sets `.innerHTML = this._renderLoading()` — content is static localized string, safe.  
+   - Line 209: `this._updateContent()` sets `.innerHTML` to loading, error, or tab content.  
+     - Loading and error are static or localized strings, safe.  
+     - `_renderTabContent()` (line 217) returns HTML with some user data:  
+       - `_renderOverview()` (line 225) inserts device names and entity IDs:  
+         - Device names sanitized with `this._sanitize()` (line 188) which calls `decodeURIComponent(escape(s))` — this is a weak sanitization and does NOT prevent XSS.  
+         - Entity IDs used as `title="${dev.entity_id}"` (line 269) are NOT escaped. Entity IDs come from API, potentially attacker-controlled if a malicious integration or entity exists.  
+         - Values like `dev.kwh`, `dev.rawVal` are numeric, safe.  
+         - User input from config (title, currency) is inserted in `_renderHeader()` (line 300) and `_renderOverview()` (line 225) via `${this._t(...)}` or `${this._config.currency}` — config values are not escaped.  
+       - `_renderTips()` (line 283) uses localized strings only, safe.  
+       - `_renderTabBar()` (line 295) uses localized strings only, safe.  
+       - `_renderError()` (line 277) inserts `this._error` which is set from `err.message` or localized string (line 230). `err.message` is not escaped, potential XSS vector if error messages contain malicious content.  
+   Summary:  
+   - UNSAFE:  
+     - Line 269: entity_id used unescaped in HTML attribute `title`.  
+     - Line 266: device name sanitized with weak `_sanitize()`, insufficient for XSS prevention.  
+     - Line 277: error message inserted unescaped.  
+     - Line 300: config values (title, currency) inserted unescaped in header and overview.  
+   - SAFE: all other static or localized strings.
+
+7. **LANGUAGE**:  
+   OK — Supports PL and EN fully via `_translations` at line 33.  
+   No hardcoded user-visible strings outside translations except emoji icons and UI labels which are acceptable.
+
+8. **ERROR HANDLING**:  
+   OK with minor note:  
+   - All `callWS` calls wrapped in try/catch at line 190.  
+   - Empty catch blocks only in `_sanitize()` (line 183) and chart destroy calls (lines 152, 442) which are safe to ignore.  
+   - Chart.js script load error logs warning (line 177).  
+   No swallowed critical errors.
+
+9. **MEMORY**:  
+   OK — Event listeners are attached to shadow DOM children and replaced on render, no leaks.  
+   - No listeners on window/document without cleanup.  
+   - No setInterval used.  
+   - `disconnectedCallback()` cleans up charts (line 147).
+
+10. **SETTINGS**:  
+    OK — Uses localStorage keys consistently:  
+    - `ha-energy-insights-active-tab` used at line 136 and set at line 471.  
+    - Language from `ha-tools-language` at line 75.  
+    - No orphaned or missing settings methods.
+
+11. **EDGE CASES**:  
+    OK —  
+    - Empty sensor list handled at line 198 (`noSensors` flag).  
+    - Loading state shown at lines 201, 209, 277.  
+    - No pagination needed for data.  
+    - Defensive checks for missing data in rendering.
+
+---
+
+**SUMMARY:** 9/11 OK, 2 issues.
+
+**Issues:**  
+- Line 269: entity_id used unescaped in HTML attribute `title` — potential XSS.  
+- Line 266 & 183: device names sanitized with weak `_sanitize()` (decodeURIComponent(escape())) which does not prevent XSS injection in HTML context.  
+- Line 277: error message inserted unescaped — potential XSS if error messages contain malicious content.  
+- Line 300: config values (title, currency) inserted unescaped in header and overview — user config input not escaped, potential XSS.
+
+Note: The sanitizer `_sanitize()` is insufficient for HTML attribute or text context escaping. Proper escaping or use of textContent is recommended. Also, error messages and config values should be escaped before insertion into innerHTML.

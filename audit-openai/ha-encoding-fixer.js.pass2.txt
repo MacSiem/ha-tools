@@ -1,0 +1,203 @@
+Audit of ha-encoding-fixer.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- Uses `.card` wrapper exclusively (line ~856 in `_buildHTML()` returns `<div class="card">`).
+- No `.container` class usage found in CSS or templates.
+- **Count**: `.card` used 1 time; `.container` used 0 times.
+- **Verdict**: Correct per Bento design system.
+
+---
+
+### 2. BENTO TOKENS
+
+- CSS extensively uses `var(--bento-*)` variables for colors, borders, shadows, radius, text colors, backgrounds, etc.
+- **Hardcoded colors found:**
+
+  - `.header-icon` font-size uses `24px` (not color).
+  - `.header h2` font-size and weight hardcoded but no color.
+  - `.tab-btn:hover` background: `rgba(59,130,246,0.06)` (line ~900) — hardcoded rgba blue with opacity.
+  - `.test-found` background: `rgba(245,158,11,0.08)` (line ~1080) — hardcoded orange with opacity.
+  - `.test-ok` color: `var(--bento-success)` (no hardcoded).
+  - `.fix-progress-panel`, `.fix-done-panel` background: fallback `var(--bento-card, var(--bento-bg))` (good).
+  - `.fix-done-panel .stat-ok` color: `#10B981` (line ~1110) — hardcoded green.
+  - `.fix-done-panel .stat-fail` color: `#EF4444` (line ~1111) — hardcoded red.
+  - `.manual-fix` font-size: `16px` (not color).
+  - `.spinner-small` border colors: `var(--bento-border)` and `var(--bento-primary)` (good).
+  - `.patterns-summary::before` content and color uses `var(--bento-text-secondary)` (good).
+  - `.patterns-details[open] .patterns-summary::before` transform (no color).
+  - `.patterns-table thead` background: `var(--bento-bg)` (good).
+  - `.patterns-table th` color: `var(--bento-text-secondary)` (good).
+  - `.excluded-note` background: `var(--bento-primary-light)` (good).
+  - `.restore-warning` background: `rgba(239,68,68,0.1)` and color: `#ef4444` (line ~1170) — hardcoded red with opacity and hex.
+  - `.restore-live-warn` background: `rgba(245,158,11,0.1)` and color: `var(--bento-warning)` (mixed).
+  - `.file-picker-row:hover` background: `var(--bento-primary-light)` (good).
+  - `.file-picker-selected` background: `var(--bento-primary-light)` (good).
+  - `.step-num` background: `var(--bento-border)` and color: `var(--bento-text-secondary)` (good).
+  - `.restore-step.step-active .step-num` background: `var(--bento-primary)` and color: `#fff` (white hardcoded).
+  - `.toast-success` background: `var(--bento-success)` (good).
+  - `.toast-error` background: `var(--bento-error)` (good).
+  - `.toast-info` background: `var(--bento-primary)` (good).
+
+- **Summary of hardcoded colors:**
+
+  - `rgba(59,130,246,0.06)` (blue, tab hover)
+  - `rgba(245,158,11,0.08)` (orange, test-found background)
+  - `#10B981` (green, fix-done stat-ok)
+  - `#EF4444` (red, fix-done stat-fail)
+  - `rgba(239,68,68,0.1)` (red, restore-warning background)
+  - `#ef4444` (red, restore-warning text)
+  - `rgba(245,158,11,0.1)` (orange, restore-live-warn background)
+  - `#fff` (white, active step-num text)
+
+- These hardcoded colors are mostly semantic (success, error, warning) and consistent with Bento palette colors but not tokenized.
+
+---
+
+### 3. DARK MODE
+
+- The component CSS itself does **not** include a `prefers-color-scheme: dark` media query.
+- However, the editor subcomponent (`ha-encoding-fixer-editor`) includes a dark mode override (lines ~1300-1315):
+
+  ```css
+  @media (prefers-color-scheme: dark) {
+    :host {
+      --bento-bg: var(--primary-background-color, #1a1a2e);
+      --bento-card: var(--card-background-color, #16213e);
+      --bento-text: var(--primary-text-color, #e2e8f0);
+      --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+      --bento-border: var(--divider-color, #334155);
+      --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+      --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    }
+  }
+  ```
+
+- The main panel relies on Bento CSS variables, which are expected to be defined by HA theme and Bento design system, which handle dark mode.
+- No explicit dark mode styles in main component CSS.
+- **Verdict:** Dark mode support is delegated to Bento tokens and HA theme; editor has explicit dark mode overrides.
+
+---
+
+### 4. RESPONSIVE
+
+- Media queries present at:
+
+  - `@media (max-width: 768px)` (line ~1200)
+  - `@media (max-width: 480px)` (line ~1215)
+
+- Adjustments include:
+
+  - `.card` padding reduced.
+  - `.result-row` flex-wrap enabled.
+  - `.result-entity` width 100% on small screens.
+  - `.results-actions` width 100% and flex-direction column on smallest screens.
+  - `.tab-btn` font size and padding reduced.
+  - `.result-original` and `.result-fixed` max-width reduced.
+  - `.log-detail` max-width reduced.
+  - `.log-target` and `.lovelace-url` width 100% on smallest screens.
+
+- No `360px` breakpoint found.
+- Content uses flex-wrap and max-width constraints to avoid overflow.
+- No obvious horizontal scroll or overflow issues on mobile.
+- **Verdict:** Responsive design well implemented for 768px and 480px breakpoints; no 360px breakpoint but likely acceptable.
+
+---
+
+### 5. INLINE STYLES
+
+- Inline `style="..."` attributes found in template literals:
+
+  - Line ~868: `<div class="progress-fill" style="width:${pct}%"></div>` — dynamic width style for progress bar.
+  - Line ~1030: `<div class="yaml-list" style="margin-top:12px">${rows}</div>` — margin-top inline style.
+  - Line ~1100: `<p class="section-desc" style="margin-top:8px">${...}</p>` — margin-top inline style.
+  - Line ~1140: `<div class="scan-header" style="margin-top:12px">...</div>` — margin-top inline style.
+  - Line ~1150: `<div class="scan-header" style="margin-top:12px">...</div>` — margin-top inline style.
+
+- Top 5 longest inline styles (by character count):
+
+  1. Line ~868: `style="width:${pct}%"` — short but dynamic.
+  2. Line ~1030: `style="margin-top:12px"` — 18 chars.
+  3. Line ~1100: `style="margin-top:8px"` — 17 chars.
+  4. Line ~1140: `style="margin-top:12px"` — 18 chars.
+  5. Line ~1150: `style="margin-top:12px"` — 18 chars.
+
+- All inline styles are short, simple margin or width styles, mostly dynamic width for progress bar.
+- No long or complex inline styles.
+- **Verdict:** Inline styles minimal and acceptable.
+
+---
+
+### 6. FONT
+
+- No explicit font-family set on `.card` or main container.
+- Monospace font used explicitly in code blocks and monospace fields (e.g., `.result-original`, `.result-fixed`, `.yaml-file`, `.log-target`) with `font-family: monospace;` or `'Courier New', monospace`.
+- No reference to Inter font or any external font import.
+- Relies on HA theme and Bento CSS for base font inheritance.
+- Editor uses monospace for code blocks and inputs inherit HA theme fonts.
+- **Verdict:** Font usage consistent with HA theme; monospace used appropriately for code/text fields.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons use `.btn` base class with modifiers `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-sm`.
+- Buttons have consistent padding, font size, border-radius, and hover states.
+- Cards use `.card` with consistent padding, border, radius, shadow.
+- Tables (patterns table) use `.patterns-table` with consistent border-collapse, padding, font size.
+- Badges and status indicators use consistent colors and classes (e.g., `.row-status.ok`, `.row-status.err`).
+- Progress bars use `.progress-bar` and `.progress-fill` consistently.
+- Lists and rows use flexbox with consistent gap and alignment.
+- Color usage for success, error, warning consistent across different UI parts.
+- Toast messages use `.toast` with consistent positioning and color coding.
+- **Verdict:** UI elements styled consistently throughout the file.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+
+  - Uses Bento tokens which are designed for accessibility.
+  - Hardcoded colors for error and success (e.g., #EF4444, #10B981) have good contrast on white backgrounds.
+  - Background overlays with low opacity (e.g., rgba(239,68,68,0.1)) may have low contrast but used as subtle backgrounds.
+- Aria labels:
+
+  - No explicit `aria-label` or roles found on interactive elements (buttons, checkboxes).
+  - Buttons have visible text labels, which is good.
+  - Checkboxes have labels wrapping inputs (`<label class="result-check"><input ... /></label>`) which is good for accessibility.
+  - Tabs are buttons with text, but no ARIA roles or `aria-selected` attributes for tab semantics.
+  - No keyboard focus styles explicitly defined, but buttons have cursor pointer and hover styles.
+- Missing:
+
+  - ARIA roles for tabs and tab panels.
+  - `aria-pressed` or `aria-selected` on tab buttons.
+  - Toasts lack `role="alert"` or similar for screen readers.
+- **Verdict:** Basic accessibility present (labels on inputs, visible text on buttons), but ARIA roles and attributes for tabs and live regions (toast) missing.
+
+---
+
+## SUMMARY
+
+| Check                 | Result                 | Notes                                  |
+|-----------------------|------------------------|----------------------------------------|
+| 1. Card vs Container   | OK                     | Uses `.card` only                      |
+| 2. Bento Tokens        | Minor issues           | Few hardcoded colors (mostly semantic)|
+| 3. Dark Mode           | OK                     | Editor has dark mode; main relies on tokens |
+| 4. Responsive         | OK                     | Breakpoints at 768px, 480px; no overflow |
+| 5. Inline Styles       | OK                     | Minimal, short inline styles           |
+| 6. Font                | OK                     | Uses HA theme fonts; monospace where needed |
+| 7. Consistency         | OK                     | Consistent styling of UI elements      |
+| 8. Accessibility       | Minor issues           | Missing ARIA roles/attributes on tabs and toast |
+
+**Overall:** 6/8 OK, 2 minor issues (hardcoded colors, accessibility ARIA roles).
+
+---
+
+# Final notes:
+
+- Hardcoded colors could be replaced with Bento tokens for full theming consistency.
+- Accessibility can be improved by adding ARIA roles for tabs (`role="tablist"`, `role="tab"`, `aria-selected`), and `role="alert"` on toast for screen reader announcements.
+- No major CSS or visual consistency issues found.

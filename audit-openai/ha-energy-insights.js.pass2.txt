@@ -1,0 +1,160 @@
+Audit of ha-energy-insights.js CSS and visual consistency:
+
+---
+
+### 1. CARD VS CONTAINER
+
+- The main wrapper uses `.panel-root` (line ~230), not `.card` or `.container`.
+- Inside, `.panel-header`, `.panel-body`, `.tabs`, `.stat-card`, `.tip-card`, `.chart-container` etc. are used.
+- No `.card` or `.container` class wrappers found.
+- However, `.stat-card` and `.tip-card` are styled as cards with `background: var(--bento-card)` and border-radius.
+- Bento design system expects `.card` as a standard card wrapper; `.container` is discouraged.
+- **Count:**
+  - `.card` wrappers: 0 (no `.card` class)
+  - `.container` wrappers: 0
+  - Uses `.stat-card` and `.tip-card` as card-like elements instead.
+- **Verdict:** No `.card` or `.container` classes used, but `.stat-card` and `.tip-card` serve as cards. This is consistent within the component but diverges from Bento naming conventions.
+
+---
+
+### 2. BENTO TOKENS
+
+- CSS uses many `--bento-*` CSS variables extensively (lines ~240-320).
+- Hardcoded colors found:
+  - `.tab-btn:hover` background: `var(--bento-primary-light)` (good)
+  - `.tab-btn:hover` color: `var(--bento-primary)` (good)
+  - `.tab-btn.active` border-bottom-color: `var(--bento-primary)` (good)
+  - `.trend-neutral` color: `#9e9e9e` (line ~300)
+  - `.trend-neutral` background: `rgba(158,158,158,.15)` (line ~300)
+  - `.refresh-btn:hover` background: `var(--bento-primary-light)` (good)
+  - `.refresh-btn:hover` color: `var(--bento-primary)` (good)
+  - `button:hover` background: `#2563EB` (line ~320)
+  - `.panel-root` box-shadow uses rgba with hardcoded values but mostly transparent blacks (line ~260)
+  - `.spinner` border colors use `var(--bento-border)` and `var(--bento-primary)` (good)
+- **Hardcoded colors summary:**
+  - `#9e9e9e` (trend-neutral text)
+  - `rgba(158,158,158,.15)` (trend-neutral background)
+  - `#2563EB` (button hover background)
+- These are minor and mostly neutral or primary blue fallback.
+- **Verdict:** Mostly uses Bento tokens; 3 minor hardcoded colors found.
+
+---
+
+### 3. DARK MODE
+
+- Has `@media (prefers-color-scheme: dark)` block (lines ~270-280).
+- Inside, overrides several `--bento-*` variables for dark mode.
+- Uses `var(--bento-*)` variables throughout, so dark mode colors apply automatically.
+- No explicit dark mode styles outside variables.
+- **Verdict:** Proper dark mode support via Bento tokens and prefers-color-scheme media query.
+
+---
+
+### 4. RESPONSIVE
+
+- Has `@media` breakpoints at:
+  - max-width: 768px (line ~350)
+  - max-width: 480px (line ~360)
+  - max-width: 360px (line ~370)
+- Responsive adjustments include:
+  - Padding reduction
+  - Tabs flex-wrap and font size reduction
+  - Device list horizontal scroll on small screens
+  - Chart canvas max-height reduction
+  - Stats grid switches to single column at 360px
+- No obvious content overflow issues:
+  - `.device-list` uses `overflow-x: auto` on small screens to prevent overflow.
+  - Tabs have horizontal scroll and wrap.
+- **Verdict:** Responsive design well implemented with appropriate breakpoints and overflow handling.
+
+---
+
+### 5. INLINE STYLES
+
+- Inline styles appear mostly in template literals for editor and device rows.
+- Found inline styles with `style="..."`:
+
+| Line (approx) | Inline style snippet (length)                          | Context                      |
+|---------------|-------------------------------------------------------|------------------------------|
+| ~570          | `style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;"` (long) | Editor input fields           |
+| ~580          | Same as above for currency input                       | Editor input fields           |
+| ~490          | `style="width:${pct}%"`                                | Device bar width inline style |
+| ~495          | `title="${dev.entity_id}"` (not style but attribute)  | Device name tooltip           |
+| ~490          | `style="width:100%;padding:8px 12px;...` (repeat)     | Editor inputs                 |
+
+- Top 5 worst offenders (longest inline styles):
+
+1. Line ~570: Editor input style (length ~150 chars)
+2. Line ~580: Editor input style (same as above)
+3. Line ~490: Device bar width (dynamic width %)
+4. No other significant inline styles found.
+
+- **Count:** 3 inline style usages, 2 are long editor input styles, 1 dynamic width for device bar.
+
+---
+
+### 6. FONT
+
+- Uses `'Inter', sans-serif` font family explicitly on `:host` (line ~250).
+- Buttons and tab buttons also specify `'Inter', sans-serif`.
+- No fallback to HA theme font variables.
+- **Verdict:** Explicitly uses Inter font consistently.
+
+---
+
+### 7. CONSISTENCY
+
+- Buttons (`.tab-btn`, `button`, `.refresh-btn`) share consistent font, border-radius, transitions.
+- Cards (`.stat-card`, `.tip-card`, `.chart-container`) share background, border, border-radius, box-shadow styles consistent with Bento tokens.
+- Badges (`.trend-badge`) use consistent border-radius, font-size, and color schemes.
+- Device list rows have consistent padding, hover background, and flex layout.
+- No tables present.
+- **Verdict:** UI elements styled consistently throughout.
+
+---
+
+### 8. ACCESSIBILITY
+
+- Color contrast:
+  - Uses Bento tokens linked to HA theme colors, which generally have good contrast.
+  - Hardcoded `#9e9e9e` for trend-neutral badge text might be borderline but acceptable.
+- Interactive elements:
+  - Buttons have visible focus styles via color and background changes on hover.
+  - No explicit `aria-label` attributes on tab buttons or refresh button.
+  - Tab buttons have text labels, which is good.
+  - No roles or aria attributes on tabs or tablist container.
+- Missing:
+  - `role="tablist"` on `.tabs` container
+  - `role="tab"` and `aria-selected` on `.tab-btn` buttons
+  - Keyboard navigation support not evident (no keydown handlers)
+- **Verdict:** Minor accessibility issues due to missing ARIA roles and attributes on tabs; color contrast generally good.
+
+---
+
+## SUMMARY
+
+| Checkpoint          | Status           | Notes                                                                                  |
+|---------------------|------------------|----------------------------------------------------------------------------------------|
+| 1. Card vs Container | Partial          | Uses `.stat-card` and `.tip-card` as cards, no `.card` or `.container` classes.        |
+| 2. Bento Tokens     | Mostly OK        | Uses Bento tokens; 3 minor hardcoded colors (#9e9e9e, rgba(158,158,158,.15), #2563EB).  |
+| 3. Dark Mode        | OK               | Proper prefers-color-scheme dark mode with Bento tokens.                               |
+| 4. Responsive       | OK               | Responsive breakpoints at 768, 480, 360px; no overflow issues.                         |
+| 5. Inline Styles    | Minor issue      | 3 inline styles, 2 long editor input styles, 1 dynamic width for device bar.           |
+| 6. Font             | OK               | Consistent use of Inter font.                                                          |
+| 7. Consistency      | OK               | Consistent styling of buttons, cards, badges, device rows.                             |
+| 8. Accessibility    | Minor issues     | Missing ARIA roles/attributes on tabs; color contrast generally OK.                    |
+
+**Overall: 6/8 OK, 2 minor issues (card class usage, accessibility ARIA roles).**
+
+---
+
+# Final notes:
+
+- Consider adding `.card` class or renaming `.stat-card` to `.card` for Bento consistency.
+- Add ARIA roles and attributes for tabs for better accessibility.
+- Inline styles in editor inputs could be moved to CSS for maintainability.
+- Hardcoded colors are minor and mostly acceptable fallback colors.
+
+---
+
+Audit complete.

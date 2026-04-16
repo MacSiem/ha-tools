@@ -1,0 +1,201 @@
+Audit of ha-network-map.js CSS and visual consistency:
+
+---
+
+1. **CARD VS CONTAINER**
+
+- The component uses a `.card` wrapper consistently for the main container (see `_doRender()` lines ~520-535: `'<div class="card">' + ... + '</div>'`).
+- No usage of `.container` class found anywhere in the code.
+- **Count**: `.card` used 1 time; `.container` used 0 times.
+- **Verdict**: Correct per Bento design system.
+
+---
+
+2. **BENTO TOKENS**
+
+- The CSS in `_css()` method (lines ~900-1030) uses many `--bento-*` CSS variables for colors, borders, backgrounds, text, radius, shadows.
+- Hardcoded colors found:
+  - Green: `#10B981` (used for reachable device dot and topology node fill) (lines ~675, ~720)
+  - Red: `#EF4444` (unreachable device dot) (line ~675)
+  - Gray: `#94A3B8` (unknown device dot and unreachable topology nodes) (lines ~675, ~720)
+  - White: `#fff` (button hover text color) (line ~1000)
+  - Blue-ish rgba: `rgba(59,130,246,.08)` and `rgba(59,130,246,.04)` and `rgba(59,130,246,.05)` (tab hover, tree-group-header hover, tree-item hover) (lines ~980, ~1010, ~1020)
+  - Blackish rgba: `rgba(0,0,0,.3)` for scan overlay background (line ~560)
+- These hardcoded colors are used sparingly and mostly for semantic colors (green/red/gray) or subtle hover backgrounds.
+- No hardcoded hex colors for main backgrounds or text; those use Bento tokens.
+- **List of hardcoded colors:**
+  - `#10B981` (green)
+  - `#EF4444` (red)
+  - `#94A3B8` (gray)
+  - `#fff` (white)
+  - `rgba(59,130,246,.08)`
+  - `rgba(59,130,246,.04)`
+  - `rgba(59,130,246,.05)`
+  - `rgba(0,0,0,.3)`
+- **Verdict**: Mostly good use of Bento tokens; hardcoded colors are limited and appropriate for semantic meaning.
+
+---
+
+3. **DARK MODE**
+
+- There is a `@media (prefers-color-scheme: dark)` block inside the CSS string (line ~910-915):
+  ```
+  @media (prefers-color-scheme: dark) { :host { --bento-bg: var(--primary-background-color, #1a1a2e); --bento-card: var(--card-background-color, #16213e); --bento-text: var(--primary-text-color, #e2e8f0); --bento-text-secondary: var(--secondary-text-color, #94a3b8); --bento-border: var(--divider-color, #334155); --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3); } }
+  ```
+- This overrides Bento tokens for dark mode, using HA theme variables with fallbacks.
+- The rest of the CSS uses these tokens, so dark mode colors adapt accordingly.
+- **Verdict**: Proper dark mode support via Bento tokens and prefers-color-scheme media query.
+
+---
+
+4. **RESPONSIVE**
+
+- There is a single `@media (max-width: 600px)` breakpoint (line ~1020-1035).
+- Adjustments at this breakpoint:
+  - `.stats-bar` grid changes to 2 columns.
+  - `.stat-mini .sv` font size reduced.
+  - Table min-width reduced to 400px.
+  - Hides columns 4 (IP), 5 (MAC), and 7 (HA Entity) in the table.
+  - Tab button padding and font size reduced.
+  - Card header font size reduced.
+  - Toolbar flex direction changes to column.
+  - Search input min-width removed.
+- No other breakpoints like 768px, 480px, or 360px.
+- The table has horizontal scroll enabled (`.tw { overflow-x: auto; }` line ~980), so content should not overflow on mobile.
+- The topology SVG has fixed width 800px and height 400px (line ~700), but is styled with `width:100%; height:400px;` so it scales horizontally.
+- **Verdict**: Responsive design present with a 600px breakpoint; horizontal scrolling used for wide tables; no obvious overflow issues on mobile.
+
+---
+
+5. **INLINE STYLES**
+
+- Inline styles appear mainly in template literals for dynamic elements.
+- Counting `style="` occurrences in the template literals:
+
+  1. Scan overlay div (line ~555):
+     ```
+     <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;z-index:1000;border-radius:var(--bento-radius-md)">
+     ```
+     (Length ~140 chars)
+
+  2. Inner scan overlay box (line ~557):
+     ```
+     <div style="background:var(--bento-card);padding:32px;border-radius:var(--bento-radius-md);text-align:center">
+     ```
+     (Length ~70 chars)
+
+  3. Scan progress bar container (line ~560):
+     ```
+     <div style="width:200px;height:4px;background:var(--bento-border);border-radius:2px;margin-bottom:8px;overflow:hidden">
+     ```
+     (Length ~80 chars)
+
+  4. Scan progress bar fill (line ~561):
+     ```
+     <div style="width:' + prog + '%;height:100%;background:var(--bento-primary);transition:width .3s"></div>
+     ```
+     (Length ~70 chars)
+
+  5. Scan progress text (line ~563):
+     ```
+     <div style="font-size:12px;color:var(--bento-text-secondary)">
+     ```
+     (Length ~40 chars)
+
+  6. Default subnet label span (line ~740):
+     ```
+     <span style="font-size:10px;color:var(--bento-text-muted)">(...)
+     ```
+     (Length ~50 chars)
+
+  7. Remove subnet button (line ~741):
+     ```
+     <button class="rb" style="float:right;font-size:11px" data-remove-subnet="...">✕</button>
+     ```
+     (Length ~40 chars)
+
+  8. Suggested bindings buttons (line ~780):
+     ```
+     <button class="rb" style="font-size:11px" data-accept-suggestion="...">✓</button>
+     <button class="rb" style="font-size:11px" data-reject-suggestion="...">✕</button>
+     ```
+     (Each ~40 chars)
+
+  9. Current bindings entity ID span (line ~795):
+     ```
+     <span style="color:var(--bento-text-secondary);flex:1">...</span>
+     ```
+     (Length ~50 chars)
+
+- **Top 5 longest inline styles:**
+
+  1. Scan overlay container div (line ~555) - ~140 chars
+  2. Scan progress bar container (line ~560) - ~80 chars
+  3. Scan overlay inner box (line ~557) - ~70 chars
+  4. Scan progress bar fill (line ~561) - ~70 chars
+  5. Default subnet label span (line ~740) - ~50 chars
+
+- **Verdict**: Inline styles are mostly used for layout and dynamic styles in overlay and small UI parts. While not ideal, they are limited and justified for dynamic styling (e.g., progress bar width). No egregious inline style bloat.
+
+---
+
+6. **FONT**
+
+- The CSS sets font-family explicitly in `:host` selector (line ~905):
+  ```
+  font-family: Inter, -apple-system, sans-serif;
+  ```
+- This matches Home Assistant's default font stack (Inter is the HA default font).
+- No other font references or overrides.
+- **Verdict**: Proper font usage consistent with HA theme.
+
+---
+
+7. **CONSISTENCY**
+
+- Buttons use `.rb` class consistently with same base styles and hover effects (lines ~1010-1025).
+- Cards use `.card` class with consistent background, border, radius, shadow.
+- Tables use consistent styling with `.tw` wrapper and standard table styles.
+- Badges/status dots use color-coded spans with consistent colors (#10B981 green, #EF4444 red, #94A3B8 gray).
+- Toolbar inputs and selects use `.si` and `.fs` classes with consistent padding, border, radius.
+- Tree views use `.tree-group`, `.tree-item` with consistent padding, borders, hover.
+- Overall, UI elements are styled consistently throughout the file.
+- **Verdict**: Good visual consistency across UI elements.
+
+---
+
+8. **ACCESSIBILITY**
+
+- Color contrast:
+  - Text colors use Bento tokens which adapt to light/dark modes.
+  - Status dots use green/red/gray colors with sufficient contrast on white/dark backgrounds.
+  - Buttons have color changes on hover with background and text color changes.
+- Missing aria labels:
+  - Buttons like rescan, bind, remove, accept/reject suggestions have no aria-label attributes.
+  - Tabs are buttons with text labels, no aria roles or aria-selected attributes.
+  - The close button for device detail (`.dc`) has no aria-label or role.
+  - The tree toggles (`.tree-toggle`) are spans with no role or aria-expanded attributes.
+- Keyboard accessibility:
+  - Buttons are native `<button>` elements, so keyboard focus is supported.
+  - No explicit focus styles beyond color changes.
+- Screen reader:
+  - No aria-live regions for dynamic content updates (e.g., scan progress).
+  - No aria attributes on tabs or tab panels.
+- **Verdict**: Basic accessibility is present due to semantic elements, but lacks ARIA roles/labels for better screen reader support and some color contrast checks could be verified but likely OK due to Bento tokens.
+
+---
+
+### SUMMARY:
+
+| Point                 | Status           | Notes                                                      |
+|-----------------------|------------------|------------------------------------------------------------|
+| 1. CARD VS CONTAINER   | OK               | Uses `.card` wrapper correctly, no `.container`            |
+| 2. BENTO TOKENS       | OK with minor    | Mostly Bento tokens; some hardcoded semantic colors used    |
+| 3. DARK MODE          | OK               | Has prefers-color-scheme dark mode with Bento tokens       |
+| 4. RESPONSIVE         | OK               | Single 600px breakpoint; horizontal scroll for tables      |
+| 5. INLINE STYLES      | OK               | Limited inline styles mainly for overlay and dynamic parts |
+| 6. FONT               | OK               | Uses Inter font consistent with HA theme                    |
+| 7. CONSISTENCY        | OK               | Consistent styling of buttons, cards, tables, badges       |
+| 8. ACCESSIBILITY      | Minor issues     | Missing ARIA labels/roles on interactive elements; basic contrast likely OK |
+
+**Final: 6/8 OK, 2 minor issues (Bento tokens minor hardcoded colors, Accessibility ARIA missing).**
