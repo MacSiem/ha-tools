@@ -1,9 +1,3 @@
-(function() {
-'use strict';
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
 class HAAutomationAnalyzer extends HTMLElement {
   constructor() {
     super();
@@ -11,7 +5,6 @@ class HAAutomationAnalyzer extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this.config = {};
     this._hass = null;
-    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this.currentTab = "overview";
     this.automationStats = new Map();
     this.automationHistory = new Map();
@@ -37,9 +30,6 @@ class HAAutomationAnalyzer extends HTMLElement {
     this._sortBy = "lastTriggered";
     this._sortDir = "desc";
     this._timeRange = "all";
-    // Pagination for optimization tab
-    this._currentPage = {};
-    this._pageSize = 15;
   }
 
   setConfig(config) {
@@ -76,212 +66,6 @@ class HAAutomationAnalyzer extends HTMLElement {
   }
 
   get hass() { return this._hass; }
-
-  get _t() {
-    const T = {
-      pl: {
-        title: 'Analizator Automatyzacji',
-        loading: 'Wczytywanie...',
-        noData: 'Brak danych',
-        error: 'B\u0142\u0105d',
-        refresh: 'Od\u015Bwie\u017C',
-        automations: 'Automatyzacje',
-        enabled: 'Aktywne',
-        disabled: 'Nieaktywne',
-        total: 'Razem',
-        triggers: 'Wyzwalacze',
-        actions: 'Akcje',
-        conditions: 'Warunki',
-        lastTriggered: 'Ostatnie uruchomienie',
-        never: 'Nigdy',
-        errorCountRecent: 'b\u0142\u0105d(y) w ostatnich uruchomieniach',
-        justNow: 'przed chwil\u0105',
-        excellent: 'Doskona\u0142y',
-        good: 'Dobry',
-        needsImprovement: 'Wymaga poprawy',
-        noAutomationsMatching: 'Brak automatyzacji pasuj\u0105cych do filtr\u00f3w',
-        totalLabel: '\u0141\u0105cznie',
-        active: 'Aktywnych',
-        disabledLabel: 'Wy\u0142\u0105czonych',
-        errorsLabel: 'B\u0142\u0119d\u00f3w',
-        searchPlaceholder: 'Szukaj automatyzacji\u2026',
-        runsTodayOption: 'Uruchomienia dzi\u015B',
-        executionTime: 'Czas wykonania',
-        descendingAscending: 'Malej\u0105co/Rosn\u0105co',
-        allTime: 'Ca\u0142y czas',
-        today: 'Dzi\u015B',
-        mostActiveTodayTitle: 'Najaktywniejsze dzi\u015B',
-        executionTimeDistribution: 'Rozk\u0142ad czas\u00f3w wykonania',
-        noExecutionTimeData: 'Brak danych o czasach wykonania \u2014 zbyt ma\u0142o uruchomie\u0144 z pe\u0142nymi danymi',
-        noTriggerData: 'Brak danych o wyzwalaczach \u2014 konfiguracja automatyzacji niedost\u0119pna',
-        errorBadge: 'b\u0142\u0105d',
-        disabledBadge: 'wy\u0142\u0105czona',
-        enableButton: 'W\u0142\u0105cz',
-        noFailedAutomations: 'Brak nieudanych automatyzacji',
-        noDisabledAutomations: 'Brak wy\u0142\u0105czonych automatyzacji',
-        allRecent: 'Wszystkie automatyzacje by\u0142y ostatnio aktywne',
-        withErrors: 'Z b\u0142\u0119dami',
-        automationsWithErrors: 'Automatyzacje z b\u0142\u0119dami',
-        disabledAutomations: 'Wy\u0142\u0105czone automatyzacje',
-        tracesNotice: 'Domy\u015blnie HA przechowuje tylko <strong>5 ostatnich tras</strong> na automatyzacj\u0119. Trasy s\u0105 <strong>czyszczone po restarcie</strong> HA \u2014 po ponownym uruchomieniu wszystkie zapisane trace zostan\u0105 usuni\u0119te. Mo\u017cesz zwi\u0119kszy\u0107 limit w <a id="trace-viewer-link">Trace Viewer</a> (HA Tools \u2192 Ustawienia).',
-        tracesNoticeDetail: '\u2139\uFE0F Aby zachowa\u0107 wi\u0119cej danych o wykonaniach, ustaw stored_traces w konfiguracji HA lub u\u017cyj sekcji ustawie\u0144 w Trace Viewer.',
-        closeButton: 'Zamknij',
-        loadingData: '\u0141adowanie danych...',
-        fetchingTraces: 'Pobieranie tras wykonania...',
-        fetchingHistory: 'Pobieranie historii wykonania...',
-        never: 'nigdy',
-        minutesAgo: 'm temu',
-        minutesAgoEn: 'm ago',
-        hoursAgoSuffix: 'h temu',
-        hoursAgoSuffixEn: 'h ago',
-        daysAgoSuffix: 'd temu',
-        daysAgoSuffixEn: 'd ago',
-        secondsAgo: 's temu',
-        secondsAgoEn: 's ago',
-        todayCount: 'Dzisiejsze uruchomienia',
-        averageTime: '\u015Aredni czas',
-        todayRunsOption: 'Uruchomienia dzi\u015B',
-        todayRunsOptionEn: 'Runs today',
-        noFailedLabel: '\u2705 Brak nieudanych automatyzacji',
-        noDisabledLabel: '\u2705 Brak wy\u0142\u0105czonych automatyzacji',
-        noStaleLabel: '\u2705 Wszystkie automatyzacje by\u0142y ostatnio aktywne',
-        sevenDays: '7 dni',
-        fourteenDays: '14 dni',
-        thirtyDays: '30 dni',
-        name: 'Nazwa',
-        state: 'Stan',
-        descending: 'Malejąco',
-        ascending: 'Rosnąco',
-        dailyExecutions: 'Dzienne wykonania (14 dni)',
-        statistics: 'Statystyki',
-        avgTimeLabel: '\u015Ar. czas',
-        withTimeData: 'Z danymi o czasie',
-        triggerTypes: 'Typ\u00f3w wyzwalaczy',
-        noSlowAutomations: '\u2705 Brak wolnych automatyzacji',
-        noFailedAutomations2: '\u2705 Brak nieudanych automatyzacji',
-        slowAutomationsTitle: '\u26A0\uFE0F Wolne automatyzacje (&gt;800ms)',
-        failedAutomationsTitle: '\u274C Automatyzacje z b\u0142\u0119dami',
-        disabledAutomationsTitle: '\u23F8\uFE0F Wy\u0142\u0105czone automatyzacje',
-        inactiveAutomationsTitle: '\uD83D\uDCA4 Nieaktywne automatyzacje (&gt;30 dni)',
-        slowStat: 'Wolnych (&gt;800ms)',
-        withErrorsStat: 'Z b\u0142\u0119dami',
-        disabledStat: 'Wy\u0142\u0105czonych',
-        inactiveStat: 'Nieaktywnych (&gt;30d)',
-        lastUpdated: 'Ostatnia aktualizacja: ',
-        automations: 'automatyzacji',
-        tabOverview: 'Przegl\u0105d',
-        tabPerformance: 'Wydajno\u015B\u0107',
-        tabOptimization: 'Optymalizacja',
-        phaseLoadingAutomations: 'Wczytywanie automatyzacji...',
-        phaseLoadingMetadata: 'Pobieranie metadanych...',
-        phaseLoadingTraces: 'Pobieranie tras wykonania...',
-        phaseLoadingHistory: 'Pobieranie historii wykonania...',
-        systemHealth: 'Stan systemu automatyzacji',
-        triggerTypesTitle: 'Typy wyzwalaczy',
-      },
-      en: {
-        title: 'Automation Analyzer',
-        loading: 'Loading...',
-        noData: 'No data',
-        error: 'Error',
-        refresh: 'Refresh',
-        automations: 'Automations',
-        enabled: 'Enabled',
-        disabled: 'Disabled',
-        total: 'Total',
-        triggers: 'Triggers',
-        actions: 'Actions',
-        conditions: 'Conditions',
-        lastTriggered: 'Last triggered',
-        never: 'Never',
-        errorCountRecent: 'error(s) in recent runs',
-        justNow: 'just now',
-        excellent: 'Excellent',
-        good: 'Good',
-        needsImprovement: 'Needs improvement',
-        noAutomationsMatching: 'No automations matching filters',
-        totalLabel: 'Total',
-        active: 'Active',
-        disabledLabel: 'Disabled',
-        errorsLabel: 'Errors',
-        searchPlaceholder: 'Search automations\u2026',
-        runsTodayOption: 'Runs today',
-        executionTime: 'Execution time',
-        descendingAscending: 'Descending/Ascending',
-        allTime: 'All time',
-        today: 'Today',
-        mostActiveTodayTitle: 'Most active today',
-        executionTimeDistribution: 'Execution time distribution',
-        noExecutionTimeData: 'No execution time data \u2014 too few runs with complete data',
-        noTriggerData: 'No trigger data \u2014 automation configuration unavailable',
-        errorBadge: 'error',
-        disabledBadge: 'disabled',
-        enableButton: 'Enable',
-        noFailedAutomations: 'No failed automations',
-        noDisabledAutomations: 'No disabled automations',
-        allRecent: 'All automations were recently active',
-        withErrors: 'With errors',
-        automationsWithErrors: 'Automations with errors',
-        disabledAutomations: 'Disabled automations',
-        tracesNotice: 'By default HA stores only the <strong>last 5 traces</strong> per automation. Traces are <strong>cleared on restart</strong> \u2014 after reboot all stored traces will be removed. You can increase the limit in <a id="trace-viewer-link">Trace Viewer</a> (HA Tools \u2192 Settings).',
-        tracesNoticeDetail: '\u2139\uFE0F To keep more execution data, set stored_traces in HA config or use the Settings section in Trace Viewer.',
-        closeButton: 'Close',
-        loadingData: 'Loading data...',
-        fetchingTraces: 'Fetching execution traces...',
-        fetchingHistory: 'Fetching execution history...',
-        never: 'never',
-        minutesAgo: 'm ago',
-        minutesAgoEn: 'm ago',
-        hoursAgoSuffix: 'h ago',
-        hoursAgoSuffixEn: 'h ago',
-        daysAgoSuffix: 'd ago',
-        daysAgoSuffixEn: 'd ago',
-        secondsAgo: 's ago',
-        secondsAgoEn: 's ago',
-        todayCount: 'Today\'s runs',
-        averageTime: 'Average time',
-        todayRunsOption: 'Runs today',
-        todayRunsOptionEn: 'Runs today',
-        noFailedLabel: '\u2705 No failed automations',
-        noDisabledLabel: '\u2705 No disabled automations',
-        noStaleLabel: '\u2705 All automations were recently active',
-        sevenDays: '7 days',
-        fourteenDays: '14 days',
-        thirtyDays: '30 days',
-        name: 'Name',
-        state: 'State',
-        descending: 'Descending',
-        ascending: 'Ascending',
-        dailyExecutions: 'Daily executions (14 days)',
-        statistics: 'Statistics',
-        avgTimeLabel: 'Avg. time',
-        withTimeData: 'With time data',
-        triggerTypes: 'Trigger types',
-        noSlowAutomations: '\u2705 No slow automations',
-        noFailedAutomations2: '\u2705 No failed automations',
-        slowAutomationsTitle: '\u26A0\uFE0F Slow automations (&gt;800ms)',
-        failedAutomationsTitle: '\u274C Automations with errors',
-        disabledAutomationsTitle: '\u23F8\uFE0F Disabled automations',
-        inactiveAutomationsTitle: '\uD83D\uDCA4 Inactive automations (&gt;30 days)',
-        slowStat: 'Slow (&gt;800ms)',
-        withErrorsStat: 'With errors',
-        disabledStat: 'Disabled',
-        inactiveStat: 'Inactive (&gt;30d)',
-        lastUpdated: 'Last updated: ',
-        automations: 'automations',
-        tabOverview: 'Overview',
-        tabPerformance: 'Performance',
-        tabOptimization: 'Optimization',
-        phaseLoadingAutomations: 'Loading automations...',
-        phaseLoadingMetadata: 'Fetching metadata...',
-        phaseLoadingTraces: 'Fetching execution traces...',
-        phaseLoadingHistory: 'Fetching execution history...',
-        systemHealth: 'Automation system health',
-        triggerTypesTitle: 'Trigger Types',
-      },
-    };
-    return T[this._lang] || T.en;
-  }
 
   _sanitize(s) { try { return decodeURIComponent(escape(s)); } catch(e) { return s; } }
 
@@ -580,7 +364,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       this.render();
 
       // --- Phase 2: Fetch automation configs (enriches trigger types) ---
-      this._loadingPhase = this._lang === 'pl' ? "Pobieranie konfiguracji automatyzacji..." : "Fetching automation configuration...";
+      this._loadingPhase = "Pobieranie konfiguracji automatyzacji...";
       this.render();
       const allConfigs = await this._getAllAutomationConfigs(automations);
       const configByEntityId = new Map();
@@ -624,7 +408,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       this.render();
 
       // --- Phase 2b: Fetch traces ---
-      this._loadingPhase = this._t.phaseLoadingTraces;
+      this._loadingPhase = "Pobieranie tras wykonania...";
       this.render();
       const enabled = automationMeta.filter(a => !a.isDisabled);
       const batchSize = 15;
@@ -649,7 +433,7 @@ class HAAutomationAnalyzer extends HTMLElement {
               existing.isFailed = true;
               this.failedAutomations.set(a.id, {
                 name: a.name, automationId: a.internalId,
-                reason: `${traceAnalysis.errorCount} ${this._t.errorCountRecent}`
+                reason: `${traceAnalysis.errorCount} b\u0142\u0105d(y) w ostatnich uruchomieniach`
               });
             }
           }
@@ -679,7 +463,7 @@ class HAAutomationAnalyzer extends HTMLElement {
               existing.isFailed = true;
               this.failedAutomations.set(id, {
                 name, automationId: internalId,
-                reason: `${traceAnalysis.errorCount} ${this._t.errorCountRecent}`
+                reason: `${traceAnalysis.errorCount} b\u0142\u0105d(y) w ostatnich uruchomieniach`
               });
             }
           }
@@ -688,7 +472,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       } // end else (fallback per-automation trace fetch)
 
       // --- Phase 3: Fetch history ---
-      this._loadingPhase = this._t.phaseLoadingHistory;
+      this._loadingPhase = "Pobieranie historii wykonania...";
       this.render();
       const recentActive = enabled
         .filter(a => a.lastTriggered)
@@ -815,32 +599,26 @@ class HAAutomationAnalyzer extends HTMLElement {
   }
 
   _formatLastUpdated() {
-    if (!this._lastUpdated) return this._t.never;
+    if (!this._lastUpdated) return "Nigdy";
     const diff = Date.now() - this._lastUpdated;
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(seconds / 60);
-    const suffix = this._lang === 'pl' ? this._t.secondsAgo : this._t.secondsAgoEn;
-    const minuteSuffix = this._lang === 'pl' ? this._t.minutesAgo : this._t.minutesAgoEn;
-    if (seconds < 60) return `${seconds}${suffix}`;
-    if (minutes < 60) return `${minutes}${minuteSuffix}`;
-    return this._lastUpdated.toLocaleTimeString(this._lang === 'pl' ? "pl-PL" : "en-US", { hour: "2-digit", minute: "2-digit" });
+    if (seconds < 60) return `${seconds}s temu`;
+    if (minutes < 60) return `${minutes}m temu`;
+    return this._lastUpdated.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
   }
 
   _formatTimeSince(date) {
-    if (!date) return this._t.never;
+    if (!date) return "nigdy";
     const diff = Date.now() - date.getTime();
     const mins = Math.floor(diff / 60000);
     const hours = Math.floor(mins / 60);
     const days = Math.floor(hours / 24);
-    const minuteSuffix = this._lang === 'pl' ? this._t.minutesAgo : this._t.minutesAgoEn;
-    const hourSuffix = this._lang === 'pl' ? this._t.hoursAgoSuffix : this._t.hoursAgoSuffixEn;
-    const daySuffix = this._lang === 'pl' ? this._t.daysAgoSuffix : this._t.daysAgoSuffixEn;
-    if (mins < 1) return this._t.justNow;
-    if (mins < 60) return `${mins}${minuteSuffix}`;
-    if (hours < 24) return `${hours}${hourSuffix}`;
-    if (days < 7) return `${days}${daySuffix}`;
-    const dateLocale = this._lang === 'pl' ? "pl-PL" : "en-US";
-    return date.toLocaleDateString(dateLocale, { day: "numeric", month: "short" });
+    if (mins < 1) return "przed chwil\u0105";
+    if (mins < 60) return `${mins}m temu`;
+    if (hours < 24) return `${hours}h temu`;
+    if (days < 7) return `${days}d temu`;
+    return date.toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
   }
 
   _navigateToAutomation(automationId) {
@@ -877,54 +655,25 @@ class HAAutomationAnalyzer extends HTMLElement {
   }
 
   render() {
-    if (!this._hass) return;
     const styles = `
-      
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
+      :host {
         display: block;
         --aa-font: var(--ha-font-family-body, var(--mdc-typography-body1-font-family, Roboto, Noto, sans-serif));
-        --aa-radius: var(--bento-radius-sm);
+        --aa-radius: var(--ha-card-border-radius, var(--ha-border-radius-sm, 8px));
         --aa-space-1: var(--ha-space-1, 4px);
         --aa-space-2: var(--ha-space-2, 8px);
         --aa-space-3: var(--ha-space-3, 12px);
         --aa-space-4: var(--ha-space-4, 16px);
         --aa-space-6: var(--ha-space-6, 24px);
-        --aa-border: var(--bento-border);
-        --aa-text: var(--bento-text);
-        --aa-text2: var(--bento-text-secondary);
-        --aa-bg: var(--bento-bg);
-        --aa-card: var(--bento-card);
-        --aa-primary: var(--bento-primary);
-        --aa-success: var(--bento-success);
-        --aa-warning: var(--bento-warning);
-        --aa-danger: var(--bento-error);
+        --aa-border: var(--ha-color-border, var(--divider-color, #e0e0e0));
+        --aa-text: var(--primary-text-color, #212121);
+        --aa-text2: var(--secondary-text-color, #64748b);
+        --aa-bg: var(--primary-background-color, #fafafa);
+        --aa-card: var(--card-background-color, #fff);
+        --aa-primary: var(--primary-color, #3B82F6);
+        --aa-success: var(--success-color, var(--label-badge-green, #10B981));
+        --aa-warning: var(--warning-color, var(--label-badge-yellow, #F59E0B));
+        --aa-danger: var(--error-color, var(--label-badge-red, #EF4444));
         --aa-info: var(--info-color, var(--accent-color, #3B82F6));
         --aa-anim: var(--ha-animation-duration-normal, 250ms);
       }
@@ -932,8 +681,8 @@ class HAAutomationAnalyzer extends HTMLElement {
       .card {
         padding: var(--aa-space-6);
         font-family: var(--aa-font);
-        background: var(--bento-bg);
-        color: var(--bento-text);
+        background: var(--aa-bg);
+        color: var(--aa-text);
         min-height: 200px;
       }
       .header {
@@ -949,11 +698,11 @@ class HAAutomationAnalyzer extends HTMLElement {
         font-size: 20px;
         font-weight: 600;
         margin-bottom: var(--aa-space-1);
-        color: var(--bento-text);
+        color: var(--aa-text);
       }
       .subtitle {
         font-size: 12px;
-        color: var(--bento-text-secondary);
+        color: var(--aa-text2);
         display: flex;
         gap: var(--aa-space-2);
         align-items: center;
@@ -968,7 +717,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       .tabs {
         display: flex;
         gap: var(--aa-space-2);
-        border-bottom: 2px solid var(--bento-border);
+        border-bottom: 2px solid var(--aa-border);
         margin-bottom: var(--aa-space-6);
         overflow-x: auto;
         flex-wrap: wrap;
@@ -978,36 +727,36 @@ class HAAutomationAnalyzer extends HTMLElement {
         border: none; background: none; cursor: pointer;
         font-size: 14px; font-weight: 500;
         font-family: var(--aa-font);
-        color: var(--bento-text-secondary);
+        color: var(--aa-text2);
         border-bottom: 2px solid transparent;
         transition: all var(--aa-anim);
         border-radius: 4px 4px 0 0;
         white-space: nowrap;
       }
       .tab-btn.active {
-        color: var(--bento-primary);
-        border-bottom-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 8%, transparent);
+        color: var(--aa-primary);
+        border-bottom-color: var(--aa-primary);
+        background: color-mix(in srgb, var(--aa-primary) 8%, transparent);
       }
       .tab-btn:hover {
-        color: var(--bento-text);
-        background: color-mix(in srgb, var(--bento-text) 4%, transparent);
+        color: var(--aa-text);
+        background: color-mix(in srgb, var(--aa-text) 4%, transparent);
       }
       .tab-content { display: none; }
       .tab-content.active { display: block; animation: fadeIn var(--aa-anim); }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .card {
-        background: var(--bento-card);
-        border-radius: var(--bento-radius-sm);
+        background: var(--aa-card);
+        border-radius: var(--aa-radius);
         padding: var(--aa-space-4);
-        border: 1px solid var(--bento-border);
+        border: 1px solid var(--aa-border);
         margin-bottom: var(--aa-space-4);
         box-shadow: 0 1px 3px rgba(0,0,0,0.06);
       }
       .card-title {
         font-size: 14px; font-weight: 600;
         margin-bottom: var(--aa-space-3);
-        color: var(--bento-text);
+        color: var(--aa-text);
       }
       .canvas-wrap { position: relative; height: 250px; margin-bottom: var(--aa-space-4); }
       canvas { width: 100% !important; }
@@ -1018,14 +767,14 @@ class HAAutomationAnalyzer extends HTMLElement {
         margin-top: var(--aa-space-4);
       }
       .stat {
-        background: var(--bento-card);
+        background: var(--aa-card);
         padding: var(--aa-space-3);
-        border-radius: var(--bento-radius-sm);
+        border-radius: var(--aa-radius);
         text-align: center;
-        border: 1px solid var(--bento-border);
+        border: 1px solid var(--aa-border);
       }
-      .stat-value { font-size: 22px; font-weight: 700; color: var(--bento-primary); }
-      .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+      .stat-value { font-size: 22px; font-weight: 700; color: var(--aa-primary); }
+      .stat-label { font-size: 11px; color: var(--aa-text2); margin-top: 2px; }
       .health-row {
         display: flex; align-items: center; gap: var(--aa-space-3);
         margin-bottom: var(--aa-space-4);
@@ -1035,30 +784,30 @@ class HAAutomationAnalyzer extends HTMLElement {
         display: flex; align-items: center; justify-content: center;
         font-weight: 700; font-size: 20px; color: white; flex-shrink: 0;
       }
-      .health-circle.excellent { background: var(--bento-success); }
-      .health-circle.good { background: var(--bento-warning); }
+      .health-circle.excellent { background: var(--aa-success); }
+      .health-circle.good { background: var(--aa-warning); }
       .health-circle.poor { background: var(--aa-danger); }
-      .health-label { font-size: 12px; color: var(--bento-text-secondary); }
+      .health-label { font-size: 12px; color: var(--aa-text2); }
       .auto-list { display: flex; flex-direction: column; gap: 6px; }
       .auto-item {
         display: flex; align-items: center; gap: var(--aa-space-2);
         padding: 10px var(--aa-space-4);
-        background: var(--bento-card);
-        border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm);
+        background: var(--aa-card);
+        border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius);
         cursor: pointer;
         transition: all var(--aa-anim);
       }
       .auto-item:hover {
-        border-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-card));
+        border-color: var(--aa-primary);
+        background: color-mix(in srgb, var(--aa-primary) 4%, var(--aa-card));
       }
       .auto-name {
-        font-size: 13px; font-weight: 500; color: var(--bento-text);
+        font-size: 13px; font-weight: 500; color: var(--aa-text);
         flex: 1; min-width: 0; overflow: hidden;
         text-overflow: ellipsis; white-space: nowrap;
       }
-      .auto-meta { font-size: 11px; color: var(--bento-text-secondary); white-space: nowrap; }
+      .auto-meta { font-size: 11px; color: var(--aa-text2); white-space: nowrap; }
       .badge {
         font-size: 11px; font-weight: 600;
         padding: 3px 8px; border-radius: 999px;
@@ -1069,14 +818,14 @@ class HAAutomationAnalyzer extends HTMLElement {
       .badge-info { background: #dbeafe; color: #1e40af; }
       .badge-ok { background: #d1fae5; color: #065f46; }
       .badge-stale { background: #f3e8ff; color: #6b21a8; }
-      .auto-arrow { color: var(--bento-text-secondary); font-size: 14px; }
+      .auto-arrow { color: var(--aa-text2); font-size: 14px; }
       .toggle-btn {
-        padding: 3px 10px; border-radius: 4px; border: 1px solid var(--bento-border);
-        background: var(--bento-card); color: var(--bento-primary);
+        padding: 3px 10px; border-radius: 4px; border: 1px solid var(--aa-border);
+        background: var(--aa-card); color: var(--aa-primary);
         font-size: 11px; font-weight: 500; cursor: pointer;
         transition: all var(--aa-anim); flex-shrink: 0;
       }
-      .toggle-btn:hover { background: var(--bento-primary); color: white; }
+      .toggle-btn:hover { background: var(--aa-primary); color: white; }
       .opt-summary {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -1085,7 +834,7 @@ class HAAutomationAnalyzer extends HTMLElement {
       }
       .opt-stat {
         padding: var(--aa-space-3);
-        border-radius: var(--bento-radius-sm);
+        border-radius: var(--aa-radius);
         text-align: center; border: 1px solid;
       }
       .opt-stat.warn { background: var(--aa-warn-bg, #fef3c7); border-color: var(--aa-warn-border, #fcd34d); }
@@ -1097,153 +846,123 @@ class HAAutomationAnalyzer extends HTMLElement {
       .opt-stat.error .opt-stat-value { color: var(--aa-error-text, #991b1b); }
       .opt-stat.info .opt-stat-value { color: var(--aa-info-text, #1e40af); }
       .opt-stat.stale .opt-stat-value { color: var(--aa-stale-text, #6b21a8); }
-      .opt-stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+      .opt-stat-label { font-size: 11px; color: var(--aa-text2); margin-top: 2px; }
       .opt-section { margin-bottom: var(--aa-space-6); }
       .opt-section .card-title { margin-bottom: var(--aa-space-3); }
       .empty-state {
         text-align: center; padding: var(--aa-space-6) var(--aa-space-4);
-        color: var(--bento-text-secondary); font-size: 13px;
-        background: var(--bento-card); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm);
+        color: var(--aa-text2); font-size: 13px;
+        background: var(--aa-card); border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius);
       }
       .loading-state {
         text-align: center; padding: var(--aa-space-6);
-        color: var(--bento-text-secondary);
+        color: var(--aa-text2);
       }
       .loading-state .loading-spinner {
         width: 24px; height: 24px;
         border-width: 3px; margin: 0 auto 12px;
-        border-color: rgba(0,0,0,0.1); border-top-color: var(--bento-primary);
+        border-color: rgba(0,0,0,0.1); border-top-color: var(--aa-primary);
       }
       .chart-empty {
         display: flex; align-items: center; justify-content: center;
-        height: 200px; color: var(--bento-text-secondary); font-size: 13px;
-        border: 1px dashed var(--bento-border); border-radius: var(--bento-radius-sm);
+        height: 200px; color: var(--aa-text2); font-size: 13px;
+        border: 1px dashed var(--aa-border); border-radius: var(--aa-radius);
       }
       .loading-toast {
         display: flex; align-items: center; gap: var(--aa-space-2);
         padding: var(--aa-space-2) var(--aa-space-4);
-        background: color-mix(in srgb, var(--bento-primary) 10%, var(--bento-card));
-        border: 1px solid color-mix(in srgb, var(--bento-primary) 30%, var(--bento-border));
-        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-3);
-        font-size: 12px; color: var(--bento-text-secondary); line-height: 1.4;
+        background: color-mix(in srgb, var(--aa-primary) 10%, var(--aa-card));
+        border: 1px solid color-mix(in srgb, var(--aa-primary) 30%, var(--aa-border));
+        border-radius: var(--aa-radius); margin-bottom: var(--aa-space-3);
+        font-size: 12px; color: var(--aa-text2); line-height: 1.4;
         animation: fadeIn var(--aa-anim);
       }
       .loading-toast .loading-spinner {
-        border-color: color-mix(in srgb, var(--bento-primary) 20%, transparent);
-        border-top-color: var(--bento-primary);
+        border-color: color-mix(in srgb, var(--aa-primary) 20%, transparent);
+        border-top-color: var(--aa-primary);
       }
       .trace-notice {
         display: flex; align-items: flex-start; gap: var(--aa-space-3);
         padding: var(--aa-space-3) var(--aa-space-4);
-        background: color-mix(in srgb, var(--bento-primary) 8%, var(--bento-card));
-        border: 1px solid color-mix(in srgb, var(--bento-primary) 25%, var(--bento-border));
-        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-4);
-        font-size: 13px; color: var(--bento-text); line-height: 1.5;
+        background: color-mix(in srgb, var(--aa-info) 8%, var(--aa-card));
+        border: 1px solid color-mix(in srgb, var(--aa-info) 25%, var(--aa-border));
+        border-radius: var(--aa-radius); margin-bottom: var(--aa-space-4);
+        font-size: 13px; color: var(--aa-text); line-height: 1.5;
       }
       .trace-notice-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
       .trace-notice a {
-        color: var(--bento-primary); text-decoration: underline;
+        color: var(--aa-primary); text-decoration: underline;
         cursor: pointer; font-weight: 500;
       }
       .trace-notice a:hover { opacity: 0.8; }
       .trace-notice-dismiss {
         margin-left: auto; background: none; border: none;
-        color: var(--bento-text-secondary); cursor: pointer; font-size: 16px;
+        color: var(--aa-text2); cursor: pointer; font-size: 16px;
         padding: 0 4px; line-height: 1; flex-shrink: 0;
       }
-      .trace-notice-dismiss:hover { color: var(--bento-text); }
+      .trace-notice-dismiss:hover { color: var(--aa-text); }
       .trace-notice-global {
         display: flex; align-items: flex-start; gap: var(--aa-space-3);
         padding: var(--aa-space-3) var(--aa-space-4);
-        background: color-mix(in srgb, var(--bento-primary) 8%, var(--bento-card));
-        border: 1px solid color-mix(in srgb, var(--bento-primary) 25%, var(--bento-border));
-        border-radius: var(--bento-radius-sm); margin-bottom: var(--aa-space-4);
-        font-size: 12px; color: var(--bento-text); line-height: 1.5;
+        background: color-mix(in srgb, var(--aa-info) 8%, var(--aa-card));
+        border: 1px solid color-mix(in srgb, var(--aa-info) 25%, var(--aa-border));
+        border-radius: var(--aa-radius); margin-bottom: var(--aa-space-4);
+        font-size: 12px; color: var(--aa-text); line-height: 1.5;
       }
       .trace-notice-global .trace-notice-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-      .trace-notice-global a { color: var(--bento-primary); text-decoration: underline; cursor: pointer; font-weight: 500; }
+      .trace-notice-global a { color: var(--aa-primary); text-decoration: underline; cursor: pointer; font-weight: 500; }
       .trace-notice-global a:hover { opacity: 0.8; }
-      .trace-notice-global .detail { color: var(--bento-text-secondary); font-size: 11px; margin-top: 2px; }
+      .trace-notice-global .detail { color: var(--aa-text2); font-size: 11px; margin-top: 2px; }
       .filter-bar {
         display: flex; flex-wrap: wrap; gap: var(--aa-space-2);
         margin-bottom: var(--aa-space-4); align-items: center;
       }
       .filter-bar input[type="text"] {
         flex: 1; min-width: 160px; padding: 7px 12px;
-        border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm);
-        background: var(--bento-card); color: var(--bento-text);
+        border: 1px solid var(--aa-border); border-radius: var(--aa-radius);
+        background: var(--aa-card); color: var(--aa-text);
         font-size: 13px; font-family: var(--aa-font);
         outline: none; transition: border-color var(--aa-anim);
       }
-      .filter-bar input[type="text"]:focus { border-color: var(--bento-primary); }
-      .filter-bar input[type="text"]::placeholder { color: var(--bento-text-secondary); }
+      .filter-bar input[type="text"]:focus { border-color: var(--aa-primary); }
+      .filter-bar input[type="text"]::placeholder { color: var(--aa-text2); }
       .filter-bar select {
-        padding: 7px 28px 7px 10px; border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm); background: var(--bento-card); color: var(--bento-text);
+        padding: 7px 28px 7px 10px; border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius); background: var(--aa-card); color: var(--aa-text);
         font-size: 12px; font-family: var(--aa-font); cursor: pointer;
         appearance: none; -webkit-appearance: none;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
         background-repeat: no-repeat; background-position: right 8px center;
       }
-      .filter-bar select:focus { border-color: var(--bento-primary); outline: none; }
+      .filter-bar select:focus { border-color: var(--aa-primary); outline: none; }
       .filter-bar .sort-dir-btn {
-        padding: 6px 8px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm);
-        background: var(--bento-card); color: var(--bento-text-secondary); cursor: pointer;
+        padding: 6px 8px; border: 1px solid var(--aa-border); border-radius: var(--aa-radius);
+        background: var(--aa-card); color: var(--aa-text2); cursor: pointer;
         font-size: 14px; line-height: 1; transition: all var(--aa-anim);
       }
-      .filter-bar .sort-dir-btn:hover { border-color: var(--bento-primary); color: var(--bento-primary); }
+      .filter-bar .sort-dir-btn:hover { border-color: var(--aa-primary); color: var(--aa-primary); }
       .auto-list-full { display: flex; flex-direction: column; gap: 4px; max-height: 460px; overflow-y: auto; }
       .auto-list-full::-webkit-scrollbar { width: 4px; }
-      .auto-list-full::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 4px; }
+      .auto-list-full::-webkit-scrollbar-thumb { background: var(--aa-border); border-radius: 4px; }
       .auto-item-full {
         display: flex; align-items: center; gap: var(--aa-space-2);
         padding: 8px var(--aa-space-3);
-        background: var(--bento-card); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm); cursor: pointer;
+        background: var(--aa-card); border: 1px solid var(--aa-border);
+        border-radius: var(--aa-radius); cursor: pointer;
         transition: all var(--aa-anim); font-size: 13px;
       }
       .auto-item-full:hover {
-        border-color: var(--bento-primary);
-        background: color-mix(in srgb, var(--bento-primary) 4%, var(--bento-card));
+        border-color: var(--aa-primary);
+        background: color-mix(in srgb, var(--aa-primary) 4%, var(--aa-card));
       }
-      .auto-item-full .auto-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--bento-text); }
-      .auto-item-full .auto-detail { font-size: 11px; color: var(--bento-text-secondary); white-space: nowrap; min-width: 50px; text-align: right; }
+      .auto-item-full .auto-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--aa-text); }
+      .auto-item-full .auto-detail { font-size: 11px; color: var(--aa-text2); white-space: nowrap; min-width: 50px; text-align: right; }
       .auto-item-full .auto-state-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-      .auto-item-full .auto-state-dot.on { background: var(--bento-success); }
-      .auto-item-full .auto-state-dot.off { background: var(--bento-text-secondary); opacity: 0.4; }
+      .auto-item-full .auto-state-dot.on { background: var(--aa-success); }
+      .auto-item-full .auto-state-dot.off { background: var(--aa-text2); opacity: 0.4; }
       .auto-item-full .auto-state-dot.error { background: var(--aa-danger); }
-      .filter-results-count { font-size: 11px; color: var(--bento-text-secondary); padding: 2px 0; }
-      /* === PAGINATION STYLES === */
-      .pagination {
-        display: flex; align-items: center; gap: 8px; margin-top: 12px;
-        padding: 12px; background: var(--bento-card); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm); flex-wrap: wrap;
-      }
-      .pagination-btn {
-        padding: 6px 12px; background: var(--bento-card); border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm); color: var(--bento-primary); font-size: 12px;
-        cursor: pointer; transition: all var(--aa-anim); font-weight: 500;
-      }
-      .pagination-btn:hover:not([disabled]) { background: var(--bento-primary); color: white; }
-      .pagination-btn[disabled] { opacity: 0.5; cursor: not-allowed; color: var(--bento-text-secondary); }
-      .pagination-info {
-        font-size: 12px; color: var(--bento-text-secondary); font-weight: 500;
-        min-width: 120px; text-align: center;
-      }
-      .page-size-select {
-        padding: 6px 28px 6px 8px; border: 1px solid var(--bento-border);
-        border-radius: var(--bento-radius-sm); background: var(--bento-card); color: var(--bento-text);
-        font-size: 12px; cursor: pointer; appearance: none; -webkit-appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: right 8px center;
-      }
-      .page-size-select:focus { border-color: var(--bento-primary); outline: none; }
-      /* === CHART RESPONSIVE FIX === */
-      .canvas-wrap {
-        position: relative; height: 250px; margin-bottom: var(--aa-space-4);
-        width: 100%; overflow: hidden;
-      }
+      .filter-results-count { font-size: 11px; color: var(--aa-text2); padding: 2px 0; }
     `;
 
     const totalActive = Array.from(this.automationStats.values()).filter(a => a.state === "on").length;
@@ -1258,7 +977,7 @@ class HAAutomationAnalyzer extends HTMLElement {
     };
     const healthScore = this._calculateHealthScore();
     const healthClass = healthScore >= 75 ? "excellent" : healthScore >= 50 ? "good" : "poor";
-    const healthText = healthScore >= 75 ? this._t.excellent : healthScore >= 50 ? this._t.good : this._t.needsImprovement;
+    const healthText = healthScore >= 75 ? "Doskona\u0142y" : healthScore >= 50 ? "Dobry" : "Wymaga poprawy";
 
     // --- OVERVIEW TAB ---
     // --- Filter and sort the full automation list ---
@@ -1312,64 +1031,64 @@ class HAAutomationAnalyzer extends HTMLElement {
             return `<div class="auto-item-full" data-automation-id="${a.automationId}">
               <span class="auto-state-dot ${stateClass}"></span>
               <span class="auto-name" title="${a.name}">${a.name}</span>
-              ${countStr ? `<span class="auto-detail" title="${this._t.todayCount}">${countStr}</span>` : ""}
-              ${execStr ? `<span class="auto-detail" title="${this._t.averageTime}">${execStr}</span>` : ""}
+              ${countStr ? `<span class="auto-detail" title="Dzisiejsze uruchomienia">${countStr}</span>` : ""}
+              ${execStr ? `<span class="auto-detail" title="\u015Aredni czas">${execStr}</span>` : ""}
               <span class="auto-detail">${timeStr}</span>
             </div>`;
           }).join("")
-        : `<div class="empty-state">${this._t.noAutomationsMatching}</div>`;
+        : `<div class="empty-state">Brak automatyzacji pasuj\u0105cych do filtr\u00f3w</div>`;
 
       activeTabContent = `
         <div class="health-row">
           <div class="health-circle ${healthClass}">${healthScore}</div>
           <div>
-            <div class="card-title">${this._t.systemHealth}</div>
+            <div class="card-title">Stan systemu automatyzacji</div>
             <div class="health-label">${healthText}</div>
           </div>
         </div>
         <div class="stats">
           <div class="stat">
             <div class="stat-value">${stats.total}</div>
-            <div class="stat-label">${this._t.totalLabel}</div>
+            <div class="stat-label">\u0141\u0105cznie</div>
           </div>
           <div class="stat">
             <div class="stat-value">${stats.active}</div>
-            <div class="stat-label">${this._t.active}</div>
+            <div class="stat-label">Aktywnych</div>
           </div>
           <div class="stat">
             <div class="stat-value">${stats.disabled}</div>
-            <div class="stat-label">${this._t.disabledLabel}</div>
+            <div class="stat-label">Wy\u0142\u0105czonych</div>
           </div>
           <div class="stat">
             <div class="stat-value">${stats.failed}</div>
-            <div class="stat-label">${this._t.errorsLabel}</div>
+            <div class="stat-label">B\u0142\u0119d\u00f3w</div>
           </div>
         </div>
         <div class="card" style="margin-top:var(--aa-space-4)">
-          <h2 class="card-title">${this._t.automations}</h2>
+          <h2 class="card-title">Automatyzacje</h2>
           <div class="filter-bar">
-            <input type="text" id="aa-filter-input" placeholder="${this._t.searchPlaceholder}" value="${this._filterText.replace(/"/g, "&quot;")}">
+            <input type="text" id="aa-filter-input" placeholder="Szukaj automatyzacji\u2026" value="${this._filterText.replace(/"/g, "&quot;")}">
             <select id="aa-sort-select">
-              <option value="lastTriggered" ${this._sortBy === "lastTriggered" ? "selected" : ""}>${this._t.lastTriggered}</option>
-              <option value="name" ${this._sortBy === "name" ? "selected" : ""}>${this._t.name}</option>
-              <option value="todayCount" ${this._sortBy === "todayCount" ? "selected" : ""}>${this._t.runsTodayOption}</option>
-              <option value="avgTime" ${this._sortBy === "avgTime" ? "selected" : ""}>${this._t.executionTime}</option>
-              <option value="state" ${this._sortBy === "state" ? "selected" : ""}>${this._t.state}</option>
+              <option value="lastTriggered" ${this._sortBy === "lastTriggered" ? "selected" : ""}>Ostatnie uruchomienie</option>
+              <option value="name" ${this._sortBy === "name" ? "selected" : ""}>Nazwa</option>
+              <option value="todayCount" ${this._sortBy === "todayCount" ? "selected" : ""}>Uruchomienia dzi\u015B</option>
+              <option value="avgTime" ${this._sortBy === "avgTime" ? "selected" : ""}>Czas wykonania</option>
+              <option value="state" ${this._sortBy === "state" ? "selected" : ""}>Stan</option>
             </select>
-            <button class="sort-dir-btn" id="aa-sort-dir" title="${this._sortDir === "desc" ? this._t.descending : this._t.ascending}">${this._sortDir === "desc" ? "\u2193" : "\u2191"}</button>
+            <button class="sort-dir-btn" id="aa-sort-dir" title="${this._sortDir === "desc" ? "Malej\u0105co" : "Rosn\u0105co"}">${this._sortDir === "desc" ? "\u2193" : "\u2191"}</button>
             <select id="aa-time-range">
-              <option value="all" ${this._timeRange === "all" ? "selected" : ""}>${this._t.allTime}</option>
-              <option value="1" ${this._timeRange === "1" ? "selected" : ""}>${this._t.today}</option>
-              <option value="7" ${this._timeRange === "7" ? "selected" : ""}>${this._t.sevenDays}</option>
-              <option value="14" ${this._timeRange === "14" ? "selected" : ""}>${this._t.fourteenDays}</option>
-              <option value="30" ${this._timeRange === "30" ? "selected" : ""}>${this._t.thirtyDays}</option>
+              <option value="all" ${this._timeRange === "all" ? "selected" : ""}>Ca\u0142y czas</option>
+              <option value="1" ${this._timeRange === "1" ? "selected" : ""}>Dzi\u015B</option>
+              <option value="7" ${this._timeRange === "7" ? "selected" : ""}>7 dni</option>
+              <option value="14" ${this._timeRange === "14" ? "selected" : ""}>14 dni</option>
+              <option value="30" ${this._timeRange === "30" ? "selected" : ""}>30 dni</option>
             </select>
           </div>
-          <div class="filter-results-count">${filteredAutos.length} ${this._lang === 'pl' ? 'z' : 'of'} ${allAutos.length} ${this._t.automations}</div>
+          <div class="filter-results-count">${filteredAutos.length} z ${allAutos.length} automatyzacji</div>
           <div class="auto-list-full">${filteredListHtml}</div>
         </div>
         <div class="card">
-          <h2 class="card-title">${this._t.mostActiveTodayTitle}</h2>
+          <h2 class="card-title">Najaktywniejsze dzi\u015B</h2>
           <div class="canvas-wrap">
             <canvas id="top-automations-chart"></canvas>
           </div>
@@ -1381,35 +1100,35 @@ class HAAutomationAnalyzer extends HTMLElement {
 
       activeTabContent = `
         <div class="card">
-          <h2 class="card-title">${this._t.executionTimeDistribution}</h2>
+          <h2 class="card-title">Rozk\u0142ad czas\u00f3w wykonania</h2>
           ${hasExecData
             ? '<div class="canvas-wrap"><canvas id="exec-dist-chart"></canvas></div>'
-            : `<div class="chart-empty">${this._t.noExecutionTimeData}</div>`}
+            : '<div class="chart-empty">Brak danych o czasach wykonania \u2014 zbyt ma\u0142o uruchomie\u0144 z pe\u0142nymi danymi</div>'}
         </div>
         <div class="card">
-          <h2 class="card-title">${this._t.triggerTypesTitle}</h2>
+          <h2 class="card-title">Typy wyzwalaczy</h2>
           ${hasTriggerData
             ? '<div class="canvas-wrap"><canvas id="trigger-type-chart"></canvas></div>'
-            : `<div class="chart-empty">${this._t.noTriggerData}</div>`}
+            : '<div class="chart-empty">Brak danych o wyzwalaczach \u2014 konfiguracja automatyzacji niedost\u0119pna</div>'}
         </div>
         <div class="card">
-          <h2 class="card-title">${this._t.dailyExecutions}</h2>
+          <h2 class="card-title">Dzienne wykonania (14 dni)</h2>
           <div class="canvas-wrap"><canvas id="sparkline-chart"></canvas></div>
         </div>
         <div class="card">
-          <h2 class="card-title">${this._t.statistics}</h2>
+          <h2 class="card-title">Statystyki</h2>
           <div class="stats">
             <div class="stat">
               <div class="stat-value">${stats.avgTime}${typeof stats.avgTime === "string" ? "" : "ms"}</div>
-              <div class="stat-label">${this._t.avgTimeLabel}</div>
+              <div class="stat-label">\u015Ar. czas</div>
             </div>
             <div class="stat">
               <div class="stat-value">${this.executionTimes.length}</div>
-              <div class="stat-label">${this._t.withTimeData}</div>
+              <div class="stat-label">Z danymi o czasie</div>
             </div>
             <div class="stat">
               <div class="stat-value">${this.triggerTypes.size}</div>
-              <div class="stat-label">${this._t.triggerTypes}</div>
+              <div class="stat-label">Typ\u00f3w wyzwalaczy</div>
             </div>
           </div>
         </div>
@@ -1417,87 +1136,77 @@ class HAAutomationAnalyzer extends HTMLElement {
     } else if (this.currentTab === 'optimization') {
       const optData = this.getOptimizationData();
 
-      // Paginate each list
-      const slowPaginated = this._paginateItems(optData.slow, 'opt-slow');
-      const failedPaginated = this._paginateItems(optData.failed, 'opt-failed');
-      const disabledPaginated = this._paginateItems(optData.disabled, 'opt-disabled');
-      const stalePaginated = this._paginateItems(optData.stale, 'opt-stale');
-
-      const slowItems = slowPaginated.length > 0
-        ? slowPaginated.map(a => `
+      const slowItems = optData.slow.length > 0
+        ? optData.slow.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
               <span class="badge badge-warn">${Math.round(a.avgExecutionTime)}ms</span>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : `<div class="empty-state">${this._t.noSlowAutomations}</div>`;
+        : '<div class="empty-state">\u2705 Brak wolnych automatyzacji</div>';
 
-      const failedItems = failedPaginated.length > 0
-        ? failedPaginated.map(a => `
+      const failedItems = optData.failed.length > 0
+        ? optData.failed.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
-              <span class="badge badge-error">${a.reason || this._t.errorBadge}</span>
+              <span class="badge badge-error">${a.reason || "b\u0142\u0105d"}</span>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : `<div class="empty-state">${this._t.noFailedLabel}</div>`;
+        : '<div class="empty-state">\u2705 Brak nieudanych automatyzacji</div>';
 
-      const disabledItems = disabledPaginated.length > 0
-        ? disabledPaginated.map(a => `
+      const disabledItems = optData.disabled.length > 0
+        ? optData.disabled.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
-              <span class="badge badge-info">${this._t.disabledBadge}</span>
-              <button class="toggle-btn" data-entity-id="${a.id}" data-action="enable">${this._t.enableButton}</button>
+              <span class="badge badge-info">wy\u0142\u0105czona</span>
+              <button class="toggle-btn" data-entity-id="${a.id}" data-action="enable">W\u0142\u0105cz</button>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : `<div class="empty-state">${this._t.noDisabledLabel}</div>`;
+        : '<div class="empty-state">\u2705 Brak wy\u0142\u0105czonych automatyzacji</div>';
 
-      const staleItems = stalePaginated.length > 0
-        ? stalePaginated.map(a => `
+      const staleItems = optData.stale.length > 0
+        ? optData.stale.map(a => `
             <div class="auto-item" data-automation-id="${a.automationId}">
               <span class="auto-name" title="${a.name}">${a.name}</span>
               <span class="badge badge-stale">${this._formatTimeSince(a.lastTriggered)}</span>
               <span class="auto-arrow">\u203A</span>
             </div>`).join("")
-        : `<div class="empty-state">${this._t.noStaleLabel}</div>`;
+        : '<div class="empty-state">\u2705 Wszystkie automatyzacje by\u0142y ostatnio aktywne</div>';
 
       activeTabContent = `
         <div class="opt-summary">
           <div class="opt-stat warn">
             <div class="opt-stat-value">${optData.slow.length}</div>
-            <div class="opt-stat-label">${this._t.slowStat}</div>
+            <div class="opt-stat-label">Wolnych (&gt;800ms)</div>
           </div>
           <div class="opt-stat error">
             <div class="opt-stat-value">${optData.failed.length}</div>
-            <div class="opt-stat-label">${this._t.withErrorsStat}</div>
+            <div class="opt-stat-label">Z b\u0142\u0119dami</div>
           </div>
           <div class="opt-stat info">
             <div class="opt-stat-value">${optData.disabled.length}</div>
-            <div class="opt-stat-label">${this._t.disabledStat}</div>
+            <div class="opt-stat-label">Wy\u0142\u0105czonych</div>
           </div>
           <div class="opt-stat stale">
             <div class="opt-stat-value">${optData.stale.length}</div>
-            <div class="opt-stat-label">${this._t.inactiveStat}</div>
+            <div class="opt-stat-label">Nieaktywnych (&gt;30d)</div>
           </div>
         </div>
         <div class="opt-section">
-          <h2 class="card-title">${this._t.slowAutomationsTitle}</h2>
+          <h2 class="card-title">\u26A0\uFE0F Wolne automatyzacje (&gt;800ms)</h2>
           <div class="auto-list">${slowItems}</div>
-          ${optData.slow.length > 0 ? this._renderPagination('opt-slow', optData.slow.length) : ''}
         </div>
         <div class="opt-section">
-          <h2 class="card-title">${this._t.failedAutomationsTitle}</h2>
+          <h2 class="card-title">\u274C Automatyzacje z b\u0142\u0119dami</h2>
           <div class="auto-list">${failedItems}</div>
-          ${optData.failed.length > 0 ? this._renderPagination('opt-failed', optData.failed.length) : ''}
         </div>
         <div class="opt-section">
-          <h2 class="card-title">${this._t.disabledAutomationsTitle}</h2>
+          <h2 class="card-title">\u23F8\uFE0F Wy\u0142\u0105czone automatyzacje</h2>
           <div class="auto-list">${disabledItems}</div>
-          ${optData.disabled.length > 0 ? this._renderPagination('opt-disabled', optData.disabled.length) : ''}
         </div>
         <div class="opt-section">
-          <h2 class="card-title">${this._t.inactiveAutomationsTitle}</h2>
+          <h2 class="card-title">\uD83D\uDCA4 Nieaktywne automatyzacje (&gt;30 dni)</h2>
           <div class="auto-list">${staleItems}</div>
-          ${optData.stale.length > 0 ? this._renderPagination('opt-stale', optData.stale.length) : ''}
         </div>
       `;
     }
@@ -1505,7 +1214,7 @@ class HAAutomationAnalyzer extends HTMLElement {
     const loadingContent = `
       <div class="loading-state">
         <div class="loading-spinner"></div>
-        <div>${this._t.loadingData}</div>
+        <div>\u0141adowanie danych...</div>
       </div>
     `;
 
@@ -1531,17 +1240,6 @@ ${styles}
 /* === DARK MODE === */
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  }
-}
-@media (prefers-color-scheme: dark) {
-  :host {
     --aa-warn-bg: rgba(245,158,11,0.15); --aa-warn-border: rgba(245,158,11,0.3); --aa-warn-text: #fbbf24;
     --aa-error-bg: rgba(239,68,68,0.15); --aa-error-border: rgba(239,68,68,0.3); --aa-error-text: #f87171;
     --aa-info-bg: rgba(59,130,246,0.15); --aa-info-border: rgba(59,130,246,0.3); --aa-info-text: #60a5fa;
@@ -1552,7 +1250,7 @@ ${styles}
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1562,22 +1260,12 @@ ${styles}
           .column { min-width: unset; }
           h2 { font-size: 18px; }
           h3 { font-size: 15px; }
-          .canvas-wrap { height: 280px; }
-          .auto-name { max-width: 180px; }
-          .pagination { gap: 6px; }
-          .pagination-info { min-width: 100px; font-size: 11px; }
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
           .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
-          .canvas-wrap { height: 240px; }
-          .auto-name { max-width: 140px; font-size: 12px; }
-          .pagination { gap: 4px; padding: 8px; flex-direction: column; align-items: stretch; }
-          .pagination-btn { padding: 5px 8px; font-size: 11px; }
-          .pagination-info { min-width: 100%; text-align: center; font-size: 11px; }
-          .page-size-select { font-size: 11px; padding: 4px 24px 4px 6px; }
         }
 
 </style>
@@ -1586,9 +1274,9 @@ ${styles}
           <div class="header-left">
             <h1>${this.config.title}</h1>
             <p class="subtitle">
-              <span>${this._t.lastUpdated}${this._formatLastUpdated()}</span>
+              <span>Ostatnia aktualizacja: ${this._formatLastUpdated()}</span>
               <span>\u2022</span>
-              <span>${stats.total} ${this._t.automations}</span>
+              <span>${stats.total} automatyzacji</span>
             </p>
           </div>
         </div>
@@ -1596,71 +1284,27 @@ ${styles}
         <div class="trace-notice-global" id="trace-storage-notice">
           <span class="trace-notice-icon">\u{1f4a1}</span>
           <div>
-            ${this._t.tracesNotice}
-            <div class="detail">${this._t.tracesNoticeDetail}</div>
+            Domy\u015blnie HA przechowuje tylko <strong>5 ostatnich tras</strong> na automatyzacj\u0119.
+            Trasy s\u0105 <strong>czyszczone po restarcie</strong> HA \u2014 po ponownym uruchomieniu wszystkie zapisane trace zostan\u0105 usuni\u0119te.
+            Mo\u017cesz zwi\u0119kszy\u0107 limit w <a id="trace-viewer-link">Trace Viewer</a> (HA Tools \u2192 Ustawienia).
+            <div class="detail">\u2139\uFE0F Aby zachowa\u0107 wi\u0119cej danych o wykonaniach, ustaw stored_traces w konfiguracji HA lub u\u017cyj sekcji ustawie\u0144 w Trace Viewer.</div>
           </div>
-          <button class="trace-notice-dismiss" id="dismiss-trace-notice" title="${this._t.closeButton}" aria-label="${this._t.closeButton}">\u00d7</button>
+          <button class="trace-notice-dismiss" id="dismiss-trace-notice" title="Zamknij">\u00d7</button>
         </div>
         ` : ""}
         <div class="tabs">
-          <button class="tab-btn ${this.currentTab === "overview" ? "active" : ""}" data-tab="overview">${this._t.tabOverview}</button>
-          <button class="tab-btn ${this.currentTab === "performance" ? "active" : ""}" data-tab="performance">${this._t.tabPerformance}</button>
-          <button class="tab-btn ${this.currentTab === "optimization" ? "active" : ""}" data-tab="optimization">${this._t.tabOptimization}</button>
+          <button class="tab-btn ${this.currentTab === "overview" ? "active" : ""}" data-tab="overview">Przegl\u0105d</button>
+          <button class="tab-btn ${this.currentTab === "performance" ? "active" : ""}" data-tab="performance">Wydajno\u015B\u0107</button>
+          <button class="tab-btn ${this.currentTab === "optimization" ? "active" : ""}" data-tab="optimization">Optymalizacja</button>
         </div>
         ${mainContent}
       </div>
     `;
 
     this._setupEventListeners();
-    this._setupPaginationListeners();
     if (!this._isLoading) {
       this._drawCharts();
     }
-  }
-
-  _paginateItems(items, tabName) {
-    if (!this._currentPage[tabName]) this._currentPage[tabName] = 1;
-    const start = (this._currentPage[tabName] - 1) * this._pageSize;
-    return items.slice(start, start + this._pageSize);
-  }
-
-  _renderPagination(tabName, totalItems) {
-    if (!this._currentPage[tabName]) this._currentPage[tabName] = 1;
-    const pageSize = this._pageSize;
-    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    const page = Math.min(this._currentPage[tabName], totalPages);
-    this._currentPage[tabName] = page;
-    return `
-      <div class="pagination">
-        <button class="pagination-btn" data-page-tab="${tabName}" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>&#8249; Prev</button>
-        <span class="pagination-info">${page} / ${totalPages} (${totalItems})</span>
-        <button class="pagination-btn" data-page-tab="${tabName}" data-page="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>Next &#8250;</button>
-        <select class="page-size-select" data-page-tab="${tabName}" data-action="page-size">
-          ${[10,15,25,50].map(s => `<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}/page</option>`).join('')}
-        </select>
-      </div>`;
-  }
-
-  _setupPaginationListeners() {
-    if (!this.shadowRoot) return;
-    this.shadowRoot.querySelectorAll('.pagination-btn:not([disabled])').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const tab = e.target.dataset.pageTab;
-        const page = parseInt(e.target.dataset.page);
-        if (tab && page > 0) {
-          this._currentPage[tab] = page;
-          this.render();
-        }
-      });
-    });
-    this.shadowRoot.querySelectorAll('.page-size-select').forEach(sel => {
-      sel.addEventListener('change', (e) => {
-        this._pageSize = parseInt(e.target.value);
-        // Reset all pages to 1
-        Object.keys(this._currentPage).forEach(k => this._currentPage[k] = 1);
-        this.render();
-      });
-    });
   }
 
   _setupEventListeners() {
@@ -1668,7 +1312,6 @@ ${styles}
     this.shadowRoot.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         this.currentTab = e.target.dataset.tab;
-        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this.currentTab);
         this.render();
       });
     });
@@ -1823,7 +1466,7 @@ ${styles}
     const hasToday = data.some(a => a.todayCount > 0);
     const labels = data.map(a => a.name.length > 35 ? a.name.substring(0, 33) + "\u2026" : a.name);
     const values = hasToday ? data.map(a => a.todayCount) : data.map(a => a.traceCount);
-    const chartLabel = hasToday ? (this._lang === 'pl' ? 'Dzi\u015B' : 'Today') : (this._lang === 'pl' ? 'Ostatnie uruchomienia' : 'Latest runs');
+    const chartLabel = hasToday ? "Dzi\u015B" : "Ostatnie uruchomienia";
 
     const colors = this._getComputedColors();
     this._charts["top-auto"] = new window.Chart(canvas.getContext("2d"), {
@@ -1876,7 +1519,7 @@ ${styles}
       data: {
         labels: Object.keys(distribution),
         datasets: [{
-          label: this._t.automations,
+          label: "Automatyzacje",
           data: Object.values(distribution),
           backgroundColor: barColors,
           borderWidth: 0,
@@ -1979,7 +1622,7 @@ ${styles}
       data: {
         labels,
         datasets: [{
-          label: this._lang === 'pl' ? 'Dzienne wykonania' : 'Daily executions',
+          label: "Dzienne wykonania",
           data: dailyData,
           borderColor: colors.primary,
           backgroundColor: colors.primary + "18",
@@ -2023,30 +1666,12 @@ ${styles}
       show_disabled: true
     };
   }
-
-  disconnectedCallback() {
-    // Clear all Map objects to prevent memory leaks
-    this.automationStats.clear();
-    this.automationHistory.clear();
-    this.automationTraces.clear();
-    this.triggerTypes.clear();
-    this.failedAutomations.clear();
-    this._apiCache.clear();
-    this._cacheTimestamps.clear();
-    // Destroy Chart.js instances
-    Object.values(this._charts).forEach(chart => {
-      if (chart && typeof chart.destroy === 'function') chart.destroy();
-    });
-    this._charts = {};
-  }
-
-  setActiveTab(tabId) {
-    this.currentTab = tabId;
-    this.render();
-  }
 }
 
-if (!customElements.get('ha-automation-analyzer')) customElements.define("ha-automation-analyzer", HAAutomationAnalyzer);
+customElements.define("ha-automation-analyzer", HAAutomationAnalyzer);
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-automation-analyzer', name: 'Automation Analyzer', description: 'Analyze automation performance, find issues and optimize', preview: false });
 
 class HaAutomationAnalyzerEditor extends HTMLElement {
   constructor() {
@@ -2072,11 +1697,11 @@ class HaAutomationAnalyzerEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Automation Analyzer</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
@@ -2093,8 +1718,3 @@ class HaAutomationAnalyzerEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-automation-analyzer-editor')) { customElements.define('ha-automation-analyzer-editor', HaAutomationAnalyzerEditor); }
-
-})();
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-automation-analyzer', name: 'Automation Analyzer', description: 'Analyze automation performance, find issues and optimize', preview: false });

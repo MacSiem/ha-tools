@@ -1,18 +1,8 @@
-(function() {
-'use strict';
-
-// -- HA Tools Escape Function --
-const _esc = window._haToolsEsc || (s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
 class HaBackupManager extends HTMLElement {
   constructor() {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
-    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     // --- Throttle fields ---
     this._lastRenderTime = 0;
     this._renderScheduled = false;
@@ -37,45 +27,11 @@ class HaBackupManager extends HTMLElement {
     this._error = null;
     this._isDemoData = false;
     this._charts = {};
-    this._installedAddons = {};
-    this._installedIntegrations = {};
-    this._addonsChecked = false;
-  }
-
-  async _detectInstalledBackupIntegrations() {
-    if (!this._hass || this._addonsChecked) return;
-    this._addonsChecked = true;
-    // Check supervisor addons
-    try {
-      const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/addons', method: 'get' });
-      const addons = r?.addons || r?.data?.addons || [];
-      for (const a of addons) {
-        const slug = (a.slug || '').toLowerCase();
-        const name = (a.name || '').toLowerCase();
-        if (slug.includes('google_drive_backup') || name.includes('google drive backup'))
-          this._installedAddons['google_drive'] = { name: a.name, state: a.state };
-        if (slug.includes('samba') || name.includes('samba'))
-          this._installedAddons['samba'] = { name: a.name, state: a.state };
-        if (slug.includes('remote_backup') || slug.includes('remote-backup') || name.includes('remote backup'))
-          this._installedAddons['remote_backup'] = { name: a.name, state: a.state };
-      }
-    } catch(e) {}
-    // Check config entries for integrations
-    try {
-      const entries = await this._hass.callWS({ type: 'config_entries/get' });
-      for (const e of (entries || [])) {
-        if (e.domain === 'synology_dsm') this._installedIntegrations['synology'] = { title: e.title, state: e.state };
-        if (e.domain === 'cloud') this._installedIntegrations['nabu_casa'] = { title: e.title, state: e.state };
-      }
-    } catch(e) {}
-    this._updateUI();
   }
 
   static getConfigElement() {
     return document.createElement('ha-backup-manager-editor');
   }
-
-  getCardSize() { return 6; }
 
   static getStubConfig() {
     return {
@@ -93,35 +49,6 @@ class HaBackupManager extends HTMLElement {
       script.onload = () => resolve(window.Chart);
       document.head.appendChild(script);
     });
-  }
-
-
-  get _t() {
-    const T = {
-      pl: {
-        title: 'Menedżer Kopii Zapasowych',
-        loading: 'Wczytywanie...',
-        noData: 'Brak danych',
-        error: 'Błąd',
-        refresh: 'Odśwież',
-        save: 'Zapisz',
-        cancel: 'Anuluj',
-        locale: 'pl-PL',
-        totalSize: 'Suma rozmiarów skompresowanych kopii',
-      },
-      en: {
-        title: 'Backup Manager',
-        loading: 'Loading...',
-        noData: 'No data',
-        error: 'Error',
-        refresh: 'Refresh',
-        save: 'Save',
-        cancel: 'Cancel',
-        locale: 'en-US',
-        totalSize: 'Total compressed backup size',
-      },
-    };
-    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -145,7 +72,6 @@ class HaBackupManager extends HTMLElement {
     if (!this._firstHassRender) {
       this._firstHassRender = true;
       this._fetchBackups();
-      this._detectInstalledBackupIntegrations();
       this._updateUI();
       this._lastRenderTime = now;
       return;
@@ -337,32 +263,6 @@ class HaBackupManager extends HTMLElement {
     try { return decodeURIComponent(escape(name)); } catch(e) { return name; }
   }
 
-  _getBackupLocation(backup) {
-    // Determine backup location/storage from backup object
-    // Checks for agent_ids, location field, or installed integrations/addons
-    const L = this._lang === 'pl';
-
-    // If location field exists, use it
-    if (backup.location) {
-      if (backup.location === 'addon') return '📦 Addon';
-      if (backup.location === 'cloud') return '☁️ Cloud';
-      if (backup.location === 'local') return '💾 Local';
-    }
-
-    // Check for agent_ids (indicates cloud/remote backup agent)
-    if (backup.agent_ids && backup.agent_ids.length > 0) {
-      // Find which backup agent is installed
-      const agentId = backup.agent_ids[0];
-      if (this._installedAddons['google_drive'] || this._installedIntegrations['google_drive']) return '☁️ Google Drive';
-      if (this._installedAddons['samba'] || this._installedIntegrations['samba']) return '🌐 Samba';
-      if (this._installedAddons['remote_backup']) return '🔗 Remote';
-      return '☁️ Cloud';
-    }
-
-    // Default to local storage
-    return '💾 ' + (L ? 'Lokalny' : 'Local');
-  }
-
   _selectBackup(backup) {
     this._selectedBackup = this._selectedBackup?.slug === backup.slug ? null : backup;
     this._updateUI();
@@ -379,20 +279,19 @@ class HaBackupManager extends HTMLElement {
 
     return `
       <div class="tab-content active">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
-          <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-xs,6px);text-align:center;">
-            <div style="font-size:18px;font-weight:700;color:var(--bento-text,#1e293b);line-height:1.2;">${this._backups.length}</div>
-            <div style="font-size:10px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;">${L ? 'Kopii' : 'Backups'}</div>
-            <div style="font-size:9px;color:var(--bento-text-muted,#94a3b8);margin-top:1px;">${fullCount} full, ${partialCount} partial</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:var(--bento-text,#1e293b);">${this._backups.length}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Kopii' : 'Backups'}</div>
+            <div style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:2px;">${fullCount} full, ${partialCount} partial</div>
           </div>
-          <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-xs,6px);text-align:center;">
-            <div style="font-size:18px;font-weight:700;color:var(--bento-primary,#3b82f6);line-height:1.2;">${totalSize > 0 ? this._formatBytes(totalSize) : '?'}</div>
-            <div style="font-size:10px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;">${L ? 'Rozmiar' : 'Total Size'}</div>
-            <div style="font-size:8px;color:var(--bento-text-muted,#94a3b8);margin-top:3px;">${L ? '(skompresowany)' : '(compressed)'}</div>
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:var(--bento-primary,#3b82f6);">${totalSize > 0 ? this._formatBytes(totalSize) : '?'}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Rozmiar' : 'Total Size'}</div>
           </div>
-          <div style="padding:10px;background:var(--bento-bg,#f8fafc);border:1px solid ${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-border,#e2e8f0)'};border-radius:var(--bento-radius-xs,6px);text-align:center;">
-            <div style="font-size:18px;font-weight:700;color:${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-text,#1e293b)'};line-height:1.2;">${daysSince !== null ? daysSince + 'd' : '-'}</div>
-            <div style="font-size:10px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;">${L ? 'Od ostatniego' : 'Since Last'}</div>
+          <div style="padding:14px;background:var(--bento-bg,#f8fafc);border:1px solid ${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-border,#e2e8f0)'};border-radius:var(--bento-radius-sm,10px);text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:${daysSince !== null && daysSince > 3 ? 'var(--bento-warning,#f59e0b)' : 'var(--bento-text,#1e293b)'};">${daysSince !== null ? daysSince + 'd' : '-'}</div>
+            <div style="font-size:11px;color:var(--bento-text-secondary,#64748b);text-transform:uppercase;letter-spacing:.4px;">${L ? 'Od ostatniego' : 'Since Last'}</div>
           </div>
         </div>
 
@@ -405,42 +304,51 @@ class HaBackupManager extends HTMLElement {
           </button>
         </div>
 
-        ${this._error ? `<div class="error-banner">${_esc(this._error)}</div>` : ''}
+        ${this._error ? `<div class="error-banner">${this._error}</div>` : ''}
 
         <div class="backups-list">
           ${this._backups.length === 0
             ? '<div class="empty-state">No backups available</div>'
-            : `<table class="compact-backup-table">
-                  <thead><tr>
-                    <th>${L ? 'Data' : 'Date'}</th>
-                    <th>${L ? 'Nazwa' : 'Name'}</th>
-                    <th>${L ? 'Typ' : 'Type'}</th>
-                    <th>${L ? 'Lokalizacja' : 'Location'}</th>
-                    <th title="${L ? 'Rozmiar skompresowanego pliku kopii (na dysku)' : 'Compressed backup file size (on disk)'}">${L ? 'Rozmiar' : 'Size'} <span style="font-size:8px;color:var(--bento-text-muted,#94a3b8);">${L ? '(spakowany)' : '(zipped)'}</span></th>
-                  </tr></thead>
-                  <tbody>
-                    ${this._backups.map((backup) => `
-                      <tr class="compact-backup-row ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
-                          data-slug="${backup.slug}">
-                        <td class="compact-date">${this._formatDate(backup.date)}</td>
-                        <td class="compact-name" title="${_esc(this._sanitizeName(backup.name))}${backup.is_protected ? ' 🔒' : ''}">
-                          ${_esc(this._sanitizeName(backup.name))}
-                          ${backup.is_protected ? ' \uD83D\uDD12' : ''}
-                        </td>
-                        <td><span class="backup-type ${_esc(backup.type)}">${_esc(backup.type)}</span></td>
-                        <td class="compact-location">${this._getBackupLocation(backup)}</td>
-                        <td class="compact-size">${backup.size_bytes ? this._formatBytes(backup.size_bytes) : (backup.size ? this._formatMB(backup.size) : '?')}</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>`}
+            : this._backups.map((backup) => `
+              <div class="backup-item ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
+                   data-slug="${backup.slug}">
+                <div class="backup-header">
+                  <div class="backup-info">
+                    <h3>${this._sanitizeName(backup.name)}</h3>
+                    <span class="backup-type ${backup.type}">${backup.type}</span>
+                    ${backup.is_protected ? '<span class="badge protected">🔒 Protected</span>' : ''}
+                  
+                    ${backup.location ? `<span class="badge method">${backup.location === 'addon' ? 'Addon' : (backup.location === 'cloud' ? 'Cloud' : 'Local')}</span>` : ''}</div>
+                  <div class="backup-meta">
+                    <span class="date">${this._formatDate(backup.date)}</span>
+                    <span class="size">${backup.size_bytes ? this._formatBytes(backup.size_bytes) : (backup.size ? this._formatMB(backup.size) : '?')}</span>
+                  </div>
+                </div>
+                ${this._selectedBackup?.slug === backup.slug ? `
+                  <div class="backup-details">
+                    <h4>Backup Contents:</h4>
+                    <div class="contents-grid">
+                      ${(backup.includes?.homeassistant || backup.homeassistant_included || backup.content?.homeassistant) ? '<span class="content-item">\u{1F4CB} Home Assistant Config</span>' : ''}
+                      ${(backup.includes?.database || backup.database_included) ? '<span class="content-item">\u{1F4BE} Database</span>' : ''}
+                      ${(backup.includes?.addons?.length > 0 || backup.addons?.length > 0) ? `<span class="content-item">\u{1F9E9} ${(backup.includes?.addons || backup.addons || []).length} Add-ons</span>` : ''}
+                      ${(backup.includes?.folders?.length > 0 || backup.folders?.length > 0) ? `<span class="content-item">\u{1F4C1} ${(backup.includes?.folders || backup.folders || []).length} Folders</span>` : ''}
+                    </div>
+                    ${backup.includes?.addons?.length > 0 ? `
+                      <div class="addon-list">
+                        <strong>Add-ons:</strong>
+                        ${backup.includes.addons.map(a => `<span>${a}</span>`).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : ''}
+              </div>
+            `).join('')}
         </div>
       </div>
     `;
   }
 
   _renderHealthTab() {
-    const L = this._lang === 'pl';
     const timeSince = this._getTimeSinceBackup();
     const warnDays = this._config.warn_after_days || 3;
     const daysStatus = !timeSince ? 'error' : timeSince.days > warnDays ? 'warning' : 'good';
@@ -465,8 +373,7 @@ class HaBackupManager extends HTMLElement {
           <div class="health-card">
             <h3>Storage Used</h3>
             <div class="health-value">${this._formatBytes(this._healthData.totalSize)}</div>
-            <p class="health-label">${this._t.totalSize}</p>
-            <p style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:4px;">${L ? 'Nie obejmuje rozpakowania' : 'Does not include uncompressed'}</p>
+            <p class="health-label">Compressed backups</p>
           </div>
 
           <div class="health-card">
@@ -511,32 +418,42 @@ class HaBackupManager extends HTMLElement {
 
         <div class="settings-section">
           <h3>\u{1F50C} ${L ? 'Integracje do backup\u00F3w' : 'Backup Integrations'}</h3>
-          <p style="color:var(--bento-text-secondary,#64748b);font-size:11px;margin-bottom:8px;">${L ? 'Popularne integracje do automatycznego offsite backup:' : 'Popular integrations for automated offsite backup:'}</p>
+          <p style="color:var(--bento-text-secondary,#64748b);font-size:13px;margin-bottom:12px;">${L ? 'Popularne integracje do automatycznego offsite backup:' : 'Popular integrations for automated offsite backup:'}</p>
 
-          <div style="display:grid;gap:4px;">
-            ${this._renderIntegrationRow('\u2601\uFE0F', 'Google Drive Backup', 'hassio-google-drive-backup', L ? 'Automatyczne kopie na Google Drive.' : 'Automatic backups to Google Drive.', this._installedAddons['google_drive'], L)}
-            ${this._renderIntegrationRow('\u{1F4C2}', 'Samba / SMB Backup', 'samba-backup', L ? 'Kopiowanie na NAS/Samba share.' : 'Copy to NAS/Samba share.', this._installedAddons['samba'], L)}
-            ${this._renderIntegrationRow('\u{1F4F1}', 'Synology NAS', 'synology_dsm', L ? 'Active Backup / Hyper Backup.' : 'Active Backup / Hyper Backup.', this._installedIntegrations['synology'], L)}
-            ${this._renderIntegrationRow('\u{1F4E6}', 'Dropbox / OneDrive / S3', 'remote-backup', L ? 'Wiele provider\u00F3w chmurowych (rclone).' : 'Multiple cloud providers (rclone).', this._installedAddons['remote_backup'], L)}
-            ${this._renderIntegrationRow('\u2601\uFE0F', 'Nabu Casa Cloud', 'built-in', L ? 'Kopie w chmurze Nabu Casa.' : 'Cloud backups via Nabu Casa.', this._installedIntegrations['nabu_casa'], L)}
+          <div style="display:grid;gap:10px;">
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Google Drive Backup</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>hassio-google-drive-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie na Google Drive z rotacj\u0105 i powiadomieniami.' : 'Automatic backups to Google Drive with rotation and notifications.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4C2} Samba / SMB Backup</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>samba-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopiowanie na NAS/Samba share z harmonogramem cron.' : 'Copy to NAS/Samba share with cron schedule.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4F1} Synology NAS</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Integration: <code>synology_dsm</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Kopie przez Active Backup for Business lub Hyper Backup.' : 'Backups via Active Backup for Business or Hyper Backup.'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u{1F4E6} Dropbox / OneDrive / S3</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Addon: <code>remote-backup</code></div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Obs\u0142uguje wiele provider\u00F3w chmurowych (rclone-based).' : 'Supports multiple cloud providers (rclone-based).'}</div>
+            </div>
+
+            <div style="padding:12px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:var(--bento-radius-sm,10px);">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px;">\u2601\uFE0F Nabu Casa Cloud</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);">Built-in (${L ? 'wymaga subskrypcji' : 'requires subscription'})</div>
+              <div style="font-size:12px;color:var(--bento-text-secondary,#64748b);margin-top:4px;">${L ? 'Automatyczne kopie w chmurze Nabu Casa z \u0142atwym przywracaniem.' : 'Automatic cloud backups via Nabu Casa with easy restoration.'}</div>
+            </div>
           </div>
         </div>
       </div>
     `;
-  }
-
-  _renderIntegrationRow(icon, name, code, desc, installed, L) {
-    const isActive = !!installed;
-    const stateText = isActive ? (installed.state === 'started' || installed.state === 'loaded' ? (L ? 'Aktywna' : 'Active') : installed.state) : '';
-    const borderColor = isActive ? 'var(--bento-success,#10B981)' : 'var(--bento-border,#e2e8f0)';
-    const bgColor = isActive ? 'rgba(16,185,129,0.04)' : 'var(--bento-bg,#f8fafc)';
-    return `<div style="padding:8px 10px;background:${bgColor};border:1px solid ${borderColor};border-radius:var(--bento-radius-xs,6px);display:flex;align-items:center;gap:8px;">
-      <span style="font-size:14px;flex-shrink:0;">${icon}</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:12px;color:var(--bento-text,#1e293b);display:flex;align-items:center;gap:6px;">${name}${isActive ? `<span style="font-size:9px;font-weight:700;color:var(--bento-success,#10B981);background:rgba(16,185,129,0.1);padding:1px 6px;border-radius:8px;text-transform:uppercase;letter-spacing:.3px;">${stateText}</span>` : ''}</div>
-        <div style="font-size:10px;color:var(--bento-text-muted,#94a3b8);margin-top:1px;">${code} \u2014 ${desc}</div>
-      </div>
-    </div>`;
   }
 
   _updateUI() {
@@ -586,7 +503,7 @@ class HaBackupManager extends HTMLElement {
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: visible;
+  overflow: hidden;
   padding: 20px;
 }
 
@@ -758,14 +675,14 @@ canvas {
 /* ===== END BENTO LIGHT MODE ===== */
 
         :host {
-          --primary-color: var(--bento-primary);
-          --error-color: var(--bento-error);
-          --warning-color: var(--bento-warning);
-          --success-color: var(--bento-success);
-          --background-color: var(--bento-card);
-          --text-color: var(--bento-text);
-          --secondary-text: var(--bento-text-secondary);
-          --border-color: var(--bento-border);
+          --primary-color: var(--primary-color, #2196F3);
+          --error-color: var(--error-color, #F44336);
+          --warning-color: var(--warning-color, #FF9800);
+          --success-color: var(--success-color, #4CAF50);
+          --background-color: var(--card-background-color, #fff);
+          --text-color: var(--primary-text-color, #212121);
+          --secondary-text: var(--secondary-text-color, #727272);
+          --border-color: var(--divider-color, #e0e0e0);
           --dark-mode: ${this._hass?.themes?.darkMode ? 'true' : 'false'};
         }
 
@@ -789,8 +706,6 @@ canvas {
           border-bottom: 1px solid var(--border-color);
           margin: 0 -16px 16px -16px;
           padding: 0 16px;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
         }
 
         .tab-btn {
@@ -825,21 +740,21 @@ canvas {
 
         .backup-controls {
           display: flex;
-          gap: 8px;
-          margin-bottom: 12px;
+          gap: 12px;
+          margin-bottom: 20px;
           flex-wrap: wrap;
         }
 
         .create-btn {
-          padding: 8px 12px;
+          padding: 12px 16px;
           border: none;
           border-radius: 6px;
           font-weight: 500;
           cursor: pointer;
-          font-size: 12px;
+          font-size: 14px;
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
           transition: all 0.2s ease;
         }
 
@@ -864,79 +779,28 @@ canvas {
         }
 
         .create-btn .icon {
-          font-size: 13px;
+          font-size: 16px;
         }
 
         .error-banner {
           background: var(--error-color);
           color: white;
-          padding: 8px 12px;
+          padding: 12px 16px;
           border-radius: 6px;
-          margin-bottom: 10px;
-          font-size: 12px;
+          margin-bottom: 16px;
+          font-size: 14px;
         }
 
-        .compact-backup-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 12px;
-          table-layout: fixed;
-        }
-        .compact-backup-table th {
-          text-align: left;
-          padding: 8px 10px;
-          border-bottom: 2px solid var(--bento-border, #e2e8f0);
-          color: var(--bento-text-secondary, #64748b);
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-          font-size: 11px;
-        }
-        .compact-backup-row {
-          cursor: pointer;
-          transition: background 0.15s;
-        }
-        .compact-backup-row td {
-          padding: 8px 10px;
-          border-bottom: 1px solid var(--bento-border, #e2e8f0);
-          color: var(--bento-text, #1e293b);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .compact-backup-row:hover td { background: rgba(59,130,246,0.04); }
-        .compact-backup-row.selected td { background: rgba(59,130,246,0.08); }
-        .compact-date { color: var(--bento-text-secondary, #64748b); font-size: 11px; width: 120px; }
-        .compact-name {
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 100%;
-          flex: 1;
-          min-width: 180px;
-        }
-        .compact-location {
-          color: var(--bento-text-secondary, #64748b);
-          font-size: 11px;
-          white-space: nowrap;
-          width: 110px;
-        }
-        .compact-size {
-          color: var(--bento-text-secondary, #64748b);
-          font-size: 11px;
-          text-align: right;
-          width: 80px;
-        }
         .backups-list {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 12px;
         }
 
         .backup-item {
           border: 1px solid var(--border-color);
           border-radius: 6px;
-          padding: 10px 12px;
+          padding: 16px;
           cursor: pointer;
           transition: all 0.2s ease;
         }
@@ -964,8 +828,8 @@ canvas {
         }
 
         .backup-info h3 {
-          margin: 0 0 4px 0;
-          font-size: 13px;
+          margin: 0 0 8px 0;
+          font-size: 16px;
         }
 
         .badge.method {
@@ -1085,30 +949,30 @@ canvas {
 
         .health-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 8px;
-          margin-bottom: 16px;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 16px;
+          margin-bottom: 24px;
         }
 
         .health-card {
           border: 1px solid var(--border-color);
           border-radius: 6px;
-          padding: 10px;
+          padding: 16px;
         }
 
-        .health-card canvas { max-height: 120px; display: block; }
+        .health-card canvas { max-height: 150px; display: block; }
         .health-card h3 {
-          margin: 0 0 6px 0;
-          font-size: 11px;
+          margin: 0 0 12px 0;
+          font-size: 14px;
           color: var(--secondary-text);
           text-transform: uppercase;
-          letter-spacing: 0.4px;
+          letter-spacing: 0.5px;
         }
 
         .health-value {
-          font-size: 20px;
-          font-weight: 700;
-          margin: 4px 0;
+          font-size: 32px;
+          font-weight: 600;
+          margin: 8px 0;
         }
 
         .health-value.good {
@@ -1124,45 +988,44 @@ canvas {
         }
 
         .health-label {
-          margin: 4px 0 0 0;
-          font-size: 11px;
+          margin: 8px 0 0 0;
+          font-size: 13px;
           color: var(--secondary-text);
         }
 
         .schedule-section, .settings-section {
-          margin-bottom: 14px;
-          padding: 12px;
+          margin-bottom: 24px;
+          padding: 16px;
           border: 1px solid var(--border-color);
           border-radius: 6px;
         }
 
         .schedule-section h3, .settings-section h3 {
-          margin: 0 0 8px 0;
-          font-size: 13px;
+          margin: 0 0 12px 0;
+          font-size: 16px;
         }
 
         .schedule-info {
           background: rgba(33, 150, 243, 0.05);
-          padding: 8px;
+          padding: 12px;
           border-radius: 4px;
-          margin-top: 8px;
-          font-size: 12px;
+          margin-top: 12px;
+          font-size: 13px;
         }
 
         .setting-item {
-          margin-bottom: 8px;
+          margin-bottom: 12px;
         }
 
         .setting-item label {
           display: block;
           font-weight: 500;
-          font-size: 12px;
-          margin-bottom: 2px;
+          margin-bottom: 4px;
         }
 
         .setting-item p {
           margin: 0;
-          font-size: 12px;
+          font-size: 14px;
           color: var(--secondary-text);
         }
 
@@ -1198,18 +1061,19 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
+  --bento-radius: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
-  color-scheme: light dark;
+  color-scheme: light !important;
 }
 * { box-sizing: border-box; }
 
 .card, .card, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
+  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -1279,7 +1143,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
+.alert-item:hover { box-shadow: var(--bento-shadow); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -1500,7 +1364,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -1522,7 +1386,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 </style>
 
       <div class="card">
-        <h1 class="card-title">${_esc(this._config.title || 'Backup Manager')}</h1>
+        <h1 class="card-title">${this._config.title || 'Backup Manager'}</h1>
 
         <div class="tabs">
           <button class="tab-btn ${this._activeTab === 'backups' ? 'active' : ''}"
@@ -1559,7 +1423,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
   _switchTab(tab) {
     this._activeTab = tab;
     try { localStorage.setItem('ha-backup-manager-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
-    history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
     this._updateUI();
   }
 
@@ -1629,14 +1492,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
         if (backup) this._selectBackup(backup);
       });
     });
-    // Compact row click
-    this.shadowRoot?.querySelectorAll('.compact-backup-row[data-slug]').forEach(row => {
-      row.addEventListener('click', () => {
-        const slug = row.getAttribute('data-slug');
-        const backup = this._backups.find(b => b.slug === slug);
-        if (backup) this._selectBackup(backup);
-      });
-    });
     // Create backup buttons
     this.shadowRoot?.querySelectorAll('.create-btn[data-backup-type]').forEach(btn => {
       btn.addEventListener('click', () => this._createBackup(btn.getAttribute('data-backup-type') === 'full'));
@@ -1676,7 +1531,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
         const page = parseInt(e.target.dataset.page);
         if (tab && page > 0) {
           this._currentPage[tab] = page;
-          this._updateUI();
+          this._render ? this._render() : (this.render ? this.render() : this.renderCard());
         }
       });
     });
@@ -1685,22 +1540,16 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
         this._pageSize = parseInt(e.target.value);
         // Reset all pages to 1
         Object.keys(this._currentPage).forEach(k => this._currentPage[k] = 1);
-        this._updateUI();
+        this._render ? this._render() : (this.render ? this.render() : this.renderCard());
       });
     });
   }
 
-  disconnectedCallback() {
-    // Cleanup any active event listeners or timers
-  }
-
-  setActiveTab(tabId) {
-    this._activeTab = tabId;
-    this._updateUI();
-  }
 }
 
 if (!customElements.get('ha-backup-manager')) { customElements.define('ha-backup-manager', HaBackupManager); }
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-backup-manager', name: 'Backup Manager', description: 'Manage Home Assistant backups with monitoring', preview: false });
 ;
 
 class HaBackupManagerEditor extends HTMLElement {
@@ -1717,28 +1566,27 @@ class HaBackupManagerEditor extends HTMLElement {
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
   _render() {
-    if (!this._hass) return;
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Backup Manager</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Backup Manager')}"
+              <input type="text" id="cf_title" value="${this._config?.title || 'Backup Manager'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Warning after (days)</label>
-              <input type="text" id="cf_warn_after_days" value="${_esc(this._config?.warn_after_days || '3')}"
+              <input type="text" id="cf_warn_after_days" value="${this._config?.warn_after_days || '3'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Max backups</label>
-              <input type="text" id="cf_max_backups" value="${_esc(this._config?.max_backups || '10')}"
+              <input type="text" id="cf_max_backups" value="${this._config?.max_backups || '10'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
@@ -1758,12 +1606,6 @@ class HaBackupManagerEditor extends HTMLElement {
           this._dispatch();
         });
   }
-  set hass(h) { this._hass = h; this._render(); }
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-backup-manager-editor')) { customElements.define('ha-backup-manager-editor', HaBackupManagerEditor); }
-
-})();
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-backup-manager', name: 'Backup Manager', description: 'Manage Home Assistant backups with monitoring', preview: false });

@@ -204,11 +204,18 @@ class HaNetworkMap extends HTMLElement {
   }
 
   _detectDefaultSubnet() {
-    // Try to detect subnet from router IP
+    // Try to detect subnet from router IP config
     if (this._routerIp && /^\d+\.\d+\.\d+\.\d+$/.test(this._routerIp)) {
       const parts = this._routerIp.split('.');
       return parts.slice(0, 3).join('.');
     }
+    // Try to detect from current browser URL (HA instance IP)
+    try {
+      const host = window.location.hostname;
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+        return host.split('.').slice(0, 3).join('.');
+      }
+    } catch (e) {}
     return '192.168.1';
   }
 

@@ -1,9 +1,3 @@
-(function() {
-'use strict';
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
 /**
  * Home Assistant Smart Reports Card
  * Energy reports, automation statistics, and system health overview
@@ -13,7 +7,6 @@ class HASmartReports extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-smart-reports-editor'); }
   constructor() {
     super();
-    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
@@ -59,37 +52,6 @@ class HASmartReports extends HTMLElement {
     this._lastRenderTime = now;
   }
 
-
-  get _t() {
-    const T = {
-      pl: {
-        title: 'Raporty Inteligentne',
-        loading: 'Wczytywanie...',
-        noData: 'Brak danych',
-        error: 'Błąd',
-        refresh: 'Odśwież',
-        save: 'Zapisz',
-        cancel: 'Anuluj',
-        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
-        noEnergySensors: 'Nie znaleziono sensor\u00F3w energii (kWh/W). Przejd\u017A do Ustawienia \u2192 Energia i dodaj \u017Ar\u00F3d\u0142a energii.',
-        energyConfig: 'Konfiguracja energii',
-      },
-      en: {
-        title: 'Smart Reports',
-        loading: 'Loading...',
-        noData: 'No data',
-        error: 'Error',
-        refresh: 'Refresh',
-        save: 'Save',
-        cancel: 'Cancel',
-        locale: 'en-US',
-        noEnergySensors: 'No energy sensors (kWh/W) found. Go to Settings \u2192 Energy and add energy sources.',
-        energyConfig: 'Energy configuration',
-      },
-    };
-    return T[this._lang] || T.en;
-  }
-
   setConfig(config) {
     this._config = {
       title: config.title || 'Smart Reports',
@@ -124,7 +86,6 @@ class HASmartReports extends HTMLElement {
   }
 
   _render() {
-    if (!this._hass) return;
     const tabs = [];
     if (this._config.show_energy) tabs.push({ id: 'energy', label: 'Energy', icon: '⚡' });
     if (this._config.show_automations) tabs.push({ id: 'automations', label: 'Automations', icon: '🤖' });
@@ -132,8 +93,6 @@ class HASmartReports extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
-
-        * { box-sizing: border-box; }
 
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
@@ -164,11 +123,11 @@ class HASmartReports extends HTMLElement {
 }
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
+    --bento-bg: #1a1a2e;
+    --bento-card: #16213e;
+    --bento-text: #e2e8f0;
+    --bento-text-secondary: #94a3b8;
+    --bento-border: #334155;
     --bento-success: #34d399;
     --bento-warning: #fbbf24;
     --bento-error: #f87171;
@@ -183,14 +142,14 @@ class HASmartReports extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: visible;
+  overflow: hidden;
   padding: 20px !important;
 }
 
@@ -214,7 +173,7 @@ class HASmartReports extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab-btn, .tab-btn, .tab-button {
+.tab, .tab-btn, .tab-button {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -229,11 +188,11 @@ class HASmartReports extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab-btn:hover, .tab-btn:hover, .tab-button:hover {
+.tab:hover, .tab-btn:hover, .tab-button:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab-btn.active, .tab-btn.active, .tab-button.active {
+.tab.active, .tab-btn.active, .tab-button.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -371,31 +330,29 @@ canvas {
           --hover: var(--table-row-alternative-background-color, #f5f5f5);
           --green: #4caf50; --red: #f44336; --orange: #ff9800; --blue: #2196f3;
         }
-        .card {
-          background: var(--bento-bg); border-radius: 12px; padding: 16px;
-          font-family: var(--ha-card-header-font-family, inherit); color: var(--bento-text);
+        .reports-card {
+          background: var(--bg); border-radius: 12px; padding: 16px;
+          font-family: var(--ha-card-header-font-family, inherit); color: var(--text);
         }
         .card-header {
           display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
         }
         .card-header h2 { margin: 0; font-size: 18px; font-weight: 500; }
         .period-select {
-          padding: 4px 8px; border: 1px solid var(--bento-border); border-radius: 6px;
-          background: var(--bento-bg); color: var(--bento-text); font-size: 12px;
+          padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+          background: var(--bg); color: var(--text); font-size: 12px;
         }
         .tabs {
           display: flex; gap: 4px; margin-bottom: 16px;
-          border-bottom: 1px solid var(--bento-border); padding-bottom: 8px;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
+          border-bottom: 1px solid var(--border); padding-bottom: 8px;
         }
-        .tab-btn {
+        .tab {
           padding: 6px 14px; border: none; border-radius: 6px 6px 0 0;
-          background: transparent; color: var(--bento-text-secondary); cursor: pointer;
+          background: transparent; color: var(--text2); cursor: pointer;
           font-size: 13px; font-weight: 500; transition: all 0.2s;
         }
-        .tab-btn:hover { background: var(--bento-primary-light); }
-        .tab-btn.active { background: var(--bento-primary); color: #fff; }
+        .tab:hover { background: var(--hover); }
+        .tab.active { background: var(--primary); color: #fff; }
         .tab-icon { margin-right: 4px; }
         .section { margin-bottom: 16px; }
         .section-title {
@@ -403,24 +360,24 @@ canvas {
           display: flex; align-items: center; gap: 6px;
         }
         .stats-grid {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 12px; margin-bottom: 16px;
+          display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+          gap: 10px; margin-bottom: 16px;
         }
         .stat-card {
-          background: var(--bento-primary-light); border-radius: 8px; padding: 12px;
-          text-align: center; min-width: 0;
+          background: var(--hover); border-radius: 8px; padding: 12px;
+          text-align: center;
         }
         .stat-value { font-size: 22px; font-weight: 700; }
-        .stat-label { font-size: 11px; color: var(--bento-text-secondary); margin-top: 2px; }
+        .stat-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
         .stat-trend { font-size: 11px; margin-top: 4px; }
-        .trend-up { color: var(--bento-error); }
-        .trend-down { color: var(--bento-success); }
+        .trend-up { color: var(--red); }
+        .trend-down { color: var(--green); }
         .bar-chart { margin: 8px 0; }
         .bar-row {
           display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px;
         }
-        .bar-label { width: 80px; text-align: right; font-size: 12px; color: var(--bento-text-secondary); flex-shrink: 0; }
-        .bar-container { flex: 1; height: 20px; background: var(--bento-primary-light); border-radius: 4px; overflow: hidden; }
+        .bar-label { width: 80px; text-align: right; font-size: 12px; color: var(--text2); flex-shrink: 0; }
+        .bar-container { flex: 1; height: 20px; background: var(--hover); border-radius: 4px; overflow: hidden; }
         .bar-fill {
           height: 100%; border-radius: 4px; transition: width 0.5s ease;
           display: flex; align-items: center; padding: 0 6px;
@@ -430,38 +387,38 @@ canvas {
         .auto-list { }
         .auto-item {
           display: flex; justify-content: space-between; align-items: center;
-          padding: 8px 0; border-bottom: 1px solid var(--bento-border); font-size: 13px;
+          padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
         }
         .auto-item:last-child { border-bottom: none; }
         .auto-name { font-weight: 500; flex: 1; }
         .auto-count {
-          background: var(--bento-primary-light); padding: 2px 8px; border-radius: 12px;
+          background: var(--hover); padding: 2px 8px; border-radius: 12px;
           font-size: 12px; font-weight: 600; margin-left: 8px;
         }
         .auto-status {
-          font-size: 11px; color: var(--bento-text-secondary); margin-left: 8px; width: 60px; text-align: right;
+          font-size: 11px; color: var(--text2); margin-left: 8px; width: 60px; text-align: right;
         }
         .health-item {
           display: flex; justify-content: space-between; align-items: center;
-          padding: 8px 12px; background: var(--bento-primary-light); border-radius: 6px;
+          padding: 8px 12px; background: var(--hover); border-radius: 6px;
           margin-bottom: 6px; font-size: 13px;
         }
         .health-dot {
           width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0;
         }
         .health-name { flex: 1; font-weight: 500; }
-        .health-value { font-family: monospace; font-size: 12px; color: var(--bento-text-secondary); }
+        .health-value { font-family: monospace; font-size: 12px; color: var(--text2); }
         .export-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
         .btn-export {
-          padding: 6px 14px; border: 1px solid var(--bento-border); border-radius: 6px;
-          background: var(--bento-bg); color: var(--bento-text); cursor: pointer; font-size: 12px;
+          padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px;
+          background: var(--bg); color: var(--text); cursor: pointer; font-size: 12px;
         }
-        .btn-export:hover { background: var(--bento-primary-light); }
-        .btn-export.primary { background: var(--bento-primary); color: #fff; border-color: var(--bento-primary); }
+        .btn-export:hover { background: var(--hover); }
+        .btn-export.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
 
         /* RESPONSIVE */
         @media (max-width: 768px) {
-          .card { padding: 12px; }
+          .reports-card { padding: 12px; }
           .card-header { flex-direction: column; gap: 8px; }
           .card-header h2 { font-size: 16px; }
           .report-grid { grid-template-columns: 1fr !important; }
@@ -469,42 +426,38 @@ canvas {
           table { font-size: 12px; }
           td, th { padding: 6px 8px; }
           .tab-bar { flex-wrap: wrap; }
-          .tab-btn { font-size: 12px; padding: 6px 10px; }
+          .tab { font-size: 12px; padding: 6px 10px; }
           .chart-container { height: 200px !important; }
         }
         @media (max-width: 480px) {
-          .tab-btn { font-size: 11px; padding: 5px 8px; }
+          .tab { font-size: 11px; padding: 5px 8px; }
           .report-grid { gap: 8px; }
         }
       
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
-          .tab-btn, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
-          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .stats, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
           .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
-        }
-        @media (max-width: 360px) {
-          .stats-grid { grid-template-columns: 1fr; gap: 8px; }
-        }
           .panels, .board { flex-direction: column; }
           .column { min-width: unset; }
           h2 { font-size: 18px; }
           h3 { font-size: 15px; }
+        }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab-btn, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
         }
       
 
 </style>
-      
-        <div class="card">
+      <ha-card>
+        <div class="reports-card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
             <select class="period-select" id="periodSelect">
@@ -515,7 +468,7 @@ canvas {
           </div>
           <div class="tabs" id="tabsContainer">
             ${tabs.map(t => `
-              <button class="tab-btn ${t.id === this._activeTab ? 'active' : ''}" data-tab="${t.id}">
+              <button class="tab ${t.id === this._activeTab ? 'active' : ''}" data-tab="${t.id}">
                 <span class="tab-icon">${t.icon}</span>${t.label}
               </button>
             `).join('')}
@@ -526,19 +479,18 @@ canvas {
             <button class="btn-export primary" id="exportJsonBtn">Export JSON</button>
           </div>
         </div>
-      
+      </ha-card>
     `;
     this._attachEvents();
     this._updateData();
   }
 
   _attachEvents() {
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(tab => {
+    this.shadowRoot.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
         this._activeTab = tab.dataset.tab;
-        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         try { localStorage.setItem('ha-smart-reports-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
-        this.shadowRoot.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+        this.shadowRoot.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this._updateData();
       });
@@ -558,80 +510,26 @@ canvas {
     if (!content || !this._hass) return;
 
     switch (this._activeTab) {
-      case 'energy': this._renderEnergy(content).catch(e => console.error('[ha-smart-reports] Energy render error:', e)); break;
+      case 'energy': this._renderEnergy(content); break;
       case 'automations': this._renderAutomations(content); break;
       case 'system': this._renderSystem(content); break;
     }
   }
 
-  async _renderEnergy(container) {
-    // Use recorder statistics API for accurate historical data
-    const periodDays = this._period === '1d' ? 1 : this._period === '30d' ? 30 : 7;
-    let sensors = [];
-    let totalEnergy = 0;
+  _renderEnergy(container) {
+    const sensors = Object.entries(this._hass.states)
+      .filter(([id]) => id.includes('energy') || id.includes('power') || id.includes('consumption'))
+      .filter(([, s]) => !isNaN(parseFloat(s.state)))
+      .map(([id, s]) => ({
+        id, name: s.attributes.friendly_name || id,
+        value: parseFloat(s.state),
+        unit: s.attributes.unit_of_measurement || '',
+        device_class: s.attributes.device_class
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
 
-    try {
-      const allStats = await this._hass.callWS({ type: 'recorder/list_statistic_ids', statistic_type: 'sum' });
-      const kwhIds = allStats
-        .filter(s => s.statistics_unit_of_measurement === 'kWh' || s.statistics_unit_of_measurement === 'Wh')
-        .filter(s => {
-          const id = s.statistic_id;
-          return !id.includes('_daily') && !id.includes('_weekly') && !id.includes('_monthly') && !id.includes('_last_') && !id.includes('_cost');
-        });
-
-      if (kwhIds.length > 0) {
-        const sensorIds = kwhIds.map(s => s.statistic_id);
-        const sensorUnits = {};
-        kwhIds.forEach(s => { sensorUnits[s.statistic_id] = s.statistics_unit_of_measurement; });
-
-        const now = new Date();
-        const periodStart = new Date(now.getTime() - periodDays * 24 * 3600000);
-
-        const stats = await this._hass.callWS({
-          type: 'recorder/statistics_during_period',
-          start_time: periodStart.toISOString(),
-          end_time: now.toISOString(),
-          statistic_ids: sensorIds,
-          period: 'hour',
-          types: ['change']
-        });
-
-        const deviceTotals = {};
-        sensorIds.forEach(id => {
-          const entries = stats[id] || [];
-          const isWh = sensorUnits[id] === 'Wh';
-          let sensorTotal = 0;
-          entries.forEach(entry => {
-            let change = Math.max(0, entry.change ?? 0);
-            if (isWh) change /= 1000;
-            sensorTotal += change;
-          });
-          if (sensorTotal > 0.001) {
-            const friendlyName = this._hass.states[id]?.attributes?.friendly_name || id;
-            deviceTotals[id] = { id, name: friendlyName, value: parseFloat(sensorTotal.toFixed(2)), unit: 'kWh' };
-          }
-        });
-
-        sensors = Object.values(deviceTotals).sort((a, b) => b.value - a.value).slice(0, 10);
-        totalEnergy = sensors.reduce((sum, s) => sum + s.value, 0);
-      }
-    } catch (e) {
-      // Fallback to entity states if statistics API fails
-      console.warn('[ha-smart-reports] Statistics API failed, falling back to entity states:', e);
-      sensors = Object.entries(this._hass.states)
-        .filter(([id]) => id.includes('energy') || id.includes('power') || id.includes('consumption'))
-        .filter(([, s]) => !isNaN(parseFloat(s.state)))
-        .map(([id, s]) => ({
-          id, name: s.attributes.friendly_name || id,
-          value: parseFloat(s.state),
-          unit: s.attributes.unit_of_measurement || '',
-          device_class: s.attributes.device_class
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 10);
-      totalEnergy = sensors.reduce((sum, s) => sum + (s.unit.includes('kWh') ? s.value : 0), 0);
-    }
-
+    const totalEnergy = sensors.reduce((sum, s) => sum + (s.unit.includes('kWh') ? s.value : 0), 0);
     const cost = totalEnergy * this._config.energy_price;
 
     if (sensors.length === 0) {
@@ -639,8 +537,10 @@ canvas {
         <div class="empty-state">
           <div style="font-size:48px;opacity:0.5;margin-bottom:12px;">⚡</div>
           <h3 style="margin:8px 0 4px;">${this._lang === 'pl' ? 'Brak danych energetycznych' : 'No energy data found'}</h3>
-          <p style="font-size:12px;color:var(--bento-text-secondary);">${this._t.noEnergySensors}</p>
-          <a href="/config/energy" style="color:var(--bento-primary,#3B82F6);font-size:12px;margin-top:8px;display:inline-block;">⚙️ ${this._t.energyConfig}</a>
+          <p style="font-size:12px;color:var(--bento-text-secondary);">${this._lang === 'pl'
+            ? 'Nie znaleziono sensorów energii (kWh/W). Przejdź do Ustawienia → Energia i dodaj źródła energii.'
+            : 'No energy sensors (kWh/W) found. Go to Settings → Energy and add energy sources.'}</p>
+          <a href="/config/energy" style="color:var(--bento-primary,#3B82F6);font-size:12px;margin-top:8px;display:inline-block;">⚙️ ${this._lang === 'pl' ? 'Konfiguracja energii' : 'Energy configuration'}</a>
         </div>`;
       return;
     }
@@ -651,21 +551,21 @@ canvas {
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-warning)">${totalEnergy.toFixed(1)}</div>
+          <div class="stat-value" style="color:var(--orange)">${totalEnergy.toFixed(1)}</div>
           <div class="stat-label">kWh Total</div>
           <div class="stat-trend" style="font-size:11px;color:var(--bento-text-muted)">${sensors.filter(s => s.unit.includes('kWh')).length} sensor\u00F3w kWh</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-primary)">${cost.toFixed(2)}</div>
+          <div class="stat-value" style="color:var(--blue)">${cost.toFixed(2)}</div>
           <div class="stat-label">${this._config.currency} Cost</div>
           <div class="stat-trend" style="font-size:11px;color:var(--bento-text-muted)">@ ${this._config.energy_price} ${this._config.currency}/kWh</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-success)">${sensors.length}</div>
+          <div class="stat-value" style="color:var(--green)">${sensors.length}</div>
           <div class="stat-label">Energy Sensors</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-error)">${sensors.length > 0 ? sensors[0].name.split(' ').slice(0, 2).join(' ') : '-'}</div>
+          <div class="stat-value" style="color:var(--red)">${sensors.length > 0 ? sensors[0].name.split(' ').slice(0, 2).join(' ') : '-'}</div>
           <div class="stat-label">Top Consumer</div>
         </div>
       </div>
@@ -713,19 +613,19 @@ canvas {
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-primary)">${automations.length}</div>
+          <div class="stat-value" style="color:var(--blue)">${automations.length}</div>
           <div class="stat-label">Total Automations</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-success)">${active}</div>
+          <div class="stat-value" style="color:var(--green)">${active}</div>
           <div class="stat-label">Active</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-error)">${disabled}</div>
+          <div class="stat-value" style="color:var(--red)">${disabled}</div>
           <div class="stat-label">Disabled</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-warning)">${recentCount}</div>
+          <div class="stat-value" style="color:var(--orange)">${recentCount}</div>
           <div class="stat-label">Triggered Today</div>
         </div>
       </div>
@@ -736,7 +636,7 @@ canvas {
             <div class="auto-item">
               <span class="auto-name">${this._sanitize(a.name)}</span>
               <span class="auto-status">${this._timeAgo(a.last_triggered)}</span>
-              <span class="auto-count" style="color:${a.state === 'on' ? 'var(--bento-success)' : 'var(--bento-error)'}">
+              <span class="auto-count" style="color:${a.state === 'on' ? 'var(--green)' : 'var(--red)'}">
                 ${a.state}
               </span>
             </div>
@@ -772,19 +672,19 @@ canvas {
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-primary)">${allEntities.length}</div>
+          <div class="stat-value" style="color:var(--blue)">${allEntities.length}</div>
           <div class="stat-label">Total Entities</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:var(--bento-success)">${Object.keys(domains).length}</div>
+          <div class="stat-value" style="color:var(--green)">${Object.keys(domains).length}</div>
           <div class="stat-label">Domains</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:${unavailable > 0 ? 'var(--bento-error)' : 'var(--bento-success)'}">${unavailable}</div>
+          <div class="stat-value" style="color:${unavailable > 0 ? 'var(--red)' : 'var(--green)'}">${unavailable}</div>
           <div class="stat-label">Unavailable</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" style="color:${unknown > 0 ? 'var(--bento-warning)' : 'var(--bento-success)'}">${unknown}</div>
+          <div class="stat-value" style="color:${unknown > 0 ? 'var(--orange)' : 'var(--green)'}">${unknown}</div>
           <div class="stat-label">Unknown</div>
         </div>
       </div>
@@ -822,7 +722,7 @@ canvas {
 
     return items.map(i => `
       <div class="health-item">
-        <span class="health-dot" style="background:${i.ok ? 'var(--bento-success)' : 'var(--bento-warning)'}"></span>
+        <span class="health-dot" style="background:${i.ok ? 'var(--green)' : 'var(--orange)'}"></span>
         <span class="health-name">${this._sanitize(i.name)}</span>
         <span class="health-value">${i.value}</span>
       </div>
@@ -936,18 +836,17 @@ canvas {
     });
   }
 
-  disconnectedCallback() {
-    // Cleanup any active event listeners or timers
-  }
-
-  setActiveTab(tabId) {
-    this._activeTab = tabId;
-    this._render();
-  }
-
 }
 
 if (!customElements.get('ha-smart-reports')) { customElements.define('ha-smart-reports', HASmartReports); };
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'ha-smart-reports',
+  name: 'Smart Reports',
+  description: 'Energy reports, automation statistics, and system health overview',
+  preview: true
+});
 
 console.info(
   '%c  HA-SMART-REPORTS  %c v1.0.0 ',
@@ -971,11 +870,11 @@ class HaSmartReportsEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Smart Reports</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
@@ -1002,13 +901,3 @@ class HaSmartReportsEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-smart-reports-editor')) { customElements.define('ha-smart-reports-editor', HaSmartReportsEditor); }
-
-})();
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'ha-smart-reports',
-  name: 'Smart Reports',
-  description: 'Energy reports, automation statistics, and system health overview',
-  preview: true
-});

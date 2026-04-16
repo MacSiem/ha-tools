@@ -454,7 +454,10 @@ class HAPurgeCache extends HTMLElement {
   _hardReload() {
     this._addLog(this._t.logHardReload, 'info');
     setTimeout(() => {
-      location.reload(true);
+      // Cache-busting reload (location.reload(true) is deprecated in modern browsers)
+      const url = new URL(window.location.href);
+      url.searchParams.set('_cb', Date.now());
+      window.location.replace(url.toString());
     }, 1000);
   }
 

@@ -1,17 +1,6 @@
-(function() {
-'use strict';
-
-// XSS protection helper (reuse global from panel, fallback for standalone)
-const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
-
 class HaFrigatePrivacy extends HTMLElement {
   constructor() {
     super();
-    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._lastRenderTime = 0;
@@ -31,8 +20,6 @@ class HaFrigatePrivacy extends HTMLElement {
     this._schedules = [];
     this._scheduleForm = { enabled: true, days: [1,2,3,4,5], startHour: 18, startMin: 0, endHour: 20, endMin: 0, repeat: true, label: '' };
     this._editingScheduleIdx = null;
-    this._helpersChecked = false;
-    this._lastScheduleCheck = 0;
     this._history = [];
     // Notification settings
     this._notifyEnabled = true;
@@ -46,8 +33,6 @@ class HaFrigatePrivacy extends HTMLElement {
   static getConfigElement() {
     return document.createElement('ha-frigate-privacy-editor');
   }
-
-  getCardSize() { return 6; }
 
   static getStubConfig() {
     return {
@@ -218,62 +203,30 @@ class HaFrigatePrivacy extends HTMLElement {
     this._hass = hass;
     if (!hass) return;
     const now = Date.now();
-    // Update camera detection and status on EVERY hass update (not just once)
-    // This ensures camera friendly_name changes are reflected, and status is always current
-    this._detectCameras();
-    this._checkFrigateSupport();
-    this._updateFrigateStatus();
-
     if (!this._firstHassRender) {
       this._firstHassRender = true;
-      // Check HA timer entity — authoritative server-side state
-      const timerState = hass.states['timer.frigate_privacy'];
-      if (timerState) {
-        if (timerState.state === 'active' && !this._privacyActive) {
-          // Timer running on server but card doesn't know — sync state
-          const finishes = new Date(timerState.attributes.finishes_at).getTime();
-          if (finishes > Date.now()) {
-            this._privacyActive = true;
-            this._privacyEndTime = finishes;
-            this._startCountdown();
-          }
-        } else if (timerState.state === 'idle' && this._privacyActive) {
-          // Timer finished server-side — clean up card state AND resume cameras
-          const camsToResume = this._privacyCameras && this._privacyCameras !== 'all'
-            ? this._privacyCameras.split(', ')
-            : this._cameras.map(c => c.entity_id);
-          this._privacyActive = false;
-          this._privacyEndTime = null;
-          this._savePrivacyState();
-          if (this._privacyTimerInterval) { clearInterval(this._privacyTimerInterval); this._privacyTimerInterval = null; }
-          this._setCameraStreams(camsToResume, true);
-          this._addHistoryEntry('resumed', 0);
-          const t = this._t;
-          this._sendNotification('▶️ ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
-        }
-      }
+      this._detectCameras();
+      this._updateFrigateStatus();
       // Check if privacy timer expired while page was away
       if (this._pendingAddonRestart) {
         this._pendingAddonRestart = false;
-        const camsRestart = this._privacyCameras && this._privacyCameras !== 'all'
-          ? this._privacyCameras.split(', ')
-          : this._cameras.map(c => c.entity_id);
-        this._setCameraStreams(camsRestart, true);
-        const t = this._t;
-        this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
-        this._showToast(t.frigateResumed + ' (auto - timer expired)', 'success');
+        const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
+        hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
+          const t = this._t;
+          this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+          this._showToast(t.frigateResumed + ' (auto - timer expired)', 'success');
+        }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
       }
       // Also check persisted state in case _loadPrivacyState found active+expired
       if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime) {
-        const camsExpired = this._privacyCameras && this._privacyCameras !== 'all'
-          ? this._privacyCameras.split(', ')
-          : this._cameras.map(c => c.entity_id);
         this._privacyActive = false;
         this._privacyEndTime = null;
         this._savePrivacyState();
-        this._setCameraStreams(camsExpired, true);
-        const t = this._t;
-        this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+        const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
+        hass.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
+          const t = this._t;
+          this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+        }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
       }
       this._updateUI();
       this._lastRenderTime = now;
@@ -284,17 +237,17 @@ class HaFrigatePrivacy extends HTMLElement {
         this._renderScheduled = true;
         setTimeout(() => {
           this._renderScheduled = false;
+          this._updateFrigateStatus();
           // Check if privacy timer expired (handles case where user navigated away and back)
           if (this._privacyActive && this._privacyEndTime && Date.now() >= this._privacyEndTime && !this._privacyTimerInterval) {
-            const camsDeferred = this._privacyCameras && this._privacyCameras !== 'all'
-              ? this._privacyCameras.split(', ')
-              : (this._cameras || []).map(c => c.entity_id);
             this._privacyActive = false;
             this._privacyEndTime = null;
             this._savePrivacyState();
-            this._setCameraStreams(camsDeferred, true);
-            const t = this._t;
-            this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+            const addonId = this._config?.frigate_addon_id || 'ccab4aaf_frigate';
+            this._hass?.callService('hassio', 'addon_start', { addon: addonId }).then(() => {
+              const t = this._t;
+              this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed + ' (auto)', t.forCameras + ': ' + (this._privacyCameras || 'all'));
+            }).catch(e => console.warn('[Frigate Privacy] Error auto-starting addon:', e));
           }
           this._updateUI();
           this._lastRenderTime = Date.now();
@@ -302,14 +255,8 @@ class HaFrigatePrivacy extends HTMLElement {
       }
       return;
     }
-    // Auto-create HA helpers on first load
-    if (!this._helpersChecked) this._ensureHAHelpers();
-    // Check schedules every 60s
-    if (now - this._lastScheduleCheck > 60000) {
-      this._lastScheduleCheck = now;
-      this._checkSchedules();
-    }
     this._lastRenderTime = now;
+    this._updateFrigateStatus();
     this._updateUI();
   }
 
@@ -322,14 +269,40 @@ class HaFrigatePrivacy extends HTMLElement {
 
   _updateFrigateStatus() {
     if (!this._hass) return;
-    // Check if Frigate is running by looking for detect switches or update entities
-    const detectSwitches = Object.keys(this._hass.states).filter(id => id.startsWith('switch.') && id.endsWith('_detect'));
-    if (detectSwitches.length > 0) {
-      this._frigateRunning = true;
-    } else {
-      const frigateUpdate = this._hass.states['update.frigate_server'] || this._hass.states['update.frigate_update'] || this._hass.states['update.frigate_update_2'];
-      this._frigateRunning = frigateUpdate ? true : null;
+    // 1. Check configured entity first
+    const entity = this._config.frigate_running_entity || 'binary_sensor.frigate_running';
+    const state = this._hass.states[entity];
+    if (state) {
+      this._frigateRunning = state.state === 'on';
+      return;
     }
+    // 2. Fallback: check common Frigate entity patterns
+    const fallbacks = [
+      'binary_sensor.frigate_running',
+      'binary_sensor.frigate',
+      'sensor.frigate_status'
+    ];
+    for (const fb of fallbacks) {
+      const fbState = this._hass.states[fb];
+      if (fbState) {
+        this._frigateRunning = fbState.state === 'on' || fbState.state === 'running';
+        return;
+      }
+    }
+    // 3. Fallback: check if any camera.frigate_* entities exist
+    const hasFrigateCameras = Object.keys(this._hass.states).some(id =>
+      id.startsWith('camera.') && (
+        id.includes('frigate') ||
+        (this._hass.states[id].attributes.entity_picture || '').includes('frigate')
+      )
+    );
+    if (hasFrigateCameras) {
+      this._frigateRunning = true;
+      return;
+    }
+    // 4. Fallback: check addon state via supervisor API
+    this._frigateRunning = null;
+    this._checkAddonState();
   }
 
   async _checkAddonState() {
@@ -366,23 +339,7 @@ class HaFrigatePrivacy extends HTMLElement {
       });
       return;
     }
-    // Auto-detect: find cameras that have Frigate detect switches
-    const allSwitches = Object.keys(this._hass.states).filter(id => id.startsWith('switch.') && id.endsWith('_detect'));
-    const frigateCameraIds = [];
-    Object.keys(this._hass.states).filter(id => id.startsWith('camera.')).forEach(camId => {
-      const camName = camId.replace('camera.', '');
-      if (allSwitches.some(sw => sw === 'switch.' + camName + '_detect')) {
-        frigateCameraIds.push(camId);
-      }
-    });
-    if (frigateCameraIds.length > 0) {
-      this._cameras = frigateCameraIds.map(id => ({
-        entity_id: id,
-        name: this._hass.states[id].attributes.friendly_name || id
-      }));
-      return;
-    }
-    // Fallback: entity_id or entity_picture containing 'frigate'
+    // Auto-detect Frigate cameras
     this._cameras = Object.keys(this._hass.states)
       .filter(id => id.startsWith('camera.') && (
         id.includes('frigate') ||
@@ -392,102 +349,13 @@ class HaFrigatePrivacy extends HTMLElement {
         entity_id: id,
         name: this._hass.states[id].attributes.friendly_name || id
       }));
-    // Last resort: all cameras
+    // Fallback: known cameras from config
     if (this._cameras.length === 0) {
-      this._cameras = Object.keys(this._hass.states)
-        .filter(id => id.startsWith('camera.'))
-        .map(id => ({
-          entity_id: id,
-          name: this._hass.states[id].attributes.friendly_name || id
-        }));
+      this._cameras = [
+        { entity_id: 'camera.cam_pt2_mainstream', name: 'Cam PT2 Mainstream' },
+        { entity_id: 'camera.cam_pt2_mainstream_2', name: 'Cam PT2 Mainstream 2' }
+      ];
     }
-  }
-
-  // --- Frigate version check ---
-  // Minimum supported Frigate version. Below 0.14 the master switch
-  // `switch.{camera}_enabled` does not exist and the privacy toggle cannot
-  // fully disable the camera (detection/stream may keep running).
-  static get MIN_FRIGATE_VERSION() { return { major: 0, minor: 14 }; }
-  static get TESTED_FRIGATE_VERSION() { return '0.17.1'; }
-
-  _parseFrigateVersion(raw) {
-    if (!raw || typeof raw !== 'string') return null;
-    const m = raw.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
-    if (!m) return null;
-    return { major: parseInt(m[1]), minor: parseInt(m[2]), patch: parseInt(m[3] || '0'), raw: raw };
-  }
-
-  _detectFrigateVersion() {
-    if (!this._hass) return null;
-    // 1) update.* entity (most reliable — HA Frigate integration exposes one)
-    const updateEntity = Object.keys(this._hass.states).find(id =>
-      id.startsWith('update.') && id.includes('frigate')
-    );
-    if (updateEntity) {
-      const attrs = this._hass.states[updateEntity].attributes || {};
-      const v = this._parseFrigateVersion(attrs.installed_version || attrs.latest_version);
-      if (v) return v;
-    }
-    // 2) sensor.frigate_* with version attribute
-    for (const id of Object.keys(this._hass.states)) {
-      if (!id.includes('frigate')) continue;
-      const attrs = this._hass.states[id].attributes || {};
-      const v = this._parseFrigateVersion(attrs.version || attrs.sw_version || attrs.installed_version);
-      if (v) return v;
-    }
-    return null;
-  }
-
-  _checkFrigateSupport() {
-    if (!this._hass) return { supported: true, reason: null };
-    const t = this._t || {};
-    const version = this._detectFrigateVersion();
-    const min = this.constructor.MIN_FRIGATE_VERSION;
-    const tested = this.constructor.TESTED_FRIGATE_VERSION;
-
-    // Proxy check: does ANY detected camera have the _enabled master switch?
-    const hasEnabledSwitch = (this._cameras || []).some(c => {
-      const name = c.entity_id.replace('camera.', '');
-      return !!this._hass.states['switch.' + name + '_enabled'];
-    });
-
-    let supported = true;
-    let reason = null;
-
-    if (version) {
-      const tooOld = version.major < min.major ||
-                     (version.major === min.major && version.minor < min.minor);
-      if (tooOld) {
-        supported = false;
-        reason = 'Frigate ' + version.raw + ' nie jest wspierane. Minimum: ' +
-                 min.major + '.' + min.minor + ' (testowane: ' + tested + '). ' +
-                 'Brak master switcha switch.{name}_enabled \u2014 privacy toggle nie wy\u0142\u0105czy kamery w pe\u0142ni.';
-      }
-    } else if (!hasEnabledSwitch && (this._cameras || []).length > 0) {
-      // Couldn't read version AND no _enabled switch found -> likely pre-0.14
-      supported = false;
-      reason = 'Nie wykryto wersji Frigate i \u017Cadna kamera nie ma switch.{name}_enabled. ' +
-               'Wymagane Frigate ' + min.major + '.' + min.minor + '+ (testowane: ' + tested + ').';
-    }
-
-    this._frigateVersion = version;
-    this._frigateSupported = supported;
-    this._frigateUnsupportedReason = reason;
-
-    if (!supported && !this._unsupportedWarningShown) {
-      this._unsupportedWarningShown = true;
-      console.error('[Frigate Privacy] ' + reason);
-      try { this._showToast && this._showToast('\u26A0\uFE0F ' + reason, 'error'); } catch(_) {}
-      // Persistent notification so user sees it even if toast is missed
-      try {
-        this._hass.callService('persistent_notification', 'create', {
-          notification_id: 'frigate_privacy_unsupported',
-          title: '\u26A0\uFE0F Frigate Privacy \u2014 niewspierana wersja',
-          message: reason + '\n\nZaktualizuj Frigate lub zmie\u0144 konfiguracj\u0119.'
-        });
-      } catch(_) {}
-    }
-    return { supported: supported, reason: reason, version: version };
   }
 
   // --- Persistence via localStorage ---
@@ -503,11 +371,9 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   _saveSchedules() {
-    try { localStorage.setItem(this._storageKey('schedules'), JSON.stringify(this._schedules)); } catch(e) {}
-    if (window._haToolsPersistence && this._hass) {
-      window._haToolsPersistence.setHass(this._hass);
-      window._haToolsPersistence.save('frigate-privacy-schedules', this._schedules).catch(() => {});
-    }
+    try {
+      localStorage.setItem(this._storageKey('schedules'), JSON.stringify(this._schedules));
+    } catch(e) { /* ignore */ }
   }
 
   _loadHistory() {
@@ -518,13 +384,11 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   _saveHistory() {
-    // Keep max 50 entries
-    if (this._history.length > 50) this._history = this._history.slice(-50);
-    try { localStorage.setItem(this._storageKey('history'), JSON.stringify(this._history)); } catch(e) {}
-    if (window._haToolsPersistence && this._hass) {
-      window._haToolsPersistence.setHass(this._hass);
-      window._haToolsPersistence.save('frigate-privacy-history', this._history).catch(() => {});
-    }
+    try {
+      // Keep last 50 entries
+      if (this._history.length > 50) this._history = this._history.slice(-50);
+      localStorage.setItem(this._storageKey('history'), JSON.stringify(this._history));
+    } catch(e) { /* ignore */ }
   }
 
   _loadNotifySettings() {
@@ -540,79 +404,60 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   _saveNotifySettings() {
-    const data = { enabled: this._notifyEnabled, service: this._notifyService, beforeEndMin: this._notifyBeforeEndMin };
-    try { localStorage.setItem(this._storageKey('notify'), JSON.stringify(data)); } catch(e) {}
-    if (window._haToolsPersistence && this._hass) {
-      window._haToolsPersistence.setHass(this._hass);
-      window._haToolsPersistence.save('frigate-privacy-notify', data).catch(() => {});
-    }
+    try {
+      localStorage.setItem(this._storageKey('notify'), JSON.stringify({
+        enabled: this._notifyEnabled,
+        service: this._notifyService,
+        beforeEndMin: this._notifyBeforeEndMin
+      }));
+    } catch(e) { /* ignore */ }
   }
 
   _savePrivacyState() {
-    const data = (this._privacyActive && this._privacyEndTime) ? {
-      active: true,
-      endTime: this._privacyEndTime,
-      cameras: this._privacyCameras || 'all',
-      startedMin: this._privacyStartedMin || 0,
-      addonId: this._config?.frigate_addon_id || 'ccab4aaf_frigate'
-    } : null;
-    // Save to both localStorage (fast) and HA server (cross-device)
-    try { localStorage.setItem(this._storageKey('active'), data ? JSON.stringify(data) : ''); } catch(e) {}
-    if (window._haToolsPersistence && this._hass) {
-      window._haToolsPersistence.setHass(this._hass);
-      window._haToolsPersistence.save('frigate-privacy-active', data).catch(() => {});
-    }
+    try {
+      if (this._privacyActive && this._privacyEndTime) {
+        localStorage.setItem(this._storageKey('active'), JSON.stringify({
+          active: true,
+          endTime: this._privacyEndTime,
+          cameras: this._privacyCameras || 'all',
+          startedMin: this._privacyStartedMin || 0,
+          addonId: this._config?.frigate_addon_id || 'ccab4aaf_frigate'
+        }));
+      } else {
+        localStorage.removeItem(this._storageKey('active'));
+      }
+    } catch(e) { /* ignore */ }
   }
 
   _loadPrivacyState() {
-    // 1. Quick check from localStorage cache
-    let s = null;
     try {
       const raw = localStorage.getItem(this._storageKey('active'));
-      if (raw) s = JSON.parse(raw);
-    } catch(e) {}
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (!s.active || !s.endTime) return;
 
-    // 2. Also try server-side data (async, will update later)
-    if (window._haToolsPersistence && this._hass) {
-      window._haToolsPersistence.setHass(this._hass);
-      window._haToolsPersistence.load('frigate-privacy-active').then(serverData => {
-        if (serverData && serverData.active && serverData.endTime) {
-          // Server data is newer/authoritative — use it
-          this._applyPrivacyState(serverData);
-        }
-      }).catch(() => {});
-    }
-
-    // 3. Apply localStorage data immediately (sync)
-    if (s && s.active && s.endTime) {
-      this._applyPrivacyState(s);
-    }
-  }
-
-  _applyPrivacyState(s) {
-    if (!s || !s.active || !s.endTime) return;
-
-    if (Date.now() >= s.endTime) {
-      // Timer already expired while we were away
-      console.info('[Frigate Privacy] Timer expired while away, will restart addon...');
-      this._privacyActive = false;
-      this._privacyEndTime = null;
-      this._privacyCameras = s.cameras || 'all';
-      this._savePrivacyState(); // Clear persisted state
-      // Defer addon restart until hass is available
-      this._pendingAddonRestart = true;
-      this._addHistoryEntry('auto-resumed', 0, s.cameras);
-    } else if (!this._privacyActive) {
-      // Timer still active — resume countdown
-      console.info('[Frigate Privacy] Resuming privacy timer, ' +
-        Math.ceil((s.endTime - Date.now()) / 60000) + ' min remaining');
-      this._privacyActive = true;
-      this._privacyEndTime = s.endTime;
-      this._privacyCameras = s.cameras || 'all';
-      this._privacyStartedMin = s.startedMin || 0;
-      this._warningSent = false;
-      this._startCountdown();
-    }
+      if (Date.now() >= s.endTime) {
+        // Timer already expired while we were away — restart addon immediately
+        console.info('[Frigate Privacy] Timer expired while away, restarting addon...');
+        localStorage.removeItem(this._storageKey('active'));
+        this._privacyActive = false;
+        this._privacyEndTime = null;
+        this._privacyCameras = s.cameras || 'all';
+        // Defer addon restart until hass is available
+        this._pendingAddonRestart = true;
+        this._addHistoryEntry('auto-resumed', 0, s.cameras);
+      } else {
+        // Timer still active — resume countdown
+        console.info('[Frigate Privacy] Resuming active privacy timer, ' +
+          Math.ceil((s.endTime - Date.now()) / 60000) + ' min remaining');
+        this._privacyActive = true;
+        this._privacyEndTime = s.endTime;
+        this._privacyCameras = s.cameras || 'all';
+        this._privacyStartedMin = s.startedMin || 0;
+        this._warningSent = false;
+        this._startCountdown();
+      }
+    } catch(e) { console.warn('[Frigate Privacy] Load state error:', e); }
   }
 
 
@@ -675,236 +520,24 @@ class HaFrigatePrivacy extends HTMLElement {
     this._saveHistory();
   }
 
-  // --- HA server-side helpers management ---
-  async _syncCamerasToHA(camerasStr) {
-    if (!this._hass) return;
-    try {
-      if (this._hass.states['input_text.frigate_privacy_cameras']) {
-        await this._hass.callService('input_text', 'set_value', {
-          entity_id: 'input_text.frigate_privacy_cameras',
-          value: (camerasStr || '').substring(0, 255)
-        });
-      }
-    } catch(e) { console.warn('[Frigate Privacy] Could not sync cameras to HA:', e); }
-  }
-
-  async _ensureHAHelpers() {
-    if (!this._hass || this._helpersChecked) return;
-    this._helpersChecked = true;
-    // Auto-create timer.frigate_privacy if missing
-    if (!this._hass.states['timer.frigate_privacy']) {
-      try {
-        await this._hass.callWS({ type: 'timer/create', name: 'Frigate Privacy', icon: 'mdi:camera-timer', duration: '01:00:00' });
-        console.info('[Frigate Privacy] Created timer.frigate_privacy helper');
-      } catch(e) { console.warn('[Frigate Privacy] Could not auto-create timer helper:', e); }
-    }
-    // Auto-create input_text.frigate_privacy_cameras if missing
-    if (!this._hass.states['input_text.frigate_privacy_cameras']) {
-      try {
-        await this._hass.callWS({ type: 'input_text/create', name: 'Frigate Privacy Cameras', icon: 'mdi:camera-off', min: 0, max: 255, mode: 'text' });
-        console.info('[Frigate Privacy] Created input_text.frigate_privacy_cameras helper');
-      } catch(e) { console.warn('[Frigate Privacy] Could not auto-create input_text helper:', e); }
-    }
-    // Auto-create/update the timer expiry automation (server-side camera resume)
-    // This is critical: when timer expires and browser is closed, HA must turn cameras back on
-    await this._ensureTimerExpiryAutomation();
-  }
-
-  async _ensureTimerExpiryAutomation() {
-    if (!this._hass) return;
-    const autoId = 'automation.frigate_privacy_resume_cameras_when_timer_expires';
-    const existing = this._hass.states[autoId];
-    // Detect all Frigate camera switches dynamically
-    const allSwitches = Object.keys(this._hass.states).filter(id =>
-      id.startsWith('switch.') && (id.endsWith('_detect') || id.endsWith('_motion') || id.endsWith('_recordings') || id.endsWith('_snapshots'))
-    );
-    if (allSwitches.length === 0) return; // No Frigate switches found — skip
-
-    // Build the automation config
-    const config = {
-      alias: 'Frigate Privacy - Resume cameras when timer expires',
-      description: 'Auto-generated by ha-tools. Turns on all Frigate camera switches when privacy timer finishes. Works even with browser closed.',
-      mode: 'single',
-      triggers: [{ trigger: 'event', event_type: 'timer.finished', event_data: { entity_id: 'timer.frigate_privacy' } }],
-      conditions: [],
-      actions: [
-        { action: 'switch.turn_on', target: { entity_id: allSwitches } }
-      ]
-    };
-    // Add input_text clear if helper exists
-    if (this._hass.states['input_text.frigate_privacy_cameras']) {
-      config.actions.push({ action: 'input_text.set_value', target: { entity_id: 'input_text.frigate_privacy_cameras' }, data: { value: '' } });
-    }
-    config.actions.push({ action: 'persistent_notification.create', data: { title: '\u25B6\uFE0F Frigate Privacy', message: 'Privacy timer expired. All camera switches resumed automatically.' } });
-
-    try {
-      await this._hass.callWS({ type: 'automation/config', entity_id: autoId, config: config });
-      console.info('[Frigate Privacy] Ensured timer expiry automation (' + allSwitches.length + ' switches)');
-    } catch(e) {
-      console.warn('[Frigate Privacy] Could not create timer expiry automation:', e);
-    }
-  }
-
-  // --- Schedule execution (checks every 60s in set hass) ---
-  _checkSchedules() {
-    if (!this._hass || !this._schedules || this._schedules.length === 0) return;
-    const now = new Date();
-    const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon..7=Sun
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-
-    for (const sched of this._schedules) {
-      if (!sched.enabled) continue;
-      if (!sched.days.includes(dayOfWeek)) continue;
-      const startMin = sched.startHour * 60 + (sched.startMin || 0);
-      const endMin = sched.endHour * 60 + (sched.endMin || 0);
-      const inWindow = endMin > startMin
-        ? (nowMin >= startMin && nowMin < endMin)
-        : (nowMin >= startMin || nowMin < endMin); // overnight
-
-      if (inWindow && !this._privacyActive) {
-        // Schedule should be active but privacy is off — start it
-        const durationMin = endMin > startMin ? (endMin - nowMin) : (1440 - nowMin + endMin);
-        console.info('[Frigate Privacy] Schedule triggered: ' + (sched.label || 'unnamed') + ', duration: ' + durationMin + 'min');
-        this._pauseFrigate(Math.max(1, durationMin));
-        this._addHistoryEntry('scheduled', durationMin, this._privacyCameras);
-        return; // only one schedule at a time
-      }
-    }
-  }
-
-  async _syncScheduleToHA(sched, idx, remove) {
-    if (!this._hass) return;
-    const automationId = 'frigate_privacy_schedule_' + idx;
-    if (remove || !sched || !sched.enabled) {
-      // Remove HA automation if it exists
-      try {
-        const existing = this._hass.states['automation.' + automationId];
-        if (existing) {
-          await this._hass.callService('automation', 'turn_off', { entity_id: 'automation.' + automationId });
-        }
-      } catch(e) {}
-      return;
-    }
-    // Create/update HA automation for this schedule
-    const dayMap = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat', 7: 'sun' };
-    const weekdays = sched.days.map(d => dayMap[d]).filter(Boolean);
-    const startTime = String(sched.startHour).padStart(2, '0') + ':' + String(sched.startMin || 0).padStart(2, '0') + ':00';
-    const endTime = String(sched.endHour).padStart(2, '0') + ':' + String(sched.endMin || 0).padStart(2, '0') + ':00';
-    const durationMin = (sched.endHour * 60 + (sched.endMin || 0)) - (sched.startHour * 60 + (sched.startMin || 0));
-    const durationMinAbs = durationMin > 0 ? durationMin : durationMin + 1440;
-    const durationH = Math.floor(durationMinAbs / 60);
-    const durationM = durationMinAbs % 60;
-    const durStr = String(durationH).padStart(2, '0') + ':' + String(durationM).padStart(2, '0') + ':00';
-
-    // Get all camera switches
-    const switches = Object.keys(this._hass.states).filter(id =>
-      id.startsWith('switch.') && (id.endsWith('_detect') || id.endsWith('_motion') || id.endsWith('_recordings') || id.endsWith('_snapshots'))
-    );
-
-    try {
-      await this._hass.callWS({
-        type: 'automation/config',
-        entity_id: 'automation.' + automationId,
-        config: {
-          alias: 'Frigate Privacy Schedule: ' + (sched.label || '#' + idx),
-          description: 'Auto-generated by ha-tools Frigate Privacy. Pauses cameras on schedule.',
-          mode: 'single',
-          triggers: [{ trigger: 'time', at: startTime }],
-          conditions: [{ condition: 'time', weekday: weekdays }],
-          actions: (() => {
-            const acts = [
-              { action: 'switch.turn_off', target: { entity_id: switches } },
-              { action: 'timer.start', target: { entity_id: 'timer.frigate_privacy' }, data: { duration: durStr } }
-            ];
-            if (this._hass.states['input_text.frigate_privacy_cameras']) {
-              acts.push({ action: 'input_text.set_value', target: { entity_id: 'input_text.frigate_privacy_cameras' }, data: { value: 'all (schedule)' } });
-            }
-            acts.push({ action: 'persistent_notification.create', data: { title: '\uD83D\uDD12 Frigate Privacy (schedule)', message: (sched.label || 'Schedule #' + idx) + ' activated. Cameras paused for ' + durationMinAbs + ' min.' } });
-            return acts;
-          })()
-        }
-      });
-      console.info('[Frigate Privacy] Synced schedule automation: ' + automationId);
-    } catch(e) { console.warn('[Frigate Privacy] Could not sync schedule automation:', e); }
-  }
-
-  // --- Camera stream control helper ---
-  async _setCameraStreams(camIds, turnOn) {
-    if (!this._hass) return;
-    // NOTE: We intentionally do NOT call camera.turn_off/turn_on.
-    // Turning off the camera entity stops the entire Frigate camera pipeline,
-    // which can cause Google Coral TPU to be released. On turn_on, Frigate may
-    // fail to re-acquire the Coral (USB race condition) and fall back to CPU.
-    // Instead, we only toggle the Frigate switches (detect/recordings/snapshots/motion)
-    // which pauses processing without stopping the camera stream or releasing the TPU.
-    const switchAction = turnOn ? 'turn_on' : 'turn_off';
-    let toggledCount = 0;
-    const missingPerCam = [];
-    for (const camId of camIds) {
-      const camName = camId.replace('camera.', '');
-      let camToggled = 0;
-      // _enabled is the Frigate 0.14+ master switch — toggling this alone fully disables
-      // the camera in Frigate (no detection, no recording, no snapshots, no stream processing).
-      // Kept first so if it exists, it does the heavy lifting. The others remain for backwards
-      // compatibility with older Frigate versions and for partial-pause scenarios.
-      for (const suffix of ['_enabled', '_detect', '_recordings', '_snapshots', '_motion', '_audio']) {
-        const switchId = 'switch.' + camName + suffix;
-        if (this._hass.states[switchId]) {
-          try {
-            await this._hass.callService('switch', switchAction, { entity_id: switchId });
-            camToggled++;
-            toggledCount++;
-          } catch(e) {
-            console.warn('[Frigate Privacy] switch.' + switchAction + ' failed for ' + switchId + ':', e.message || e);
-          }
-        }
-      }
-      if (camToggled === 0) missingPerCam.push(camId);
-    }
-    if (toggledCount === 0) {
-      console.error('[Frigate Privacy] No Frigate switches found for cameras: ' + camIds.join(', ') +
-        '. Expected entities like switch.{name}_enabled / _detect / _recordings. Check entity naming.');
-      try { this._showToast && this._showToast('Frigate Privacy: nie znaleziono switchy dla kamer (' + camIds.join(', ') + ')', 'error'); } catch(_) {}
-    } else if (missingPerCam.length) {
-      console.warn('[Frigate Privacy] No switches found for: ' + missingPerCam.join(', '));
-    } else {
-      console.info('[Frigate Privacy] Toggled ' + toggledCount + ' switches (' + switchAction + ') for ' + camIds.length + ' camera(s)');
-    }
-  }
-
   // --- Actions ---
   async _pauseFrigate(minutes) {
     const t = this._t;
     if (!this._hass) return;
-    // Guard: block pause if Frigate version is unsupported — otherwise privacy
-    // toggle gives false sense of security (camera keeps working silently).
-    if (this._frigateSupported === false) {
-      const msg = this._frigateUnsupportedReason || 'Niewspierana wersja Frigate';
-      console.error('[Frigate Privacy] Pause blocked: ' + msg);
-      try { this._showToast && this._showToast('\u26A0\uFE0F ' + msg, 'error'); } catch(_) {}
-      return;
-    }
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
     try {
-      // Pause selected cameras
-      const selectedCams = this._selectedCameras.size > 0 ? [...this._selectedCameras] : this._cameras.map(c => c.entity_id);
-      await this._setCameraStreams(selectedCams, false);
+      // Stop Frigate addon directly
+      await this._hass.callService('hassio', 'addon_stop', { addon: addonId });
       this._privacyActive = true;
       this._privacyEndTime = Date.now() + (parseInt(minutes) * 60 * 1000);
-      this._privacyCameras = selectedCams.join(', ');
+      this._privacyCameras = this._selectedCameras.size > 0 ? [...this._selectedCameras].map(id => {
+        const cam = this._cameras.find(c => c.entity_id === id);
+        return cam ? cam.name : id;
+      }).join(', ') : 'all';
       this._privacyStartedMin = parseInt(minutes);
       this._warningSent = false;
       this._addHistoryEntry('manual', minutes, this._privacyCameras);
       this._savePrivacyState();
-      // Start HA server-side timer (survives page close, works across devices)
-      try {
-        const hrs = Math.floor(parseInt(minutes) / 60);
-        const mins = parseInt(minutes) % 60;
-        const dur = String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0') + ':00';
-        await this._hass.callService('timer', 'start', { entity_id: 'timer.frigate_privacy', duration: dur });
-      } catch(e) { console.warn('[Frigate Privacy] Could not start HA timer:', e); }
-      // Sync paused cameras to HA entity (survives browser close)
-      this._syncCamerasToHA(selectedCams.join(', '));
       this._startCountdown();
       this._showToast(t.privacyModeStarted + ' ' + minutes + ' ' + t.min, 'success');
       this._sendNotification(
@@ -923,11 +556,8 @@ class HaFrigatePrivacy extends HTMLElement {
     if (!this._hass) return;
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
     try {
-      // Resume cameras
-      const camsToResume = this._privacyCameras && this._privacyCameras !== 'all'
-        ? this._privacyCameras.split(', ')
-        : this._cameras.map(c => c.entity_id);
-      await this._setCameraStreams(camsToResume, true);
+      // Start Frigate addon directly
+      await this._hass.callService('hassio', 'addon_start', { addon: addonId });
       this._privacyActive = false;
       this._privacyEndTime = null;
       if (this._privacyTimerInterval) {
@@ -935,12 +565,6 @@ class HaFrigatePrivacy extends HTMLElement {
         this._privacyTimerInterval = null;
       }
       this._savePrivacyState();
-      // Clear paused cameras in HA entity
-      this._syncCamerasToHA('');
-      // Cancel HA server-side timer
-      try {
-        await this._hass.callService('timer', 'cancel', { entity_id: 'timer.frigate_privacy' });
-      } catch(e) { console.warn('[Frigate Privacy] Could not cancel HA timer:', e); }
       this._addHistoryEntry('cancelled', 0);
       this._warningSent = false;
       this._showToast(t.frigateResumed, 'success');
@@ -963,14 +587,13 @@ class HaFrigatePrivacy extends HTMLElement {
         clearInterval(this._privacyTimerInterval);
         this._privacyTimerInterval = null;
         this._warningSent = false;
-        // Auto-resume cameras: turn streams + switches back ON
+        // Auto-start addon when timer expires
         if (this._hass) {
-          const camsToResume = this._privacyCameras && this._privacyCameras !== 'all'
-            ? this._privacyCameras.split(', ')
-            : this._cameras.map(c => c.entity_id);
-          this._setCameraStreams(camsToResume, true);
+          const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';
+          this._hass.callService('hassio', 'addon_start', { addon: addonId }).catch(e => {
+            console.warn('[Frigate Privacy] Error auto-starting addon on timer expiry:', e);
+          });
           const t = this._t;
-          this._addHistoryEntry('resumed', 0);
           this._sendNotification('\u25B6\uFE0F ' + t.frigateResumed, t.forCameras + ': ' + this._getCameraLabel());
         }
       } else {
@@ -1040,18 +663,13 @@ class HaFrigatePrivacy extends HTMLElement {
       this._schedules.push(schedule);
     }
     this._saveSchedules();
-    const savedIdx = this._editingScheduleIdx !== null ? this._editingScheduleIdx : this._schedules.length - 1;
-    this._syncScheduleToHA(schedule, savedIdx, false);
     this._resetScheduleForm();
     this._updateUI();
   }
 
   _deleteSchedule(idx) {
-    this._syncScheduleToHA(null, idx, true);
     this._schedules.splice(idx, 1);
     this._saveSchedules();
-    // Re-sync remaining schedules (indices shifted)
-    this._schedules.forEach((s, i) => this._syncScheduleToHA(s, i, false));
     this._updateUI();
   }
 
@@ -1071,7 +689,6 @@ class HaFrigatePrivacy extends HTMLElement {
   _toggleScheduleEnabled(idx) {
     this._schedules[idx].enabled = !this._schedules[idx].enabled;
     this._saveSchedules();
-    this._syncScheduleToHA(this._schedules[idx], idx, false);
     this._updateUI();
   }
 
@@ -1088,8 +705,8 @@ class HaFrigatePrivacy extends HTMLElement {
 
   _buildHTML() {
     const t = this._t;
-    return `<style>${window.HAToolsBentoCSS || ''}</style><style>${this._getCSS()}</style>
-    <div class="card">
+    return `<style>${this._getCSS()}</style>
+    <div class="container">
       <div class="header">
         <div class="header-left">
           <span class="header-icon">\uD83D\uDD12</span>
@@ -1131,7 +748,7 @@ class HaFrigatePrivacy extends HTMLElement {
           <div class="privacy-icon">\uD83D\uDD12</div>
           <div class="privacy-info">
             <div class="privacy-label">${t.privacyActive}</div>
-            <div class="privacy-cameras-label">${t.forCameras}: ${_esc(camLabel)}</div>
+            <div class="privacy-cameras-label">${t.forCameras}: ${camLabel}</div>
             <div class="countdown">
               <span class="countdown-label">${t.remainingTime}:</span>
               <span class="countdown-value">--:--</span>
@@ -1225,16 +842,16 @@ class HaFrigatePrivacy extends HTMLElement {
           + ' - ' + String(s.endHour).padStart(2, '0') + ':' + String(s.endMin).padStart(2, '0');
         return `<div class="schedule-item ${s.enabled ? '' : 'disabled'}">
           <div class="schedule-main">
-            <div class="schedule-label">${_esc(s.label) || (s.repeat ? t.repeat : t.oneTime)}</div>
+            <div class="schedule-label">${s.label || (s.repeat ? t.repeat : t.oneTime)}</div>
             <div class="schedule-time">${timeRange}</div>
             <div class="schedule-days">${dayLabels}</div>
           </div>
           <div class="schedule-actions">
-            <button class="btn-icon" data-schedule-toggle="${i}" title="${s.enabled ? t.enabled : t.disabled}" aria-label="${s.enabled ? t.enabled : t.disabled}">
+            <button class="btn-icon" data-schedule-toggle="${i}" title="${s.enabled ? t.enabled : t.disabled}">
               ${s.enabled ? '\uD83D\uDFE2' : '\u26AA'}
             </button>
-            <button class="btn-icon" data-schedule-edit="${i}" title="${t.editSchedule}" aria-label="${t.editSchedule}">\u270F\uFE0F</button>
-            <button class="btn-icon btn-icon-danger" data-schedule-delete="${i}" title="${t.deleteSchedule}" aria-label="${t.deleteSchedule}">\uD83D\uDDD1\uFE0F</button>
+            <button class="btn-icon" data-schedule-edit="${i}" title="${t.editSchedule}">\u270F\uFE0F</button>
+            <button class="btn-icon btn-icon-danger" data-schedule-delete="${i}" title="${t.deleteSchedule}">\uD83D\uDDD1\uFE0F</button>
           </div>
         </div>`;
       }).join('');
@@ -1382,7 +999,7 @@ class HaFrigatePrivacy extends HTMLElement {
 
       <div class="section">
         <h3>\uD83D\uDCCB ${this._lang === 'pl' ? 'Integracja z Dashboard' : 'Dashboard Integration'}</h3>
-        <p style="margin-bottom:12px;color:var(--bento-text-secondary);font-size:0.92em;">
+        <p style="margin-bottom:12px;color:var(--text-secondary,#aaa);font-size:0.92em;">
           ${this._lang === 'pl'
             ? 'Mozesz dodac Frigate Privacy jako karte w swoim dashboard lub jako przycisk w Bubble Card.'
             : 'You can add Frigate Privacy as a card in your dashboard or as a Bubble Card button.'}
@@ -1390,7 +1007,7 @@ class HaFrigatePrivacy extends HTMLElement {
 
         <div class="code-block">
           <div class="code-label">${this._lang === 'pl' ? 'Karta Lovelace (manual YAML)' : 'Lovelace Card (manual YAML)'}</div>
-          <pre style="background:var(--bento-card);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--bento-text);">type: custom:ha-frigate-privacy
+          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">type: custom:ha-frigate-privacy
 # ${this._lang === 'pl' ? 'Opcjonalna konfiguracja:' : 'Optional config:'}
 frigate_running_entity: binary_sensor.frigate_running
 cameras:
@@ -1401,7 +1018,7 @@ default_duration: 30</pre>
 
         <div class="code-block" style="margin-top:12px;">
           <div class="code-label">Bubble Card - ${this._lang === 'pl' ? 'Przycisk nawigacji' : 'Navigation button'}</div>
-          <pre style="background:var(--bento-card);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--bento-text);">type: custom:bubble-card
+          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">type: custom:bubble-card
 card_type: button
 name: Frigate Privacy
 icon: mdi:camera-off
@@ -1413,24 +1030,8 @@ tap_action:
         </div>
 
         <div class="code-block" style="margin-top:12px;">
-          <div class="code-label">\uD83D\uDDA5\uFE0F ${this._lang === 'pl' ? 'Dodawanie przez UI (edytor wizualny)' : 'Adding via UI (visual editor)'}</div>
-          <div style="padding:10px 12px;background:var(--bento-bg);border-radius:6px;font-size:0.9em;line-height:1.8;color:var(--bento-text);">
-            <ol style="margin:0;padding-left:18px;">
-              <li>${this._lang === 'pl' ? 'Otw\u00F3rz dashboard \u2192 kliknij \u22EE \u2192 <strong>Edytuj</strong>' : 'Open your dashboard \u2192 click \u22EE \u2192 <strong>Edit dashboard</strong>'}</li>
-              <li>${this._lang === 'pl' ? 'Kliknij <strong>+</strong> (dodaj kart\u0119)' : 'Click <strong>+</strong> (add card)'}</li>
-              <li>${this._lang === 'pl' ? 'Wyszukaj <strong>Frigate Privacy</strong> na li\u015Bcie kart' : 'Search for <strong>Frigate Privacy</strong> in the card list'}</li>
-              <li>${this._lang === 'pl' ? 'Wybierz kamer\u0119 z dropdown w edytorze' : 'Select cameras from the dropdown in the editor'}</li>
-              <li>${this._lang === 'pl' ? 'Kliknij <strong>Zapisz</strong>' : 'Click <strong>Save</strong>'}</li>
-            </ol>
-            <p style="margin:8px 0 0 0;font-size:0.85em;color:var(--bento-text-secondary);">
-              \uD83D\uDCA1 ${this._lang === 'pl' ? 'Je\u015Bli karta nie widoczna na li\u015Bcie \u2014 upewnij si\u0119 \u017Ce zas\u00F3b <code>ha-frigate-privacy.js</code> jest zaladowany (HACS lub r\u0119cznie).' : 'If the card is not listed \u2014 make sure the <code>ha-frigate-privacy.js</code> resource is loaded (HACS or manual).'}
-            </p>
-          </div>
-        </div>
-
-        <div class="code-block" style="margin-top:12px;">
           <div class="code-label">${this._lang === 'pl' ? 'Automatyzacja z input_boolean' : 'Automation with input_boolean'}</div>
-          <pre style="background:var(--bento-card);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--bento-text);">automation:
+          <pre style="background:var(--bg-card,#1a1a2e);padding:10px;border-radius:6px;font-size:0.85em;overflow-x:auto;color:var(--text-primary,#e0e0e0);">automation:
   - alias: "Frigate Privacy Toggle"
     trigger:
       - platform: state
@@ -1462,7 +1063,6 @@ tap_action:
     sr.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
-        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._updateUI();
       });
     });
@@ -1610,18 +1210,47 @@ tap_action:
 
   _getCSS() {
     return `
+:host {
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-success: #10B981;
+  --bento-warning: #F59E0B;
+  --bento-error: #EF4444;
+  --bento-radius: 16px;
+  --bento-radius-sm: 10px;
+  --bento-radius-xs: 6px;
+  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block;
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: #1a1a2e;
+    --bento-card: #16213e;
+    --bento-text: #e2e8f0;
+    --bento-text-secondary: #94a3b8;
+    --bento-border: #334155;
+    --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-.card {
+.container {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
   color: var(--bento-text);
-  background: var(--bento-card) !important;
-  border: 1px solid var(--bento-border) !important;
-  border-radius: var(--bento-radius-md) !important;
-  box-shadow: var(--bento-shadow-sm);
-  overflow: hidden;
 }
 
 .header {
@@ -1631,8 +1260,8 @@ tap_action:
   margin-bottom: 20px;
   padding: 16px 20px;
   background: var(--bento-card);
-  border-radius: var(--bento-radius-sm);
-  box-shadow: var(--bento-shadow-sm);
+  border-radius: var(--bento-radius);
+  box-shadow: var(--bento-shadow);
   border: 1px solid var(--bento-border);
 }
 
@@ -1683,9 +1312,6 @@ tap_action:
   padding: 4px;
   border-radius: var(--bento-radius-sm);
   border: 1px solid var(--bento-border);
-  overflow-x: auto;
-  flex-wrap: nowrap;
-  -webkit-overflow-scrolling: touch;
 }
 
 .tab-btn {
@@ -1707,10 +1333,10 @@ tap_action:
 /* Sections */
 .section {
   background: var(--bento-card);
-  border-radius: var(--bento-radius-sm);
+  border-radius: var(--bento-radius);
   padding: 16px 20px;
   margin-bottom: 12px;
-  box-shadow: var(--bento-shadow-sm);
+  box-shadow: var(--bento-shadow);
   border: 1px solid var(--bento-border);
 }
 
@@ -1729,7 +1355,7 @@ tap_action:
   padding: 16px 20px;
   background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.15));
   border: 1px solid rgba(239,68,68,0.25);
-  border-radius: var(--bento-radius-sm);
+  border-radius: var(--bento-radius);
   margin-bottom: 12px;
 }
 
@@ -2168,13 +1794,8 @@ tap_action:
 .toast-info { background: var(--bento-primary); color: #fff; }
 
 /* Responsive */
-
-        .tabs, .tab-bar { scrollbar-width: thin; scrollbar-color: var(--bento-border, #E2E8F0) transparent; }
-        .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
-        .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
-        .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--bento-border, #E2E8F0); border-radius: 4px; }
 @media (max-width: 768px) {
-  .card { padding: 12px; }
+  .container { padding: 12px; }
   .camera-grid { grid-template-columns: 1fr 1fr; }
   .time-row { flex-direction: column; gap: 8px; }
   .header { flex-direction: column; gap: 10px; align-items: flex-start; }
@@ -2194,16 +1815,14 @@ tap_action:
 }
 `;
   }
-
-  setActiveTab(tabId) {
-    this._activeTab = tabId;
-    this._updateUI();
-  }
 }
 
 if (!customElements.get('ha-frigate-privacy')) {
   customElements.define('ha-frigate-privacy', HaFrigatePrivacy);
 }
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-frigate-privacy', name: 'Frigate Privacy', description: 'Pause Frigate cameras with timer and privacy schedule', preview: false });
+
 class HaFrigatePrivacyEditor extends HTMLElement {
   constructor() {
     super();
@@ -2218,26 +1837,13 @@ class HaFrigatePrivacyEditor extends HTMLElement {
     this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
   }
   _render() {
-    if (!this._hass) return;
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  }
-}
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Frigate Privacy</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
@@ -2264,8 +1870,3 @@ class HaFrigatePrivacyEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-frigate-privacy-editor')) { customElements.define('ha-frigate-privacy-editor', HaFrigatePrivacyEditor); }
-
-})();
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-frigate-privacy', name: 'Frigate Privacy', description: 'Pause Frigate cameras with timer and privacy schedule', preview: false });

@@ -1,23 +1,12 @@
-(function() {
-'use strict';
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
-const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
-
 /**
  * HA Security Check - Security audit tool for Home Assistant
  * Checks for common security issues: exposed ports, SSL, outdated addons, insecure integrations, etc.
  */
 class HASecurityCheck extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-security-check-editor'); }
-  getCardSize() { return 8; }
-
   static getStubConfig() { return { type: 'custom:ha-security-check', title: 'Security Check' }; }
   constructor() {
     super();
-    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -43,7 +32,7 @@ class HASecurityCheck extends HTMLElement {
     try {
       const data = { lastScan: this._lastScan ? this._lastScan.toISOString() : null, lastScore: this._lastScore || null };
       localStorage.setItem(this._scKey(), JSON.stringify(data));
-    } catch(e) { console.debug('[security-check]', e.message); }
+    } catch(e) {}
   }
   _loadScanData() {
     try {
@@ -53,7 +42,7 @@ class HASecurityCheck extends HTMLElement {
         if (data.lastScan) this._lastScan = new Date(data.lastScan);
         if (data.lastScore !== undefined) this._lastScore = data.lastScore;
       }
-    } catch(e) { console.debug('[security-check]', e.message); }
+    } catch(e) {}
   }
 
   set hass(hass) {
@@ -79,33 +68,6 @@ class HASecurityCheck extends HTMLElement {
     this._lastRenderTime = now;
   }
 
-
-  get _t() {
-    const T = {
-      pl: {
-        title: 'Sprawdzanie Bezpieczeństwa',
-        loading: 'Wczytywanie...',
-        noData: 'Brak danych',
-        error: 'Błąd',
-        refresh: 'Odśwież',
-        save: 'Zapisz',
-        cancel: 'Anuluj',
-        locale: 'pl-PL',
-      },
-      en: {
-        title: 'Security Check',
-        loading: 'Loading...',
-        noData: 'No data',
-        error: 'Error',
-        refresh: 'Refresh',
-        save: 'Save',
-        cancel: 'Cancel',
-        locale: 'en-US',
-      },
-    };
-    return T[this._lang] || T.en;
-  }
-
   setConfig(config) {
     this._config = { title: config.title || 'Security Check', ...config };
     this._loadScanData();
@@ -123,10 +85,10 @@ class HASecurityCheck extends HTMLElement {
 
     try {
       let hostInfo = null, osInfo = null, supervisorInfo = null, coreInfo = null;
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/host/info', method: 'get' }); hostInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/os/info', method: 'get' }); osInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/supervisor/info', method: 'get' }); supervisorInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
-      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/core/info', method: 'get' }); coreInfo = r?.data || r; } catch(e) { console.debug('[security-check]', e.message); }
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/host/info', method: 'get' }); hostInfo = r?.data || r; } catch(e) {}
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/os/info', method: 'get' }); osInfo = r?.data || r; } catch(e) {}
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/supervisor/info', method: 'get' }); supervisorInfo = r?.data || r; } catch(e) {}
+      try { const r = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/core/info', method: 'get' }); coreInfo = r?.data || r; } catch(e) {}
 
       // Detect non-supervised HA installation
       if (!hostInfo && !osInfo && !supervisorInfo && !coreInfo) {
@@ -164,7 +126,7 @@ class HASecurityCheck extends HTMLElement {
       try {
         const addonList = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/addons', method: 'get' });
         addons = addonList?.addons || addonList?.data?.addons || [];
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       const installedAddons = addons.filter(a => a.installed);
 
@@ -216,7 +178,7 @@ class HASecurityCheck extends HTMLElement {
           } else {
             findings.info.push({ id: 'ssl_cert_check', title: 'Verify SSL certificate expiry', desc: `Hostname: ${hostname} — ensure your cert is auto-renewed (Let''s Encrypt, Cloudflare, etc.)`, fix: 'Use certbot with auto-renewal or a Cloudflare tunnel for hassle-free SSL' });
           }
-        } catch(e) { console.debug('[security-check]', e.message); }
+        } catch(e) {}
       }
 
       // DNS rebinding protection
@@ -226,14 +188,14 @@ class HASecurityCheck extends HTMLElement {
         if (!hasCors) {
           findings.pass.push({ id: 'dns_rebind', title: 'No CORS component detected', desc: 'Lower risk of DNS rebinding attacks' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
 
       let users = [];
       try {
         const userList = await this._hass.callWS({ type: 'config/auth/list' });
         users = userList || [];
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       if (users.length > 0) {
         const activeUsers = users.filter(u => u.is_active !== false);
@@ -301,7 +263,7 @@ class HASecurityCheck extends HTMLElement {
         } else if (llat && llat.length > 0) {
           findings.info.push({ id: 'access_tokens', title: `${llat.length} long-lived access token(s)`, desc: 'Review periodically for unused tokens' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // Camera exposure check
       const cameraEntities = allEntities.filter(e => e.startsWith('camera.'));
@@ -324,7 +286,7 @@ class HASecurityCheck extends HTMLElement {
             findings.info.push({ id: 'hacs_custom_repos', title: `${customRepos.length} custom HACS repository(ies) installed`, desc: customRepos.slice(0, 3).map(r => r.repository || r).join(', ') + (customRepos.length > 3 ? '...' : ''), fix: 'Review custom repositories for trust and source quality' });
           }
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Trusted networks / Auth providers
       try {
@@ -337,7 +299,7 @@ class HASecurityCheck extends HTMLElement {
         if (hasLegacyApiPassword) {
           findings.critical.push({ id: 'legacy_api_password', title: 'Legacy API password enabled', desc: 'Legacy API passwords are deprecated and less secure than long-lived access tokens', fix: 'Remove api_password from configuration.yaml and use long-lived access tokens instead' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: IP bans
       try {
@@ -345,7 +307,7 @@ class HASecurityCheck extends HTMLElement {
         if (banData?.banned_ips && banData.banned_ips.length > 0) {
           findings.info.push({ id: 'ip_bans', title: `${banData.banned_ips.length} IP(s) are banned`, desc: 'Failed login attempts have resulted in IP bans', fix: 'Review failed login attempts in the System Log' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: HTTP configuration
       try {
@@ -361,7 +323,7 @@ class HASecurityCheck extends HTMLElement {
             findings.warning.push({ id: 'x_forwarded_for_unprotected', title: 'X-Forwarded-For enabled without trusted proxies', desc: 'This can allow IP spoofing if not behind a trusted proxy', fix: 'Either set trusted_proxies or disable use_x_forwarded_for' });
           }
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Privileged addons
       try {
@@ -369,7 +331,7 @@ class HASecurityCheck extends HTMLElement {
         if (privilegedAddons.length > 0) {
           findings.warning.push({ id: 'privileged_addons', title: `${privilegedAddons.length} addon(s) with privileged access`, desc: privilegedAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Privileged addons have root-level access. Verify they are trustworthy and necessary.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Exposed addon ports
       try {
@@ -385,7 +347,7 @@ class HASecurityCheck extends HTMLElement {
           }).join('; ');
           findings.info.push({ id: 'exposed_addon_ports', title: `${exposedAddons.length} addon(s) expose port(s)`, desc: portList, fix: 'Ensure exposed ports are not accessible from the internet. Use firewall rules if needed.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Ingress vs exposed addons
       try {
@@ -393,7 +355,7 @@ class HASecurityCheck extends HTMLElement {
         if (nonIngressAddons.length > 0) {
           findings.info.push({ id: 'non_ingress_addons', title: `${nonIngressAddons.length} addon(s) not using Ingress`, desc: nonIngressAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Consider using Ingress for safer addon access (only through HA UI)' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Webhooks
       try {
@@ -408,7 +370,7 @@ class HASecurityCheck extends HTMLElement {
         if (webhookCount > 0) {
           findings.info.push({ id: 'webhooks', title: `${webhookCount} automation(s)/script(s) with webhook(s)`, desc: 'Webhooks expose endpoints that can be triggered from the internet', fix: 'Ensure webhook URLs are not shared publicly. Use strong secrets in webhook URLs.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Long-lived access tokens
       try {
@@ -416,7 +378,7 @@ class HASecurityCheck extends HTMLElement {
         if (tokenCount > 0) {
           findings.info.push({ id: 'access_tokens', title: `${tokenCount} user(s) with long-lived access token(s)`, desc: 'Access tokens should be rotated regularly and kept secure', fix: 'Rotate tokens periodically. Remove unused tokens from Settings \u2192 Users' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Camera entities
       try {
@@ -424,7 +386,7 @@ class HASecurityCheck extends HTMLElement {
         if (cameraEntities.length > 0) {
           findings.info.push({ id: 'camera_count', title: `${cameraEntities.length} camera(s) configured`, desc: 'Camera streams should not be exposed directly to the internet', fix: 'Use Secure (SSL/TLS) connection. Do not expose camera ports directly. Use Nabu Casa or tunnel.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Media source / proxy exposure
       try {
@@ -432,7 +394,7 @@ class HASecurityCheck extends HTMLElement {
         if (mediaEntities.length > 0) {
           findings.info.push({ id: 'media_exposure', title: `${mediaEntities.length} media player(s) configured`, desc: 'Ensure media sources are not serving public content', fix: 'Use local media libraries. Do not expose media over the internet unless necessary.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Recorder / history purge settings
       try {
@@ -444,7 +406,7 @@ class HASecurityCheck extends HTMLElement {
             findings.info.push({ id: 'recorder_retention', title: `Recorder keeping data for ${purgeKeepDays} days`, desc: 'Long retention can be a privacy concern if you have guests or visitors', fix: 'Consider reducing purge_keep_days in configuration.yaml if privacy is a concern' });
           }
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Supervisor security (debug mode)
       try {
@@ -454,7 +416,7 @@ class HASecurityCheck extends HTMLElement {
         if (supervisorInfo?.debug_block === true) {
           findings.info.push({ id: 'supervisor_debug_block', title: 'Supervisor debug block is enabled', desc: 'This is a development/testing feature', fix: 'Ensure this is intentional and not left enabled in production' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: HACS addon integrity
       try {
@@ -466,7 +428,7 @@ class HASecurityCheck extends HTMLElement {
             findings.pass.push({ id: 'hacs_update', title: 'HACS addon is up to date', desc: `Version: ${hacsAddon.version}` });
           }
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Bluetooth / USB exposure in addons
       try {
@@ -477,14 +439,14 @@ class HASecurityCheck extends HTMLElement {
         if (btUsbAddons.length > 0) {
           findings.info.push({ id: 'bt_usb_addons', title: `${btUsbAddons.length} addon(s) with Bluetooth/USB access`, desc: btUsbAddons.map(a => this._sanitize(a.name)).join(', '), fix: 'Verify that these addons are trustworthy. USB/Bluetooth access provides direct hardware access.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Firewall / Network isolation
       try {
         if (hostInfo?.chassis && hostInfo.chassis !== 'embedded') {
           findings.warning.push({ id: 'non_haos', title: 'Running on non-HAOS system', desc: `Detected chassis: ${hostInfo.chassis}. Missing Supervisor network isolation.`, fix: 'Use Home Assistant OS for built-in network security features. Manual firewall configuration required on generic Linux.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Backup encryption
       try {
@@ -496,7 +458,7 @@ class HASecurityCheck extends HTMLElement {
             findings.warning.push({ id: 'unencrypted_backups', title: `${unencryptedBackups.length} backup(s) without encryption`, desc: 'Unencrypted backups expose sensitive data', fix: 'Create new backups with a password. Set a backup password in Settings \u2192 System \u2192 Backups' });
           }
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: MQTT anonymous access
       try {
@@ -514,7 +476,7 @@ class HASecurityCheck extends HTMLElement {
             findings.info.push({ id: 'mqtt_config', title: 'Could not verify MQTT configuration', desc: 'Unable to read Mosquitto addon settings', fix: 'Manually verify MQTT authentication settings' });
           }
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Dangerous template sensors
       try {
@@ -522,7 +484,7 @@ class HASecurityCheck extends HTMLElement {
         if (templateEntities.length > 10) {
           findings.info.push({ id: 'template_sensors', title: `${templateEntities.length} template/command_line entities`, desc: 'Large number of template entities may indicate complex configs that need review', fix: 'Periodically review template sensors for security implications' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: HTTP configuration (CORS)
       try {
@@ -530,7 +492,7 @@ class HASecurityCheck extends HTMLElement {
         if (httpConfig?.components?.includes('cors') || httpConfig?.allowlist_external_urls?.length > 0) {
           findings.info.push({ id: 'cors_config', title: 'CORS or external URL allowlist configured', desc: 'Cross-origin requests or external URLs are permitted', fix: 'Review allowed origins and URLs to ensure they are trusted' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Port 8123 direct exposure
       try {
@@ -538,7 +500,7 @@ class HASecurityCheck extends HTMLElement {
         if (externalUrl && externalUrl.includes(':8123')) {
           findings.warning.push({ id: 'port_exposure', title: 'Default port 8123 exposed externally', desc: `External URL uses default HA port: ${externalUrl}`, fix: 'Use a reverse proxy (NGINX, Caddy) or Nabu Casa instead of direct port forwarding. Change default port if exposing directly.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       // NEW CHECK: Person tracking entities
       try {
@@ -546,7 +508,7 @@ class HASecurityCheck extends HTMLElement {
         if (personEntities.length > 0) {
           findings.info.push({ id: 'person_tracking', title: `${personEntities.length} person(s) tracked`, desc: 'Location data is sensitive PII', fix: 'Ensure only trusted users have access to person entities. Review recorder include/exclude.' });
         }
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       const critCount = findings.critical.length;
       const warnCount = findings.warning.length;
@@ -587,7 +549,7 @@ class HASecurityCheck extends HTMLElement {
       try {
         const entries = await this._hass.callWS({type: 'config_entries/list'});
         cfgEntries = entries || [];
-      } catch(e) { console.debug('[security-check]', e.message); }
+      } catch(e) {}
 
       this._auditData = { findings, score, critCount, warnCount, passCount, infoCount, totalChecks, users, addons: installedAddons, integrations: cfgEntries, entities: allEntities.length, networkInterfaces: networkInfo, hostInfo: hostInfo };
       this._lastScan = new Date();
@@ -603,7 +565,6 @@ class HASecurityCheck extends HTMLElement {
   }
 
   _render() {
-    if (!this._hass) return;
     const html = `
       <style>${window.HAToolsBentoCSS || ""}
 
@@ -636,11 +597,11 @@ class HASecurityCheck extends HTMLElement {
 }
 @media (prefers-color-scheme: dark) {
   :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
+    --bento-bg: #1a1a2e;
+    --bento-card: #16213e;
+    --bento-text: #e2e8f0;
+    --bento-text-secondary: #94a3b8;
+    --bento-border: #334155;
     --bento-success: #34d399;
     --bento-warning: #fbbf24;
     --bento-error: #f87171;
@@ -655,14 +616,14 @@ class HASecurityCheck extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: visible;
+  overflow: hidden;
   padding: 20px !important;
 }
 
@@ -686,7 +647,7 @@ class HASecurityCheck extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-btn {
+.tab, .tab-btn, .tab-button {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -701,11 +662,11 @@ class HASecurityCheck extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-btn:hover {
+.tab:hover, .tab-btn:hover, .tab-button:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-btn.active {
+.tab.active, .tab-btn.active, .tab-button.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -848,9 +809,10 @@ canvas {
   --bento-success: #10B981;
   --bento-warning: #F59E0B;
   --bento-error: #EF4444;
+  --bento-radius: 16px;
   --bento-radius-sm: 10px;
   --bento-radius-xs: 6px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  --bento-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
   --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: block;
@@ -859,7 +821,7 @@ canvas {
 * { box-sizing: border-box; }
 
 .card, .card-container, .reports-card, .export-card {
-  background: var(--bento-card); border-radius: var(--bento-radius-sm); box-shadow: var(--bento-shadow-sm);
+  background: var(--bento-card); border-radius: var(--bento-radius); box-shadow: var(--bento-shadow);
   padding: 28px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--bento-text); border: 1px solid var(--bento-border); animation: fadeSlideIn 0.4s ease-out;
 }
@@ -868,9 +830,9 @@ canvas {
 .card-title, .title, .header-title, .pan-title { font-size: 20px; font-weight: 700; color: var(--bento-text); letter-spacing: -0.01em; }
 .header, .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 24px; overflow-x: auto; padding-bottom: 0; }
-.tab, .tab-btn, .tab-btn { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
-.tab.active, .tab-btn.active, .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
-.tab:hover, .tab-btn:hover, .tab-btn:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab, .tab-btn, .tab-button { padding: 10px 20px; border: none; background: transparent; color: var(--bento-text-secondary); cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: var(--bento-transition); white-space: nowrap; margin-bottom: -2px; border-radius: 8px 8px 0 0; font-family: 'Inter', sans-serif; }
+.tab.active, .tab-btn.active, .tab-button.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
+.tab:hover, .tab-btn:hover, .tab-button:hover { color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
 .tab-icon { margin-right: 6px; }
 .tab-content { display: none; }
 .tab-content.active { display: block; animation: fadeSlideIn 0.3s ease-out; }
@@ -929,7 +891,7 @@ textarea { min-height: 80px; resize: vertical; }
 .status-zone, .severity-info, .badge-info { background: rgba(59, 130, 246, 0.1); color: var(--bento-primary); }
 
 .alert-item { padding: 14px 18px; border-left: 4px solid var(--bento-border); border-radius: 0 var(--bento-radius-sm) var(--bento-radius-sm) 0; margin-bottom: 10px; background: var(--bento-bg); display: flex; justify-content: space-between; align-items: center; transition: var(--bento-transition); }
-.alert-item:hover { box-shadow: var(--bento-shadow-sm); }
+.alert-item:hover { box-shadow: var(--bento-shadow); }
 .alert-critical { border-color: var(--bento-error); background: rgba(239, 68, 68, 0.04); }
 .alert-warning { border-color: var(--bento-warning); background: rgba(245, 158, 11, 0.04); }
 .alert-info { border-color: var(--bento-primary); background: rgba(59, 130, 246, 0.04); }
@@ -1120,11 +1082,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   .panels { flex-direction: column; }
   .board { flex-direction: column; }
   .column { min-width: unset; }
-  .score-section { gap: 16px; flex-wrap: wrap; }
-  .score-ring { width: 100px; height: 100px; }
-  .score-ring svg { width: 100px; height: 100px; }
-  .score-num { font-size: 22px; }
-  .score-summary h3 { font-size: 13px; }
 }
 
 /* ===== SECURITY CHECK SPECIFIC ===== */
@@ -1178,8 +1135,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
-          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .stat-val, .kpi-val, .metric-val { font-size: 18px; }
@@ -1191,20 +1148,15 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
-          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
           .stat-val, .kpi-val, .metric-val { font-size: 16px; }
-          .score-section { flex-direction: column; align-items: center; text-align: center; }
-          .score-ring { width: 90px; height: 90px; }
-          .score-ring svg { width: 90px; height: 90px; }
-          .score-num { font-size: 20px; }
-          .summary-row { justify-content: center; }
         }
       
 
 </style>
-      
-        <div class="card">
+      <ha-card>
+        <div class="security-card">
           <div class="card-header">
             <h2>${this._config.title}</h2>
             <!-- Refresh handled by panel toolbar -->
@@ -1219,7 +1171,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </div>
           <div id="content"></div>
         </div>
-      
+      </ha-card>
     `;
     if (this._lastHtml === html) return;
     this._lastHtml = html;
@@ -1231,24 +1183,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         this.shadowRoot.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this._activeTab = btn.dataset.tab;
-        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._updateContent();
       });
     });
-
-    // Score explainer toggle listener
-    const toggle = this.shadowRoot.querySelector('.score-explainer-toggle');
-    if (toggle) {
-      toggle.addEventListener('click', () => {
-        const body = this.shadowRoot.querySelector('.score-explainer-body');
-        const arrow = this.shadowRoot.querySelector('.score-explainer-arrow');
-        if (body) {
-          const isHidden = body.style.display === 'none';
-          body.style.display = isHidden ? 'block' : 'none';
-          if (arrow) arrow.style.transform = isHidden ? 'rotate(180deg)' : '';
-        }
-      });
-    }
 
     // Refresh now handled by panel toolbar (removed internal Re-scan button)
   }
@@ -1257,7 +1194,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const content = this.shadowRoot.getElementById('content');
     if (!content) return;
     if (this._loading) { content.innerHTML = '<div class="loading"><div class="spinner"></div>Running security audit...</div>'; return; }
-    if (!this._auditData || this._auditData.error) { content.innerHTML = `<div class="error">\u26A0\uFE0F ${_esc(this._auditData?.error || 'Audit failed')}</div>`; return; }
+    if (!this._auditData || this._auditData.error) { content.innerHTML = `<div class="error">\u26A0\uFE0F ${this._auditData?.error || 'Audit failed'}</div>`; return; }
     const d = this._auditData;
     switch (this._activeTab) {
       case 'overview': content.innerHTML = this._renderOverview(d); break;
@@ -1276,30 +1213,22 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const grade = sc >= 90 ? 'A' : sc >= 80 ? 'B' : sc >= 70 ? 'C' : sc >= 60 ? 'D' : 'F';
     const gradeMsg = sc >= 90 ? 'Excellent security posture' : sc >= 80 ? 'Good, minor improvements possible' : sc >= 60 ? 'Fair, several issues to address' : 'Needs attention \u2014 critical issues found';
     let html = `<div class="score-section"><div class="score-ring"><svg viewBox="0 0 100 100"><circle class="score-bg" cx="50" cy="50" r="42" /><circle class="score-fill" cx="50" cy="50" r="42" style="stroke:${scoreColor};stroke-dasharray:${(sc/100)*circ} ${circ}" /></svg><div class="score-text"><div class="score-num" style="color:${scoreColor}">${sc}</div><div class="score-label">Score</div></div></div><div class="score-summary"><h3>Grade: ${grade} \u2014 ${gradeMsg}</h3><div class="summary-row"><div class="summary-dot" style="background:#f44336"></div><span class="summary-count">${d.critCount}</span> Critical</div><div class="summary-row"><div class="summary-dot" style="background:#ff9800"></div><span class="summary-count">${d.warnCount}</span> Warnings</div><div class="summary-row"><div class="summary-dot" style="background:#03a9f4"></div><span class="summary-count">${d.infoCount}</span> Info</div><div class="summary-row"><div class="summary-dot" style="background:#4caf50"></div><span class="summary-count">${d.passCount}</span> Passed</div></div></div>`;
-    const noSupervisor = d.findings?.info?.some(f => f.id === 'no_supervisor');
-    const addonsDisplay = noSupervisor && d.addons.length === 0 ? 'N/A' : String(d.addons.length);
-    const integrationsDisplay = d.integrations?.length || 0;
-    html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px"><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${addonsDisplay}</div><div style="font-size:11px;color:var(--bento-text-secondary)">${noSupervisor && d.addons.length === 0 ? 'Addons (HA OS only)' : 'Addons installed'}</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${integrationsDisplay}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Integrations</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.users.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">User accounts</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.entities}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Entities</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.totalChecks}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Checks run</div></div></div>`;
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px"><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.addons.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Addons installed</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.users.length}</div><div style="font-size:11px;color:var(--bento-text-secondary)">User accounts</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.entities}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Entities</div></div><div style="padding:10px;background:var(--bento-bg);border-radius:8px;text-align:center"><div style="font-size:20px;font-weight:700">${d.totalChecks}</div><div style="font-size:11px;color:var(--bento-text-secondary)">Checks run</div></div></div>`;
     if (d.critCount > 0) { html += '<div class="section-title">\u{1F6A8} Critical Issues</div>'; d.findings.critical.forEach(f => { html += this._renderFinding(f, 'critical'); }); }
     if (d.warnCount > 0) { html += '<div class="section-title">\u26A0\uFE0F Warnings</div>'; d.findings.warning.forEach(f => { html += this._renderFinding(f, 'warning'); }); }
-    // Scoring methodology explanation - collapsible
+    // Scoring methodology explanation
     const scoringL = this._lang === 'pl';
     html += `<div style="margin-top:16px;padding:14px;background:var(--bento-bg);border:1px solid var(--bento-border);border-radius:var(--bento-radius-sm);">
-      <div class="score-explainer-toggle" style="font-size:13px;font-weight:600;color:var(--bento-text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
-        <span>${scoringL ? '\u{1F4CA} Jak obliczany jest wynik?' : '\u{1F4CA} How is the score calculated?'}</span>
-        <span class="score-explainer-arrow" style="transition:transform 0.2s;font-size:12px;">\u25BC</span>
+      <div style="font-size:13px;font-weight:600;color:var(--bento-text);margin-bottom:8px;">${scoringL ? '\u{1F4CA} Jak obliczany jest wynik?' : '\u{1F4CA} How is the score calculated?'}</div>
+      <div style="font-size:12px;color:var(--bento-text-secondary);line-height:1.6;">
+        ${scoringL ? 'Wynik startowy: <b>100 punkt\u00F3w</b>' : 'Starting score: <b>100 points</b>'}<br>
+        \u{1F6A8} ${scoringL ? 'Krytyczne' : 'Critical'}: <b>-15 ${scoringL ? 'pkt za ka\u017Cdy' : 'pts each'}</b> (${scoringL ? 'np. brak SSL, wy\u0142\u0105czona ochrona addon' : 'e.g. no SSL, disabled addon protection'})<br>
+        \u26A0\uFE0F ${scoringL ? 'Ostrze\u017Cenia' : 'Warnings'}: <b>-5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. nieaktualne addony, wiele kont Owner' : 'e.g. outdated addons, multiple owner accounts'})<br>
+        \u2139\uFE0F Info: <b>-0.5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. shell commands, MQTT' : 'e.g. shell commands, MQTT broker'})<br>
+        \u2705 ${scoringL ? 'Spe\u0142nione' : 'Passed'}: ${scoringL ? 'bez kary' : 'no penalty'}
       </div>
-      <div class="score-explainer-body" style="display:none;margin-top:8px;">
-        <div style="font-size:12px;color:var(--bento-text-secondary);line-height:1.6;">
-          ${scoringL ? 'Wynik startowy: <b>100 punkt\u00F3w</b>' : 'Starting score: <b>100 points</b>'}<br>
-          \u{1F6A8} ${scoringL ? 'Krytyczne' : 'Critical'}: <b>-15 ${scoringL ? 'pkt za ka\u017Cdy' : 'pts each'}</b> (${scoringL ? 'np. brak SSL, wy\u0142\u0105czona ochrona addon' : 'e.g. no SSL, disabled addon protection'})<br>
-          \u26A0\uFE0F ${scoringL ? 'Ostrze\u017Cenia' : 'Warnings'}: <b>-5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. nieaktualne addony, wiele kont Owner' : 'e.g. outdated addons, multiple owner accounts'})<br>
-          \u2139\uFE0F Info: <b>-0.5 ${scoringL ? 'pkt za ka\u017Cde' : 'pts each'}</b> (${scoringL ? 'np. shell commands, MQTT' : 'e.g. shell commands, MQTT broker'})<br>
-          \u2705 ${scoringL ? 'Spe\u0142nione' : 'Passed'}: ${scoringL ? 'bez kary' : 'no penalty'}
-        </div>
-        <div style="font-size:12px;color:var(--bento-text-secondary);margin-top:8px;">
-          ${scoringL ? '<b>Sprawdzane:</b> aktualizacje Core/OS/Supervisor, SSL/HTTPS, ochrona addon\u00F3w, auto-update, host networking, u\u017Cytkownicy i uprawnienia, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS' : '<b>Checks:</b> Core/OS/Supervisor updates, SSL/HTTPS, addon protection, auto-update, host networking, users & permissions, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS'}
-        </div>
+      <div style="font-size:12px;color:var(--bento-text-secondary);margin-top:8px;">
+        ${scoringL ? '<b>Sprawdzane:</b> aktualizacje Core/OS/Supervisor, SSL/HTTPS, ochrona addon\u00F3w, auto-update, host networking, u\u017Cytkownicy i uprawnienia, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS' : '<b>Checks:</b> Core/OS/Supervisor updates, SSL/HTTPS, addon protection, auto-update, host networking, users & permissions, SSH/MQTT/FTP/Samba, trusted networks, legacy API password, IP bans, HACS repos, DNS rebinding, CORS'}
       </div>
     </div>`;
     if (this._lastScan) { html += `<div class="scan-info">Last scan: ${this._lastScan.toLocaleString()}</div>`; }
@@ -1332,11 +1261,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   _renderAddonsSection(d) {
-    if (!d.addons.length) {
-      const noSupervisor = d.findings?.info?.some(f => f.id === 'no_supervisor');
-      if (noSupervisor) return `<div class="empty-msg">\u2139\uFE0F ${this._lang === 'pl' ? 'Addony wymagaj\u0105 HA OS lub Supervised. Brak Supervisor API na tej instalacji.' : 'Addons require HA OS or Supervised. No Supervisor API detected on this installation.'}</div>`;
-      return '<div class="empty-msg">No addons installed</div>';
-    }
+    if (!d.addons.length) return '<div class="empty-msg">No addons installed</div>';
     return `<div class="table-container"><table class="entity-table"><thead><tr><th>Addon</th><th>Version</th><th>State</th><th>Protection</th><th>Auto-update</th><th>Host Network</th></tr></thead><tbody>${d.addons.map(a => { const prot = a.protected !== false; const autoUp = a.auto_update !== false; const hostNet = a.host_network === true; const updateAvail = a.update_available; return `<tr><td>${this._sanitize(a.name || a.slug)}${updateAvail ? ' \u2B06\uFE0F' : ''}</td><td>${a.version || '-'}${updateAvail ? ` \u2192 ${a.version_latest}` : ''}</td><td><span class="status-dot" style="background:${a.state === 'started' ? '#4caf50' : '#9e9e9e'}"></span>${a.state || 'stopped'}</td><td style="color:${prot ? '#4caf50' : '#f44336'}">${prot ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${autoUp ? '#4caf50' : '#ff9800'}">${autoUp ? '\u2713 On' : '\u2717 Off'}</td><td style="color:${hostNet ? '#ff9800' : 'var(--bento-text-secondary)'}">${hostNet ? '\u26A0 Yes' : 'No'}</td></tr>`; }).join('')}</tbody></table></div>`;
   }
 
@@ -1388,9 +1313,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     if (hi.operating_system) html += `<span style="font-weight:600;color:var(--bento-text-secondary)">OS</span><span>${hi.operating_system}</span>`;
     if (hi.supervisor) html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Supervisor</span><span>${hi.supervisor}</span>`;
     html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Time zone</span><span>${haConfig.time_zone || 'N/A'}</span>`;
-    const integrationCount = d.integrations?.length || (haConfig.components || []).length;
-    const componentCount = (haConfig.components || []).length;
-    html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Integrations</span><span>${integrationCount > 0 ? integrationCount + ' entries' : componentCount > 0 ? componentCount + ' components' : 'N/A'}</span>`;
+    const integrationCount = (haConfig.components || []).length;
+    html += `<span style="font-weight:600;color:var(--bento-text-secondary)">Integrations</span><span>${integrationCount} loaded</span>`;
     html += '</div></div></div>';
 
     // Network Interfaces from Supervisor
@@ -1548,20 +1472,14 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       });
     });
   }
-
-  disconnectedCallback() {
-    // Cleanup any active event listeners or timers
-  }
-
-  setActiveTab(tabId) {
-    this._activeTab = tabId;
-    this._render();
-  }
 }
 
 if (!customElements.get('ha-security-check')) {
   customElements.define('ha-security-check', HASecurityCheck);
 }
+
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-security-check', name: 'Security Check', description: 'Security audit tool for Home Assistant', preview: true });
 
 console.info(
   '%c  HA-SECURITY-CHECK  %c v1.0.0 ',
@@ -1585,11 +1503,11 @@ class HaSecurityCheckEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Security Check</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
@@ -1606,8 +1524,3 @@ class HaSecurityCheckEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-security-check-editor')) { customElements.define('ha-security-check-editor', HaSecurityCheckEditor); }
-
-})();
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-security-check', name: 'Security Check', description: 'Security audit tool for Home Assistant', preview: true });

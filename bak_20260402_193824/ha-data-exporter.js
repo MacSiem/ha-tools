@@ -1,13 +1,3 @@
-(function() {
-'use strict';
-
-// XSS protection helper (reuse global from panel, fallback for standalone)
-const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
-
 /**
  * Home Assistant Data Exporter Card
  * Export devices, entities, states, and attributes to CSV/JSON
@@ -126,7 +116,7 @@ class HADataExporter extends HTMLElement {
 
   _updateSnapshotStatus() {
     const el = this.shadowRoot ? this.shadowRoot.getElementById('snapshotStatus') : null;
-    if (el) el.textContent = this._snapshots.length + ' ' + this._t.savedSnapshots;
+    if (el) el.textContent = this._snapshots.length + ' zapisanych';
   }
 
   disconnectedCallback() {
@@ -158,67 +148,6 @@ class HADataExporter extends HTMLElement {
     }
     this._updateEntities();
     this._lastRenderTime = now;
-  }
-
-
-  get _t() {
-    const T = {
-      pl: {
-        title: 'Eksporter Danych',
-        loading: 'Wczytywanie...',
-        noData: 'Brak danych',
-        error: 'B\u0142\u0105d',
-        refresh: 'Od\u015bwie\u017c',
-        save: 'Zapisz',
-        cancel: 'Anuluj',
-        savedSnapshots: 'zapisanych',
-        attributes: 'Atrybuty',
-        takeSnapshot: 'Zr\u00f3b snapshot teraz',
-        clearSnapshots: 'Wyczy\u015b\u0107 snapshoty',
-        snapshotInterval30s: 'co 30s',
-        snapshotInterval1min: 'co 1 min',
-        snapshotInterval5min: 'co 5 min',
-        snapshotInterval15min: 'co 15 min',
-        snapshotInterval1h: 'co 1h',
-        stateHistory: 'Historia stan\u00f3w (24h z HA)',
-        snapshotsTitle: 'Snapshoty',
-        snapshots: 'zapisy\u00f3w',
-        clickToLoad: 'Kliknij aby za\u0142adowa\u0107...',
-        loadingHistory: '\u0141adowanie historii...',
-        loadHistoryError: 'Nie uda\u0142o si\u0119 pobra\u0107 historii:',
-        noStateChanges: 'Brak historii zmian w ostatnich 24h',
-        now: 'teraz',
-        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
-      },
-      en: {
-        title: 'Data Exporter',
-        loading: 'Loading...',
-        noData: 'No data',
-        error: 'Error',
-        refresh: 'Refresh',
-        save: 'Save',
-        cancel: 'Cancel',
-        savedSnapshots: 'saved',
-        attributes: 'Attributes',
-        takeSnapshot: 'Take snapshot now',
-        clearSnapshots: 'Clear snapshots',
-        snapshotInterval30s: 'every 30s',
-        snapshotInterval1min: 'every 1 min',
-        snapshotInterval5min: 'every 5 min',
-        snapshotInterval15min: 'every 15 min',
-        snapshotInterval1h: 'every 1h',
-        stateHistory: 'State history (24h from HA)',
-        snapshotsTitle: 'Snapshots',
-        snapshots: 'entries',
-        clickToLoad: 'Click to load...',
-        loadingHistory: 'Loading history...',
-        loadHistoryError: 'Failed to load history:',
-        noStateChanges: 'No state changes in the last 24h',
-        now: 'now',
-        locale: 'en-US',
-      },
-    };
-    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -305,13 +234,10 @@ class HADataExporter extends HTMLElement {
   }
 
   _render() {
-    if (!this._hass) return;
     const L = this._lang === 'pl';
     const format = this._config.default_format;
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
-
-        * { box-sizing: border-box; }
 
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
 
@@ -342,14 +268,14 @@ class HADataExporter extends HTMLElement {
 }
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: visible;
+  overflow: hidden;
   padding: 20px !important;
 }
 
@@ -523,22 +449,20 @@ canvas {
 /* ===== END BENTO LIGHT MODE ===== */
 
         :host {
-          --primary-color: var(--bento-primary);
-          --bg-color: var(--bento-card);
-          --text-color: var(--bento-text);
-          --secondary-text: var(--bento-text-secondary);
-          --border-color: var(--bento-border);
-          --hover-bg: var(--bento-primary-light);
-          --accent: var(--bento-primary);
+          --primary-color: var(--ha-card-header-color, #1976d2);
+          --bg-color: var(--ha-card-background, var(--card-background-color, #fff));
+          --text-color: var(--primary-text-color, #333);
+          --secondary-text: var(--secondary-text-color, #666);
+          --border-color: var(--divider-color, #e0e0e0);
+          --hover-bg: var(--table-row-alternative-background-color, #f5f5f5);
+          --accent: var(--accent-color, #03a9f4);
         }
-        .card {
+        .exporter-card {
           background: var(--bg-color);
           border-radius: 12px;
           padding: 16px;
           font-family: var(--ha-card-header-font-family, inherit);
           color: var(--text-color);
-          overflow: visible;
-          min-width: 0;
         }
         .card-header {
           display: flex;
@@ -561,7 +485,7 @@ canvas {
           margin-bottom: 12px;
           flex-wrap: wrap;
         }
-        .toolbar select, .toolbar input[type="text"] {
+        .toolbar select, .toolbar input {
           padding: 6px 10px;
           border: 1px solid var(--bento-border);
           border-radius: 6px;
@@ -570,11 +494,11 @@ canvas {
           font-size: 13px;
           outline: none;
         }
-        .toolbar input[type="text"] {
+        .toolbar input {
           flex: 1;
           min-width: 150px;
         }
-        .toolbar select:focus, .toolbar input[type="text"]:focus {
+        .toolbar select:focus, .toolbar input:focus {
           border-color: var(--accent);
         }
         .toolbar-spacer {
@@ -645,23 +569,7 @@ canvas {
           cursor: pointer;
           width: 16px;
           height: 16px;
-          accent-color: var(--bento-primary);
-        }
-        .attrs-toggle-label {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          cursor: pointer;
-          white-space: nowrap;
-          font-size: 13px;
-          font-weight: 400;
-          color: var(--bento-text, #1e293b);
-          padding: 5px 0;
-        }
-        .attrs-toggle-input {
-          margin: 0;
-          accent-color: var(--bento-primary);
-          cursor: pointer;
+          accent-color: var(--primary-color);
         }
         .expand-cell {
           width: 30px;
@@ -880,7 +788,7 @@ canvas {
 
         /* RESPONSIVE */
         @media (max-width: 768px) {
-          .card { padding: 12px; }
+          .exporter-card { padding: 12px; }
           .card-header { flex-direction: column; gap: 8px; }
           .card-header h2 { font-size: 16px; }
           .entity-grid { grid-template-columns: 1fr !important; }
@@ -901,28 +809,16 @@ canvas {
         @media (max-width: 480px) {
           .tab { font-size: 11px; padding: 5px 8px; }
           .entity-grid { gap: 8px; }
-          .toolbar input[type="text"] { min-width: 100px; }
+          .toolbar input { min-width: 100px; }
           .toolbar select { padding: 4px 8px; font-size: 12px; }
           .btn-sm { padding: 4px 8px; font-size: 10px; }
         }
       
-
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  }
-}
-/* === DARK MODE ADDED - old comment below === */
+/* === DARK MODE === */
 
         /* === MOBILE FIX === */
         @media (max-width: 768px) {
-          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card, .card-container { padding: 14px; }
           .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -941,11 +837,11 @@ canvas {
         }
 
 </style>
-      
-        <div class="card">
+      <ha-card>
+        <div class="exporter-card">
           <div class="card-header">
-            <h2>${_esc(this._config.title)}</h2>
-            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${this._lang === 'pl' ? '\u2699\uFE0F Ustawienia' : '\u2699\uFE0F Settings'}</button></div>
+            <h2>${this._config.title}</h2>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">⚙️ Ustawienia</button></div>
           </div>
           
           <div class="toolbar">
@@ -961,19 +857,20 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" checked class="attrs-toggle-input" /> ${this._t.attributes}</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button>
+            <label class="export-option export-option-sm" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="includeAttrs" checked style="margin:0" /> Atrybuty</label>
           </div>
-          <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
+          <div class="snapshot-bar" style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
               <input type="checkbox" id="snapshotEnabled" ${this._snapshotSettings.enabled ? 'checked' : ''} />
               Snapshots
             </label>
             <select id="snapshotInterval" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
-              <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>${this._t.snapshotInterval30s}</option>
-              <option value="60" ${this._snapshotSettings.interval === 60 ? 'selected' : ''}>${this._t.snapshotInterval1min}</option>
-              <option value="300" ${this._snapshotSettings.interval === 300 ? 'selected' : ''}>${this._t.snapshotInterval5min}</option>
-              <option value="900" ${this._snapshotSettings.interval === 900 ? 'selected' : ''}>${this._t.snapshotInterval15min}</option>
-              <option value="3600" ${this._snapshotSettings.interval === 3600 ? 'selected' : ''}>${this._t.snapshotInterval1h}</option>
+              <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>co 30s</option>
+              <option value="60" ${this._snapshotSettings.interval === 60 ? 'selected' : ''}>co 1 min</option>
+              <option value="300" ${this._snapshotSettings.interval === 300 ? 'selected' : ''}>co 5 min</option>
+              <option value="900" ${this._snapshotSettings.interval === 900 ? 'selected' : ''}>co 15 min</option>
+              <option value="3600" ${this._snapshotSettings.interval === 3600 ? 'selected' : ''}>co 1h</option>
             </select>
             <select id="snapshotMax" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
               <option value="20" ${this._snapshotSettings.maxSnapshots === 20 ? 'selected' : ''}>20 snap.</option>
@@ -981,9 +878,9 @@ canvas {
               <option value="100" ${this._snapshotSettings.maxSnapshots === 100 ? 'selected' : ''}>100 snap.</option>
               <option value="200" ${this._snapshotSettings.maxSnapshots === 200 ? 'selected' : ''}>200 snap.</option>
             </select>
-            <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} ${this._t.savedSnapshots}</span>
-            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="${this._t.takeSnapshot}" aria-label="${this._t.takeSnapshot}">\u{1F4F8}</button>
-            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="${this._t.clearSnapshots}" aria-label="${this._t.clearSnapshots}">\u{1F5D1}</button>
+            <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} zapisanych</span>
+            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="Zr\u00F3b snapshot teraz">\u{1F4F8}</button>
+            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="Wyczy\u015B\u0107 snapshoty">\u{1F5D1}</button>
           </div>
           <div class="table-container">
             <table class="entity-table">
@@ -1003,7 +900,7 @@ canvas {
           </div>
           <div class="pagination" id="pagination"></div>
         </div>
-      
+      </ha-card>
     `
     this._attachEvents();
   }
@@ -1138,7 +1035,7 @@ canvas {
       const count = Object.keys(this._hass.states).filter(id => id.startsWith(d + '.')).length;
       const opt = document.createElement('option');
       opt.value = d;
-      opt.textContent = _esc(d) + ' (' + count + ')';
+      opt.textContent = d + ' (' + count + ')';
       if (d === currentDomain) opt.selected = true;
       domainFilter.appendChild(opt);
     });
@@ -1173,10 +1070,10 @@ canvas {
         const attrCount = attrKeys.length;
         tr.innerHTML = `
           <td class="checkbox-cell"><input type="checkbox" data-entity="${ent.entity_id}" ${checked} /></td>
-          <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes" aria-label="Show attributes">▶</button></td>
-          <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
-          <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
-          <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes">▶</button></td>
+          <td class="entity-id" title="${ent.entity_id}">${ent.entity_id}</td>
+          <td title="${ent.name}">${ent.name}</td>
+          <td class="state-val" title="${ent.state}">${ent.state}</td>
           <td>${ent.domain}</td>
           <td><span class="attr-count">${attrCount}</span></td>
         `;
@@ -1208,20 +1105,20 @@ canvas {
             const isComplex = typeof v === 'object' && v !== null;
             const displayVal = isComplex ? JSON.stringify(v) : String(v);
             const valClass = isComplex ? 'attr-val complex' : 'attr-val';
-            attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${_esc(displayVal).replace(/"/g, '&quot;')}">${_esc(displayVal)}</span></div>`;
+            attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${displayVal.replace(/"/g, '&quot;')}">${displayVal}</span></div>`;
           });
         }
         attrHtml += '</div>';
         // History from HA API
-        attrHtml += `<div class="history-section"><div class="history-title">\u{1F4C8} ${this._t.stateHistory}</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">${this._t.clickToLoad}</span></div></div>`;
+        attrHtml += `<div class="history-section"><div class="history-title">\u{1F4C8} Historia stan\u00F3w (24h z HA)</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">Kliknij aby za\u0142adowa\u0107...</span></div></div>`;
         // Snapshot history (persisted)
         const snapHistory = this._getEntityHistory(ent.entity_id);
         if (snapHistory.length > 0) {
           const last10 = snapHistory.slice(-10).reverse();
-          attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
+          attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} Snapshoty (' + snapHistory.length + ' zapis\u00F3w)</div><div class="history-list">';
           last10.forEach(h => {
             const t = new Date(h.ts).toLocaleString();
-            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + h.attrs + ' attrs</span></div>';
+            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + h.state + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + h.attrs + ' attrs</span></div>';
           });
           attrHtml += '</div></div>';
         }
@@ -1431,7 +1328,7 @@ canvas {
       return;
     }
 
-    container.innerHTML = '<span class="history-loading">' + this._t.loadingHistory + '</span>';
+    container.innerHTML = '<span class="history-loading">\u0141adowanie historii...</span>';
 
     try {
       const end = new Date().toISOString();
@@ -1461,25 +1358,25 @@ canvas {
       this._historyCache[entityId] = { data: changes, ts: Date.now() };
       this._renderHistory(container, changes, entityId);
     } catch (err) {
-      container.innerHTML = '<span class="history-loading">' + this._t.loadHistoryError + ' ' + _esc(err.message) + '</span>';
+      container.innerHTML = '<span class="history-loading">Nie uda\u0142o si\u0119 pobra\u0107 historii: ' + err.message + '</span>';
     }
   }
 
   _renderHistory(container, changes, entityId) {
     if (!changes || changes.length === 0) {
-      container.innerHTML = '<span class="history-loading">' + this._t.noStateChanges + '</span>';
+      container.innerHTML = '<span class="history-loading">Brak historii zmian w ostatnich 24h</span>';
       return;
     }
     let html = '';
     changes.forEach((ch, i) => {
       const d = new Date(ch.time);
-      const timeStr = d.toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
+      const timeStr = d.toLocaleString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
       const isCurrent = i === changes.length - 1;
       html += '<div class="history-item' + (isCurrent ? '' : '') + '">';
       html += '<span class="history-time">' + timeStr + '</span>';
       if (i > 0) html += '<span class="history-arrow">\u2192</span>';
-      html += '<span class="history-state">' + _esc(ch.state || '?') + '</span>';
-      if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(' + this._t.now + ')</span>';
+      html += '<span class="history-state">' + (ch.state || '?') + '</span>';
+      if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(teraz)</span>';
       html += '</div>';
     });
     container.innerHTML = html;
@@ -1510,6 +1407,14 @@ canvas {
 
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
 
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'ha-data-exporter',
+  name: 'Data Exporter',
+  description: 'Export HA entities, states, and attributes to CSV/JSON/YAML',
+  preview: true
+});
+
 console.info(
   '%c  HA-DATA-EXPORTER  %c v1.0.0 ',
   'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
@@ -1532,15 +1437,15 @@ class HaDataExporterEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Data Exporter</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${_esc(this._config?.title) || 'Data Exporter'}"
+              <input type="text" id="cf_title" value="${this._config?.title || 'Data Exporter'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
@@ -1553,13 +1458,3 @@ class HaDataExporterEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-data-exporter-editor')) { customElements.define('ha-data-exporter-editor', HaDataExporterEditor); }
-
-})();
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'ha-data-exporter',
-  name: 'Data Exporter',
-  description: 'Export HA entities, states, and attributes to CSV/JSON/YAML',
-  preview: true
-});

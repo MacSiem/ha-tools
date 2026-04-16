@@ -1,13 +1,3 @@
-(function() {
-'use strict';
-
-// XSS protection helper (reuse global from panel, fallback for standalone)
-const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
-
 /**
  * HA Vacuum Water Monitor v3.0.0
  * Lovelace card for tracking vacuum cleaner water levels, history, maintenance and stats
@@ -437,7 +427,6 @@ class HAVacuumWaterMonitor extends HTMLElement {
   static getConfigElement() { return document.createElement('ha-vacuum-water-monitor-editor'); }
   constructor() {
     super();
-    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     this._hass = null;
@@ -474,52 +463,6 @@ class HAVacuumWaterMonitor extends HTMLElement {
     this._lastRenderTime = now;
   }
 
-  get _t() {
-    const T = {
-      pl: {
-        title: 'Monitor Odkurzacza i Wody',
-        loading: 'Wczytywanie...',
-        noData: 'Brak danych',
-        error: 'B\u0142\u0105d',
-        water: 'Woda',
-        vacuum: 'Odkurzacz',
-        maintenance: 'Konserwacja',
-        status: 'Status',
-        lastRun: 'Ostatnie uruchomienie',
-        nextRun: 'Nast\u0119pne uruchomienie',
-        fillLevel: 'Poziom nape\u0142nienia',
-        tankEmpty: 'Zbiornik pusty',
-        tankFull: 'Zbiornik pe\u0142ny',
-        refill: 'Nape\u0142nij',
-        clean: 'Wyczy\u015B\u0107',
-        history: 'Historia',
-        noDevices: 'Brak skonfigurowanych urz\u0105dze\u0144.',
-        addVacuum: 'Dodaj odkurzacz w zak\u0142adce \u2699\uFE0F Ustawienia.',
-      },
-      en: {
-        title: 'Vacuum & Water Monitor',
-        loading: 'Loading...',
-        noData: 'No data',
-        error: 'Error',
-        water: 'Water',
-        vacuum: 'Vacuum',
-        maintenance: 'Maintenance',
-        status: 'Status',
-        lastRun: 'Last run',
-        nextRun: 'Next run',
-        fillLevel: 'Fill level',
-        tankEmpty: 'Tank empty',
-        tankFull: 'Tank full',
-        refill: 'Refill',
-        clean: 'Clean',
-        history: 'History',
-        noDevices: 'No configured devices.',
-        addVacuum: 'Add a vacuum in the ⚙️ Settings tab.',
-      },
-    };
-    return T[this._lang] || T.en;
-  }
-
   setConfig(config) {
     if (!config) throw new Error('Configuration required');
 
@@ -548,7 +491,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     };
 
     this._activeTab = this._config.default_tab || 'water';
-    try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
+    try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
     this._loadMaintenanceItems();
     this._loadUserDevices();
     this._loadRefillConfig();
@@ -617,7 +560,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     this._userDevices.push({
       vacuum_entity: entityId,
       name: profile.label || name,
-      icon: profile.icon || '\uD83E\uDD16',
+      icon: profile.icon || '\uD83E\uDDA4',
       ...profile,
     });
     this._saveUserDevices();
@@ -788,9 +731,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
   // Auto-discover vacuum entities from HA states
   _autoDiscoverVacuums() {
     if (!this._hass) return [];
-    const EXCLUDE_IDS = ['vacuum.robotic_vacuum_cleaner'];
     return Object.values(this._hass.states)
-      .filter(s => s.entity_id.startsWith('vacuum.') && !EXCLUDE_IDS.includes(s.entity_id))
+      .filter(s => s.entity_id.startsWith('vacuum.'))
       .map(s => ({
         entity_id: s.entity_id,
         name: (s.attributes && s.attributes.friendly_name) || s.entity_id,
@@ -800,16 +742,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
   }
 
   _calcDeviceData(device) {
-    // Derive total water capacity: explicit config > calibration data > 0
-    const profileKey = device.brand_profile;
-    const calib = profileKey ? (CALIBRATION_DATA[profileKey] || null) : null;
-    const totalMl = device.water_total_ml || (calib ? calib.tank_ml : 0);
+    const totalMl = device.water_total_ml || 0;
     let remainingL = null, percentRemaining = null, usedMl = null;
-
-    // Validation: Check if critical water tracking entities exist
-    const hasWaterSensor = device.water_sensor && this._hass.states[device.water_sensor];
-    const hasWaterUsedInput = device.water_used_input && this._hass.states[device.water_used_input];
-    const configMissing = totalMl > 0 && !hasWaterSensor && !hasWaterUsedInput;
 
     if (totalMl > 0) {
       const waterSensorRaw = this._getStateValue(device.water_sensor);
@@ -875,12 +809,11 @@ class HAVacuumWaterMonitor extends HTMLElement {
       mainBrushH, sideBrushH, filterH, sensorH, dockBrushH, dockStrainerH,
       dockCleanWaterFull, dockDirtyWaterFull, waterShortage, mopAttached, mopDrying,
       areaCleaned, durationSec, lastCleanStart, lastCleanEnd,
-      configMissing,
     };
   }
 
   _getStatus(data, cfg) {
-    if (data.totalMl === 0) return { label: 'No Water', color: '#6b7280', icon: '\uD83D\uDCA7' };
+    if (data.totalMl === 0) return { label: 'No Water', color: '#6b7280', icon: '\uD83E\uDDA4' };
     if (data.waterEmpty || data.waterShortage) return { label: 'EMPTY', color: '#ef4444', icon: '\u26A0\uFE0F' };
     if (data.percentRemaining === null) return { label: 'Unknown', color: '#6b7280', icon: '\u2753' };
     if (data.percentRemaining <= (cfg.critical_threshold || 10)) return { label: 'Critical', color: '#ef4444', icon: '\uD83D\uDEA8' };
@@ -992,17 +925,6 @@ class HAVacuumWaterMonitor extends HTMLElement {
         + (data.percentRemaining !== null && data.percentRemaining <= (cfg.critical_threshold || 10) && !data.waterEmpty
           ? `<div class="alert-banner alert-warn">\u26A0\uFE0F Water low (${Math.round(data.percentRemaining)}%) - refill soon.</div>` : '');
 
-    const configMissingBanner = data.configMissing
-      ? `<div style="padding:12px 16px;background:rgba(245,158,11,0.08);border:1.5px solid #f59e0b;border-radius:8px;margin-bottom:12px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px">\u{1F527}</span>
-            <div style="font-size:13px;color:var(--bento-text,#1a1a2e);">
-              <b>Konfiguracja:</b> Licznik wody nie skonfigurowany. Ustaw <code style="background:var(--bento-bg);padding:2px 6px;border-radius:4px">water_used_input</code> w opcjach karty. Patrz README.
-            </div>
-          </div>
-        </div>`
-      : '';
-
     const dockHtml = (cfg.show_dock_status !== false) ? this._buildDockSection(device, data) : '';
     // Q1/Q2: Calibration info based on brand profile
     let calibHtml = '';
@@ -1026,19 +948,12 @@ class HAVacuumWaterMonitor extends HTMLElement {
     }
 
 
-    // Only show "doesn't track water" if no water tracking capability at all:
-    // No explicit water_total_ml AND no brand_profile match AND no water sensors
-    const noWaterTracking = !device.water_total_ml &&
-      !data.totalMl &&  // No calibration data either
-      !device.water_sensor &&
-      !device.water_used_input &&
-      !device.water_used_sensor;
+    const noWaterMode = !data.totalMl;
 
     return `
       <div class="tab-content">
         ${alertBanner}
-        ${configMissingBanner}
-        ${noWaterTracking ? `<div class="no-water-note">\uD83D\uDCCC This device doesn't track water levels</div>` : `
+        ${noWaterMode ? `<div class="no-water-note">\uD83D\uDCCC This device doesn't track water levels</div>` : `
         <div class="device-body">
           <div class="gauge-wrap">
             ${gaugeSvg}
@@ -1051,7 +966,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
           </div>
         </div>
         ${refillBtn ? `<div class="refill-wrap">${refillBtn}</div>` : ''}`}
-        ${noWaterTracking && data.charge !== null ? `<div class="details">${this._buildBatteryBar(data.charge)}</div>` : ''}
+        ${noWaterMode && data.charge !== null ? `<div class="details">${this._buildBatteryBar(data.charge)}</div>` : ''}
         ${dockHtml}
         ${calibHtml}
       </div>`;
@@ -1084,60 +999,60 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const btnStyle = 'padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;margin-top:6px';
     const btnPrimary = btnStyle + ';background:rgba(59,130,246,0.12);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)';
     const btnSuccess = btnStyle + ';background:rgba(34,197,94,0.12);color:#16a34a;border:1px solid rgba(34,197,94,0.3)';
-    const statusOk = '<span style="color:#22c55e;font-size:11px;font-weight:600">\u2705 Configured</span>';
-    const statusNone = '<span style="color:var(--vwm-text-muted,#9ca3af);font-size:11px">\u2014 Not configured</span>';
+    const statusOk = '<span style="color:#22c55e;font-size:11px;font-weight:600">\u2705 Skonfigurowane</span>';
+    const statusNone = '<span style="color:var(--vwm-text-muted,#9ca3af);font-size:11px">\u2014 Nie skonfigurowane</span>';
 
     return `
       <div class="section-block">
         <div class="section-title" style="cursor:pointer;display:flex;align-items:center;gap:6px" id="refill-methods-toggle">
-          \uD83D\uDD04 Tank reset methods <span id="refill-methods-arrow" style="font-size:10px;transition:transform 0.2s">\u25B6</span>
+          \uD83D\uDD04 Metody resetu zbiornika <span id="refill-methods-arrow" style="font-size:10px;transition:transform 0.2s">\u25B6</span>
         </div>
         <div id="refill-methods-body" style="display:none">
 
           <div style="margin:8px 0;padding:10px 14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:10px;font-size:12px;line-height:1.5;color:var(--vwm-text,#1e293b)">
-            \u26A0\uFE0F Most robots don't report tank removal/insertion. Choose a reset method that works for you.
+            \u26A0\uFE0F Wi\u0119kszo\u015B\u0107 robot\u00F3w <strong>nie raportuje</strong> wyj\u0119cia/w\u0142o\u017Cenia zbiornika. Wybierz metod\u0119 resetu, kt\u00F3ra Ci odpowiada.
           </div>
 
           <!-- Method 1: Card button -->
           <div style="${methodStyle}">
-            <div style="${labelStyle}">\u2460 Button in this card</div>
+            <div style="${labelStyle}">\u2460 Przycisk w tej karcie</div>
             <div style="${descStyle}">
-              Use the <strong>\uD83D\uDCA7 Refilled</strong> button above. Simplest option - click when you refill water.
+              U\u017Cyj przycisku <strong>\uD83D\uDCA7 Refilled</strong> powy\u017Cej. Najprostsza opcja \u2014 klikasz gdy uzupe\u0142nisz wod\u0119.
             </div>
           </div>
 
           <!-- Method 2: Dashboard button / physical -->
           <div style="${methodStyle}">
-            <div style="${labelStyle}">\u2461 Dashboard / physical button ${rc.buttonEntity ? statusOk : statusNone}</div>
+            <div style="${labelStyle}">\u2461 Przycisk w dashboardzie / fizyczny ${rc.buttonEntity ? statusOk : statusNone}</div>
             <div style="${descStyle}">
-              Create an <code>input_button</code> entity - you can add it as a tile in your dashboard or link it to a Zigbee/Z-Wave button.
+              Utw\u00F3rz encj\u0119 <code>input_button</code> \u2014 mo\u017Cesz j\u0105 doda\u0107 jako kafelek w dashboardzie lub podpi\u0105\u0107 pod przycisk Zigbee/Z-Wave.
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               <select id="refill-btn-select" style="${selectStyle};flex:1;min-width:180px">
-                <option value="">-- Select input_button --</option>
+                <option value="">-- Wybierz input_button --</option>
                 ${buttonOpts}
               </select>
-              <button id="refill-btn-create" style="${btnSuccess}">+ Create new</button>
+              <button id="refill-btn-create" style="${btnSuccess}">+ Utw\u00F3rz nowy</button>
             </div>
             ${rc.buttonEntity ? '' : '<div style="margin-top:6px">'}
-            <button id="refill-btn-save" style="${btnPrimary};margin-top:6px">\uD83D\uDD17 Save and create automation</button>
-            ${rc.buttonEntity ? '<button id="refill-btn-remove" style="' + btnStyle + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);margin-left:6px">\uD83D\uDDD1\uFE0F Remove</button>' : ''}
+            <button id="refill-btn-save" style="${btnPrimary};margin-top:6px">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+            ${rc.buttonEntity ? '<button id="refill-btn-remove" style="' + btnStyle + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);margin-left:6px">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
             <span id="refill-btn-status" style="font-size:11px;margin-left:8px"></span>
           </div>
 
           <!-- Method 3: Door sensor -->
           <div style="${methodStyle}">
-            <div style="${labelStyle}">\u2462 Door sensor / contact ${rc.sensorEntity ? statusOk : statusNone}</div>
+            <div style="${labelStyle}">\u2462 Czujnik drzwi / kontaktron ${rc.sensorEntity ? statusOk : statusNone}</div>
             <div style="${descStyle}">
-              Attach a door sensor (e.g. Aqara Door Sensor) to the tank or station flap. Closing = tank in place = auto-reset.
+              Przyklej czujnik otwarcia (np. Aqara Door Sensor) do zbiornika lub klapki stacji. Zamkni\u0119cie = zbiornik na miejscu = auto-reset.
             </div>
             <select id="refill-sensor-select" style="${selectStyle}">
-              <option value="">-- Select binary_sensor (door/window) --</option>
+              <option value="">-- Wybierz binary_sensor (door/window) --</option>
               ${sensorOpts}
             </select>
             <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
-              <button id="refill-sensor-save" style="${btnPrimary}">\uD83D\uDD17 Save and create automation</button>
-              ${rc.sensorEntity ? '<button id="refill-sensor-remove" style="' + btnStyle + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Remove</button>' : ''}
+              <button id="refill-sensor-save" style="${btnPrimary}">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+              ${rc.sensorEntity ? '<button id="refill-sensor-remove" style="' + btnStyle + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
               <span id="refill-sensor-status" style="font-size:11px"></span>
             </div>
           </div>
@@ -1236,65 +1151,65 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
         <div class="section-block">
           <div class="section-title" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-            \u2699\uFE0F Custom calibration values <span style="font-size:10px;color:var(--bento-text-muted);font-weight:400">(click to expand)</span>
+            \u2699\uFE0F W\u0142asne warto\u015Bci kalibracji <span style="font-size:10px;color:var(--vwm-text-muted);font-weight:400">(kliknij aby rozwi\u0144\u0105\u0107)</span>
           </div>
           <div style="display:none;margin-top:8px">
-            <div style="font-size:11px;color:var(--bento-text-secondary);margin-bottom:10px;line-height:1.5">
-              If your robot is not on the list or you want to correct values — enter your own data. They will be saved in browser memory.
+            <div style="font-size:11px;color:var(--vwm-text-secondary);margin-bottom:10px;line-height:1.5">
+              Je\u015Bli Twojego robota nie ma na li\u015Bcie lub chcesz skorygowa\u0107 warto\u015Bci \u2014 wpisz w\u0142asne dane. Zostan\u0105 zapisane w pami\u0119ci przegl\u0105darki.
             </div>
             <div id="vwm-custom-form" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
-                Dock tank (ml)
-                <input type="number" id="vwm-custom-tank" placeholder="e.g. 3000" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Zbiornik stacji (ml)
+                <input type="number" id="vwm-custom-tank" placeholder="np. 3000" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
-                Robot tank (ml)
-                <input type="number" id="vwm-custom-robot-tank" placeholder="e.g. 350" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Zbiornik robota (ml)
+                <input type="number" id="vwm-custom-robot-tank" placeholder="np. 350" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
-                Mop washing (ml/cycle)
-                <input type="number" id="vwm-custom-wash" placeholder="e.g. 150" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Mycie mopa (ml/cykl)
+                <input type="number" id="vwm-custom-wash" placeholder="np. 150" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
-              <label style="font-size:11px;color:var(--bento-text-secondary)">
-                Coverage / charge (m\u00B2)                <input type="number" id="vwm-custom-area" placeholder="e.g. 250" style="width:100%;padding:6px 8px;border:1px solid var(--bento-border);border-radius:6px;background:var(--bento-bg);color:var(--bento-text);font-size:12px;margin-top:2px">
+              <label style="font-size:11px;color:var(--vwm-text-secondary)">
+                Zasi\u0119g / \u0142adowanie (m\u00B2)                <input type="number" id="vwm-custom-area" placeholder="np. 250" style="width:100%;padding:6px 8px;border:1px solid var(--vwm-border);border-radius:6px;background:var(--vwm-bg);color:var(--vwm-text);font-size:12px;margin-top:2px">
               </label>
             </div>
             <div style="margin-top:10px">
-              <div style="font-size:11px;color:var(--bento-text-secondary);margin-bottom:6px">Mopping modes — mode name and ml/m\u00B2 usage:</div>
-              <div id="vwm-custom-modes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">
-                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-width:0">
-                  <input type="text" placeholder="np. low" style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:70px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+              <div style="font-size:11px;color:var(--vwm-text-secondary);margin-bottom:6px">Tryby mopowania \u2014 nazwa trybu i zu\u017Cycie ml/m\u00B2:</div>
+              <div id="vwm-custom-modes" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="text" placeholder="np. low" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
                 </div>
-                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-width:0">
-                  <input type="text" placeholder="np. medium" style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:70px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="text" placeholder="np. medium" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
                 </div>
-                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-width:0">
-                  <input type="text" placeholder="np. high" style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name">
-                  <input type="number" placeholder="ml/m\u00B2" style="width:70px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="text" placeholder="np. high" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name">
+                  <input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val">
                 </div>
               </div>
               <div style="margin-top:6px;text-align:right">
-                <button onclick="this.getRootNode().host._addCustomMode()" style="padding:4px 10px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-card);color:var(--bento-text-secondary);font-size:10px;cursor:pointer">+ Add mode</button>
+                <button onclick="this.getRootNode().host._addCustomMode()" style="padding:4px 10px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-surface);color:var(--vwm-text-secondary);font-size:10px;cursor:pointer">+ Dodaj tryb</button>
               </div>
             </div>
             <div style="margin-top:12px;display:flex;gap:8px">
-              <button onclick="this.getRootNode().host._saveCustomCalibration()" style="flex:1;padding:8px 16px;border:none;border-radius:8px;background:#3b82f6;color:white;font-weight:600;font-size:12px;cursor:pointer">\uD83D\uDCBE Save</button>
-              <button onclick="this.getRootNode().host._clearCustomCalibration()" style="padding:8px 16px;border:1px solid var(--bento-border);border-radius:8px;background:var(--bento-card);color:var(--bento-text-secondary);font-size:12px;cursor:pointer">\uD83D\uDDD1 Clear</button>
+              <button onclick="this.getRootNode().host._saveCustomCalibration()" style="flex:1;padding:8px 16px;border:none;border-radius:8px;background:#3b82f6;color:white;font-weight:600;font-size:12px;cursor:pointer">\uD83D\uDCBE Zapisz</button>
+              <button onclick="this.getRootNode().host._clearCustomCalibration()" style="padding:8px 16px;border:1px solid var(--vwm-border);border-radius:8px;background:var(--vwm-surface);color:var(--vwm-text-secondary);font-size:12px;cursor:pointer">\uD83D\uDDD1 Wyczy\u015B\u0107</button>
             </div>
           </div>
         </div>
         <div class="section-block" style="text-align:center;padding:16px">
-          <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:8px">
-            Missing your robot or have more accurate data?
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:8px">
+            Brakuje Twojego robota lub masz dok\u0142adniejsze dane?
           </div>
-          <a href="https://github.com/madmax/ha-tools/issues/new?title=Calibration+data+for+[MODEL]&body=Model:%0ATank+ml:%0AWater+per+m2:%0AMop+wash+ml:%0ASource:%0A" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:8px;background:#24292e;color:white;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
+          <a href="https://github.com/MacSiem/ha-vacuum-water-monitor/issues/new?title=Calibration+data+for+[MODEL]&body=Model:%0ATank+ml:%0AWater+per+m2:%0AMop+wash+ml:%0ASource:%0A" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:8px;background:#24292e;color:white;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-            Report data or correction on GitHub
+            Zg\u0142o\u015B dane lub korekt\u0119 na GitHub
           </a>
-          <div style="margin-top:6px;font-size:10px;color:var(--bento-text-muted)">
-            Calibration data: manufacturer specs + Smart Home Hookup / Vacuum Wars tests + user measurements.
+          <div style="margin-top:6px;font-size:10px;color:var(--vwm-text-muted)">
+            Dane kalibracyjne: specyfikacje producent\u00F3w + testy Smart Home Hookup / Vacuum Wars + pomiary u\u017Cytkownik\u00F3w.
           </div>
         </div>
       </div>`;
@@ -1402,7 +1317,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
       <div class="tab-content">
         ${devices.length > 1 ? `<div class="section-block"><div class="section-title">\uD83D\uDCCA All Devices</div>${rows}</div>` : ''}
         ${devices.length > 0 ? this._buildWeeklyStats(devices) : ''}
-        ${devices.length === 0 ? `<div class="empty-state">${this._t.noDevices}<br>${this._t.addVacuum}</div>` : ''}
+        ${devices.length === 0 ? '<div class="empty-state">Brak skonfigurowanych urządzeń.<br>Dodaj odkurzacz w zakładce ⚙️ Ustawienia.</div>' : ''}
       </div>`;
   }
 
@@ -1486,7 +1401,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     if (!container) return;
     const div = document.createElement('div');
     div.style.cssText = 'display:flex;gap:4px;align-items:center';
-    div.innerHTML = '<input type="text" placeholder="tryb" style="flex:1;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-name"><input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--bento-border);border-radius:4px;background:var(--bento-bg);color:var(--bento-text);font-size:11px" class="vwm-mode-val"><span onclick="this.parentElement.remove()" style="cursor:pointer;color:var(--bento-text-muted);font-size:14px">\u00D7</span>';
+    div.innerHTML = '<input type="text" placeholder="tryb" style="flex:1;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-name"><input type="number" placeholder="ml/m\u00B2" style="width:60px;padding:4px 6px;border:1px solid var(--vwm-border);border-radius:4px;background:var(--vwm-bg);color:var(--vwm-text);font-size:11px" class="vwm-mode-val"><span onclick="this.parentElement.remove()" style="cursor:pointer;color:var(--vwm-text-muted);font-size:14px">\u00D7</span>';
     container.appendChild(div);
   }
   _buildDatabaseTab() {
@@ -1507,7 +1422,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
       const levels = Object.entries(m.water_per_m2);
       const levelTags = levels.map(([mode, val]) => {
         const estArea = Math.round(m.tank_ml / val);
-        return `<span style="${tagSt};${levelColor(val)}" title="${mode}: ${val} ml/m\u00B2 \u2192 ~${estArea} m\u00B2/tank">${mode}: ${val}</span>`;
+        return `<span style="${tagSt};${levelColor(val)}" title="${mode}: ${val} ml/m\u00B2 \u2192 ~${estArea} m\u00B2/zbiornik">${mode}: ${val}</span>`;
       }).join(' ');
 
       // Area estimates per mode
@@ -1543,16 +1458,16 @@ class HAVacuumWaterMonitor extends HTMLElement {
           <div style="font-weight:700;font-size:14px;margin-bottom:8px">\uD83E\uDDA4 ${active.label} <span style="font-size:11px;color:#3b82f6;font-weight:500">(aktywny profil)</span></div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">
             <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
-              <div style="font-size:20px;font-weight:700;color:var(--bento-text)">${active.tank_ml}</div>
-              <div style="font-size:10px;color:var(--bento-text-muted)">ml zbiornik</div>
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${active.tank_ml}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">ml zbiornik</div>
             </div>
             <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
-              <div style="font-size:20px;font-weight:700;color:var(--bento-text)">${active.avg_area_per_charge}</div>
-              <div style="font-size:10px;color:var(--bento-text-muted)">m\u00B2 / \u0142adowanie</div>
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${active.avg_area_per_charge}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">m\u00B2 / \u0142adowanie</div>
             </div>
             <div style="text-align:center;padding:10px;background:var(--vwm-bg,#fff);border-radius:10px;border:1px solid var(--vwm-border,#e5e7eb)">
-              <div style="font-size:20px;font-weight:700;color:var(--bento-text)">${levels.length}</div>
-              <div style="font-size:10px;color:var(--bento-text-muted)">tryb\u00F3w mopu</div>
+              <div style="font-size:20px;font-weight:700;color:var(--vwm-text)">${levels.length}</div>
+              <div style="font-size:10px;color:var(--vwm-text-muted)">tryb\u00F3w mopu</div>
             </div>
           </div>
           <div style="font-size:12px;font-weight:600;margin-bottom:6px">Zu\u017Cycie wody wg trybu:</div>
@@ -1561,16 +1476,16 @@ class HAVacuumWaterMonitor extends HTMLElement {
               const area = Math.round(active.tank_ml / val);
               const pct = Math.round((val / Math.max(...levels.map(l => l[1]))) * 100);
               return `<div style="padding:8px;background:var(--vwm-bg,#fff);border-radius:8px;border:1px solid var(--vwm-border,#e5e7eb)">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--bento-text-secondary);margin-bottom:4px">${mode}</div>
-                <div style="font-size:16px;font-weight:700;color:var(--bento-text)">${val} <span style="font-size:10px;font-weight:400">ml/m\u00B2</span></div>
-                <div style="margin:4px 0;height:4px;background:rgba(59,130,246,0.12);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;border-radius:2px;background:${val <= 8 ? '#22c55e' : val <= 14 ? '#3b82f6' : val <= 18 ? '#f59e0b' : '#ef4444'}"></div></div>
-                <div style="font-size:10px;color:var(--bento-text-muted)">\u2248 ${area} m\u00B2 / zbiornik</div>
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--vwm-text-secondary);margin-bottom:4px">${mode}</div>
+                <div style="font-size:16px;font-weight:700;color:var(--vwm-text)">${val} <span style="font-size:10px;font-weight:400">ml/m\u00B2</span></div>
+                <div style="margin:4px 0;height:4px;background:var(--vwm-overlay-medium);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;border-radius:2px;background:${val <= 8 ? '#22c55e' : val <= 14 ? '#3b82f6' : val <= 18 ? '#f59e0b' : '#ef4444'}"></div></div>
+                <div style="font-size:10px;color:var(--vwm-text-muted)">\u2248 ${area} m\u00B2 / zbiornik</div>
               </div>`;
             }).join('')}
           </div>
-          ${active.mop_type ? `<div style="margin-top:8px;font-size:11px;color:var(--bento-text-secondary)">\uD83E\uDDF9 ${active.mop_type}</div>` : ''}
-          ${active.notes ? `<div style="margin-top:4px;font-size:11px;color:var(--bento-text-muted);font-style:italic">\uD83D\uDCA1 ${active.notes}</div>` : ''}
-          ${active.mop_wash_ml ? `<div style="margin-top:4px;font-size:11px;color:var(--bento-text-secondary)">\uD83D\uDEBF Mycie mopa w stacji: ${active.mop_wash_ml}ml/cykl${active.mop_wash_modes ? ' (' + Object.entries(active.mop_wash_modes).map(([k,v]) => k + ': ' + v + 'ml').join(', ') + ')' : ''}</div>` : ''}
+          ${active.mop_type ? `<div style="margin-top:8px;font-size:11px;color:var(--vwm-text-secondary)">\uD83E\uDDF9 ${active.mop_type}</div>` : ''}
+          ${active.notes ? `<div style="margin-top:4px;font-size:11px;color:var(--vwm-text-muted);font-style:italic">\uD83D\uDCA1 ${active.notes}</div>` : ''}
+          ${active.mop_wash_ml ? `<div style="margin-top:4px;font-size:11px;color:var(--vwm-text-secondary)">\uD83D\uDEBF Mycie mopa w stacji: ${active.mop_wash_ml}ml/cykl${active.mop_wash_modes ? ' (' + Object.entries(active.mop_wash_modes).map(([k,v]) => k + ': ' + v + 'ml').join(', ') + ')' : ''}</div>` : ''}
         </div>`;
     }
 
@@ -1578,17 +1493,17 @@ class HAVacuumWaterMonitor extends HTMLElement {
       <div class="tab-content">
         ${activeCard}
         <div class="section-block">
-          <div class="section-title">\uD83D\uDCDA Robot configuration database</div>
+          <div class="section-title">\uD83D\uDCDA Baza konfiguracji robot\u00F3w</div>
           <div style="overflow-x:auto;margin-top:8px;border:1px solid var(--vwm-border,#e5e7eb);border-radius:10px">
             <table style="width:100%;border-collapse:collapse;font-size:12px">
               <thead>
                 <tr>
                   <th style="${headSt};text-align:left;min-width:140px">Model</th>
-                  <th style="${headSt};${numSt};min-width:60px">Tank</th>
-                  <th style="${headSt};text-align:left;min-width:160px">Water usage (ml/m\u00B2)</th>
-                  <th style="${headSt};text-align:left;min-width:160px">Coverage / tank</th>
-                  <th style="${headSt};${numSt};min-width:70px">Coverage / charge</th>
-                  <th style="${headSt};text-align:left;min-width:120px">Notes</th>
+                  <th style="${headSt};${numSt};min-width:60px">Zbiornik</th>
+                  <th style="${headSt};text-align:left;min-width:160px">Zu\u017Cycie wody (ml/m\u00B2)</th>
+                  <th style="${headSt};text-align:left;min-width:160px">Zasi\u0119g / zbiornik</th>
+                  <th style="${headSt};${numSt};min-width:70px">Zasi\u0119g / \u0142ad.</th>
+                  <th style="${headSt};text-align:left;min-width:120px">Uwagi</th>
                 </tr>
               </thead>
               <tbody>
@@ -1599,17 +1514,17 @@ class HAVacuumWaterMonitor extends HTMLElement {
         </div>
 
         <div class="section-block">
-          <div class="section-title">\u2139\uFE0F Mode Legend</div>
+          <div class="section-title">\u2139\uFE0F Legenda tryb\u00F3w</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-top:8px;font-size:11px">
-            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(5)}">low</span> Gentle \u2014 wood, panels</div>
-            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(10)}">medium</span> Standard \u2014 tiles</div>
-            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(16)}">high</span> Intensive \u2014 porcelain</div>
-            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(22)}">max/deep</span> Deep cleaning</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(5)}">low</span> Delikatne \u2014 drewno, panele</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(10)}">medium</span> Standard \u2014 p\u0142ytki</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(16)}">high</span> Intensywne \u2014 gres</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="${tagSt};${levelColor(22)}">max/deep</span> G\u0142\u0119bokie mycie</div>
           </div>
-          <div style="margin-top:10px;font-size:11px;color:var(--bento-text-secondary);line-height:1.5">
-            <strong>Tank</strong> — capacity of robot's built-in tank (not dock). Robots with auto-refill (Dreame, Ecovacs) have small tanks (~80 ml) because they refill automatically from dock (3–4L).<br>
-            <strong>Coverage / tank</strong> — estimated area the robot cleans on one full tank in given mode.<br>
-            <strong>Coverage / charge</strong> — max area on one battery charge (regardless of water).
+          <div style="margin-top:10px;font-size:11px;color:var(--vwm-text-secondary);line-height:1.5">
+            <strong>Zbiornik</strong> \u2014 pojemno\u015B\u0107 wbudowanego zbiornika robota (nie stacji). Roboty z auto-refill (Dreame, Ecovacs) maj\u0105 ma\u0142e zbiorniki (~80 ml), bo uzupe\u0142niaj\u0105 je automatycznie ze stacji (3\u20134L).<br>
+            <strong>Zasi\u0119g / zbiornik</strong> \u2014 szacowana powierzchnia kt\u00F3r\u0105 robot wyczy\u015Bci na jednym pe\u0142nym zbiorniku w danym trybie.<br>
+            <strong>Zasi\u0119g / \u0142ad.</strong> \u2014 max powierzchnia na jednym \u0142adowaniu baterii (niezale\u017Cnie od wody).
           </div>
         </div>
       </div>`;
@@ -1623,61 +1538,61 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const configuredIds = devices.map(d => d.vacuum_entity).filter(Boolean);
     const undiscovered = discovered.filter(v => !configuredIds.includes(v.entity_id));
 
-    const fullTankTip = (undiscovered.length > 0 || devices.length === 0) ? `<div style="margin:10px 0;padding:10px 14px;background:rgba(59,130,246,0.1);border:1.5px solid rgba(59,130,246,0.25);border-radius:10px;font-size:12px;line-height:1.5;color:var(--vwm-text,#1e293b)">\uD83D\uDCA1 <strong>Tip:</strong> Add vacuum when its tank is <strong>full</strong> — this way water level tracking will be accurate from the start.</div>` : '';
+    const fullTankTip = (undiscovered.length > 0 || devices.length === 0) ? '<div style="margin:10px 0;padding:10px 14px;background:rgba(59,130,246,0.1);border:1.5px solid rgba(59,130,246,0.25);border-radius:10px;font-size:12px;line-height:1.5;color:var(--vwm-text,#1e293b)">\uD83D\uDCA1 <strong>Wskaz\u00F3wka:</strong> Dodaj odkurzacz gdy jego zbiornik jest <strong>pe\u0142ny</strong> \u2014 dzi\u0119ki temu \u015Bledzenie poziomu wody b\u0119dzie dok\u0142adne od pocz\u0105tku.</div>' : '';
 
     const discoveredHtml = undiscovered.length > 0 ? `
       <div class="section-block">
-        <div class="section-title">\uD83D\uDD0E Discovered vacuums (not configured)</div>
+        <div class="section-title">\uD83D\uDD0E Wykryte odkurzacze (nie skonfigurowane)</div>
         ${undiscovered.map(v => `<div class="disc-row" style="cursor:pointer" data-entity="${v.entity_id}">
           <span class="disc-name">\uD83E\uDDA4 ${this._sanitize(v.name)}</span>
           <span class="disc-id">${v.entity_id}</span>
           <span class="disc-state" style="color:${v.state === 'cleaning' ? '#22c55e' : '#6b7280'}">${v.state}</span>
           ${v.battery ? `<span class="disc-bat">\uD83D\uDD0B ${v.battery}%</span>` : ''}
-          <button class="maint-add-btn disc-add-btn" data-entity="${v.entity_id}" style="padding:3px 10px;font-size:11px">+ Add</button>
+          <button class="maint-add-btn disc-add-btn" data-entity="${v.entity_id}" style="padding:3px 10px;font-size:11px">+ Dodaj</button>
         </div>`).join('')}
       </div>` : '';
 
-    const userDevsHtml = (this._userDevices || []).length > 0 ? `<div class="section-block"><div class="section-title">\u2795 Manually added</div>${this._userDevices.map(ud => `<div class="disc-row"><span class="disc-name">${ud.icon || '\uD83E\uDDA4'} ${this._sanitize(ud.name)}</span><span class="disc-id">${ud.vacuum_entity}</span><button class="maint-del-btn user-dev-remove" data-entity="${ud.vacuum_entity}" title="Remove">\uD83D\uDDD1\uFE0F</button></div>`).join('')}</div>` : '';
+    const userDevsHtml = (this._userDevices || []).length > 0 ? `<div class="section-block"><div class="section-title">\u2795 Dodane r\u0119cznie</div>${this._userDevices.map(ud => `<div class="disc-row"><span class="disc-name">${ud.icon || '\uD83E\uDDA4'} ${this._sanitize(ud.name)}</span><span class="disc-id">${ud.vacuum_entity}</span><button class="maint-del-btn user-dev-remove" data-entity="${ud.vacuum_entity}" title="Usu\u0144">\uD83D\uDDD1\uFE0F</button></div>`).join('')}</div>` : '';
 
     return `
       <div class="tab-content">
         <div style="margin-bottom:16px">
-          <div style="font-size:15px;font-weight:700;color:var(--bento-text);margin-bottom:4px">\u2699\uFE0F Settings</div>
-          <div style="font-size:12px;color:var(--bento-text-secondary)">Device management, tank reset methods and automations.</div>
+          <div style="font-size:15px;font-weight:700;color:var(--vwm-text);margin-bottom:4px">\u2699\uFE0F Ustawienia</div>
+          <div style="font-size:12px;color:var(--vwm-text-secondary)">Zarz\u0105dzanie urz\u0105dzeniami, metody resetu zbiornika i automatyzacje.</div>
         </div>
 
         <!-- Device management -->
         <div style="background:var(--vwm-overlay-light,rgba(0,0,0,0.03));border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:14px;padding:16px;margin-bottom:16px">
-          <div style="font-size:14px;font-weight:700;color:var(--bento-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
-            \uD83E\uDDA4 Devices
+          <div style="font-size:14px;font-weight:700;color:var(--vwm-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
+            \uD83E\uDDA4 Urz\u0105dzenia
           </div>
-          <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:12px;line-height:1.5">
-            Add, remove, or discover vacuum cleaners in Home Assistant.
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:12px;line-height:1.5">
+            Dodaj, usu\u0144 lub odkryj odkurzacze w Home Assistant.
           </div>
           ${userDevsHtml}
           ${fullTankTip}
           ${discoveredHtml}
           <div class="section-block" style="margin-top:12px">
-            <div class="section-title">Manual vacuum addition</div>
+            <div class="section-title">R\u0119czne dodanie odkurzacza</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
               <input type="text" id="manual-vacuum-entity" placeholder="vacuum.roborock_s7" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:8px;font-size:13px;background:var(--bento-card,#fff);color:var(--bento-text,#1e293b)">
-              <button class="btn-primary" id="btn-add-manual-vacuum" style="padding:8px 16px;white-space:nowrap">+ Add</button>
+              <button class="btn-primary" id="btn-add-manual-vacuum" style="padding:8px 16px;white-space:nowrap">+ Dodaj</button>
             </div>
-            <p style="margin:6px 0 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">Enter vacuum entity_id if auto-discovery didn't find it</p>
+            <p style="margin:6px 0 0;font-size:11px;color:var(--bento-text-secondary,#64748B)">Wpisz entity_id odkurzacza je\u015Bli auto-discover go nie znalaz\u0142</p>
           </div>
         </div>
 
         <!-- Refill methods -->
         <div style="background:var(--vwm-overlay-light,rgba(0,0,0,0.03));border:1.5px solid var(--vwm-border,#e5e7eb);border-radius:14px;padding:16px">
-          <div style="font-size:14px;font-weight:700;color:var(--bento-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
-            \uD83D\uDD04 Tank reset methods
+          <div style="font-size:14px;font-weight:700;color:var(--vwm-text);margin-bottom:4px;display:flex;align-items:center;gap:8px">
+            \uD83D\uDD04 Metody resetu zbiornika
           </div>
-          <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:12px;line-height:1.5">
-            Choose how to reset the water counter after refilling the tank. You can use one or multiple methods simultaneously.
+          <div style="font-size:12px;color:var(--vwm-text-secondary);margin-bottom:12px;line-height:1.5">
+            Wybierz jak chcesz resetowa\u0107 licznik wody po uzupe\u0142nieniu zbiornika. Mo\u017Cesz u\u017Cy\u0107 jednej lub kilku metod jednocze\u015Bnie.
           </div>
 
           <div style="margin:8px 0 12px;padding:10px 14px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.25);border-radius:10px;font-size:12px;line-height:1.5;color:var(--vwm-text,#1e293b)">
-            \u26A0\uFE0F Most robots don't report tank removal/insertion. Choose a reset method that works for you.
+            \u26A0\uFE0F Wi\u0119kszo\u015B\u0107 robot\u00F3w <strong>nie raportuje</strong> wyj\u0119cia/w\u0142o\u017Cenia zbiornika. Wybierz metod\u0119 resetu, kt\u00F3ra Ci odpowiada.
           </div>
 
           ${this._buildRefillMethodCard(device)}
@@ -1699,8 +1614,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
       `<option value="${s.id}" ${rc.sensorEntity === s.id ? 'selected' : ''}>${s.name} (${s.state})</option>`
     ).join('');
 
-    const statusOk = '<span style="color:#22c55e;font-size:11px;font-weight:600">\u2705 Configured</span>';
-    const statusNone = '<span style="color:var(--vwm-text-muted,#9ca3af);font-size:11px">\u2014 Not configured</span>';
+    const statusOk = '<span style="color:#22c55e;font-size:11px;font-weight:600">\u2705 Skonfigurowane</span>';
+    const statusNone = '<span style="color:var(--vwm-text-muted,#9ca3af);font-size:11px">\u2014 Nie skonfigurowane</span>';
 
     const cardSt = 'margin-bottom:10px;padding:14px;background:var(--vwm-bg,#fff);border-radius:12px;border:1.5px solid var(--vwm-border,#e5e7eb)';
     const labelSt = 'font-weight:700;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:6px';
@@ -1713,45 +1628,45 @@ class HAVacuumWaterMonitor extends HTMLElement {
     return `
       <!-- Method 1: Card button -->
       <div style="${cardSt}">
-        <div style="${labelSt}">\u2460 Button in this card</div>
+        <div style="${labelSt}">\u2460 Przycisk w tej karcie</div>
         <div style="${descSt}">
-          Use the <strong>\uD83D\uDCA7 Refilled</strong> button in the Water tab. Simplest option - click when you refill water.
+          U\u017Cyj przycisku <strong>\uD83D\uDCA7 Refilled</strong> w zak\u0142adce Water. Najprostsza opcja \u2014 klikasz gdy uzupe\u0142nisz wod\u0119.
         </div>
       </div>
 
       <!-- Method 2: Dashboard button -->
       <div style="${cardSt}">
-        <div style="${labelSt}">\u2461 Dashboard / physical button ${rc.buttonEntity ? statusOk : statusNone}</div>
+        <div style="${labelSt}">\u2461 Przycisk w dashboardzie / fizyczny ${rc.buttonEntity ? statusOk : statusNone}</div>
         <div style="${descSt}">
-          Create an <code>input_button</code> entity - you can add it as a tile or link it to a Zigbee/Z-Wave button.
+          Utw\u00F3rz encj\u0119 <code>input_button</code> \u2014 mo\u017Cesz j\u0105 doda\u0107 jako kafelek lub podpi\u0105\u0107 pod przycisk Zigbee/Z-Wave.
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="refill-btn-select" style="${selectSt};flex:1;min-width:180px">
-            <option value="">-- Select input_button --</option>
+            <option value="">-- Wybierz input_button --</option>
             ${buttonOpts}
           </select>
-          <button id="refill-btn-create" style="${btnSuccess}">+ Create new</button>
+          <button id="refill-btn-create" style="${btnSuccess}">+ Utw\u00F3rz nowy</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-          <button id="refill-btn-save" style="${btnPrimary}">\uD83D\uDD17 Save and create automation</button>
-          ${rc.buttonEntity ? '<button id="refill-btn-remove" style="' + btnSt + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Remove</button>' : ''}
+          <button id="refill-btn-save" style="${btnPrimary}">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+          ${rc.buttonEntity ? '<button id="refill-btn-remove" style="' + btnSt + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
           <span id="refill-btn-status" style="font-size:11px;margin-left:4px"></span>
         </div>
       </div>
 
       <!-- Method 3: Door sensor -->
       <div style="${cardSt}">
-        <div style="${labelSt}">\u2462 Door sensor / contact ${rc.sensorEntity ? statusOk : statusNone}</div>
+        <div style="${labelSt}">\u2462 Czujnik drzwi / kontaktron ${rc.sensorEntity ? statusOk : statusNone}</div>
         <div style="${descSt}">
-          Attach a door sensor (e.g. Aqara Door Sensor) to the tank or station flap. Closing = auto-reset.
+          Przyklej czujnik otwarcia (np. Aqara Door Sensor) do zbiornika lub klapki stacji. Zamkni\u0119cie = auto-reset.
         </div>
         <select id="refill-sensor-select" style="${selectSt}">
-          <option value="">-- Select binary_sensor (door/window) --</option>
+          <option value="">-- Wybierz binary_sensor (door/window) --</option>
           ${sensorOpts}
         </select>
         <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-          <button id="refill-sensor-save" style="${btnPrimary}">\uD83D\uDD17 Save and create automation</button>
-          ${rc.sensorEntity ? '<button id="refill-sensor-remove" style="' + btnSt + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Remove</button>' : ''}
+          <button id="refill-sensor-save" style="${btnPrimary}">\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119</button>
+          ${rc.sensorEntity ? '<button id="refill-sensor-remove" style="' + btnSt + ';background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">\uD83D\uDDD1\uFE0F Usu\u0144</button>' : ''}
           <span id="refill-sensor-status" style="font-size:11px"></span>
         </div>
       </div>`;
@@ -1769,7 +1684,6 @@ class HAVacuumWaterMonitor extends HTMLElement {
   // ── MAIN RENDER ───────────────────────────────────────────────────────────
 
   _render() {
-    if (!this._hass) return;
    try {
     const devices = this._getDevices();
     const device = devices[this._activeDeviceIdx] || devices[0] || {};
@@ -1784,8 +1698,8 @@ class HAVacuumWaterMonitor extends HTMLElement {
       { id: 'maintenance', icon: '\uD83D\uDD27', label: 'Maint.' },
       { id: 'history', icon: '\uD83D\uDDD3\uFE0F', label: 'History' },
       { id: 'stats', icon: '\uD83D\uDCCA', label: 'Stats' },
-      { id: 'database', icon: '\uD83D\uDCDA', label: 'Database' },
-      { id: 'settings', icon: '\u2699\uFE0F', label: 'Settings' },
+      { id: 'database', icon: '\uD83D\uDCDA', label: 'Baza' },
+      { id: 'settings', icon: '\u2699\uFE0F', label: 'Ustawienia' },
     ];
 
     const tabNav = `<div class="tab-nav">
@@ -1811,65 +1725,37 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const _newHtml = `
       <style>${window.HAToolsBentoCSS || ""}
 
-        * { box-sizing: border-box; }
-
-        
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
+        :host {
   display: block;
   font-family: Inter, sans-serif;
-  --vwm-bg: var(--bento-card);
-  --vwm-text: var(--bento-text);
-  --vwm-text-secondary: var(--bento-text-secondary);
-  --vwm-text-muted: var(--bento-text-muted);
-  --vwm-border: var(--bento-border);
-  --vwm-surface: var(--bento-bg);
-  --vwm-overlay-light: var(--bento-primary-light);
+  --vwm-bg: var(--card-background-color, #fff);
+  --vwm-text: var(--primary-text-color, #1a1a2e);
+  --vwm-text-secondary: var(--secondary-text-color, #6b7280);
+  --vwm-text-muted: var(--disabled-text-color, #9ca3af);
+  --vwm-border: var(--divider-color, #e5e7eb);
+  --vwm-surface: var(--primary-background-color, #f3f4f6);
+  --vwm-overlay-light: rgba(0,0,0,0.04);
   --vwm-overlay-medium: rgba(0,0,0,0.08);
+  --bento-bg: var(--vwm-surface);
+  --bento-card: var(--vwm-bg);
+  --bento-border: var(--vwm-border);
+  --bento-text: var(--vwm-text);
+  --bento-text-secondary: var(--vwm-text-secondary);
+  --bento-text-muted: var(--vwm-text-muted);
 }
-        .card { background: var(--bento-card) !important; border-radius: 16px; padding: 16px; color: var(--bento-text); ;
-  border: 1px solid var(--bento-border) !important;
-  border-radius: var(--bento-radius-md) !important;
-  box-shadow: var(--bento-shadow-sm);
-}
-        .card-title { font-size: 15px; font-weight: 700; color: var(--bento-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--vwm-bg); border-radius: 16px; padding: 16px; color: var(--vwm-text); ; }
+        .card-title { font-size: 15px; font-weight: 700; color: var(--vwm-text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         .device-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .device-name { font-weight: 600; font-size: 14px; }
         .status-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.3px; }
         /* Device tabs */
         .device-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .dtab { background: var(--bento-primary-light); color: var(--bento-text-secondary); border: 1px solid var(--bento-border); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .dtab { background: var(--vwm-overlay-light); color: var(--vwm-text-secondary); border: 1px solid var(--vwm-border); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
         .dtab-active { background: rgba(99,102,241,0.2); color: #818cf8; border-color: rgba(99,102,241,0.4); }
         /* Tab navigation */
-        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: var(--bento-primary-light); border-radius: 10px; padding: 3px; border-bottom: none !important; }
-        .tab-btn { flex: 1; background: transparent; color: var(--bento-text-muted); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
-        .tab-active { background: rgba(59,130,246,0.12); color: var(--bento-text); }
+        .tab-nav { display: flex; gap: 2px; margin-bottom: 14px; background: var(--vwm-overlay-light); border-radius: 10px; padding: 3px; border-bottom: none !important; }
+        .tab-btn { flex: 1; background: transparent; color: var(--vwm-text-muted); border: none; border-radius: 8px; padding: 7px 4px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s; }
+        .tab-active { background: var(--vwm-overlay-medium); color: var(--vwm-text); }
         /* Content */
         .tab-content { }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
@@ -1877,29 +1763,29 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
         .details { flex: 1; display: flex; flex-direction: column; gap: 6px; }
         .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-        .row-label { color: var(--bento-text-secondary); }
-        .row-val { font-weight: 600; color: var(--bento-text); }
+        .row-label { color: var(--vwm-text-secondary); }
+        .row-val { font-weight: 600; color: var(--vwm-text); }
         .chip { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
         .chip-active { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); animation: pulse 1.5s infinite; }
-        .chip-idle { background: var(--bento-primary-light); color: var(--bento-text-muted); border: 1px solid var(--bento-border); }
+        .chip-idle { background: var(--vwm-overlay-light); color: var(--vwm-text-muted); border: 1px solid var(--vwm-border); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .refill-wrap { margin-top: 12px; text-align: right; }
         .refill-btn { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: Inter, sans-serif; }
         .refill-btn:hover { background: rgba(59,130,246,0.25); }
         .alert-banner { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 500; margin-bottom: 10px; }
         .alert-warn { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
-        .no-water-note { color: var(--bento-text-muted); font-size: 12px; text-align: center; padding: 12px 0; }
+        .no-water-note { color: var(--vwm-text-muted); font-size: 12px; text-align: center; padding: 12px 0; }
         /* Sections */
-        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bento-border); }
-        .section-title { font-size: 11px; font-weight: 700; color: var(--bento-text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+        .section-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vwm-border); }
+        .section-title { font-size: 11px; font-weight: 700; color: var(--vwm-text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
         /* Dock */
         .dock-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 3px 0; }
         .dock-val { font-weight: 600; font-size: 12px; }
         /* Consumables */
         .consumable-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-        .con-label { font-size: 11px; color: var(--bento-text-secondary); width: 100px; flex-shrink: 0; }
+        .con-label { font-size: 11px; color: var(--vwm-text-secondary); width: 100px; flex-shrink: 0; }
         .con-bar-wrap { flex: 1; }
-        .con-bar { height: 4px; background: rgba(59,130,246,0.12); border-radius: 2px; overflow: hidden; }
+        .con-bar { height: 4px; background: var(--vwm-overlay-medium); border-radius: 2px; overflow: hidden; }
         .con-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
         .con-val { font-size: 11px; font-weight: 600; width: 55px; text-align: right; flex-shrink: 0; }
         /* Custom maintenance */
@@ -1908,42 +1794,42 @@ class HAVacuumWaterMonitor extends HTMLElement {
         .maint-done-btn, .maint-del-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px; }
         /* Add form */
         .add-maint-form { display: flex; gap: 6px; flex-wrap: wrap; }
-        .maint-input { background: var(--bento-primary-light); border: 1px solid var(--bento-border); border-radius: 6px; color: var(--bento-text); padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
+        .maint-input { background: var(--vwm-overlay-light); border: 1px solid var(--vwm-border); border-radius: 6px; color: var(--vwm-text); padding: 6px 10px; font-size: 12px; font-family: Inter, sans-serif; flex: 1; min-width: 80px; }
         .maint-days, .maint-icon { max-width: 100px; }
-        .maint-input::placeholder { color: var(--bento-text-muted); }
+        .maint-input::placeholder { color: var(--vwm-text-muted); }
         .maint-add-btn { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; white-space: nowrap; }
         /* History */
         .current-session-card { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
         .cs-title { font-size: 12px; font-weight: 700; color: #22c55e; margin-bottom: 6px; }
-        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--bento-text-secondary); }
-        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--bento-border); font-size: 12px; }
-        .session-date { color: var(--bento-text-secondary); font-weight: 500; }
-        .session-time { color: var(--bento-text-muted); font-size: 11px; }
+        .cs-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; color: var(--vwm-text-secondary); }
+        .session-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--vwm-border); font-size: 12px; }
+        .session-date { color: var(--vwm-text-secondary); font-weight: 500; }
+        .session-time { color: var(--vwm-text-muted); font-size: 11px; }
         .session-stats { display: flex; gap: 8px; }
-        .session-stat { background: var(--bento-primary-light); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--bento-text-secondary); }
+        .session-stat { background: var(--vwm-overlay-light); border-radius: 10px; padding: 2px 8px; font-size: 11px; color: var(--vwm-text-secondary); }
         /* Stats */
-        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--bento-border); }
+        .stats-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); }
         .stats-device { flex: 1; font-weight: 500; }
         .stats-status { font-size: 11px; }
         .stats-pct { font-weight: 700; font-size: 13px; width: 35px; text-align: right; }
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
-        .stat-box { background: var(--bento-primary-light); border-radius: 10px; padding: 10px; text-align: center; }
-        .stat-num { font-size: 20px; font-weight: 700; color: var(--bento-text); }
-        .stat-label { font-size: 10px; color: var(--bento-text-muted); margin-top: 2px; }
+        .stat-box { background: var(--vwm-overlay-light); border-radius: 10px; padding: 10px; text-align: center; }
+        .stat-num { font-size: 20px; font-weight: 700; color: var(--vwm-text); }
+        .stat-label { font-size: 10px; color: var(--vwm-text-muted); margin-top: 2px; }
         /* Discovered */
-        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--bento-border); flex-wrap: wrap; }
+        .disc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--vwm-border); flex-wrap: wrap; }
         .disc-name { font-weight: 500; }
-        .disc-id { color: var(--bento-text-muted); font-size: 10px; font-family: monospace; flex: 1; }
+        .disc-id { color: var(--vwm-text-muted); font-size: 10px; font-family: monospace; flex: 1; }
         .disc-state { font-size: 11px; font-weight: 600; }
-        .disc-bat { font-size: 11px; color: var(--bento-text-secondary); }
+        .disc-bat { font-size: 11px; color: var(--vwm-text-secondary); }
         /* Battery */
         .battery-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; }
         .battery-icon { flex-shrink: 0; }
-        .battery-track { flex: 1; height: 6px; background: rgba(59,130,246,0.12); border-radius: 3px; overflow: hidden; }
+        .battery-track { flex: 1; height: 6px; background: var(--vwm-overlay-medium); border-radius: 3px; overflow: hidden; }
         .battery-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
         .battery-pct { font-weight: 700; font-size: 12px; width: 35px; text-align: right; }
         /* Empty */
-        .empty-state { text-align: center; color: var(--bento-text-muted); padding: 20px; font-size: 13px; line-height: 1.5; }
+        .empty-state { text-align: center; color: var(--vwm-text-muted); padding: 20px; font-size: 13px; line-height: 1.5; }
 
 /* Tips banner */
 .tip-banner {
@@ -1968,26 +1854,14 @@ class HAVacuumWaterMonitor extends HTMLElement {
 .tip-banner.hidden { display: none; }
 
       
-
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  }
-}
-/* === DARK MODE ADDED - old comment below === */
+/* === DARK MODE === */
 
 
 </style>
       <div class="card">
-        <div class="card-title">${_esc(this._config.title)}</div>
+        <div class="card-title">${this._config.title}</div>
         <div class="tip-banner" id="tip-banner">
-          <button class="tip-dismiss" id="tip-dismiss" aria-label="Dismiss">\u2715</button>
+          <button class="tip-dismiss" id="tip-dismiss">\u2715</button>
           <div class="tip-banner-title">\u{1F4A1} Konfiguracja</div>
           <ul>
             <li><strong>Brand Profile</strong> \u2014 wybierz profil (Roborock, Dreame, iRobot, Ecovacs) aby automatycznie wype\u0142ni\u0107 nazwy sensor\u00F3w.</li>
@@ -2014,15 +1888,48 @@ class HAVacuumWaterMonitor extends HTMLElement {
     // Show error with tip banner
     const _newHtml = `
       <style>
-        :host { display: block; }
+        :host { display: block; font-family: 'Inter', sans-serif; color: var(--primary-text-color, #1a1a2e); }
         .err-container { max-width: 700px; margin: 30px auto; padding: 20px; }
-        .err-card { background: var(--bento-error-light, rgba(239,68,68,0.05)); border: 1.5px solid rgba(239,68,68,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; }
+        .err-card { background: rgba(239,68,68,0.05); border: 1.5px solid rgba(239,68,68,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; }
         .err-icon { font-size: 48px; margin-bottom: 10px; }
-        .err-msg { font-size: 13px; color: var(--bento-text-muted, #888); margin-top: 8px; font-family: monospace; }
+        .err-msg { font-size: 13px; color: #888; margin-top: 8px; font-family: monospace; }
         .tip-banner { background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03)); border: 1.5px solid rgba(59,130,246,0.2); border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.6; }
-        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--bento-primary, #3B82F6); }
+        .tip-banner-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #3B82F6; }
         .tip-banner ul { margin: 6px 0 0 16px; padding: 0; }
         .tip-banner li { margin-bottom: 3px; }
+      
+/* === DARK MODE === */
+/* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
+          .tab, .tab-button, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-button, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+      
+        @media (prefers-color-scheme: dark) {
+          :host {
+            --bento-bg: #1a1a2e;
+            --bento-card: #16213e;
+            --bento-text: #e2e8f0;
+            --bento-text-secondary: #94a3b8;
+            --bento-border: #334155;
+            --bento-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+          }
+        }
         </style>
       <div class="err-container">
         <div class="err-card">
@@ -2093,8 +2000,6 @@ class HAVacuumWaterMonitor extends HTMLElement {
     sr.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
-        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
-        try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
         this._render();
       });
     });
@@ -2103,7 +2008,6 @@ class HAVacuumWaterMonitor extends HTMLElement {
     sr.querySelectorAll('.dtab').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeDeviceIdx = parseInt(btn.dataset.didx) || 0;
-        try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
         this._render();
       });
     });
@@ -2195,7 +2099,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
         const select = sr.querySelector('#refill-btn-select');
         const entityId = select && select.value;
         const status = sr.querySelector('#refill-btn-status');
-        if (!entityId) { if (status) status.textContent = '\u26A0\uFE0F Select entity'; return; }
+        if (!entityId) { if (status) status.textContent = '\u26A0\uFE0F Wybierz encj\u0119'; return; }
         btnSave.textContent = '\u23F3 Tworz\u0119 automatyzacj\u0119...';
         const autoId = await this._createRefillAutomation(device, 'button', entityId);
         const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
@@ -2205,7 +2109,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
           if (status) status.innerHTML = '<span style="color:#22c55e">\u2705 Zapisano i utworzono automatyzacj\u0119!</span>';
           setTimeout(() => this._render(), 1500);
         } else {
-          btnSave.textContent = '\uD83D\uDD17 Save and create automation';
+          btnSave.textContent = '\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119';
           if (status) status.innerHTML = '<span style="color:#ef4444">\u274C B\u0142\u0105d tworzenia automatyzacji</span>';
         }
       });
@@ -2231,7 +2135,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
         const select = sr.querySelector('#refill-sensor-select');
         const entityId = select && select.value;
         const status = sr.querySelector('#refill-sensor-status');
-        if (!entityId) { if (status) status.textContent = '\u26A0\uFE0F Select sensor'; return; }
+        if (!entityId) { if (status) status.textContent = '\u26A0\uFE0F Wybierz czujnik'; return; }
         sensorSave.textContent = '\u23F3 Tworz\u0119 automatyzacj\u0119...';
         const autoId = await this._createRefillAutomation(device, 'sensor', entityId);
         const shortId = (device.vacuum_entity || 'robot').replace('vacuum.', '');
@@ -2241,7 +2145,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
           if (status) status.innerHTML = '<span style="color:#22c55e">\u2705 Zapisano i utworzono automatyzacj\u0119!</span>';
           setTimeout(() => this._render(), 1500);
         } else {
-          sensorSave.textContent = '\uD83D\uDD17 Save and create automation';
+          sensorSave.textContent = '\uD83D\uDD17 Zapisz i utw\u00F3rz automatyzacj\u0119';
           if (status) status.innerHTML = '<span style="color:#ef4444">\u274C B\u0142\u0105d tworzenia automatyzacji</span>';
         }
       });
@@ -2321,19 +2225,9 @@ class HAVacuumWaterMonitor extends HTMLElement {
     s.async = true; s.onload = _inj;
     document.head.appendChild(s);
   }
-
-  disconnectedCallback() {
-    // Clear render scheduling flag to prevent orphaned setTimeout calls
-    this._renderScheduled = false;
-  }
-
-  setActiveTab(tabId) {
-    this._activeTab = tabId;
-    this._render();
-  }
 }
 
-if (!customElements.get('ha-vacuum-water-monitor')) customElements.define('ha-vacuum-water-monitor', HAVacuumWaterMonitor);
+customElements.define('ha-vacuum-water-monitor', HAVacuumWaterMonitor);
 window.customCards = window.customCards || [];
 if (!window.customCards.find(c => c.type === 'ha-vacuum-water-monitor')) {
   window.customCards.push({
@@ -2358,7 +2252,6 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
-        if (_s._activeDeviceIdx !== undefined) this._activeDeviceIdx = _s._activeDeviceIdx;
       }
     } catch(e) {}
     this._render();
@@ -2369,11 +2262,11 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Vacuum Water Monitor</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
@@ -2390,5 +2283,3 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-vacuum-water-monitor-editor')) { customElements.define('ha-vacuum-water-monitor-editor', HaVacuumWaterMonitorEditor); }
-
-})();

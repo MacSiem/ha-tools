@@ -1,13 +1,3 @@
-(function() {
-'use strict';
-
-// XSS protection helper (global singleton — tools reuse via window._haToolsEsc)
-window._haToolsEsc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
-const _esc = window._haToolsEsc;
-
-// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
-
 /**
  * HA Energy Email Card v4.0.0
  * Send daily/weekly/monthly energy usage reports as HTML email.
@@ -30,7 +20,6 @@ class HAEnergyEmail extends HTMLElement {
     super();
     this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
-    this._toolId = this.tagName.toLowerCase().replace('ha-', '');
     this._hass = null;
     this._config = {};
     this._activeTab = 'overview';
@@ -48,8 +37,6 @@ class HAEnergyEmail extends HTMLElement {
     this._helpersReady = false;
     this._discoveryDone = false;
     this._excludedDevices = new Set();
-    this._devicePage = 0;
-    this._devicesPerPage = 20;
     // Default schedule times
     this._scheduleDefaults = { daily: '07:30', weekly_day: 'mon', weekly_time: '08:00', monthly_time: '08:00' };
   }
@@ -83,35 +70,6 @@ class HAEnergyEmail extends HTMLElement {
     }
     this._updateLiveData();
     this._lastRenderTime = now;
-  }
-
-
-  get _t() {
-    const T = {
-      pl: {
-        title: 'Email Energetyczny',
-        loading: 'Wczytywanie...',
-        noData: 'Brak danych',
-        error: 'Błąd',
-        refresh: 'Odśwież',
-        save: 'Zapisz',
-        cancel: 'Anuluj',
-        smtpConfigWarning: 'Skonfiguruj SMTP w zakładce Schedule lub w ustawieniach Home Assistant.',
-        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
-      },
-      en: {
-        title: 'Energy Email',
-        loading: 'Loading...',
-        noData: 'No data',
-        error: 'Error',
-        refresh: 'Refresh',
-        save: 'Save',
-        cancel: 'Cancel',
-        smtpConfigWarning: 'Configure SMTP in the Schedule tab or in Home Assistant settings.',
-        locale: 'en-US',
-      },
-    };
-    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -174,12 +132,9 @@ class HAEnergyEmail extends HTMLElement {
     const c = this._config;
     const mode = c.energy_tariff_mode || 'flat';
     const cur = c.currency || 'PLN';
-    const suffix = this._lang === 'pl' ?
-      { 'day_night': '/kWh (dzień/noc)', 'weekday_weekend': '/kWh (roboczy/weekend)' } :
-      { 'day_night': '/kWh (day/night)', 'weekday_weekend': '/kWh (weekday/weekend)' };
     switch (mode) {
-      case 'day_night': return (c.energy_price_day || 0.65) + '/' + (c.energy_price_night || 0.45) + ' ' + cur + (suffix['day_night'] || '');
-      case 'weekday_weekend': return (c.energy_price_weekday || 0.65) + '/' + (c.energy_price_weekend || 0.50) + ' ' + cur + (suffix['weekday_weekend'] || '');
+      case 'day_night': return (c.energy_price_day || 0.65) + '/' + (c.energy_price_night || 0.45) + ' ' + cur + '/kWh (dzień/noc)';
+      case 'weekday_weekend': return (c.energy_price_weekday || 0.65) + '/' + (c.energy_price_weekend || 0.50) + ' ' + cur + '/kWh (roboczy/weekend)';
       case 'mixed': return 'mix: ' + (c.energy_price_wd_day || 0.65) + '/' + (c.energy_price_wd_night || 0.45) + '/' + (c.energy_price_we_day || 0.55) + '/' + (c.energy_price_we_night || 0.40) + ' ' + cur;
       default: return (c.energy_price || 0.65) + ' ' + cur + '/kWh';
     }
@@ -220,7 +175,7 @@ class HAEnergyEmail extends HTMLElement {
   async _discoverAll() {
     await this._ensureHelpers();
     this._discoverEnergySensors();
-    this._discoverRecipient();
+    this._discoverNotifyService();
     this._discoveryDone = true;
     this._render();
     // Fetch recorder stats in background (for period views)
@@ -405,24 +360,44 @@ class HAEnergyEmail extends HTMLElement {
     try { return localStorage.getItem(`ha-energy-email-${key}`) || ''; } catch(e) { return ''; }
   }
 
-  _discoverRecipient() {
+  _discoverNotifyService() {
     if (!this._hass) return;
+    const smtp = this._detectSmtp();
+    // Restore saved service from HA helper
+    const savedService = this._readHelper('service');
+    if (savedService && smtp.services.find(s => s.service === savedService)) this._detectedService = savedService;
+    if (!this._detectedService && smtp.found && smtp.defaultService) {
+      this._detectedService = smtp.defaultService;
+    }
     // Try to get SMTP recipient from HA helper first
     if (!this._config.recipient && !this._detectedRecipient) {
       const savedRecipient = this._readHelper('recipient');
       if (savedRecipient && savedRecipient.includes('@')) { this._detectedRecipient = savedRecipient; return; }
-      // Try config_entries API to get ha_tools_email default recipient
+      // Scan for any input_text with email
+      const states = this._hass.states;
+      for (const [eid, state] of Object.entries(states)) {
+        if (eid.includes('email') && eid.startsWith('input_text.') && eid !== this._helperEntity('recipient') && state.state.includes('@')) {
+          this._detectedRecipient = state.state; break;
+        }
+      }
+      // Try config_entries API
       if (!this._detectedRecipient && !this._configEntriesChecked) {
         this._configEntriesChecked = true;
-        this._hass.callWS({ type: 'config/config_entries' }).then(entries => {
-          const haToolsEntry = entries.find(e => e.domain === 'ha_tools_email');
-          if (haToolsEntry && haToolsEntry.data) {
-            const r = haToolsEntry.data.default_recipient;
-            if (r) { this._detectedRecipient = r; this._render(); }
+        this._hass.callWS({ type: 'config_entries/get' }).then(entries => {
+          const smtpEntry = entries.find(e => e.domain === 'smtp' || (e.domain === 'notify' && e.title && /smtp|email|mail/i.test(e.title)));
+          if (smtpEntry && smtpEntry.data) {
+            const r = smtpEntry.data.recipient || smtpEntry.data.recipient_email;
+            if (r) { this._detectedRecipient = Array.isArray(r) ? r[0] : r; this._render(); }
           }
         }).catch(() => {});
       }
     }
+  }
+
+  _saveService(svc) {
+    this._saveToHelper('service', svc);
+    this._detectedService = svc;
+    this._renderTab();
   }
 
   _getRecipient() {
@@ -435,6 +410,12 @@ class HAEnergyEmail extends HTMLElement {
     this._saveToHelper('recipient', email);
     this._detectedRecipient = email;
     this._render();
+  }
+
+  _getNotifyService() {
+    if (this._config.notify_service) return this._config.notify_service;
+    if (this._detectedService) return this._detectedService;
+    return null;
   }
 
   _devices() {
@@ -618,88 +599,47 @@ class HAEnergyEmail extends HTMLElement {
   // --- main render ---
 
   _render() {
-    if (!this._hass) return;
     const L = this._lang === 'pl';
     const recipient = this._getRecipient();
+    const service = this._getNotifyService();
     const recipientDisplay = recipient
       ? `To: ${recipient}`
-      : (L ? 'Nie ustawiono odbiorcy' : 'No recipient set');
+      : (service ? `via notify.${service}` : (L ? 'Nie wykryto adresu email' : 'No email detected'));
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
 
-        
-/* ===== BENTO DESIGN SYSTEM (local fallback) ===== */
-
-:host {
-  --bento-primary: #3B82F6;
-  --bento-primary-hover: #2563EB;
-  --bento-primary-light: rgba(59, 130, 246, 0.08);
-  --bento-success: #10B981;
-  --bento-success-light: rgba(16, 185, 129, 0.08);
-  --bento-error: #EF4444;
-  --bento-error-light: rgba(239, 68, 68, 0.08);
-  --bento-warning: #F59E0B;
-  --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: var(--primary-background-color, #F8FAFC);
-  --bento-card: var(--card-background-color, #FFFFFF);
-  --bento-border: var(--divider-color, #E2E8F0);
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-text-muted: var(--disabled-text-color, #94A3B8);
-  --bento-radius-xs: 6px;
-  --bento-radius-sm: 10px;
-  --bento-radius-md: 16px;
-  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
-  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:host {
+        :host {
           font-family: 'Inter', sans-serif;
         }
-        
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: var(--primary-background-color, #1a1a2e);
-    --bento-card: var(--card-background-color, #16213e);
-    --bento-text: var(--primary-text-color, #e2e8f0);
-    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
-    --bento-border: var(--divider-color, #334155);
-    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-  }
-}
-        .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); box-sizing: border-box; max-width: 100%; overflow: hidden; }
+        @media (prefers-color-scheme: dark) {
+          :host { --bg: #0f172a; --ca: #1e293b; --bo: #334155; --tx: #e2e8f0; --t2: #94a3b8; --t3: #475569; }
+        }
+        .card { background: var(--bento-card); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-md); padding: 20px; box-shadow: var(--bento-shadow-sm); }
         .header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
         .header-icon { font-size: 24px; }
         .header-title { font-size: 17px; font-weight: 700; color: var(--bento-text); }
         .header-sub { font-size: 12px; color: var(--bento-text-secondary); margin-top: 1px; }
-        .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--bento-border) transparent; -webkit-overflow-scrolling: touch; }
-        .tabs::-webkit-scrollbar { height: 4px; }
-        .tabs::-webkit-scrollbar-track { background: transparent; }
-        .tabs::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 4px; }
+        .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--bento-border); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; }
         .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--bento-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; font-family: 'Inter', sans-serif; border-radius: 0; }
         .tab-btn:hover { color: var(--bento-primary); background: var(--bento-primary-light); }
         .tab-btn.active { color: var(--bento-primary); border-bottom-color: var(--bento-primary); font-weight: 600; }
-        .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
-        .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px; }
-        @media (max-width: 768px) { .grid3 { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 480px) { .grid3 { grid-template-columns: 1fr; } .grid2 { grid-template-columns: repeat(2, 1fr); } }
-        .stat { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; min-width: 0; overflow: hidden; box-sizing: border-box; }
-        .stat-value { font-size: 24px; font-weight: 700; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .stat-label { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        @media (max-width: 500px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+        .stat { background: var(--bento-bg); border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; text-align: center; min-width: 0; overflow: hidden; }
+        .stat-val { font-size: 24px; font-weight: 700; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .stat-lbl { font-size: 11px; font-weight: 500; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
         .stat-sub { font-size: 11px; color: var(--bento-text-muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .section-title { font-size: 13px; font-weight: 600; color: var(--bento-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
-        .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--bento-radius-xs); transition: background .15s; box-sizing: border-box; max-width: 100%; overflow: hidden; }
+        .device-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--bento-radius-xs); transition: background .15s; }
         .device-row:hover { background: var(--bento-primary-light); }
-        .device-name { flex: 1; font-size: 13px; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-        .device-val { font-size: 12px; font-weight: 600; color: var(--bento-primary); min-width: 70px; text-align: right; white-space: nowrap; flex-shrink: 0; }
+        .device-name { flex: 1; font-size: 13px; color: var(--bento-text); }
+        .device-val { font-size: 12px; font-weight: 600; color: var(--bento-primary); min-width: 70px; text-align: right; }
         .device-bar-wrap { flex: 1; background: var(--bento-border); border-radius: 4px; height: 6px; overflow: hidden; }
         .device-bar { height: 100%; background: var(--bento-primary); border-radius: 4px; transition: width .4s; }
-        .schedule-card { border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 10px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
-        .schedule-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; overflow: hidden; }
-        .schedule-name { font-size: 14px; font-weight: 600; color: var(--bento-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .schedule-card { border: 1px solid var(--bento-border); border-radius: var(--bento-radius-sm); padding: 14px; margin-bottom: 10px; }
+        .schedule-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .schedule-name { font-size: 14px; font-weight: 600; color: var(--bento-text); }
         .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
         .badge-ok { background: var(--bento-success-light); color: var(--bento-success); }
         .badge-er { background: var(--bento-error-light); color: var(--bento-error); }
@@ -719,18 +659,18 @@ class HAEnergyEmail extends HTMLElement {
         .smtp-missing { border-color: #f59e0b40; background: #fef3c720; }
         .smtp-header { display: flex; align-items: center; gap: 12px; }
         .smtp-icon { font-size: 24px; }
-        .smtp-title { font-weight: 700; font-size: 14px; color: var(--bento-text); }
+        .smtp-title { font-weight: 700; font-size: 14px; color: var(--t1, #1e293b); }
         .smtp-detail { font-size: 12px; color: var(--bento-text-secondary); margin-top: 2px; }
         .smtp-detail code { background: var(--bento-border); padding: 1px 6px; border-radius: 4px; font-size: 11px; }
         .smtp-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
         .smtp-guide { margin-top: 16px; }
-        .guide-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; color: var(--bento-text); }
+        .guide-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; color: var(--t1, #1e293b); }
         .guide-steps { display: flex; flex-direction: column; gap: 16px; }
         .guide-step { display: flex; gap: 12px; }
-        .step-num { flex-shrink: 0; width: 28px; height: 28px; background: var(--bento-primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .step-num { flex-shrink: 0; width: 28px; height: 28px; background: var(--primary, #3b82f6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
         .guide-step p { margin: 4px 0; font-size: 13px; color: var(--bento-text-secondary); line-height: 1.5; }
-        .guide-step pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; white-space: pre; margin: 8px 0; max-width: 100%; box-sizing: border-box; }
-        .guide-step a { color: var(--bento-primary); text-decoration: none; }
+        .guide-step pre { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; white-space: pre; margin: 8px 0; }
+        .guide-step a { color: var(--primary, #3b82f6); text-decoration: none; }
         .guide-step a:hover { text-decoration: underline; }
         .guide-alt { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bento-border); }
         .smtp-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
@@ -749,11 +689,6 @@ class HAEnergyEmail extends HTMLElement {
         .preview-table tr:last-child td { border-bottom: none; }
         .trend-up { color: var(--bento-error); }
         .trend-down { color: var(--bento-success); }
-        .pagination-row { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0 4px; }
-        .pagination-btn { padding: 6px 14px; border: 1px solid var(--bento-border); border-radius: var(--bento-radius-xs); background: var(--bento-bg); color: var(--bento-text); font-size: 12px; cursor: pointer; transition: all .15s; }
-        .pagination-btn:hover:not([disabled]) { background: var(--bento-primary-light); border-color: var(--bento-primary); color: var(--bento-primary); }
-        .pagination-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
-        .pagination-info { font-size: 12px; color: var(--bento-text-secondary); }
         .info-row { display: flex; gap: 6px; align-items: flex-start; padding: 10px; background: var(--bento-primary-light); border-radius: var(--bento-radius-xs); margin-bottom: 12px; font-size: 12px; color: var(--bento-text); }
         .info-warn { background: var(--bento-warning-light); }
         .auto-on { color: var(--bento-success); }
@@ -773,6 +708,8 @@ class HAEnergyEmail extends HTMLElement {
         .email-input-row { display: flex; gap: 8px; align-items: center; }
         .email-input { flex: 1; padding: 8px 12px; border: 1.5px solid var(--bento-border); border-radius: var(--bento-radius-xs); font-size: 13px; font-family: 'Inter', sans-serif; background: var(--bento-card); color: var(--bento-text); outline: none; }
         .email-input:focus { border-color: var(--bento-primary); box-shadow: 0 0 0 3px var(--bento-primary-light); }
+        .svc-select-btn { transition: all .2s; }
+        .svc-select-btn:not(.btn-primary):hover { background: var(--bento-primary-light) !important; }
         .email-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px 12px; background: var(--bento-success-light); border-radius: var(--bento-radius-xs); font-size: 12px; color: var(--bento-text); }
         .email-edit-btn { background: none; border: none; color: var(--bento-primary); cursor: pointer; font-size: 11px; padding: 2px 6px; font-family: 'Inter', sans-serif; }
         .email-edit-btn:hover { text-decoration: underline; }
@@ -795,20 +732,17 @@ class HAEnergyEmail extends HTMLElement {
         .config-input:focus { border-color: var(--bento-primary); outline: none; box-shadow: 0 0 0 3px var(--bento-primary-light); }
         .device-count { font-size: 11px; color: var(--bento-text-muted); font-weight: 400; }
         @media (max-width: 768px) {
-          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tabs { flex-wrap: wrap; overflow-x: visible; gap: 2px; }
           .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
           .card { padding: 14px; }
           .grid3 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .grid2 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .stat-value { font-size: 18px; }
-          .stat-label { font-size: 10px; }
+          .stat-val { font-size: 18px; }
+          .stat-lbl { font-size: 10px; }
         }
         @media (max-width: 480px) {
           .tabs { gap: 1px; }
           .tab-btn { padding: 5px 8px; font-size: 11px; }
-          .grid3 { grid-template-columns: 1fr; gap: 8px; }
-          .grid2 { grid-template-columns: 1fr; gap: 8px; }
-          .stat-value { font-size: 16px; }
+          .stat-val { font-size: 16px; }
         }
       
 
@@ -818,8 +752,8 @@ class HAEnergyEmail extends HTMLElement {
         <div class="header">
           <div class="header-icon">\u{1F4E7}</div>
           <div>
-            <div class="header-title">${_esc(this._config.title)}</div>
-            <div class="header-sub">${recipientDisplay} \u00A0\u2022\u00A0 <span id="price-display" style="cursor:pointer;color:var(--bento-primary);border-bottom:1px dashed var(--bento-primary)" title="${L ? 'Kliknij aby zmieni\u0107' : 'Click to change'}">${_esc(this._config.currency)} ${this._getTariffLabel()} \u270E</span></div>
+            <div class="header-title">${this._config.title}</div>
+            <div class="header-sub">${recipientDisplay} \u00A0\u2022\u00A0 <span id="price-display" style="cursor:pointer;color:var(--bento-primary);border-bottom:1px dashed var(--bento-primary)" title="${L ? 'Kliknij aby zmieni\u0107' : 'Click to change'}">${this._config.currency} ${this._getTariffLabel()} \u270E</span></div>
           </div>
         </div>
         <div class="tabs">
@@ -833,11 +767,10 @@ class HAEnergyEmail extends HTMLElement {
       </div>
       <div class="toast" id="toast"></div>
     `
-    this.shadowRoot.querySelectorAll('.tab-btn').forEach(t => {
+    this.shadowRoot.querySelectorAll('.tab').forEach(t => {
       t.addEventListener('click', () => {
         this._activeTab = t.dataset.tab;
-        history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
-        this.shadowRoot.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
+        this.shadowRoot.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
         t.classList.add('active');
         this._renderTab();
       });
@@ -903,11 +836,11 @@ class HAEnergyEmail extends HTMLElement {
       const container = priceEl.parentElement;
       const origHtml = container.innerHTML;
       const inputHtml = `<span style="display:inline-flex;align-items:center;gap:4px">
-        <span>${_esc(this._config.currency)}</span>
+        <span>${this._config.currency}</span>
         <input type="number" id="price-input" value="${cur}" step="0.01" min="0" style="width:70px;padding:3px 6px;border:1.5px solid var(--bento-primary);border-radius:4px;font-size:12px;background:var(--bento-card);color:var(--bento-text);font-family:'Inter',sans-serif;text-align:center">
         <span>/kWh</span>
-        <button id="price-save" class="btn btn-primary" style="padding:3px 10px;font-size:11px;margin:0" aria-label="Save">\u2714</button>
-        <button id="price-cancel" class="btn" style="padding:3px 8px;font-size:11px;margin:0" aria-label="Cancel">\u2716</button>
+        <button id="price-save" class="btn btn-primary" style="padding:3px 10px;font-size:11px;margin:0">\u2714</button>
+        <button id="price-cancel" class="btn" style="padding:3px 8px;font-size:11px;margin:0">\u2716</button>
       </span>`;
       // Find just the price part and replace
       const priceSpan = root.getElementById('price-display');
@@ -957,7 +890,6 @@ class HAEnergyEmail extends HTMLElement {
       btn.addEventListener('click', () => {
         const p = btn.dataset.period;
         this._overviewPeriod = p;
-        this._devicePage = 0;
         // Refresh recorder stats if cache is older than 60s
         const cacheTime = this[`_periodCacheTime_${p}`] || 0;
         if (p !== 'total' && Date.now() - cacheTime > 60000) {
@@ -966,10 +898,6 @@ class HAEnergyEmail extends HTMLElement {
         this._renderTab();
       });
     });
-    const prevBtn = this.shadowRoot.querySelector('[data-page-prev]');
-    if (prevBtn) prevBtn.addEventListener('click', () => { this._devicePage = Math.max(0, (this._devicePage || 0) - 1); this._renderTab(); });
-    const nextBtn = this.shadowRoot.querySelector('[data-page-next]');
-    if (nextBtn) nextBtn.addEventListener('click', () => { this._devicePage = (this._devicePage || 0) + 1; this._renderTab(); });
   }
 
   _attachPeriodEvents() {
@@ -1042,52 +970,40 @@ class HAEnergyEmail extends HTMLElement {
       </div>
       <div class="grid3">
         <div class="stat">
-          <div class="stat-value" style="color:#F59E0B">${totalEnergy.toFixed(1)}</div>
-          <div class="stat-label">kWh ${periodLabel}</div>
+          <div class="stat-val" style="color:#F59E0B">${totalEnergy.toFixed(1)}</div>
+          <div class="stat-lbl">kWh ${periodLabel}</div>
           <div class="stat-sub">${displayData.length} ${L ? 'urz\u0105dze\u0144' : 'devices'}</div>
         </div>
         <div class="stat">
-          <div class="stat-value" style="color:#3B82F6">${totalCost.toFixed(2)}</div>
-          <div class="stat-label">${_esc(this._config.currency)} ${L ? 'Koszt' : 'Cost'}</div>
+          <div class="stat-val" style="color:#3B82F6">${totalCost.toFixed(2)}</div>
+          <div class="stat-lbl">${this._config.currency} ${L ? 'Koszt' : 'Cost'}</div>
           <div class="stat-sub">@ ${this._getTariffLabel()}</div>
         </div>
         <div class="stat">
-          <div class="stat-value" style="color:#10B981">${displayData.length > 0 ? displayData[0].name.split(' ').slice(0,2).join(' ') : '-'}</div>
-          <div class="stat-label">${L ? 'Najwi\u0119ksze zu\u017Cycie' : 'Top Consumer'}</div>
+          <div class="stat-val" style="color:#10B981">${displayData.length > 0 ? displayData[0].name.split(' ').slice(0,2).join(' ') : '-'}</div>
+          <div class="stat-lbl">${L ? 'Najwi\u0119ksze zu\u017Cycie' : 'Top Consumer'}</div>
           <div class="stat-sub">${displayData.length > 0 ? displayData[0].month.toFixed(1) + ' kWh' : ''}</div>
         </div>
       </div>
       <div class="section-title">\u26A1 ${L ? 'Zu\u017Cycie wg urz\u0105dzenia' : 'Energy by Device'}</div>
-      ${(() => {
-        const page = this._devicePage || 0;
-        const perPage = this._devicesPerPage || 20;
-        const totalPages = Math.ceil(displayData.length / perPage);
-        const pageData = displayData.slice(page * perPage, (page + 1) * perPage);
-        const rows = pageData.map(d => {
-          const pct = maxVal > 0 ? (d.month / maxVal * 100) : 0;
-          const diff = d.month - d.lastMonth;
-          const diffStr = d.lastMonth > 0 && diff !== 0 ? `<span class="${diff > 0 ? 'trend-up' : 'trend-down'}">${diff > 0 ? '+' : ''}${diff.toFixed(1)} kWh</span>` : '';
-          const entityInfo = d.entity_id ? `<span style="font-size:10px;color:var(--bento-text-muted)" title="${d.entity_id}">${d.entity_id.split('.')[1].substring(0,20)}</span>` : '';
-          return `<div class="device-row" title="${d.entity_id || d.name}">
-            <div class="device-name">${d.name} ${entityInfo}</div>
-            <div class="device-bar-wrap"><div class="device-bar" style="width:${pct}%"></div></div>
-            <div class="device-val">${d.month.toFixed(1)} kWh</div>
-            <div style="font-size:11px;color:var(--bento-text-secondary);min-width:60px;text-align:right">${diffStr}</div>
-          </div>`;
-        }).join('');
-        const pagination = totalPages > 1 ? `
-          <div class="pagination-row">
-            <button class="pagination-btn" data-page-prev ${page === 0 ? 'disabled' : ''}>\u2190 ${L ? 'Poprzednia' : 'Prev'}</button>
-            <span class="pagination-info">${L ? 'Strona' : 'Page'} ${page + 1} / ${totalPages}</span>
-            <button class="pagination-btn" data-page-next ${page >= totalPages - 1 ? 'disabled' : ''}>${L ? 'Nast\u0119pna' : 'Next'} \u2192</button>
-          </div>` : '';
-        return rows + pagination;
-      })()}`;
+      ${displayData.map(d => {
+        const pct = maxVal > 0 ? (d.month / maxVal * 100) : 0;
+        const diff = d.month - d.lastMonth;
+        const diffStr = d.lastMonth > 0 && diff !== 0 ? `<span class="${diff > 0 ? 'trend-up' : 'trend-down'}">${diff > 0 ? '+' : ''}${diff.toFixed(1)} kWh</span>` : '';
+        const entityInfo = d.entity_id ? `<span style="font-size:10px;color:var(--bento-text-muted)" title="${d.entity_id}">${d.entity_id.split('.')[1].substring(0,20)}</span>` : '';
+        return `<div class="device-row" title="${d.entity_id || d.name}">
+          <div class="device-name">${d.name} ${entityInfo}</div>
+          <div class="device-bar-wrap"><div class="device-bar" style="width:${pct}%"></div></div>
+          <div class="device-val">${d.month.toFixed(1)} kWh</div>
+          <div style="font-size:11px;color:var(--bento-text-secondary);min-width:60px;text-align:right">${diffStr}</div>
+        </div>`;
+      }).join('')}`;
   }
 
   _tabSchedule() {
     const L = this._lang === 'pl';
     const recipient = this._getRecipient();
+    const service = this._getNotifyService();
     const dailyId = 'automation.send_daily_energy_report';
     const weeklyId = 'automation.send_weekly_energy_report';
     const monthlyId = 'automation.send_monthly_energy_report';
@@ -1100,7 +1016,7 @@ class HAEnergyEmail extends HTMLElement {
       if (state === 'off') return '<span class="badge badge-er">\u274C Disabled</span>';
       return '<span class="badge badge-wa">\u2795 ' + (L ? 'Nie utworzony' : 'Not Created') + '</span>';
     };
-    const recipientInfo = recipient ? `\u{1F4E7} ${recipient}` : `\u{1F4E7} <i>${L ? 'Brak — ustaw email powy\u017Cej' : 'None — set email above'}</i>`;
+    const recipientInfo = recipient ? `\u{1F4E7} ${recipient}` : (service ? `\u{1F4E7} via notify.${service}` : `\u{1F4E7} <i>${L ? 'Brak — ustaw email powy\u017Cej' : 'None — set email above'}</i>`);
     const sd = this._scheduleDefaults;
     const dayNames = L
       ? { mon: 'Poniedzia\u0142ek', tue: 'Wtorek', wed: '\u015Aroda', thu: 'Czwartek', fri: 'Pi\u0105tek', sat: 'Sobota', sun: 'Niedziela' }
@@ -1165,7 +1081,8 @@ class HAEnergyEmail extends HTMLElement {
     const isAuto = devices.length === 0 && autoDevices.length > 0;
     const today = new Date().toISOString().split('T')[0];
     const recipient = this._getRecipient();
-    const recipientLine = recipient || '—';
+    const service = this._getNotifyService();
+    const recipientLine = recipient || (service ? `notify.${service}` : '—');
     const periods = [
       { key: 'day', icon: '\u2600\uFE0F', titleL: 'Raport dzienny', titleE: 'Daily Report', rangeL: 'Ostatnie 24h', rangeE: 'Last 24h' },
       { key: 'week', icon: '\u{1F4C6}', titleL: 'Raport tygodniowy', titleE: 'Weekly Report', rangeL: 'Ostatnie 7 dni', rangeE: 'Last 7 days' },
@@ -1202,10 +1119,10 @@ class HAEnergyEmail extends HTMLElement {
         <div style="font-size:12px;color:var(--bento-text-secondary);margin-bottom:10px">\u{1F4E7} ${recipientLine} \u00A0\u2022\u00A0 ${range} \u00A0\u2022\u00A0 ${devData.length} ${L ? 'urz.' : 'dev.'}</div>
         <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
           <div><span style="font-size:18px;font-weight:700;color:#F59E0B">${totalEnergy.toFixed(1)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">kWh</span></div>
-          <div><span style="font-size:18px;font-weight:700;color:#3B82F6">${totalCost.toFixed(2)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">${_esc(this._config.currency)}</span></div>
+          <div><span style="font-size:18px;font-weight:700;color:#3B82F6">${totalCost.toFixed(2)}</span> <span style="font-size:11px;color:var(--bento-text-secondary)">${this._config.currency}</span></div>
         </div>
         <table class="preview-table">
-          <thead><tr><th>${L ? 'Urz\u0105dzenie' : 'Device'}</th><th>kWh</th><th>${L ? 'Koszt' : 'Cost'} (${_esc(this._config.currency)})</th></tr></thead>
+          <thead><tr><th>${L ? 'Urz\u0105dzenie' : 'Device'}</th><th>kWh</th><th>${L ? 'Koszt' : 'Cost'} (${this._config.currency})</th></tr></thead>
           <tbody>${top5.map(d => `<tr><td>${d.name}</td><td>${d.current.toFixed(2)}</td><td>${d.cost.toFixed(2)}</td></tr>`).join('')}
           ${devData.length > 5 ? `<tr><td colspan="3" style="text-align:center;color:var(--bento-text-secondary);font-size:11px">+ ${devData.length - 5} ${L ? 'wi\u0119cej urz\u0105dze\u0144' : 'more devices'}...</td></tr>` : ''}</tbody>
         </table>
@@ -1220,11 +1137,10 @@ class HAEnergyEmail extends HTMLElement {
 
   _tabSend() {
     const L = this._lang === 'pl';
-    const smtpConfig = this._renderSmtpSection();
+    const service = this._getNotifyService();
     return `
-      <div class="info-row">\u{1F4E4}\u00A0 ${L ? 'R\u0119cznie wy\u015Blij raport energii poprzez ha_tools_email.' : 'Manually trigger an energy report via ha_tools_email.'}</div>
-      ${smtpConfig}
-      <div style="font-size:12px;color:var(--bento-text-secondary);margin:16px 0 12px;padding:10px;background:var(--bento-primary-light);border-radius:var(--bento-radius-xs)">${L ? '💡 Konfiguracja SMTP w: HA Tools Panel → Settings → Log Email' : '💡 SMTP configuration in: HA Tools Panel → Settings → Log Email'}</div>
+      <div class="info-row">\u{1F4E4}\u00A0 ${L ? 'R\u0119cznie wy\u015Blij raport energii via <b>notify.' + (service || 'email_report') + '</b>.' : 'Manually trigger an energy report via <b>notify.' + (service || 'email_report') + '</b>.'}</div>
+      ${!service ? `<div class="info-row info-warn">\u26A0\uFE0F\u00A0 ${L ? '<b>Nie wykryto serwisu email.</b> Skonfiguruj SMTP w zak\u0142adce Schedule.' : '<b>No email service detected.</b> Configure SMTP in the Schedule tab.'}</div>` : ''}
       <div class="schedule-card">
         <div class="schedule-row"><div class="schedule-name">\u2600\uFE0F ${L ? 'Wy\u015Blij raport dzienny' : 'Send Daily Report Now'}</div><span class="badge badge-pr">Manual</span></div>
         <div id="last-daily" class="last-sent">${this._lastSent.daily ? 'Last sent: ' + this._lastSent.daily : ''}</div>
@@ -1273,6 +1189,7 @@ class HAEnergyEmail extends HTMLElement {
     const enabledCount = devices.filter(d => !excluded.has(d.key)).length;
 
     const recipient = this._getRecipient();
+    const service = this._getNotifyService();
     const price = this._getAvgRate();
     const currency = this._config.currency || 'PLN';
 
@@ -1392,7 +1309,35 @@ class HAEnergyEmail extends HTMLElement {
   _attachScheduleEvents() {
     const root = this.shadowRoot;
     const btnSmtpTest = root.getElementById('btn-smtp-test');
-    if (btnSmtpTest) { btnSmtpTest.addEventListener('click', () => this._testSmtp()); }
+    if (btnSmtpTest) { const svc = this._getNotifyService(); btnSmtpTest.addEventListener('click', () => this._testSmtp(svc)); }
+    root.querySelectorAll('.svc-select-btn').forEach(btn => {
+      btn.addEventListener('click', () => { this._saveService(btn.dataset.svc); });
+    });
+    root.querySelectorAll('.smtp-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const yamlEl = root.getElementById('smtp-yaml');
+        if (yamlEl) yamlEl.textContent = this._smtpYaml(btn.dataset.preset);
+        root.querySelectorAll('.smtp-preset-btn').forEach(b => b.style.fontWeight = 'normal');
+        btn.style.fontWeight = '700';
+      });
+    });
+    const btnCopy = root.getElementById('btn-copy-yaml');
+    if (btnCopy) {
+      btnCopy.addEventListener('click', () => {
+        const yamlEl = root.getElementById('smtp-yaml');
+        if (yamlEl) {
+          navigator.clipboard.writeText(yamlEl.textContent).then(() => {
+            btnCopy.textContent = '\u2705 Copied!';
+            setTimeout(() => { btnCopy.textContent = '\uD83D\uDCCB Copy YAML'; }, 2000);
+          }).catch(() => {
+            const range = document.createRange(); range.selectNodeContents(yamlEl);
+            const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+            btnCopy.textContent = '\u2705 Selected \u2014 Ctrl+C';
+            setTimeout(() => { btnCopy.textContent = '\uD83D\uDCCB Copy YAML'; }, 3000);
+          });
+        }
+      });
+    }
     // Time inputs — save on change
     const timeInputs = [
       ['time-daily', 'daily_time', 'daily'],
@@ -1446,8 +1391,9 @@ class HAEnergyEmail extends HTMLElement {
 
   async _createAutomation(type, update = false) {
     if (!this._hass) return;
+    const service = this._getNotifyService();
     const recipient = this._getRecipient();
-    if (!this._hasHaToolsEmail()) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'ha_tools_email nie zainstalowany' : 'ha_tools_email not installed')); return; }
+    if (!service) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'Najpierw skonfiguruj SMTP' : 'Configure SMTP first')); return; }
     if (!recipient) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'Najpierw ustaw adres email' : 'Set email address first')); return; }
     const sd = this._scheduleDefaults;
     const L = this._lang === 'pl';
@@ -1524,11 +1470,11 @@ class HAEnergyEmail extends HTMLElement {
       `Generated by HA Energy Email card | ${this._getTariffLabel()}`
     ].join('\\n');
     const action = [{
-      service: 'ha_tools_email.send',
+      service: `notify.${service}`,
       data: {
-        subject: `\u26A1 Energy ${typeName} Report \u2013 {{ now().strftime('%Y-%m-%d') }}`,
-        body: emailMsg,
-        to: recipient
+        title: `\u26A1 Energy ${typeName} Report \u2013 {{ now().strftime('%Y-%m-%d') }}`,
+        message: emailMsg,
+        target: recipient
       }
     }];
     try {
@@ -1567,13 +1513,14 @@ class HAEnergyEmail extends HTMLElement {
     this._sending = true;
     this._renderTab(); this._attachSendEvents();
     const L = this._lang === 'pl';
+    const svc = this._getNotifyService();
     const recipient = this._getRecipient();
     const price = this._getAvgRate();
     const currency = this._config.currency || 'PLN';
     const dateStr = new Date().toISOString().split('T')[0];
-    const nowStr = new Date().toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { hour12: false });
+    const nowStr = new Date().toLocaleString('pl-PL', { hour12: false });
     try {
-      if (!this._hasHaToolsEmail()) throw new Error(L ? 'ha_tools_email nie zainstalowany. Skonfiguruj SMTP w Ustawienia \u2192 Email/SMTP.' : 'ha_tools_email not installed. Configure SMTP in Settings \u2192 Email/SMTP.');
+      if (!svc) throw new Error(L ? 'Nie znaleziono serwisu email' : 'No email service found');
       // Get device data — fetch from recorder for period reports
       const periodMap = { daily: 'day', weekly: 'week', monthly: 'month', quick: 'week' };
       const periodKey = periodMap[type] || 'week';
@@ -1651,56 +1598,106 @@ class HAEnergyEmail extends HTMLElement {
         </div>
       </div>`;
       const title = `\u26A1 ${typeName} ${L ? 'raport energii' : 'Energy Report'} \u2013 ${dateStr}`;
-      const plainText = `${typeName} ${L ? 'raport energii' : 'Energy Report'} - ${dateStr}\n${L ? '\u0141\u0105cznie' : 'Total'}: ${totalKwh.toFixed(2)} kWh / ${totalCost.toFixed(2)} ${currency}\n${devices.map(d => `${d.name}: ${(d.month||0).toFixed(2)} kWh`).join('\n')}`;
-      // Built-in SMTP via ha_tools_email
-      await this._sendViaHaToolsEmail(recipient || '', title, plainText, html);
+      const plainText = `${typeName} ${L ? 'raport energii' : 'Energy Report'} - ${dateStr}\n${L ? 'Łącznie' : 'Total'}: ${totalKwh.toFixed(2)} kWh / ${totalCost.toFixed(2)} ${currency}\n${devices.map(d => `${d.name}: ${(d.month||0).toFixed(2)} kWh`).join('\n')}`;
+      const svcData = { title, message: plainText, data: { html: html } };
+      if (recipient) svcData.target = recipient;
+      await this._hass.callService('notify', svc, svcData);
       this._lastSent[type] = nowStr;
       this._showToast(`\u2705 ${typeName} ${L ? 'wys\u0142any!' : 'sent!'}`);
     } catch (e) { this._showToast('\u274C Error: ' + (e.message || 'Check HA logs')); }
     finally { this._sending = false; this._renderTab(); this._attachSendEvents(); }
   }
 
-  // --- HA Tools Email (built-in SMTP) ---
+  // --- SMTP Detection & Setup ---
 
-  _hasHaToolsEmail() {
-    return !!this._hass?.services?.ha_tools_email?.send;
+  _detectSmtp() {
+    if (!this._hass || !this._hass.services || !this._hass.services.notify) return { found: false, services: [], defaultService: null };
+    const notifyServices = this._hass.services.notify;
+    // Exclude known non-email services
+    const nonEmailPatterns = /^(mobile_app_|google_assistant|alexa_media|lg_tv|persistent_notification$|notify$|send_message$|tts[_.]|rest[_.])/i;
+    const emailPatterns = /email|smtp|mail/i;
+    const emailServices = [];
+    for (const [key, svc] of Object.entries(notifyServices)) {
+      if (nonEmailPatterns.test(key)) continue;
+      const fields = svc.fields || {};
+      if (!(fields.message || fields.title)) continue;
+      // Include if name/key matches email patterns, or if it has a 'target' field (SMTP-like)
+      if (emailPatterns.test(key) || emailPatterns.test(svc.name || '') || fields.target) {
+        emailServices.push({ service: key, name: svc.name || key, description: svc.description || '', hasTitle: !!fields.title, hasTarget: !!fields.target });
+      }
+    }
+    const defaultService = emailServices.length > 0 ? emailServices[0].service : null;
+    return { found: emailServices.length > 0, services: emailServices, defaultService };
   }
 
-  async _sendViaHaToolsEmail(to, subject, body, html) {
-    const data = { subject, body };
-    if (html) data.html = html;
-    if (to) data.to = to;
-    await this._hass.callService('ha_tools_email', 'send', data);
+  _smtpYaml(preset) {
+    const p = { gmail: { server: 'smtp.gmail.com', user: 'YOUR_EMAIL@gmail.com' }, outlook: { server: 'smtp.office365.com', user: 'YOUR_EMAIL@outlook.com' }, custom: { server: 'smtp.your-provider.com', user: 'your@email.com' } }[preset] || { server: 'smtp.gmail.com', user: 'YOUR_EMAIL@gmail.com' };
+    return 'notify:\n  - name: "email_report"\n    platform: smtp\n    server: "' + p.server + '"\n    port: 587\n    encryption: starttls\n    username: "' + p.user + '"\n    password: "YOUR_APP_PASSWORD"\n    sender: "' + p.user + '"\n    sender_name: "Home Assistant"\n    recipient:\n      - "' + p.user + '"';
   }
-
-  // --- SMTP Configuration via ha_tools_email ---
 
   _renderSmtpSection() {
+    const smtp = this._detectSmtp();
     const L = this._lang === 'pl';
-    if (this._hasHaToolsEmail()) {
+    const currentService = this._getNotifyService();
+    if (smtp.found && smtp.services.length > 0) {
+      const svcList = smtp.services.map(s => `<code>notify.${s.service}</code>`).join(', ');
+      const hasMultiple = smtp.services.length > 1;
       return `<div class="smtp-section">
         <div class="smtp-header"><div class="smtp-icon">\u2705</div><div>
-          <div class="smtp-title">${L ? 'SMTP skonfigurowany (ha_tools_email)' : 'SMTP Configured (ha_tools_email)'}</div>
-          <div class="smtp-detail">${L ? 'Konfiguracja w' : 'Configure in'} <b>${L ? 'Ustawienia \u2192 Email/SMTP' : 'Settings \u2192 Email/SMTP'}</b></div>
+          <div class="smtp-title">${L ? 'SMTP skonfigurowany' : 'SMTP Configured'}</div>
+          <div class="smtp-detail">${L ? 'Dost\u0119pne' : 'Available'}: ${svcList}</div>
         </div></div>
+        ${hasMultiple ? `<div style="margin-top:12px">
+          <label style="font-size:12px;font-weight:600;color:var(--bento-text-secondary);display:block;margin-bottom:4px">${L ? 'Wybierz serwis do wysy\u0142ki' : 'Select notify service'}:</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${smtp.services.map(s => `<button class="btn svc-select-btn ${s.service === currentService ? 'btn-primary' : ''}" data-svc="${s.service}" style="font-size:12px;padding:6px 14px">notify.${s.service}</button>`).join('')}
+          </div>
+        </div>` : `<div class="smtp-detail" style="margin-top:8px">${L ? 'U\u017Cywany' : 'Using'}: <code>notify.${currentService || smtp.defaultService}</code></div>`}
         <div class="smtp-actions" style="margin-top:12px">
           <button class="btn btn-primary" id="btn-smtp-test">\uD83D\uDCE7 ${L ? 'Wy\u015Blij testowy email' : 'Send Test Email'}</button>
+          <a class="btn" href="/config/integrations/dashboard" target="_blank" style="text-decoration:none">\u2699\uFE0F ${L ? 'Integracje' : 'Integrations'}</a>
         </div>
       </div>`;
     }
+    const gmailYaml = this._smtpYaml('gmail');
     return `<div class="smtp-section smtp-missing">
       <div class="smtp-header"><div class="smtp-icon">\u26A0\uFE0F</div><div>
         <div class="smtp-title">${L ? 'SMTP nie skonfigurowany' : 'SMTP Not Configured'}</div>
-        <div class="smtp-detail">${L ? 'Otw\u00F3rz' : 'Open'} <b>HA Tools \u2192 ${L ? 'Ustawienia' : 'Settings'} \u2192 Email/SMTP</b></div>
+        <div class="smtp-detail">${L ? 'Nie wykryto serwisu email.' : 'No email notify service detected.'}</div>
       </div></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/config/integrations/dashboard/add?domain=smtp" target="_blank" style="text-decoration:none">\u26A1 ${L ? 'Dodaj integracj\u0119 SMTP' : 'Add SMTP Integration'}</a>
+        <a class="btn" href="/config/integrations/dashboard" target="_blank" style="text-decoration:none">\u2699\uFE0F ${L ? 'Integracje' : 'Integrations'}</a>
+      </div>
+      <div class="smtp-guide">
+        <div class="guide-title" style="margin-top:16px">\uD83D\uDCDD ${L ? 'Alternatywa: konfiguracja YAML' : 'Alternative: YAML config'}</div>
+        <div class="guide-steps">
+          <div class="guide-step"><div class="step-num">1</div><div>
+            <p>${L ? 'Skopiuj YAML do' : 'Copy YAML into'} <code>configuration.yaml</code>:</p>
+            <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
+              <button class="btn smtp-preset-btn" data-preset="gmail" style="font-size:12px">\uD83D\uDCE7 Gmail</button>
+              <button class="btn smtp-preset-btn" data-preset="outlook" style="font-size:12px">\uD83D\uDCE8 Outlook</button>
+              <button class="btn smtp-preset-btn" data-preset="custom" style="font-size:12px">\u2699\uFE0F Custom</button>
+            </div>
+            <pre id="smtp-yaml">${gmailYaml}</pre>
+            <button class="btn" id="btn-copy-yaml" style="margin-top:6px;font-size:12px">\uD83D\uDCCB Copy YAML</button>
+          </div></div>
+          <div class="guide-step"><div class="step-num">2</div><div>
+            <p><b>Gmail</b>: <a href="https://myaccount.google.com/apppasswords" target="_blank">App Password</a>. <b>Outlook</b>: <a href="https://account.live.com/proofs/AppPassword" target="_blank">App Password</a>.</p>
+          </div></div>
+          <div class="guide-step"><div class="step-num">3</div><div>
+            <p><a href="/developer-tools/yaml" target="_blank">Developer Tools \u2192 YAML</a> \u2192 Check & Restart.</p>
+          </div></div>
+        </div>
+      </div>
     </div>`;
   }
 
-  async _testSmtp() {
-    if (!this._hasHaToolsEmail()) { this._showToast('\u274C ' + (this._lang === 'pl' ? 'ha_tools_email nie zainstalowany' : 'ha_tools_email not installed')); return; }
+  async _testSmtp(service) {
+    if (!this._hass || !service) { this._showToast('\u274C No SMTP service found'); return; }
     try {
-      await this._hass.callService('ha_tools_email', 'test', {});
-      this._showToast('\u2705 ' + (this._lang === 'pl' ? 'Testowy email wysy\u0142any!' : 'Test email sent!'));
+      await this._hass.callService('notify', service, { title: '\u2705 HA Energy Email \u2014 Test', message: 'Test email from HA Tools Energy Email.\n\nTimestamp: ' + new Date().toISOString() });
+      this._showToast('\u2705 Test email sent via notify.' + service);
     } catch (e) { this._showToast('\u274C SMTP test failed: ' + (e.message || 'Check HA logs')); }
   }
 
@@ -1711,18 +1708,12 @@ class HAEnergyEmail extends HTMLElement {
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3500);
   }
-
-  disconnectedCallback() {
-    // Cleanup any active event listeners or timers
-  }
-
-  setActiveTab(tabId) {
-    this._activeTab = tabId;
-    this._render();
-  }
 }
 
-if (!customElements.get('ha-energy-email')) customElements.define('ha-energy-email', HAEnergyEmail);
+customElements.define('ha-energy-email', HAEnergyEmail);
+window.customCards = window.customCards || [];
+window.customCards.push({ type: 'ha-energy-email', name: 'Energy Email Reports', description: 'Send energy reports via email. Auto-discovers energy sensors.', preview: true });
+
 class HaEnergyEmailEditor extends HTMLElement {
   constructor() {
     super();
@@ -1739,25 +1730,25 @@ class HaEnergyEmailEditor extends HTMLElement {
   _render() {
     this.shadowRoot.innerHTML = `
       <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+        :host { display:block; padding:16px; font-family:var(--paper-font-body1_-_font-family, 'Roboto', sans-serif); }
+        h3 { margin:0 0 16px; font-size:16px; font-weight:600; color:var(--primary-text-color,#1e293b); }
+        input { outline:none; transition:border-color .2s; }
+        input:focus { border-color:var(--primary-color,#3b82f6); }
+      </style>
       <h3>Energy Email Reports</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Energy Email Reports')}"
+              <input type="text" id="cf_title" value="${this._config?.title || 'Energy Email Reports'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>
-              <input type="text" id="cf_currency" value="${_esc(this._config?.currency || 'PLN')}"
+              <input type="text" id="cf_currency" value="${this._config?.currency || 'PLN'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Energy price</label>
-              <input type="text" id="cf_energy_price" value="${_esc(this._config?.energy_price || '0.65')}"
+              <input type="text" id="cf_energy_price" value="${this._config?.energy_price || '0.65'}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;
@@ -1780,8 +1771,3 @@ class HaEnergyEmailEditor extends HTMLElement {
   connectedCallback() { this._render(); }
 }
 if (!customElements.get('ha-energy-email-editor')) { customElements.define('ha-energy-email-editor', HaEnergyEmailEditor); }
-
-})();
-
-window.customCards = window.customCards || [];
-window.customCards.push({ type: 'ha-energy-email', name: 'Energy Email Reports', description: 'Send energy reports via email. Auto-discovers energy sensors.', preview: true });
