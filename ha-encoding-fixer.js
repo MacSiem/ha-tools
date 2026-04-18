@@ -313,160 +313,666 @@ class HaEncodingFixer extends HTMLElement {
   // --- Mojibake detection ---
 
   // Known Polish mojibake patterns (UTF-8 decoded as Latin-1/CP1252)
-  static get MOJIBAKE_MAP() {
+    static get MOJIBAKE_MAP() {
     return {
-      // Polish
-      '\u00C4\u0085': '\u0105', // Ä…
-      '\u00C4\u0087': '\u0107', // Ä‡
-      '\u00C4\u0099': '\u0119', // Ä™
-      '\u00C5\u0082': '\u0142', // Ĺ‚
-      '\u00C5\u0084': '\u0144', // Ĺ„
-      '\u00C3\u00B3': '\u00F3', // Ăł
-      '\u00C5\u009B': '\u015B', // Ĺ›
-      '\u00C5\u00BA': '\u017A', // Ĺş
-      '\u00C5\u00BC': '\u017C', // ĹĽ
-      '\u00C4\u0084': '\u0104', // Ä„
-      '\u00C4\u0086': '\u0106', // Ä†
-      '\u00C4\u0098': '\u0118', // Ä
-      '\u00C5\u0081': '\u0141', // Ĺ
-      '\u00C5\u0083': '\u0143', // Ĺ
-      '\u00C3\u0093': '\u00D3', // Ă“
-      '\u00C5\u009A': '\u015A', // Ĺš
-      '\u00C5\u00B9': '\u0179', // Ĺą
-      '\u00C5\u00BB': '\u017B', // Ĺ»
-      // German
-      '\u00C3\u00A4': '\u00E4', // Ă¤
-      '\u00C3\u00B6': '\u00F6', // Ă¶
-      '\u00C3\u00BC': '\u00FC', // ĂĽ
-      '\u00C3\u009F': '\u00DF', // Ăź
-      '\u00C3\u0084': '\u00C4', // Ă„
-      '\u00C3\u0096': '\u00D6', // Ă–
-      '\u00C3\u009C': '\u00DC', // Ăś
-      // French/Spanish
-      '\u00C3\u00A9': '\u00E9', // Ă©
-      '\u00C3\u00A8': '\u00E8', // Ă¨
-      '\u00C3\u00AA': '\u00EA', // ĂŞ
-      '\u00C3\u00AB': '\u00EB', // Ă«
-      '\u00C3\u00A0': '\u00E0', // Ă 
-      '\u00C3\u00A2': '\u00E2', // Ă˘
-      '\u00C3\u00AE': '\u00EE', // Ă®
-      '\u00C3\u00B1': '\u00F1', // Ă±
-      '\u00C3\u00BA': '\u00FA', // Ăş
-      // Common symbols
-      '\u00C2\u00B0': '\u00B0', // Â° (degree)
-      '\u00C2\u00A3': '\u00A3', // ÂŁ
-      '\u00C2\u00A7': '\u00A7', // Â§
-      '\u00C2\u00AB': '\u00AB', // Â«
-      '\u00C2\u00BB': '\u00BB', // Â»
-      '\u00C2\u00B2': '\u00B2', // Â²
-      '\u00C2\u00B3': '\u00B3', // Â³
-      '\u00C2\u00B5': '\u00B5', // Âµ (micro)
-      '\u00C2\u00B1': '\u00B1', // Â± (plus-minus)
-      '\u00C2\u00B9': '\u00B9', // Â¹
-      '\u00C2\u00BD': '\u00BD', // Â½
-      '\u00C2\u00BC': '\u00BC', // Â¼
-      '\u00C2\u00BE': '\u00BE', // Â¾
-      '\u00C2\u00A9': '\u00A9', // Â© (copyright)
-      '\u00C2\u00AE': '\u00AE', // Â® (registered)
-      '\u00C2\u00A0': ' ',      // Â  (nbsp from UTF-8)
-      // Warning emoji U+26A0 FE0F → UTF-8 E2 9A A0 EF B8 8F decoded as Latin-1
-      '\u00E2\u009A\u00A0\u00EF\u00B8\u008F': '\u26A0\uFE0F', // â\u009A  â\u008F ⚠\uFE0F
-      '\u00E2\u009A\u00A0': '\u26A0', // â\u009A  ⚠
-      // Common BMP symbol emoji
-      '\u00E2\u009C\u0085': '\u2705', // âœ\u0085 ✅ (check mark button)
-      '\u00E2\u009D\u008C': '\u274C', // âŒ ❌
-      '\u00E2\u009A\u00A1': '\u26A1', // ⚡
-      '\u00E2\u0098\u0081': '\u2601', // ☁
-      '\u00E2\u0098\u0080': '\u2600', // ☀
-      '\u00E2\u0098\u0094': '\u2614', // ☔
-      '\u00E2\u009D\u0084': '\u2744', // ❄
-      '\u00E2\u0086\u0092': '\u2192', // → (right arrow)
-      '\u00E2\u0086\u0090': '\u2190', // ←
-      '\u00E2\u0086\u0091': '\u2191', // ↑
-      '\u00E2\u0086\u0093': '\u2193', // ↓
-      // --- CP1250/CP1252 re-interpretation (HA common) ---
-      // UTF-8 bytes like C5 82 displayed where high byte 0x82 -> smart-quote U+201A
-      // and 0xC5 -> CP1250 U+0139 (Ĺ) or CP1252 U+00C5 (Å). Cover both.
-      // ł: C5 82
-      '\u0139\u201A': '\u0142',  // Ĺ‚ -> ł (CP1250)
-      '\u00C5\u201A': '\u0142',  // Å‚ -> ł (CP1252 high + CP1252 quote)
-      // ń: C5 84
-      '\u0139\u201E': '\u0144',  // Ĺ„ -> ń (CP1250)
-      '\u00C5\u201E': '\u0144',  // Å„
-      // ś: C5 9B
-      '\u0139\u203A': '\u015B',  // Ĺ› -> ś
-      '\u00C5\u203A': '\u015B',  // Å›
-      // ż: C5 BC (CP1250 0xBC = U+013C Ľ)
-      '\u0139\u00BC': '\u017C',  // CP1252 fallback
-      '\u0139\u013C': '\u017C',  // Ĺ¼ -> ż (CP1250 0xBC)
-      '\u0139\u013D': '\u017C',  // ĹĽ -> ż (CP1250 0xBD)
-      '\u00C5\u00BC': '\u017C',  // Å¼ (already existed above but reinforce)
-      // ź: C5 BA (CP1250 0xBA = U+00BA º... no, 0xBA = U+00BA actually). Keep CP1252 form.
-      '\u0139\u00BA': '\u017A',  // Ĺş -> ź
-      '\u0139\u017A': '\u017A',  // alt Slovak-ish
-      // Em-dash double-encoded: "â€"" survives round-1 and becomes "â€\"" etc
-      '\u00E2\u20AC\u201C': '\u2013',  // â\u20AC" -> –
-      '\u00E2\u20AC\u201D': '\u2014',  // â\u20AC" -> —
-      '\u00E2\u20AC\u0153': '\u201C',  // â\u20AC\u0153 -> "
-      '\u00E2\u20AC\u009D': '\u201D',  // â\u20AC\u009D -> "
-      '\u00E2\u20AC\u2122': '\u2019',  // â\u20AC\u2122 -> '
-      '\u00E2\u20AC\u0161': '\u201A',  // "
-      '\u00E2\u20AC\u00A6': '\u2026',  // …
-      // Baby emoji etc: "đź‘¶" = U+0111 U+017A U+2018 U+00B6 (or similar runs)
-      '\u0111\u017A\u2018\u00B6': '\uD83D\uDC76', // đź‘¶ baby
-      '\u0111\u017A\u2018\u008D': '\uD83D\uDC4D', // thumbs up
-      '\u0111\u017A\u201D\u2019': '\uD83D\uDD12', // lock
-      '\u0111\u017A\u201D\u00A5': '\uD83D\uDD25', // fire
-      // Ł: C5 81
-      '\u0139\u0081': '\u0141',
-      '\u00C5\u0081': '\u0141',
-      // Ń: C5 83
-      '\u0139\u0083': '\u0143',
-      // Ś: C5 9A
-      '\u0139\u0161': '\u015A',  // Ĺš
-      '\u00C5\u0161': '\u015A',  // Åš
-      // Ż: C5 BB
-      '\u0139\u00BB': '\u017B',
-      // ą: C4 85 (CP1252 0x85 = U+2026, CP1250 0x85 = U+2026)
-      '\u00C4\u2026': '\u0105',  // Ä… -> ą
-      // ć: C4 87 (CP1252 0x87 = U+2021)
-      '\u00C4\u2021': '\u0107',  // Ä‡ -> ć
-      // ę: C4 99 (CP1252 0x99 = U+2122 TM)
-      '\u00C4\u2122': '\u0119',  // Ä™ -> ę
-      // Ą: C4 84 (0x84 = U+201E)
+  /* ====== AUTO-GENERATED MOJIBAKE MAP ======
+   * Generator: mojibake_fix.py (Private HA workspace)
+   * Entries: 650 (longest-key-first order)
+   * Covers: Polish cp1250+cp1252, smart punctuation,
+   * 3-byte emoji cp1252, 4-byte emoji SMP cp1252,
+   * variation selector U+FE0F, and common Latin-1.
+   * DO NOT edit this block by hand — regenerate via gen_js_map.py
+   * ====================================== */
+      '\u0111\u017A\u0179\u00A0': '\uD83C\uDFE0',
+      '\u0111\u017A\u0179\u02C7': '\uD83C\uDFE1',
+      '\u0111\u017A\u2019\u00A7': '\uD83D\uDCA7',
+      '\u00F0\u0178\u2019\u00A7': '\uD83D\uDCA7',
+      '\u0111\u017A\u2019\u02C7': '\uD83D\uDCA1',
+      '\u00F0\u0178\u2019\u00A1': '\uD83D\uDCA1',
+      '\u0111\u017A\u2019\u00A6': '\uD83D\uDCA6',
+      '\u00F0\u0178\u2019\u00A6': '\uD83D\uDCA6',
+      '\u0111\u017A\u201D\u201D': '\uD83D\uDD14',
+      '\u00F0\u0178\u201D\u201D': '\uD83D\uDD14',
+      '\u0111\u017A\u201D\u2022': '\uD83D\uDD15',
+      '\u00F0\u0178\u201D\u2022': '\uD83D\uDD15',
+      '\u0111\u017A\u0161\u00A8': '\uD83D\uDEA8',
+      '\u00F0\u0178\u0161\u00A8': '\uD83D\uDEA8',
+      '\u0111\u017A\u015A\u02C7': '\uD83C\uDF21',
+      '\u00F0\u0178\u0152\u00A1': '\uD83C\uDF21',
+      '\u0111\u017A\u201D\u0104': '\uD83D\uDD25',
+      '\u00F0\u0178\u201D\u00A5': '\uD83D\uDD25',
+      '\u0111\u017A\u00A7\u015F': '\uD83E\uDDFA',
+      '\u00F0\u0178\u00A7\u00BA': '\uD83E\uDDFA',
+      '\u0111\u017A\u00A7\u00BB': '\uD83E\uDDFB',
+      '\u00F0\u0178\u00A7\u00BB': '\uD83E\uDDFB',
+      '\u0111\u017A\u2018\u2022': '\uD83D\uDC55',
+      '\u00F0\u0178\u2018\u2022': '\uD83D\uDC55',
+      '\u0111\u017A\u00A7\u00A6': '\uD83E\uDDE6',
+      '\u00F0\u0178\u00A7\u00A6': '\uD83E\uDDE6',
+      '\u0111\u017A\u015E\u2018': '\uD83E\uDE91',
+      '\u00F0\u0178\u00AA\u2018': '\uD83E\uDE91',
+      '\u0111\u017A\u0161\u00B0': '\uD83D\uDEB0',
+      '\u00F0\u0178\u0161\u00B0': '\uD83D\uDEB0',
+      '\u00F0\u0178\u02DC\u20AC': '\uD83D\uDE00',
+      '\u0111\u017A\u00A7\u0105': '\uD83E\uDDF9',
+      '\u00F0\u0178\u00A7\u00B9': '\uD83E\uDDF9',
+      '\u0111\u017A\u201C\u02D8': '\uD83D\uDCE2',
+      '\u00F0\u0178\u201C\u00A2': '\uD83D\uDCE2',
+      '\u0111\u017A\u201C\u0141': '\uD83D\uDCE3',
+      '\u00F0\u0178\u201C\u00A3': '\uD83D\uDCE3',
+      '\u0111\u017A\u201C\u00B1': '\uD83D\uDCF1',
+      '\u00F0\u0178\u201C\u00B1': '\uD83D\uDCF1',
+      '\u0111\u017A\u00A7\u00A0': '\uD83E\uDDE0',
+      '\u00F0\u0178\u00A7\u00A0': '\uD83E\uDDE0',
+      '\u0111\u017A\u00A7\u0160': '\uD83E\uDDCA',
+      '\u00F0\u0178\u00A7\u0160': '\uD83E\uDDCA',
+      '\u00F0\u0178\u00A7\u0192': '\uD83E\uDDC3',
+      '\u0111\u017A\u00A7\u201A': '\uD83E\uDDC2',
+      '\u00F0\u0178\u00A7\u201A': '\uD83E\uDDC2',
+      '\u0111\u017A\u00A7\u013D': '\uD83E\uDDFC',
+      '\u00F0\u0178\u00A7\u00BC': '\uD83E\uDDFC',
+      '\u0111\u017A\u201D\u2019': '\uD83D\uDD12',
+      '\u00F0\u0178\u201D\u2019': '\uD83D\uDD12',
+      '\u0111\u017A\u201D\u201C': '\uD83D\uDD13',
+      '\u00F0\u0178\u201D\u201C': '\uD83D\uDD13',
+      '\u0111\u017A\u201D\u2018': '\uD83D\uDD11',
+      '\u00F0\u0178\u201D\u2018': '\uD83D\uDD11',
+      '\u0111\u017A\u0161\u015E': '\uD83D\uDEAA',
+      '\u00F0\u0178\u0161\u00AA': '\uD83D\uDEAA',
+      '\u0111\u017A\u0161\u017C': '\uD83D\uDEBF',
+      '\u00F0\u0178\u0161\u00BF': '\uD83D\uDEBF',
+      '\u0111\u017A\u203A\u0179': '\uD83D\uDECF',
+      '\u0111\u017A\u203A\u2039': '\uD83D\uDECB',
+      '\u00F0\u0178\u203A\u2039': '\uD83D\uDECB',
+      '\u0111\u017A\u0161\u02DD': '\uD83D\uDEBD',
+      '\u00F0\u0178\u0161\u00BD': '\uD83D\uDEBD',
+      '\u0111\u017A\u00A7\u00B4': '\uD83E\uDDF4',
+      '\u00F0\u0178\u00A7\u00B4': '\uD83E\uDDF4',
+      '\u0111\u017A\u203A\u2019': '\uD83D\uDED2',
+      '\u00F0\u0178\u203A\u2019': '\uD83D\uDED2',
+      '\u0111\u017A\u203A\u0164': '\uD83D\uDECD',
+      '\u0111\u017A\u017D\u017B': '\uD83C\uDFAF',
+      '\u00F0\u0178\u017D\u00AF': '\uD83C\uDFAF',
+      '\u0111\u017A\u201C\u0160': '\uD83D\uDCCA',
+      '\u00F0\u0178\u201C\u0160': '\uD83D\uDCCA',
+      '\u00F0\u0178\u201C\u02C6': '\uD83D\uDCC8',
+      '\u0111\u017A\u201C\u2030': '\uD83D\uDCC9',
+      '\u00F0\u0178\u201C\u2030': '\uD83D\uDCC9',
+      '\u0111\u017A\u2022\u2018': '\uD83D\uDD51',
+      '\u00F0\u0178\u2022\u2018': '\uD83D\uDD51',
+      '\u0111\u017A\u2022\u2019': '\uD83D\uDD52',
+      '\u00F0\u0178\u2022\u2019': '\uD83D\uDD52',
+      '\u0111\u017A\u2022\u201C': '\uD83D\uDD53',
+      '\u00F0\u0178\u2022\u201C': '\uD83D\uDD53',
+      '\u0111\u017A\u2022\u201D': '\uD83D\uDD54',
+      '\u00F0\u0178\u2022\u201D': '\uD83D\uDD54',
+      '\u0111\u017A\u2022\u2022': '\uD83D\uDD55',
+      '\u00F0\u0178\u2022\u2022': '\uD83D\uDD55',
+      '\u0111\u017A\u2022\u2013': '\uD83D\uDD56',
+      '\u00F0\u0178\u2022\u2013': '\uD83D\uDD56',
+      '\u0111\u017A\u2022\u2014': '\uD83D\uDD57',
+      '\u00F0\u0178\u2022\u2014': '\uD83D\uDD57',
+      '\u00F0\u0178\u2022\u02DC': '\uD83D\uDD58',
+      '\u0111\u017A\u2022\u2122': '\uD83D\uDD59',
+      '\u00F0\u0178\u2022\u2122': '\uD83D\uDD59',
+      '\u0111\u017A\u2022\u0161': '\uD83D\uDD5A',
+      '\u00F0\u0178\u2022\u0161': '\uD83D\uDD5A',
+      '\u0111\u017A\u2022\u203A': '\uD83D\uDD5B',
+      '\u00F0\u0178\u2022\u203A': '\uD83D\uDD5B',
+      '\u0111\u017A\u015A\u2122': '\uD83C\uDF19',
+      '\u00F0\u0178\u0152\u2122': '\uD83C\uDF19',
+      '\u0111\u017A\u015A\u00A4': '\uD83C\uDF24',
+      '\u00F0\u0178\u0152\u00A4': '\uD83C\uDF24',
+      '\u0111\u017A\u015A\u0104': '\uD83C\uDF25',
+      '\u00F0\u0178\u0152\u00A5': '\uD83C\uDF25',
+      '\u0111\u017A\u015A\u00A6': '\uD83C\uDF26',
+      '\u00F0\u0178\u0152\u00A6': '\uD83C\uDF26',
+      '\u0111\u017A\u015A\u00A7': '\uD83C\uDF27',
+      '\u00F0\u0178\u0152\u00A7': '\uD83C\uDF27',
+      '\u0111\u017A\u015A\u00A8': '\uD83C\uDF28',
+      '\u00F0\u0178\u0152\u00A8': '\uD83C\uDF28',
+      '\u0111\u017A\u015A\u00A9': '\uD83C\uDF29',
+      '\u00F0\u0178\u0152\u00A9': '\uD83C\uDF29',
+      '\u0111\u017A\u015A\u015E': '\uD83C\uDF2A',
+      '\u00F0\u0178\u0152\u00AA': '\uD83C\uDF2A',
+      '\u0111\u017A\u015A\u00AB': '\uD83C\uDF2B',
+      '\u00F0\u0178\u0152\u00AB': '\uD83C\uDF2B',
+      '\u0111\u017A\u2018\u00B6': '\uD83D\uDC76',
+      '\u00F0\u0178\u2018\u00B6': '\uD83D\uDC76',
+      '\u0111\u017A\u2018\u00A6': '\uD83D\uDC66',
+      '\u00F0\u0178\u2018\u00A6': '\uD83D\uDC66',
+      '\u0111\u017A\u2018\u00A7': '\uD83D\uDC67',
+      '\u00F0\u0178\u2018\u00A7': '\uD83D\uDC67',
+      '\u0111\u017A\u2018\u00A8': '\uD83D\uDC68',
+      '\u00F0\u0178\u2018\u00A8': '\uD83D\uDC68',
+      '\u0111\u017A\u2018\u00A9': '\uD83D\uDC69',
+      '\u00F0\u0178\u2018\u00A9': '\uD83D\uDC69',
+      '\u0111\u017A\u00A7\u201C': '\uD83E\uDDD3',
+      '\u00F0\u0178\u00A7\u201C': '\uD83E\uDDD3',
+      '\u0111\u017A\u2018\u00B4': '\uD83D\uDC74',
+      '\u00F0\u0178\u2018\u00B4': '\uD83D\uDC74',
+      '\u0111\u017A\u2018\u00B5': '\uD83D\uDC75',
+      '\u00F0\u0178\u2018\u00B5': '\uD83D\uDC75',
+      '\u0111\u017A\u2018\u00AE': '\uD83D\uDC6E',
+      '\u00F0\u0178\u2018\u00AE': '\uD83D\uDC6E',
+      '\u0111\u017A\u0161\u2019': '\uD83D\uDE92',
+      '\u00F0\u0178\u0161\u2019': '\uD83D\uDE92',
+      '\u0111\u017A\u0161\u201C': '\uD83D\uDE93',
+      '\u00F0\u0178\u0161\u201C': '\uD83D\uDE93',
+      '\u0111\u017A\u0164\u017D': '\uD83C\uDF4E',
+      '\u0111\u017A\u0164\u0179': '\uD83C\uDF4F',
+      '\u0111\u017A\u0164\u0160': '\uD83C\uDF4A',
+      '\u0111\u017A\u0164\u2039': '\uD83C\uDF4B',
+      '\u0111\u017A\u0164\u015A': '\uD83C\uDF4C',
+      '\u0111\u017A\u0164\u2030': '\uD83C\uDF49',
+      '\u0111\u017A\u0164\u2021': '\uD83C\uDF47',
+      '\u0111\u017A\u0164\u201C': '\uD83C\uDF53',
+      '\u0111\u017A\u0164\u2019': '\uD83C\uDF52',
+      '\u0111\u017A\u0164\u2018': '\uD83C\uDF51',
+      '\u0111\u017A\u0104\u00AD': '\uD83E\uDD6D',
+      '\u00F0\u0178\u00A5\u00AD': '\uD83E\uDD6D',
+      '\u0111\u017A\u0164\u0164': '\uD83C\uDF4D',
+      '\u0111\u017A\u00A6\u0160': '\uD83E\uDD8A',
+      '\u00F0\u0178\u00A6\u0160': '\uD83E\uDD8A',
+      '\u0111\u017A\u0161\u20AC': '\uD83D\uDE80',
+      '\u00F0\u0178\u0161\u20AC': '\uD83D\uDE80',
+      '\u0111\u017A\u0161\u201A': '\uD83D\uDE82',
+      '\u00F0\u0178\u0161\u201A': '\uD83D\uDE82',
+      '\u00F0\u0178\u0161\u0192': '\uD83D\uDE83',
+      '\u0111\u017A\u0161\u201E': '\uD83D\uDE84',
+      '\u00F0\u0178\u0161\u201E': '\uD83D\uDE84',
+      '\u0111\u017A\u0161\u2026': '\uD83D\uDE85',
+      '\u00F0\u0178\u0161\u2026': '\uD83D\uDE85',
+      '\u0111\u017A\u0161\u2020': '\uD83D\uDE86',
+      '\u00F0\u0178\u0161\u2020': '\uD83D\uDE86',
+      '\u0111\u017A\u0161\u2021': '\uD83D\uDE87',
+      '\u00F0\u0178\u0161\u2021': '\uD83D\uDE87',
+      '\u00F0\u0178\u0161\u02C6': '\uD83D\uDE88',
+      '\u0111\u017A\u0161\u2030': '\uD83D\uDE89',
+      '\u00F0\u0178\u0161\u2030': '\uD83D\uDE89',
+      '\u0111\u017A\u0161\u0160': '\uD83D\uDE8A',
+      '\u00F0\u0178\u0161\u0160': '\uD83D\uDE8A',
+      '\u0111\u017A\u2018\u0164': '\uD83D\uDC4D',
+      '\u0111\u017A\u2018\u017D': '\uD83D\uDC4E',
+      '\u00F0\u0178\u2018\u017D': '\uD83D\uDC4E',
+      '\u0111\u017A\u2018\u015A': '\uD83D\uDC4C',
+      '\u00F0\u0178\u2018\u0152': '\uD83D\uDC4C',
+      '\u0111\u017A\u2018\u2039': '\uD83D\uDC4B',
+      '\u00F0\u0178\u2018\u2039': '\uD83D\uDC4B',
+      '\u0111\u017A\u2018\u0179': '\uD83D\uDC4F',
+      '\u0111\u017A\u00A4\u0165': '\uD83E\uDD1D',
+      '\u0111\u017A\u2122\u0179': '\uD83D\uDE4F',
+      '\u0111\u017A\u2018\u0160': '\uD83D\uDC4A',
+      '\u00F0\u0178\u2018\u0160': '\uD83D\uDC4A',
+      '\u00F0\u0178\u00A4\u02DC': '\uD83E\uDD18',
+      '\u0111\u017A\u2019\u017B': '\uD83D\uDCAF',
+      '\u00F0\u0178\u2019\u00AF': '\uD83D\uDCAF',
+      '\u0111\u017A\u2019\u02D8': '\uD83D\uDCA2',
+      '\u00F0\u0178\u2019\u00A2': '\uD83D\uDCA2',
+      '\u0111\u017A\u2019\u0104': '\uD83D\uDCA5',
+      '\u00F0\u0178\u2019\u00A5': '\uD83D\uDCA5',
+      '\u0111\u017A\u2019\u00AB': '\uD83D\uDCAB',
+      '\u00F0\u0178\u2019\u00AB': '\uD83D\uDCAB',
+      '\u0111\u017A\u2019\u00A8': '\uD83D\uDCA8',
+      '\u00F0\u0178\u2019\u00A8': '\uD83D\uDCA8',
+      '\u0111\u017A\u2019\u00AC': '\uD83D\uDCAC',
+      '\u00F0\u0178\u2019\u00AC': '\uD83D\uDCAC',
+      '\u0111\u017A\u2019\u00AD': '\uD83D\uDCAD',
+      '\u00F0\u0178\u2019\u00AD': '\uD83D\uDCAD',
+      '\u0111\u017A\u017D\u2030': '\uD83C\uDF89',
+      '\u00F0\u0178\u017D\u2030': '\uD83C\uDF89',
+      '\u0111\u017A\u017D\u0160': '\uD83C\uDF8A',
+      '\u00F0\u0178\u017D\u0160': '\uD83C\uDF8A',
+      '\u00F0\u0178\u017D\u02C6': '\uD83C\uDF88',
+      '\u0111\u017A\u017D\u201A': '\uD83C\uDF82',
+      '\u00F0\u0178\u017D\u201A': '\uD83C\uDF82',
+      '\u00F0\u0178\u017D\u0192': '\uD83C\uDF83',
+      '\u0111\u017A\u017D\u201E': '\uD83C\uDF84',
+      '\u00F0\u0178\u017D\u201E': '\uD83C\uDF84',
+      '\u0111\u017A\u017D\u2026': '\uD83C\uDF85',
+      '\u00F0\u0178\u017D\u2026': '\uD83C\uDF85',
+      '\u0111\u017A\u00A7\u00A8': '\uD83E\uDDE8',
+      '\u00F0\u0178\u00A7\u00A8': '\uD83E\uDDE8',
+      '\u0111\u017A\u201C\u2026': '\uD83D\uDCC5',
+      '\u00F0\u0178\u201C\u2026': '\uD83D\uDCC5',
+      '\u0111\u017A\u201C\u2020': '\uD83D\uDCC6',
+      '\u00F0\u0178\u201C\u2020': '\uD83D\uDCC6',
+      '\u0111\u017A\u201C\u2021': '\uD83D\uDCC7',
+      '\u00F0\u0178\u201C\u2021': '\uD83D\uDCC7',
+      '\u0111\u017A\u201C\u2039': '\uD83D\uDCCB',
+      '\u00F0\u0178\u201C\u2039': '\uD83D\uDCCB',
+      '\u0111\u017A\u201C\u015A': '\uD83D\uDCCC',
+      '\u00F0\u0178\u201C\u0152': '\uD83D\uDCCC',
+      '\u0111\u017A\u201C\u0164': '\uD83D\uDCCD',
+      '\u0111\u017A\u201C\u017D': '\uD83D\uDCCE',
+      '\u00F0\u0178\u201C\u017D': '\uD83D\uDCCE',
+      '\u0111\u017A\u201C\u0179': '\uD83D\uDCCF',
+      '\u0111\u017A\u015E\u00AB': '\uD83E\uDEAB',
+      '\u00F0\u0178\u00AA\u00AB': '\uD83E\uDEAB',
+      '\u0111\u017A\u015E\u015E': '\uD83E\uDEAA',
+      '\u00F0\u0178\u00AA\u00AA': '\uD83E\uDEAA',
+      '\u0111\u017A\u015E\u015F': '\uD83E\uDEBA',
+      '\u00F0\u0178\u00AA\u00BA': '\uD83E\uDEBA',
+      '\u0111\u017A\u015E\u00B4': '\uD83E\uDEB4',
+      '\u00F0\u0178\u00AA\u00B4': '\uD83E\uDEB4',
+      '\u0111\u017A\u015E\u00B5': '\uD83E\uDEB5',
+      '\u00F0\u0178\u00AA\u00B5': '\uD83E\uDEB5',
+      '\u0111\u017A\u015E\u00B6': '\uD83E\uDEB6',
+      '\u00F0\u0178\u00AA\u00B6': '\uD83E\uDEB6',
+      '\u0111\u017A\u015E\u00B7': '\uD83E\uDEB7',
+      '\u00F0\u0178\u00AA\u00B7': '\uD83E\uDEB7',
+      '\u0111\u017A\u015E\u00B8': '\uD83E\uDEB8',
+      '\u00F0\u0178\u00AA\u00B8': '\uD83E\uDEB8',
+      '\u0111\u017A\u015E\u0105': '\uD83E\uDEB9',
+      '\u00F0\u0178\u00AA\u00B9': '\uD83E\uDEB9',
+      '\u0111\u017A\u015E\u00BB': '\uD83E\uDEBB',
+      '\u00F0\u0178\u00AA\u00BB': '\uD83E\uDEBB',
+      '\u0111\u017A\u015E\u013D': '\uD83E\uDEBC',
+      '\u00F0\u0178\u00AA\u00BC': '\uD83E\uDEBC',
+      '\u0111\u017A\u015E\u02DD': '\uD83E\uDEBD',
+      '\u00F0\u0178\u00AA\u00BD': '\uD83E\uDEBD',
+      '\u0111\u017A\u015E\u013E': '\uD83E\uDEBE',
+      '\u00F0\u0178\u00AA\u00BE': '\uD83E\uDEBE',
+      '\u0111\u017A\u015E\u017C': '\uD83E\uDEBF',
+      '\u00F0\u0178\u00AA\u00BF': '\uD83E\uDEBF',
+      '\u00E2\u2020\u2018': '\u2191',
+      '\u00E2\u2020\u2019': '\u2192',
+      '\u00E2\u2020\u201C': '\u2193',
+      '\u00E2\u2020\u201D': '\u2194',
+      '\u00E2\u2020\u2022': '\u2195',
+      '\u00E2\u2020\u2013': '\u2196',
+      '\u00E2\u2020\u2014': '\u2197',
+      '\u00E2\u2020\u02DC': '\u2198',
+      '\u00E2\u2020\u2122': '\u2199',
+      '\u00E2\u2020\u0161': '\u219A',
+      '\u00E2\u2020\u203A': '\u219B',
+      '\u00E2\u2020\u015B': '\u219C',
+      '\u00E2\u2020\u0153': '\u219C',
+      '\u00E2\u2020\u0165': '\u219D',
+      '\u00E2\u2020\u017E': '\u219E',
+      '\u00E2\u2020\u017A': '\u219F',
+      '\u00E2\u2020\u0178': '\u219F',
+      '\u00E2\u2020\u00A0': '\u21A0',
+      '\u00E2\u2020\u02C7': '\u21A1',
+      '\u00E2\u2020\u00A1': '\u21A1',
+      '\u00E2\u2020\u02D8': '\u21A2',
+      '\u00E2\u2020\u00A2': '\u21A2',
+      '\u00E2\u2020\u0141': '\u21A3',
+      '\u00E2\u2020\u00A3': '\u21A3',
+      '\u00E2\u2020\u00A4': '\u21A4',
+      '\u00E2\u2020\u0104': '\u21A5',
+      '\u00E2\u2020\u00A5': '\u21A5',
+      '\u00E2\u2020\u00A6': '\u21A6',
+      '\u00E2\u2020\u00A7': '\u21A7',
+      '\u00E2\u2020\u00A8': '\u21A8',
+      '\u00E2\u2020\u00A9': '\u21A9',
+      '\u00E2\u2020\u015E': '\u21AA',
+      '\u00E2\u2020\u00AA': '\u21AA',
+      '\u00E2\u2020\u00AB': '\u21AB',
+      '\u00E2\u2020\u00AC': '\u21AC',
+      '\u00E2\u2020\u00AD': '\u21AD',
+      '\u00E2\u2020\u00AE': '\u21AE',
+      '\u00E2\u2020\u017B': '\u21AF',
+      '\u00E2\u2020\u00AF': '\u21AF',
+      '\u00E2\u2020\u00B0': '\u21B0',
+      '\u00E2\u2020\u00B1': '\u21B1',
+      '\u00E2\u2020\u02DB': '\u21B2',
+      '\u00E2\u2020\u00B2': '\u21B2',
+      '\u00E2\u2020\u0142': '\u21B3',
+      '\u00E2\u2020\u00B3': '\u21B3',
+      '\u00E2\u2020\u00B4': '\u21B4',
+      '\u00E2\u2020\u00B5': '\u21B5',
+      '\u00E2\u2020\u00B6': '\u21B6',
+      '\u00E2\u2020\u00B7': '\u21B7',
+      '\u00E2\u2020\u00B8': '\u21B8',
+      '\u00E2\u2020\u0105': '\u21B9',
+      '\u00E2\u2020\u00B9': '\u21B9',
+      '\u00E2\u2020\u015F': '\u21BA',
+      '\u00E2\u2020\u00BA': '\u21BA',
+      '\u00E2\u2020\u00BB': '\u21BB',
+      '\u00E2\u0161\u00A0': '\u26A0',
+      '\u00E2\u0161\u02C7': '\u26A1',
+      '\u00E2\u0161\u00A1': '\u26A1',
+      '\u00E2\u015B\u2026': '\u2705',
+      '\u00E2\u0153\u2026': '\u2705',
+      '\u00E2\u0165\u015A': '\u274C',
+      '\u00E2\u015B\u201D': '\u2714',
+      '\u00E2\u0153\u201D': '\u2714',
+      '\u00E2\u015B\u2013': '\u2716',
+      '\u00E2\u0153\u2013': '\u2716',
+      '\u00E2\u02DC\u2026': '\u2605',
+      '\u00E2\u02DC\u2020': '\u2606',
+      '\u00E2\u0161\u00AB': '\u26AB',
+      '\u00E2\u0161\u015E': '\u26AA',
+      '\u00E2\u0161\u00AA': '\u26AA',
+      '\u00E2\u017E\u02C7': '\u27A1',
+      '\u00E2\u017E\u00A1': '\u27A1',
+      '\u00E2\u00AC\u2026': '\u2B05',
+      '\u00E2\u00AC\u2020': '\u2B06',
+      '\u00E2\u00AC\u2021': '\u2B07',
+      '\u00E2\u017E\u00A4': '\u27A4',
+      '\u00E2\u017E\u02D8': '\u27A2',
+      '\u00E2\u017E\u00A2': '\u27A2',
+      '\u00E2\u017E\u0141': '\u27A3',
+      '\u00E2\u017E\u00A3': '\u27A3',
+      '\u00E2\u017E\u201D': '\u2794',
+      '\u00E2\u017E\u0165': '\u279D',
+      '\u00E2\u017E\u017E': '\u279E',
+      '\u00E2\u017E\u017A': '\u279F',
+      '\u00E2\u017E\u0178': '\u279F',
+      '\u00E2\u017E\u00A0': '\u27A0',
+      '\u00E2\u017E\u0104': '\u27A5',
+      '\u00E2\u017E\u00A5': '\u27A5',
+      '\u00E2\u017E\u00A6': '\u27A6',
+      '\u00E2\u017E\u00A7': '\u27A7',
+      '\u00E2\u017E\u00A8': '\u27A8',
+      '\u00E2\u017E\u00A9': '\u27A9',
+      '\u00E2\u017E\u015E': '\u27AA',
+      '\u00E2\u017E\u00AA': '\u27AA',
+      '\u00E2\u017E\u00AB': '\u27AB',
+      '\u00E2\u017E\u00AC': '\u27AC',
+      '\u00E2\u017E\u00AD': '\u27AD',
+      '\u00E2\u017E\u00AE': '\u27AE',
+      '\u00E2\u017E\u017B': '\u27AF',
+      '\u00E2\u017E\u00AF': '\u27AF',
+      '\u00E2\u017E\u00B0': '\u27B0',
+      '\u00E2\u02DC\u20AC': '\u2600',
+      '\u00E2\u02DC\u201A': '\u2602',
+      '\u00E2\u02DC\u0192': '\u2603',
+      '\u00E2\u02DC\u201E': '\u2604',
+      '\u00E2\u02DC\u2022': '\u2615',
+      '\u00E2\u02DC\u017D': '\u260E',
+      '\u00E2\u02DC\u02DC': '\u2618',
+      '\u00E2\u0179\u00B0': '\u23F0',
+      '\u00E2\u0179\u00B1': '\u23F1',
+      '\u00E2\u0179\u02DB': '\u23F2',
+      '\u00E2\u015B\u2030': '\u2709',
+      '\u00E2\u0153\u2030': '\u2709',
+      '\u00E2\u015B\u201A': '\u2702',
+      '\u00E2\u0153\u201A': '\u2702',
+      '\u00E2\u02DC\u2018': '\u2611',
+      '\u00E2\u2122\u20AC': '\u2640',
+      '\u00E2\u2122\u201A': '\u2642',
+      '\u00E2\u2122\u00A0': '\u2660',
+      '\u00E2\u2122\u0141': '\u2663',
+      '\u00E2\u2122\u00A3': '\u2663',
+      '\u00E2\u2122\u0104': '\u2665',
+      '\u00E2\u2122\u00A5': '\u2665',
+      '\u00E2\u2122\u00A6': '\u2666',
+      '\u00E2\u2122\u015E': '\u266A',
+      '\u00E2\u2122\u00AA': '\u266A',
+      '\u00E2\u2122\u00AB': '\u266B',
+      '\u00E2\u2122\u00AC': '\u266C',
+      '\u00E2\u0165\u00A4': '\u2764',
+      '\u00E2\u0165\u0141': '\u2763',
+      '\u00E2\u0165\u2014': '\u2757',
+      '\u00E2\u0165\u201C': '\u2753',
+      '\u00E2\u0165\u2022': '\u2755',
+      '\u00E2\u0165\u201D': '\u2754',
+      '\u00E2\u0165\u017D': '\u274E',
+      '\u00E2\u015B\u0142': '\u2733',
+      '\u00E2\u0153\u00B3': '\u2733',
+      '\u00E2\u015B\u00B4': '\u2734',
+      '\u00E2\u0153\u00B4': '\u2734',
+      '\u00E2\u015B\u00A8': '\u2728',
+      '\u00E2\u0153\u00A8': '\u2728',
+      '\u00E2\u0165\u201E': '\u2744',
+      '\u00E2\u0165\u2020': '\u2746',
+      '\u00E2\u0165\u2021': '\u2747',
+      '\u00E2\u0165\u0160': '\u274A',
+      '\u00E2\u0165\u2039': '\u274B',
+      '\u00E2\u0179\u00A9': '\u23E9',
+      '\u00E2\u0179\u015E': '\u23EA',
+      '\u00E2\u0179\u00AB': '\u23EB',
+      '\u00E2\u0179\u00AC': '\u23EC',
+      '\u00E2\u0179\u00AD': '\u23ED',
+      '\u00E2\u0179\u00AE': '\u23EE',
+      '\u00E2\u0179\u017B': '\u23EF',
+      '\u00E2\u0179\u0142': '\u23F3',
+      '\u00E2\u02DC\u00B9': '\u2639',
+      '\u00E2\u02DC\u00BA': '\u263A',
+      '\u00E2\u02DC\u00BB': '\u263B',
+      '\u00E2\u02DC\u00BC': '\u263C',
+      '\u00E2\u02DC\u00BE': '\u263E',
+      '\u00E2\u015A\u201A': '\u2302',
+      '\u00E2\u0152\u201A': '\u2302',
+      '\u00E2\u015A\u0161': '\u231A',
+      '\u00E2\u0152\u0161': '\u231A',
+      '\u00E2\u015A\u203A': '\u231B',
+      '\u00E2\u0152\u203A': '\u231B',
+      '\u00E2\u015A\u00A8': '\u2328',
+      '\u00E2\u0152\u00A8': '\u2328',
+      '\u00E2\u0179\u0179': '\u23CF',
+      '\u00E2\u0179\u00A8': '\u23E8',
+      '\u00E2\u2122\u017A': '\u265F',
+      '\u00E2\u2122\u0178': '\u265F',
+      '\u00E2\u2122\u203A': '\u265B',
+      '\u00E2\u2122\u017E': '\u265E',
+      '\u00E2\u2122\u0165': '\u265D',
+      '\u00E2\u2122\u015B': '\u265C',
+      '\u00E2\u2122\u0153': '\u265C',
+      '\u00E2\u2122\u0161': '\u265A',
+      '\u00E2\u2122\u2122': '\u2659',
+      '\u00E2\u2122\u02DC': '\u2658',
+      '\u00E2\u2122\u2014': '\u2657',
+      '\u00E2\u2122\u2013': '\u2656',
+      '\u00E2\u2122\u2022': '\u2655',
+      '\u00E2\u2122\u201D': '\u2654',
+      '\u00E2\u0161\u201C': '\u2693',
+      '\u00E2\u0161\u201D': '\u2694',
+      '\u00E2\u0161\u2013': '\u2696',
+      '\u00E2\u0161\u2014': '\u2697',
+      '\u00E2\u0161\u2122': '\u2699',
+      '\u00E2\u0161\u203A': '\u269B',
+      '\u00E2\u0161\u015B': '\u269C',
+      '\u00E2\u0161\u0153': '\u269C',
+      '\u00E2\u0161\u0165': '\u269D',
+      '\u00E2\u0161\u017E': '\u269E',
+      '\u00E2\u0161\u017A': '\u269F',
+      '\u00E2\u0161\u0178': '\u269F',
+      '\u00E2\u0161\u02D8': '\u26A2',
+      '\u00E2\u0161\u00A2': '\u26A2',
+      '\u00E2\u0161\u0141': '\u26A3',
+      '\u00E2\u0161\u00A3': '\u26A3',
+      '\u00E2\u0161\u00A4': '\u26A4',
+      '\u00E2\u0161\u0104': '\u26A5',
+      '\u00E2\u0161\u00A5': '\u26A5',
+      '\u00E2\u0161\u00A6': '\u26A6',
+      '\u00E2\u0161\u00A7': '\u26A7',
+      '\u00E2\u0161\u00A8': '\u26A8',
+      '\u00E2\u0161\u00A9': '\u26A9',
+      '\u00E2\u0161\u00AC': '\u26AC',
+      '\u00E2\u0161\u00AD': '\u26AD',
+      '\u00E2\u0161\u00AE': '\u26AE',
+      '\u00E2\u0161\u017B': '\u26AF',
+      '\u00E2\u0161\u00AF': '\u26AF',
+      '\u00E2\u0161\u00B0': '\u26B0',
+      '\u00E2\u0161\u00B1': '\u26B1',
+      '\u00E2\u0161\u02DB': '\u26B2',
+      '\u00E2\u0161\u00B2': '\u26B2',
+      '\u00E2\u0161\u0142': '\u26B3',
+      '\u00E2\u0161\u00B3': '\u26B3',
+      '\u00E2\u0161\u00B4': '\u26B4',
+      '\u00E2\u0161\u00B5': '\u26B5',
+      '\u00E2\u0161\u00B6': '\u26B6',
+      '\u00E2\u0161\u00B7': '\u26B7',
+      '\u00E2\u0161\u00B8': '\u26B8',
+      '\u00E2\u0161\u0105': '\u26B9',
+      '\u00E2\u0161\u00B9': '\u26B9',
+      '\u00E2\u0161\u015F': '\u26BA',
+      '\u00E2\u0161\u00BA': '\u26BA',
+      '\u00E2\u0161\u00BB': '\u26BB',
+      '\u00E2\u0161\u013D': '\u26BC',
+      '\u00E2\u0161\u00BC': '\u26BC',
+      '\u00E2\u0161\u02DD': '\u26BD',
+      '\u00E2\u0161\u00BD': '\u26BD',
+      '\u00E2\u0161\u013E': '\u26BE',
+      '\u00E2\u0161\u00BE': '\u26BE',
+      '\u00E2\u0161\u017C': '\u26BF',
+      '\u00E2\u0161\u00BF': '\u26BF',
+      '\u00E2\u203A\u20AC': '\u26C0',
+      '\u00E2\u203A\u201A': '\u26C2',
+      '\u00E2\u203A\u0192': '\u26C3',
+      '\u00E2\u203A\u201E': '\u26C4',
+      '\u00E2\u203A\u2026': '\u26C5',
+      '\u00E2\u203A\u2020': '\u26C6',
+      '\u00E2\u203A\u2021': '\u26C7',
+      '\u00E2\u203A\u02C6': '\u26C8',
+      '\u00E2\u203A\u2030': '\u26C9',
+      '\u00E2\u203A\u0160': '\u26CA',
+      '\u00E2\u203A\u2039': '\u26CB',
+      '\u00E2\u203A\u015A': '\u26CC',
+      '\u00E2\u203A\u0152': '\u26CC',
+      '\u00E2\u203A\u0164': '\u26CD',
+      '\u00E2\u203A\u017D': '\u26CE',
+      '\u00E2\u203A\u0179': '\u26CF',
+      '\u00E2\u203A\u2018': '\u26D1',
+      '\u00E2\u203A\u2019': '\u26D2',
+      '\u00E2\u203A\u201C': '\u26D3',
+      '\u00E2\u203A\u201D': '\u26D4',
+      '\u00E2\u203A\u2022': '\u26D5',
+      '\u00E2\u203A\u2013': '\u26D6',
+      '\u00E2\u203A\u2014': '\u26D7',
+      '\u00E2\u203A\u02DC': '\u26D8',
+      '\u00E2\u203A\u2122': '\u26D9',
+      '\u00E2\u203A\u0161': '\u26DA',
+      '\u00E2\u203A\u203A': '\u26DB',
+      '\u00E2\u203A\u015B': '\u26DC',
+      '\u00E2\u203A\u0153': '\u26DC',
+      '\u00E2\u203A\u0165': '\u26DD',
+      '\u00E2\u203A\u017E': '\u26DE',
+      '\u00E2\u203A\u017A': '\u26DF',
+      '\u00E2\u203A\u0178': '\u26DF',
+      '\u00E2\u203A\u00A0': '\u26E0',
+      '\u00E2\u203A\u02C7': '\u26E1',
+      '\u00E2\u203A\u00A1': '\u26E1',
+      '\u00E2\u203A\u02D8': '\u26E2',
+      '\u00E2\u203A\u00A2': '\u26E2',
+      '\u00E2\u203A\u0141': '\u26E3',
+      '\u00E2\u203A\u00A3': '\u26E3',
+      '\u00E2\u203A\u00A4': '\u26E4',
+      '\u00E2\u203A\u0104': '\u26E5',
+      '\u00E2\u203A\u00A5': '\u26E5',
+      '\u00E2\u203A\u00A6': '\u26E6',
+      '\u00E2\u203A\u00A7': '\u26E7',
+      '\u00E2\u203A\u00A8': '\u26E8',
+      '\u00E2\u203A\u00A9': '\u26E9',
+      '\u00E2\u203A\u015E': '\u26EA',
+      '\u00E2\u203A\u00AA': '\u26EA',
+      '\u00E2\u203A\u00AB': '\u26EB',
+      '\u00E2\u203A\u00AC': '\u26EC',
+      '\u00E2\u203A\u00AD': '\u26ED',
+      '\u00E2\u203A\u00AE': '\u26EE',
+      '\u00E2\u203A\u017B': '\u26EF',
+      '\u00E2\u203A\u00AF': '\u26EF',
+      '\u00E2\u203A\u00B0': '\u26F0',
+      '\u00E2\u203A\u00B1': '\u26F1',
+      '\u00E2\u203A\u02DB': '\u26F2',
+      '\u00E2\u203A\u00B2': '\u26F2',
+      '\u00E2\u203A\u0142': '\u26F3',
+      '\u00E2\u203A\u00B3': '\u26F3',
+      '\u00E2\u203A\u00B4': '\u26F4',
+      '\u00E2\u203A\u00B5': '\u26F5',
+      '\u00E2\u203A\u00B6': '\u26F6',
+      '\u00E2\u203A\u00B7': '\u26F7',
+      '\u00E2\u203A\u00B8': '\u26F8',
+      '\u00E2\u203A\u0105': '\u26F9',
+      '\u00E2\u203A\u00B9': '\u26F9',
+      '\u00E2\u203A\u015F': '\u26FA',
+      '\u00E2\u203A\u00BA': '\u26FA',
+      '\u00E2\u203A\u00BB': '\u26FB',
+      '\u00E2\u203A\u013D': '\u26FC',
+      '\u00E2\u203A\u00BC': '\u26FC',
+      '\u00E2\u203A\u02DD': '\u26FD',
+      '\u00E2\u203A\u00BD': '\u26FD',
+      '\u00E2\u203A\u013E': '\u26FE',
+      '\u00E2\u203A\u00BE': '\u26FE',
+      '\u00E2\u203A\u017C': '\u26FF',
+      '\u00E2\u203A\u00BF': '\u26FF',
+      '\u00E2\u015B\u015A': '\u270C',
+      '\u00E2\u0153\u0152': '\u270C',
+      '\u010F\u00B8\u0179': '\uFE0F',
+      '\u00E2\u20AC\u02DC': '\u2018',
+      '\u00E2\u20AC\u2122': '\u2019',
+      '\u00E2\u20AC\u015B': '\u201C',
+      '\u00E2\u20AC\u0153': '\u201C',
+      '\u00E2\u20AC\u0165': '\u201D',
+      '\u00E2\u20AC\u201D': '\u2014',
+      '\u00E2\u20AC\u201C': '\u2013',
+      '\u00E2\u20AC\u00A6': '\u2026',
+      '\u00E2\u20AC\u02D8': '\u2022',
+      '\u00E2\u20AC\u00A2': '\u2022',
+      '\u00E2\u20AC\u0105': '\u2039',
+      '\u00E2\u20AC\u00B9': '\u2039',
+      '\u00E2\u20AC\u015F': '\u203A',
+      '\u00E2\u20AC\u00BA': '\u203A',
+      '\u00E2\u201A\u00AC': '\u20AC',
+      '\u00C2\u00B7': '\u00B7',
+      '\u00C2\u00AB': '\u00AB',
+      '\u00C2\u00BB': '\u00BB',
+      '\u00C4\u2026': '\u0105',
+      '\u00C4\u2021': '\u0107',
+      '\u00C4\u2122': '\u0119',
+      '\u0139\u201A': '\u0142',
+      '\u00C5\u201A': '\u0142',
+      '\u0139\u201E': '\u0144',
+      '\u00C5\u201E': '\u0144',
+      '\u0102\u0142': '\u00F3',
+      '\u00C3\u00B3': '\u00F3',
+      '\u0139\u203A': '\u015B',
+      '\u00C5\u203A': '\u015B',
+      '\u0139\u015F': '\u017A',
+      '\u00C5\u00BA': '\u017A',
+      '\u0139\u013D': '\u017C',
+      '\u00C5\u00BC': '\u017C',
       '\u00C4\u201E': '\u0104',
-      // Ć: C4 86 (0x86 = U+2020 dagger)
       '\u00C4\u2020': '\u0106',
-      // Ę: C4 98 (0x98 = U+02DC small tilde)
       '\u00C4\u02DC': '\u0118',
-      // ó: C3 B3 already in map
-      // Literal double-encoded ascii tails that show up re-mapped
-      '\u00C4\u201A': '\u0105',   // Ä‚ alt
-      // CP1250 low-byte re-mapping: C2 B3 (³) read as CP1250 -> Â + ł (U+0142)
-      '\u00C2\u0142': '\u00B3',   // Âł -> ³
-      '\u00C2\u0105': '\u00B1',   // Âą -> ± (C2 B1 via CP1250 where 0xB1 = U+0105)
-      '\u00C2\u02DB': '\u00B2',   // Â˛ -> ² (C2 B2 via CP1250 where 0xB2 = U+02DB ogonek)
-      '\u00C2\u00B5': '\u00B5',   // duplicate safety
-      // Double-layer prefix "Â" leaking through: strip isolated Â before ascii (conservative)
-      '\u00E2\u0080\u0093': '\u2013', // â€“ (en dash)
-      '\u00E2\u0080\u0094': '\u2014', // â€” (em dash)
-      '\u00E2\u0080\u009C': '\u201C', // " (left double quote)
-      '\u00E2\u0080\u009D': '\u201D', // " (right double quote)
-      '\u00E2\u0080\u0099': '\u2019', // ' (right single quote / apostrophe)
-      '\u00E2\u0080\u00A6': '\u2026', // â€¦ (ellipsis)
-      '\u00E2\u0080\u00A2': '\u2022', // â€˘ (bullet)
-      // Emoji mojibake (4-byte UTF-8 misread as Latin-1)
-      '\u00F0\u009F\u0094\u0092': '\uD83D\uDD12', // đź”’
-      '\u00F0\u009F\u0094\u00A5': '\uD83D\uDD25', // đź”Ą
-      '\u00F0\u009F\u0091\u008D': '\uD83D\uDC4D', // đź‘Ť
-      '\u00F0\u009F\u0098\u008A': '\uD83D\uDE0A', // đźŠ
-      '\u00F0\u009F\u008E\u00AF': '\uD83C\uDFAF', // đźŽŻ
-      '\u00F0\u009F\u009A\u0080': '\uD83D\uDE80', // đźš€
-      '\u00F0\u009F\u0092\u00A1': '\uD83D\uDCA1', // đź’ˇ
-      '\u00F0\u009F\u0094\u0094': '\uD83D\uDD14', // đź””
-      '\u00F0\u009F\u008F\u00A0': '\uD83C\uDFE0', // đźŹ 
-      '\u00F0\u009F\u0094\u008C': '\uD83D\uDD0C', // đź”Ś
-      '\u00F0\u009F\u0092\u00BB': '\uD83D\uDCBB', // đź’»
+      '\u00C5\u0192': '\u0143',
+      '\u0102\u201C': '\u00D3',
+      '\u00C3\u201C': '\u00D3',
+      '\u0139\u0161': '\u015A',
+      '\u00C5\u0161': '\u015A',
+      '\u0139\u0105': '\u0179',
+      '\u00C5\u00B9': '\u0179',
+      '\u0139\u00BB': '\u017B',
+      '\u00C5\u00BB': '\u017B',
+      '\u0102\u02C7': '\u00E1',
+      '\u00C3\u00A1': '\u00E1',
+      '\u0102\u00A9': '\u00E9',
+      '\u00C3\u00A9': '\u00E9',
+      '\u0102\u00AD': '\u00ED',
+      '\u00C3\u00AD': '\u00ED',
+      '\u0102\u015F': '\u00FA',
+      '\u00C3\u00BA': '\u00FA',
+      '\u0102\u013D': '\u00FC',
+      '\u00C3\u00BC': '\u00FC',
+      '\u0102\u00B6': '\u00F6',
+      '\u00C3\u00B6': '\u00F6',
+      '\u0102\u00A4': '\u00E4',
+      '\u00C3\u00A4': '\u00E4',
+      '\u0102\u00AB': '\u00EB',
+      '\u00C3\u00AB': '\u00EB',
+      '\u0102\u017B': '\u00EF',
+      '\u00C3\u00AF': '\u00EF',
+      '\u0102\u00A7': '\u00E7',
+      '\u00C3\u00A7': '\u00E7',
+      '\u0102\u00B1': '\u00F1',
+      '\u00C3\u00B1': '\u00F1',
+      '\u00C2\u02D8': '\u00A2',
+      '\u00C2\u00A2': '\u00A2',
+      '\u00C2\u0141': '\u00A3',
+      '\u00C2\u00A3': '\u00A3',
+      '\u00C2\u00A7': '\u00A7',
+      '\u00C2\u00A9': '\u00A9',
+      '\u00C2\u00AE': '\u00AE',
+      '\u00C2\u00B0': '\u00B0',
+      '\u00C2\u00B1': '\u00B1',
+      '\u0102\u2014': '\u00D7',
+      '\u00C3\u2014': '\u00D7',
+      '\u0102\u00B7': '\u00F7',
+      '\u00C3\u00B7': '\u00F7',
+      '\u00C2\u00B5': '\u00B5',
     };
   }
 
@@ -497,6 +1003,29 @@ class HaEncodingFixer extends HTMLElement {
       if (!changed) break;
     }
 
+    // Method 2b: Python-style Unicode escape literals (\UXXXXXXXX / \uXXXX)
+    // Common source: YAML strings that got serialized with repr()/Python str
+    // encoding, e.g. "\U0001F512 Alarm Uzbrojony" or "\u0142" for ł.
+    // Convert to actual characters. This complements the MOJIBAKE_MAP pass.
+    const pyEscU8 = fixed.replace(/\\U([0-9A-Fa-f]{8})/g, (m, h) => {
+      const cp = parseInt(h, 16);
+      return (cp >= 0 && cp <= 0x10FFFF) ? String.fromCodePoint(cp) : m;
+    });
+    if (pyEscU8 !== fixed) {
+      fixed = pyEscU8;
+      hasMojibake = true;
+    }
+    const pyEscU4 = fixed.replace(/\\u([0-9A-Fa-f]{4})/g, (m, h) => {
+      const cp = parseInt(h, 16);
+      // Skip surrogate halves (U+D800-U+DFFF) — they must come as pairs,
+      // and the MOJIBAKE_MAP has already emitted them as real SMP chars.
+      if (cp >= 0xD800 && cp <= 0xDFFF) return m;
+      return String.fromCodePoint(cp);
+    });
+    if (pyEscU4 !== fixed) {
+      fixed = pyEscU4;
+      hasMojibake = true;
+    }
     if (hasMojibake) {
       return { original: str, fixed: fixed, method: 'pattern-replace' };
     }
