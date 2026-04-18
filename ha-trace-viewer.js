@@ -2,7 +2,7 @@
 'use strict';
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-trace-viewer] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 class HATraceViewer extends HTMLElement {
   constructor() {
@@ -65,14 +65,14 @@ class HATraceViewer extends HTMLElement {
     try {
       const s = localStorage.getItem('ha-tools-settings');
       if (s) { const p = JSON.parse(s); if (p['trace-viewer.pageSize']) return parseInt(p['trace-viewer.pageSize']); }
-      const tv = localStorage.getItem('ha-trace-viewer-pageSize');
+      const tv = localStorage.getItem('ha-tools-trace-viewer-pageSize');
       if (tv) return parseInt(tv);
     } catch {}
     return 15;
   }
 
   _savePageSize(size) {
-    try { localStorage.setItem('ha-trace-viewer-pageSize', String(size)); } catch {}
+    try { localStorage.setItem('ha-tools-trace-viewer-pageSize', String(size)); } catch {}
     try {
       const s = localStorage.getItem('ha-tools-settings');
       const settings = s ? JSON.parse(s) : {};
@@ -89,7 +89,7 @@ class HATraceViewer extends HTMLElement {
     try {
       const s = localStorage.getItem('ha-tools-settings');
       if (s) { const p = JSON.parse(s); if (p['trace-viewer.' + key] !== undefined) return p['trace-viewer.' + key]; }
-      const v = localStorage.getItem('ha-trace-viewer-' + key);
+      const v = localStorage.getItem('ha-tools-trace-viewer-' + key);
       if (v !== null) return JSON.parse(v);
     } catch {}
     return fallback;
@@ -126,7 +126,7 @@ class HATraceViewer extends HTMLElement {
 
   _loadStoredTraces() {
     try {
-      const d = localStorage.getItem('ha-trace-viewer-stored');
+      const d = localStorage.getItem('ha-tools-trace-viewer-stored');
       if (d) {
         const parsed = JSON.parse(d);
         const map = {};
@@ -146,7 +146,7 @@ class HATraceViewer extends HTMLElement {
         return tb.localeCompare(ta);
       });
       const trimmed = arr.slice(0, 2000);
-      localStorage.setItem('ha-trace-viewer-stored', JSON.stringify(trimmed));
+      localStorage.setItem('ha-tools-trace-viewer-stored', JSON.stringify(trimmed));
     } catch (e) {
       console.warn('[Trace Viewer] Could not save traces:', e);
     }
@@ -154,7 +154,7 @@ class HATraceViewer extends HTMLElement {
 
   _loadStoredDetails() {
     try {
-      const d = localStorage.getItem('ha-trace-viewer-details');
+      const d = localStorage.getItem('ha-tools-trace-viewer-details');
       return d ? JSON.parse(d) : {};
     } catch {}
     return {};
@@ -167,7 +167,7 @@ class HATraceViewer extends HTMLElement {
         const sorted = keys.sort();
         sorted.slice(0, keys.length - 200).forEach(k => delete this._storedDetails[k]);
       }
-      localStorage.setItem('ha-trace-viewer-details', JSON.stringify(this._storedDetails));
+      localStorage.setItem('ha-tools-trace-viewer-details', JSON.stringify(this._storedDetails));
     } catch (e) {
       console.warn('[Trace Viewer] Could not save details:', e);
     }
@@ -1186,7 +1186,7 @@ class HATraceViewer extends HTMLElement {
         if (root && root.host && root.host.tagName === 'HA-TOOLS-PANEL') {
           panel = root.host;
         }
-      } catch (e) {}
+      } catch (e) { console.debug('[ha-trace-viewer] caught:', e); }
       if (!panel) panel = document.querySelector('ha-tools-panel');
       if (panel && panel._navigateToSettings) {
         panel._navigateToSettings('trace-backend');
@@ -1201,7 +1201,7 @@ class HATraceViewer extends HTMLElement {
       try {
         const root = this.getRootNode();
         if (root && root.host && root.host.tagName === 'HA-TOOLS-PANEL') panel = root.host;
-      } catch (e) {}
+      } catch (e) { console.debug('[ha-trace-viewer] caught:', e); }
       if (!panel) panel = document.querySelector('ha-tools-panel');
       if (panel && panel._navigateToSettings) {
         panel._navigateToSettings('trace-backend');

@@ -5,7 +5,7 @@
 const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-sentence-manager] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 
 class HASentenceManager extends HTMLElement {
@@ -312,7 +312,7 @@ class HASentenceManager extends HTMLElement {
           const listing = await svResp.json();
           files.push(...(listing.data || listing || []));
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[ha-sentence-manager] caught:', e); }
       // Try reading known baby.yaml directly
       const knownFiles = [`custom_sentences/${lang}/baby.yaml`];
       for (const fp of knownFiles) {
@@ -323,7 +323,7 @@ class HASentenceManager extends HTMLElement {
           if (resp.ok) {
             yamlContent = await resp.text();
           }
-        } catch(e) {}
+        } catch(e) { console.debug('[ha-sentence-manager] caught:', e); }
       }
       // If supervisor didn't work, try hassio API
       if (!yamlContent) {
@@ -334,7 +334,7 @@ class HASentenceManager extends HTMLElement {
             method: 'get'
           });
           if (resp) yamlContent = typeof resp === 'string' ? resp : JSON.stringify(resp);
-        } catch(e) {}
+        } catch(e) { console.debug('[ha-sentence-manager] caught:', e); }
       }
       // Parse custom_sentences YAML manually (lightweight parser for known structure)
       if (yamlContent) {
@@ -600,7 +600,7 @@ class HASentenceManager extends HTMLElement {
       const slotElement = document.createElement('div');
       slotElement.className = 'slot-item';
       slotElement.innerHTML = `
-        <label>${name}:</label>
+        <label>${_esc(name)}:</label>
         <input type="text" class="slot-input" data-slot-name="${_esc(name)}" value="${_esc(type)}">
         <button class="remove-slot-btn">Remove</button>
       `;
@@ -652,7 +652,7 @@ class HASentenceManager extends HTMLElement {
       const slotElement = document.createElement('div');
       slotElement.className = 'slot-item';
       slotElement.innerHTML = `
-        <label>${name}:</label>
+        <label>${_esc(name)}:</label>
         <input type="text" class="slot-input" data-slot-name="${_esc(name)}" value="${_esc(type)}">
         <button class="remove-slot-btn">Remove</button>
       `;
@@ -680,7 +680,7 @@ class HASentenceManager extends HTMLElement {
     }
 
     const tipDismissed = (() => {
-      try { return localStorage.getItem('sentence-manager-tips-v3.0.0') === 'dismissed'; } catch(e) { return false; }
+      try { return localStorage.getItem('ha-tools-sentence-manager-tips-v3.0.0') === 'dismissed'; } catch(e) { return false; }
     })();
 
     const container = document.createElement('div');
@@ -1186,7 +1186,7 @@ class HASentenceManager extends HTMLElement {
     // Tip banner dismiss
     const _tipB = this.shadowRoot.querySelector('#tip-banner');
     if (_tipB) {
-      const _tipV = 'sentence-manager-tips-v3.0.0';
+      const _tipV = 'ha-tools-sentence-manager-tips-v3.0.0';
       if (localStorage.getItem(_tipV) === 'dismissed') {
         _tipB.classList.add('hidden');
       }

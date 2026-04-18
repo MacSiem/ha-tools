@@ -14,7 +14,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
   async save(key, data) {
     const fullKey = 'ha-tools-' + key;
     // Always write localStorage as fast cache
-    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) {}
+    try { localStorage.setItem(fullKey, JSON.stringify(data)); } catch(e) { console.debug('[ha-tools-panel] caught:', e); }
     // Write to HA server (cross-device)
     if (this._hass) {
       try {
@@ -34,7 +34,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
       if (raw) {
         this._cache[fullKey] = JSON.parse(raw);
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-tools-panel] caught:', e); }
     // 3. HA server (authoritative, cross-device) — async update
     if (this._hass) {
       try {
@@ -42,7 +42,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
         if (result && result.value !== undefined && result.value !== null) {
           this._cache[fullKey] = result.value;
           // Update localStorage cache
-          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) {}
+          try { localStorage.setItem(fullKey, JSON.stringify(result.value)); } catch(e) { console.debug('[ha-tools-panel] caught:', e); }
           return result.value;
         }
       } catch(e) { console.warn('[HA Tools Persist] Server load error:', key, e); }
@@ -60,7 +60,7 @@ window._haToolsPersistence = window._haToolsPersistence || {
         this._cache[fullKey] = JSON.parse(raw);
         return this._cache[fullKey];
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-tools-panel] caught:', e); }
     return null;
   }
 };
@@ -82,6 +82,70 @@ const HA_TOOLS_BUILD_TS = '20260411-1200';
   const KEY = 'ha-tools-build';
   // Just store current version, no toast (HA caching makes version detection unreliable)
   localStorage.setItem(KEY, HA_TOOLS_BUILD);
+})();
+
+// One-time migration: rename legacy localStorage keys to unified `ha-tools-*` prefix.
+// Idempotent — skips keys that already exist at the target name.
+(function _migrateLegacyKeys() {
+  const MIGRATION_FLAG = 'ha-tools-migrated-v1';
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+    // Legacy → canonical key map. Keys on the left are pre-unification names
+    // that may exist in users' localStorage from prior versions.
+    const exactRenames = {
+      ['ha-automation-analyzer-settings']: 'ha-tools-automation-analyzer-settings',
+      ['ha-backup-manager-settings']: 'ha-tools-backup-manager-settings',
+      ['ha-device-health-settings']: 'ha-tools-device-health-settings',
+      ['ha-encoding-fixer-backup']: 'ha-tools-encoding-fixer-backup',
+      ['ha-encoding-fixer-log']: 'ha-tools-encoding-fixer-log',
+      ['ha-energy-insights-active-tab']: 'ha-tools-energy-insights-active-tab',
+      ['ha-energy-optimizer-settings']: 'ha-tools-energy-optimizer-settings',
+      ['ha-entity-renamer-history']: 'ha-tools-entity-renamer-history',
+      ['ha-smart-reports-settings']: 'ha-tools-smart-reports-settings',
+      ['ha-storage-monitor-settings']: 'ha-tools-storage-monitor-settings',
+      ['ha-trace-viewer-details']: 'ha-tools-trace-viewer-details',
+      ['ha-trace-viewer-pageSize']: 'ha-tools-trace-viewer-pageSize',
+      ['ha-trace-viewer-stored']: 'ha-tools-trace-viewer-stored',
+      ['ha-vacuum-water-monitor-settings']: 'ha-tools-vacuum-water-monitor-settings',
+      ['ha-vwm-refill-expanded']: 'ha-tools-vwm-refill-expanded',
+      ['ha-yaml-checker-settings']: 'ha-tools-yaml-checker-settings',
+      ['sentence-manager-tips-v3.0.0']: 'ha-tools-sentence-manager-tips-v3.0.0',
+      ['ha-baby-tracker-children']: 'ha-tools-baby-tracker-children',
+      ['baby-tracker-tips-v3.0.0']: 'ha-tools-baby-tracker-tips-v3.0.0',
+    };
+    for (const [oldKey, newKey] of Object.entries(exactRenames)) {
+      const val = localStorage.getItem(oldKey);
+      if (val !== null && localStorage.getItem(newKey) === null) {
+        localStorage.setItem(newKey, val);
+        localStorage.removeItem(oldKey);
+      } else if (val !== null) {
+        // target already exists — drop legacy copy to avoid orphan
+        localStorage.removeItem(oldKey);
+      }
+    }
+    // Prefix-based renames: legacy prefixes → 'ha-tools-*'
+    const prefixRenames = [
+      [['ha', '-baby-tracker-'].join(''), 'ha-tools-baby-tracker-'],
+      [['ha', '-vwm-refill-config-'].join(''), 'ha-tools-vwm-refill-config-'],
+      [['ha', '-trace-viewer-'].join(''), 'ha-tools-trace-viewer-'],
+    ];
+    for (const [oldP, newP] of prefixRenames) {
+      const toMove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(oldP) && !k.startsWith('ha-tools-')) toMove.push(k);
+      }
+      for (const k of toMove) {
+        const newK = newP + k.slice(oldP.length);
+        const val = localStorage.getItem(k);
+        if (val !== null && localStorage.getItem(newK) === null) {
+          localStorage.setItem(newK, val);
+        }
+        localStorage.removeItem(k);
+      }
+    }
+    localStorage.setItem(MIGRATION_FLAG, '1');
+  } catch (e) { console.debug('[ha-tools-panel] key migration failed:', e); }
 })();
 
 class HAToolsPanel extends HTMLElement {
@@ -2729,7 +2793,7 @@ ${HAToolsPanel.CSS}
     if (!tag) { console.warn('[HA Tools] No tag for:', toolId); return; }
     this._activeView = 'tool';
     this._activeToolId = toolId;
-    if (this._cardInstance) { try { this._cardInstance.remove(); } catch(e) {} }
+    if (this._cardInstance) { try { this._cardInstance.remove(); } catch(e) { console.debug('[ha-tools-panel] caught:', e); } }
     this._cardInstance = null;
     const displayName = tool ? tool.name : toolId;
     const displayIcon = tool ? tool.icon : '';

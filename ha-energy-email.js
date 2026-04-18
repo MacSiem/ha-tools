@@ -6,7 +6,7 @@ window._haToolsEsc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.rep
 const _esc = window._haToolsEsc;
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-energy-email] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 /**
  * HA Energy Email Card v4.0.0
@@ -393,7 +393,7 @@ class HAEnergyEmail extends HTMLElement {
       await this._hass.callService('input_text', 'set_value', { entity_id: eid, value: value || '' });
     } catch (e) {
       // Fallback to localStorage
-      try { localStorage.setItem(`ha-energy-email-${key}`, value); } catch(e2) {}
+      try { localStorage.setItem(`ha-energy-email-${key}`, value); } catch(e2) { console.debug('[ha-energy-email] caught:', e); }
     }
   }
 
@@ -622,7 +622,7 @@ class HAEnergyEmail extends HTMLElement {
     const L = this._lang === 'pl';
     const recipient = this._getRecipient();
     const recipientDisplay = recipient
-      ? `To: ${recipient}`
+      ? `To: ${_esc(recipient)}`
       : (L ? 'Nie ustawiono odbiorcy' : 'No recipient set');
     this.shadowRoot.innerHTML = `
       <style>${window.HAToolsBentoCSS || ""}
@@ -1281,12 +1281,12 @@ class HAEnergyEmail extends HTMLElement {
         <div class="config-section-title">\u{1F4E7} ${L ? 'Ustawienia email' : 'Email Settings'}</div>
         <div class="config-input-row">
           <label>${L ? 'Odbiorca' : 'Recipient'}:</label>
-          <input type="email" id="cfg-email" class="config-input" value="${recipient}" placeholder="your@email.com" style="flex:1">
+          <input type="email" id="cfg-email" class="config-input" value="${_esc(recipient)}" placeholder="your@email.com" style="flex:1">
           <button class="btn btn-primary" id="cfg-email-save" style="padding:6px 14px;font-size:12px">${L ? 'Zapisz' : 'Save'}</button>
         </div>
         <div class="config-input-row">
           <label>${L ? 'Stawka' : 'Price'}:</label>
-          <input type="number" id="cfg-price" class="config-input" value="${price}" step="0.01" min="0" style="width:80px">
+          <input type="number" id="cfg-price" class="config-input" value="${_esc(price)}" step="0.01" min="0" style="width:80px">
           <span style="font-size:12px;color:var(--bento-text-secondary)">${currency}/kWh</span>
           <button class="btn btn-primary" id="cfg-price-save" style="padding:6px 14px;font-size:12px">${L ? 'Zapisz' : 'Save'}</button>
         </div>
@@ -1534,7 +1534,7 @@ class HAEnergyEmail extends HTMLElement {
     try {
       if (update) {
         // Delete old automation first, then create new
-        try { await this._hass.callService('automation', 'turn_off', { entity_id: `automation.${cfg.id}` }); } catch(e) {}
+        try { await this._hass.callService('automation', 'turn_off', { entity_id: `automation.${cfg.id}` }); } catch(e) { console.debug('[ha-energy-email] caught:', e); }
       }
       await this._hass.callWS({
         type: 'config/automation/config',
@@ -1749,6 +1749,7 @@ class HaEnergyEmailEditor extends HTMLElement {
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
               <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Energy Email Reports')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>

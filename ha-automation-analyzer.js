@@ -1,8 +1,11 @@
 (function() {
 'use strict';
 
+// XSS protection helper (reuse global from panel, fallback for standalone)
+const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-automation-analyzer] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 class HAAutomationAnalyzer extends HTMLElement {
   constructor() {
@@ -1584,7 +1587,7 @@ ${styles}
       <div class="card">
         <div class="header">
           <div class="header-left">
-            <h1>${this.config.title}</h1>
+            <h1>${_esc(this.config.title || '')}</h1>
             <p class="subtitle">
               <span>${this._t.lastUpdated}${this._formatLastUpdated()}</span>
               <span>\u2022</span>
@@ -2058,12 +2061,12 @@ class HaAutomationAnalyzerEditor extends HTMLElement {
     this._config = { ...config };
     // Load persisted UI state
     try {
-      const _saved = localStorage.getItem('ha-automation-analyzer-settings');
+      const _saved = localStorage.getItem('ha-tools-automation-analyzer-settings');
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-automation-analyzer] caught:', e); }
     this._render();
   }
   _dispatch() {

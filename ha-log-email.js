@@ -1,8 +1,11 @@
 (function() {
 'use strict';
 
+// XSS protection helper (reuse global from panel, fallback for standalone)
+const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-log-email] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 /**
  * HA Log Email Card v1.0
@@ -25,7 +28,7 @@ class HALogEmail extends HTMLElement {
     this._tabsScrollLeft = 0;
     this._logData = null;
     this._logHistory = [];
-    try { const saved = sessionStorage.getItem('ha-log-email-history'); if (saved) this._logHistory = JSON.parse(saved); } catch(e) {}
+    try { const saved = sessionStorage.getItem('ha-log-email-history'); if (saved) this._logHistory = JSON.parse(saved); } catch(e) { console.debug('[ha-log-email] caught:', e); }
     this._maxHistory = 24;
     this._loading = false;
     this._firstRender = false;
@@ -44,7 +47,7 @@ class HALogEmail extends HTMLElement {
         this._pollingEnabled = !!p.enabled;
         this._pollingIntervalSec = p.interval || 60;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-log-email] caught:', e); }
   }
 
   _sanitize(str) {
@@ -182,7 +185,7 @@ class HALogEmail extends HTMLElement {
       const snapshot = { ts: new Date().toISOString(), errors: this._logData.errors.length, warnings: this._logData.warnings.length, total: this._logData.total };
       this._logHistory.unshift(snapshot);
       if (this._logHistory.length > this._maxHistory) this._logHistory.pop();
-      try { sessionStorage.setItem('ha-log-email-history', JSON.stringify(this._logHistory)); } catch(e) {}
+      try { sessionStorage.setItem('ha-log-email-history', JSON.stringify(this._logHistory)); } catch(e) { console.debug('[ha-log-email] caught:', e); }
     }
     this._render();
     // FUNC-2: start polling if enabled on first successful fetch
@@ -217,7 +220,7 @@ class HALogEmail extends HTMLElement {
         enabled: this._pollingEnabled,
         interval: this._pollingIntervalSec
       }));
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-log-email] caught:', e); }
   }
 
   async _pollForNewErrors() {
@@ -565,7 +568,7 @@ class HALogEmail extends HTMLElement {
         </div>
         <div class="section-header" style="margin-top:10px">Recipient</div>
         <div class="info-card">
-          <span>\uD83D\uDCE7 ${this._config.email_recipient || (this._centralRecipient ? '<span style="color:var(--bento-text-secondary)">' + (this._lang === 'pl' ? 'Domyślnie z Ustawień' : 'Default from Settings') + ' ' + this._centralRecipient + '</span>' : '<span style="color:var(--bento-text-muted)">' + (this._lang === 'pl' ? 'Nie ustawiony \u2014 dodaj email_recipient w konfiguracji karty lub Ustawienia' : 'Not set \u2014 add email_recipient in card configuration or Settings') + '</span>')}</span>
+          <span>\uD83D\uDCE7 ${this._config.email_recipient ? _esc(this._config.email_recipient) : (this._centralRecipient ? '<span style="color:var(--bento-text-secondary)">' + (this._lang === 'pl' ? 'Domyślnie z Ustawień' : 'Default from Settings') + ' ' + _esc(this._centralRecipient) + '</span>' : '<span style="color:var(--bento-text-muted)">' + (this._lang === 'pl' ? 'Nie ustawiony \u2014 dodaj email_recipient w konfiguracji karty lub Ustawienia' : 'Not set \u2014 add email_recipient in card configuration or Settings') + '</span>')}</span>
         </div>
 
         
@@ -605,7 +608,7 @@ class HALogEmail extends HTMLElement {
         </div>
         ${sendStatusHTML}
         <div class="section-header" style="margin-top:16px">Recipient</div>
-        <div class="info-card">\uD83D\uDCE7 ${this._config.email_recipient}</div>
+        <div class="info-card">\uD83D\uDCE7 ${_esc(this._config.email_recipient || '')}</div>
         <div class="info-note" style="margin-top:8px">
           ${this._lang === 'pl' ? 'ℹ️ Wysyła email bezpośrednio przez ha_tools_email (centralna konfiguracja). Nie wymaga osobnych automatyzacji.' : 'ℹ️ Sends email directly via ha_tools_email (central config). No separate automations required.'}
         </div>
@@ -845,7 +848,7 @@ max: 3</pre>
       <ha-card class="card">
         <div class="header">
           <span class="header-icon">\uD83D\uDEA8</span>
-          <span class="header-title">${this._config.title || 'Log Email Summary'}</span>
+          <span class="header-title">${_esc(this._config.title || 'Log Email Summary')}</span>
           <span class="header-badge" style="background:${totalErrors > 0 ? '#ef444420' : '#10b98120'};color:${totalErrors > 0 ? '#ef4444' : '#10b981'}">${statusLabel}</span>
         </div>
 
@@ -1011,12 +1014,12 @@ class HaLogEmailEditor extends HTMLElement {
       <h3>Log Email Summary</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Log Email Summary'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Log Email Summary')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Email recipient (override)</label>
-              <input type="text" id="cf_email_recipient" value="${this._config?.email_recipient || ''}"
+              <input type="text" id="cf_email_recipient" value="${_esc(this._config?.email_recipient || '')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
               <div style="font-size:11px;color:var(--bento-text-secondary);margin-top:4px;">${this._lang === 'pl' ? 'Pozostaw puste, aby u\u017cy\u0107 ustawienia centralnego' : 'Leave empty to use central setting'}</div>
             </div>

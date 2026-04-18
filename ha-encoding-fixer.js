@@ -2,7 +2,7 @@
 'use strict';
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-encoding-fixer] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 class HaEncodingFixer extends HTMLElement {
   constructor() {
@@ -665,7 +665,7 @@ class HaEncodingFixer extends HTMLElement {
   _createBackup(type, items) {
     const backup = { ts: Date.now(), type, items: items.map(i => ({ ...i })) };
     try {
-      const key = 'ha-encoding-fixer-backup';
+      const key = 'ha-tools-encoding-fixer-backup';
       const existing = JSON.parse(localStorage.getItem(key) || '[]');
       existing.push(backup);
       if (existing.length > 20) existing.splice(0, existing.length - 20);
@@ -679,7 +679,7 @@ class HaEncodingFixer extends HTMLElement {
   }
 
   _getBackups() {
-    try { return JSON.parse(localStorage.getItem('ha-encoding-fixer-backup') || '[]'); }
+    try { return JSON.parse(localStorage.getItem('ha-tools-encoding-fixer-backup') || '[]'); }
     catch(e) { return []; }
   }
 
@@ -797,7 +797,7 @@ class HaEncodingFixer extends HTMLElement {
   // --- Persistence ---
   _loadFixLog() {
     try {
-      const raw = localStorage.getItem('ha-encoding-fixer-log');
+      const raw = localStorage.getItem('ha-tools-encoding-fixer-log');
       this._fixLog = raw ? JSON.parse(raw) : [];
     } catch(e) { this._fixLog = []; }
   }
@@ -805,7 +805,7 @@ class HaEncodingFixer extends HTMLElement {
   _saveFixLog() {
     try {
       if (this._fixLog.length > 100) this._fixLog = this._fixLog.slice(-100);
-      localStorage.setItem('ha-encoding-fixer-log', JSON.stringify(this._fixLog));
+      localStorage.setItem('ha-tools-encoding-fixer-log', JSON.stringify(this._fixLog));
     } catch(e) { /* ignore */ }
   }
 
@@ -1771,7 +1771,7 @@ class HaEncodingFixer extends HTMLElement {
         try {
           const raw = localStorage.getItem('ha-tools-encoding-fixer-resource-snapshot');
           if (raw) backup = JSON.parse(raw);
-        } catch(e) {}
+        } catch(e) { console.debug('[ha-encoding-fixer] caught:', e); }
       }
 
       if (!backup || !backup.items || backup.items.length === 0) {
@@ -1817,7 +1817,7 @@ class HaEncodingFixer extends HTMLElement {
         items: resources.map(r => ({ url: r.url, type: r.type, id: r.id }))
       };
       // Save to both localStorage and server
-      try { localStorage.setItem('ha-tools-encoding-fixer-resource-snapshot', JSON.stringify(snapshot)); } catch(e) {}
+      try { localStorage.setItem('ha-tools-encoding-fixer-resource-snapshot', JSON.stringify(snapshot)); } catch(e) { console.debug('[ha-encoding-fixer] caught:', e); }
       if (window._haToolsPersistence) {
         window._haToolsPersistence.setHass(this._hass);
         await window._haToolsPersistence.save('encoding-fixer-resource-snapshot', snapshot);

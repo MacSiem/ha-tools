@@ -325,6 +325,7 @@ class HAPurgeCache extends HTMLElement {
     const container = this.shadowRoot?.querySelector('#ls-keys');
     if (!container) return;
     const t = this._t;
+    const _esc = window._haToolsEsc || this._esc.bind(this);
 
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -337,9 +338,9 @@ class HAPurgeCache extends HTMLElement {
 
     container.innerHTML = keys.map(k => `
       <div class="key-row">
-        <span class="key-name" title="${this._esc(k.key)}">${this._esc(k.key.length > 40 ? k.key.substring(0, 37) + '...' : k.key)}</span>
+        <span class="key-name" title="${_esc(k.key)}">${_esc(k.key.length > 40 ? k.key.substring(0, 37) + '...' : k.key)}</span>
         <span class="key-size">${k.sizeKB} KB</span>
-        <button class="btn-sm btn-danger" data-key="${this._esc(k.key)}" title="${t.deleteKey}">\u2715</button>
+        <button class="btn-sm btn-danger" data-key="${_esc(k.key)}" title="${t.deleteKey}">\u2715</button>
       </div>
     `).join('');
 
@@ -468,7 +469,7 @@ class HAPurgeCache extends HTMLElement {
     const typeClass = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : 'log-info';
     const entry = document.createElement('div');
     entry.className = `log-entry ${typeClass}`;
-    entry.innerHTML = `<span class="log-time">${time}</span> ${msg}`;
+    entry.innerHTML = `<span class="log-time">${time}</span> ${this._esc(msg)}`;
     logEl.prepend(entry);
   }
 

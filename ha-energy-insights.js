@@ -2,7 +2,7 @@
 'use strict';
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-energy-insights] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 /**
  * HA Energy Insights - Bento Light Mode Panel Tool
@@ -183,7 +183,7 @@ class HAEnergyInsights extends HTMLElement {
     const now = Date.now();
     if (!this._firstHassRender) {
       this._firstHassRender = true;
-      this._activeTab = localStorage.getItem('ha-energy-insights-active-tab') || 'overview';
+      this._activeTab = localStorage.getItem('ha-tools-energy-insights-active-tab') || 'overview';
       this._loadChartJs();
       this._fetchData();
       this._render();
@@ -204,7 +204,7 @@ class HAEnergyInsights extends HTMLElement {
 
   disconnectedCallback() {
     Object.values(this._charts).forEach(c => {
-      try { c.destroy(); } catch(e) {}
+      try { c.destroy(); } catch(e) { console.debug('[ha-energy-insights] caught:', e); }
     });
     this._charts = {};
   }
@@ -773,7 +773,7 @@ ${this._getStyles()}
       if (!canvas) return;
 
       if (this._charts[this._activeTab]) {
-        try { this._charts[this._activeTab].destroy(); } catch(e) {}
+        try { this._charts[this._activeTab].destroy(); } catch(e) { console.debug('[ha-energy-insights] caught:', e); }
       }
 
       const primaryColor = getComputedStyle(this).getPropertyValue('--bento-primary').trim() || '#4A90D9';
@@ -851,7 +851,7 @@ ${this._getStyles()}
     shadow.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
-        localStorage.setItem('ha-energy-insights-active-tab', this._activeTab);
+        localStorage.setItem('ha-tools-energy-insights-active-tab', this._activeTab);
         history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         // Update tab content only (no full DOM rebuild)
         this._updateContent();

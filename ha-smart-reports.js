@@ -1,8 +1,11 @@
 (function() {
 'use strict';
 
+// XSS protection helper (reuse global from panel, fallback for standalone)
+const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-smart-reports] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 /**
  * Home Assistant Smart Reports Card
@@ -103,12 +106,12 @@ class HASmartReports extends HTMLElement {
     };
     // Load persisted UI state
     try {
-      const _saved = localStorage.getItem('ha-smart-reports-settings');
+      const _saved = localStorage.getItem('ha-tools-smart-reports-settings');
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-smart-reports] caught:', e); }
   }
 
   getCardSize() { return 5; }
@@ -506,7 +509,7 @@ canvas {
       
         <div class="card">
           <div class="card-header">
-            <h2>${this._config.title}</h2>
+            <h2>${_esc(this._config.title || '')}</h2>
             <select class="period-select" id="periodSelect">
               <option value="1d">Today</option>
               <option value="7d" selected>Last 7 days</option>
@@ -537,7 +540,7 @@ canvas {
       tab.addEventListener('click', () => {
         this._activeTab = tab.dataset.tab;
         history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
-        try { localStorage.setItem('ha-smart-reports-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+        try { localStorage.setItem('ha-tools-smart-reports-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) { console.debug('[ha-smart-reports] caught:', e); }
         this.shadowRoot.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this._updateData();
@@ -657,8 +660,8 @@ canvas {
         </div>
         <div class="stat-card">
           <div class="stat-value" style="color:var(--bento-primary)">${cost.toFixed(2)}</div>
-          <div class="stat-label">${this._config.currency} Cost</div>
-          <div class="stat-trend" style="font-size:11px;color:var(--bento-text-muted)">@ ${this._config.energy_price} ${this._config.currency}/kWh</div>
+          <div class="stat-label">${_esc(this._config.currency || '')} Cost</div>
+          <div class="stat-trend" style="font-size:11px;color:var(--bento-text-muted)">@ ${_esc(this._config.energy_price || '')} ${_esc(this._config.currency || '')}/kWh</div>
         </div>
         <div class="stat-card">
           <div class="stat-value" style="color:var(--bento-success)">${sensors.length}</div>

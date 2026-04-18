@@ -5,7 +5,7 @@
 const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-frigate-privacy] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 
 class HaFrigatePrivacy extends HTMLElement {
@@ -477,7 +477,7 @@ class HaFrigatePrivacy extends HTMLElement {
     if (!supported && !this._unsupportedWarningShown) {
       this._unsupportedWarningShown = true;
       console.error('[Frigate Privacy] ' + reason);
-      try { this._showToast && this._showToast('\u26A0\uFE0F ' + reason, 'error'); } catch(_) {}
+      try { this._showToast && this._showToast('\u26A0\uFE0F ' + reason, 'error'); } catch(_) { console.debug('[ha-frigate-privacy] caught:', e); }
       // Persistent notification so user sees it even if toast is missed
       try {
         this._hass.callService('persistent_notification', 'create', {
@@ -485,7 +485,7 @@ class HaFrigatePrivacy extends HTMLElement {
           title: '\u26A0\uFE0F Frigate Privacy \u2014 niewspierana wersja',
           message: reason + '\n\nZaktualizuj Frigate lub zmie\u0144 konfiguracj\u0119.'
         });
-      } catch(_) {}
+      } catch(_) { console.debug('[ha-frigate-privacy] caught:', e); }
     }
     return { supported: supported, reason: reason, version: version };
   }
@@ -503,7 +503,7 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   _saveSchedules() {
-    try { localStorage.setItem(this._storageKey('schedules'), JSON.stringify(this._schedules)); } catch(e) {}
+    try { localStorage.setItem(this._storageKey('schedules'), JSON.stringify(this._schedules)); } catch(e) { console.debug('[ha-frigate-privacy] caught:', e); }
     if (window._haToolsPersistence && this._hass) {
       window._haToolsPersistence.setHass(this._hass);
       window._haToolsPersistence.save('frigate-privacy-schedules', this._schedules).catch(() => {});
@@ -520,7 +520,7 @@ class HaFrigatePrivacy extends HTMLElement {
   _saveHistory() {
     // Keep max 50 entries
     if (this._history.length > 50) this._history = this._history.slice(-50);
-    try { localStorage.setItem(this._storageKey('history'), JSON.stringify(this._history)); } catch(e) {}
+    try { localStorage.setItem(this._storageKey('history'), JSON.stringify(this._history)); } catch(e) { console.debug('[ha-frigate-privacy] caught:', e); }
     if (window._haToolsPersistence && this._hass) {
       window._haToolsPersistence.setHass(this._hass);
       window._haToolsPersistence.save('frigate-privacy-history', this._history).catch(() => {});
@@ -541,7 +541,7 @@ class HaFrigatePrivacy extends HTMLElement {
 
   _saveNotifySettings() {
     const data = { enabled: this._notifyEnabled, service: this._notifyService, beforeEndMin: this._notifyBeforeEndMin };
-    try { localStorage.setItem(this._storageKey('notify'), JSON.stringify(data)); } catch(e) {}
+    try { localStorage.setItem(this._storageKey('notify'), JSON.stringify(data)); } catch(e) { console.debug('[ha-frigate-privacy] caught:', e); }
     if (window._haToolsPersistence && this._hass) {
       window._haToolsPersistence.setHass(this._hass);
       window._haToolsPersistence.save('frigate-privacy-notify', data).catch(() => {});
@@ -557,7 +557,7 @@ class HaFrigatePrivacy extends HTMLElement {
       addonId: this._config?.frigate_addon_id || 'ccab4aaf_frigate'
     } : null;
     // Save to both localStorage (fast) and HA server (cross-device)
-    try { localStorage.setItem(this._storageKey('active'), data ? JSON.stringify(data) : ''); } catch(e) {}
+    try { localStorage.setItem(this._storageKey('active'), data ? JSON.stringify(data) : ''); } catch(e) { console.debug('[ha-frigate-privacy] caught:', e); }
     if (window._haToolsPersistence && this._hass) {
       window._haToolsPersistence.setHass(this._hass);
       window._haToolsPersistence.save('frigate-privacy-active', data).catch(() => {});
@@ -570,7 +570,7 @@ class HaFrigatePrivacy extends HTMLElement {
     try {
       const raw = localStorage.getItem(this._storageKey('active'));
       if (raw) s = JSON.parse(raw);
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-frigate-privacy] caught:', e); }
 
     // 2. Also try server-side data (async, will update later)
     if (window._haToolsPersistence && this._hass) {
@@ -782,7 +782,7 @@ class HaFrigatePrivacy extends HTMLElement {
         if (existing) {
           await this._hass.callService('automation', 'turn_off', { entity_id: 'automation.' + automationId });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[ha-frigate-privacy] caught:', e); }
       return;
     }
     // Create/update HA automation for this schedule
@@ -864,7 +864,7 @@ class HaFrigatePrivacy extends HTMLElement {
     if (toggledCount === 0) {
       console.error('[Frigate Privacy] No Frigate switches found for cameras: ' + camIds.join(', ') +
         '. Expected entities like switch.{name}_enabled / _detect / _recordings. Check entity naming.');
-      try { this._showToast && this._showToast('Frigate Privacy: nie znaleziono switchy dla kamer (' + camIds.join(', ') + ')', 'error'); } catch(_) {}
+      try { this._showToast && this._showToast('Frigate Privacy: nie znaleziono switchy dla kamer (' + camIds.join(', ') + ')', 'error'); } catch(_) { console.debug('[ha-frigate-privacy] caught:', e); }
     } else if (missingPerCam.length) {
       console.warn('[Frigate Privacy] No switches found for: ' + missingPerCam.join(', '));
     } else {
@@ -881,7 +881,7 @@ class HaFrigatePrivacy extends HTMLElement {
     if (this._frigateSupported === false) {
       const msg = this._frigateUnsupportedReason || 'Niewspierana wersja Frigate';
       console.error('[Frigate Privacy] Pause blocked: ' + msg);
-      try { this._showToast && this._showToast('\u26A0\uFE0F ' + msg, 'error'); } catch(_) {}
+      try { this._showToast && this._showToast('\u26A0\uFE0F ' + msg, 'error'); } catch(_) { console.debug('[ha-frigate-privacy] caught:', e); }
       return;
     }
     const addonId = this._config.frigate_addon_id || 'ccab4aaf_frigate';

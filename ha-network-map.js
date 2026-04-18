@@ -1,6 +1,9 @@
 (function() {
 'use strict';
 
+// XSS protection helper
+const _esc = window._haToolsEsc || ((s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
+
 class HaNetworkMap extends HTMLElement {
   constructor() {
     super();
@@ -185,7 +188,7 @@ class HaNetworkMap extends HTMLElement {
   _saveSubnets() {
     try {
       localStorage.setItem('ha-tools-net-subnets', JSON.stringify(this._subnets));
-    } catch (e) {}
+    } catch (e) { console.debug('[ha-network-map] caught:', e); }
   }
 
   _loadBindings() {
@@ -200,7 +203,7 @@ class HaNetworkMap extends HTMLElement {
   _saveBindings() {
     try {
       localStorage.setItem('ha-tools-net-bindings', JSON.stringify(this._bindings));
-    } catch (e) {}
+    } catch (e) { console.debug('[ha-network-map] caught:', e); }
   }
 
   _detectDefaultSubnet() {
@@ -215,7 +218,7 @@ class HaNetworkMap extends HTMLElement {
       if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
         return host.split('.').slice(0, 3).join('.');
       }
-    } catch (e) {}
+    } catch (e) { console.debug('[ha-network-map] caught:', e); }
     return '192.168.1';
   }
 
@@ -291,7 +294,7 @@ class HaNetworkMap extends HTMLElement {
         });
         clearTimeout(timeoutId);
         return true;
-      } catch (e) {}
+      } catch (e) { console.debug('[ha-network-map] caught:', e); }
     }
     return false;
   }
@@ -300,7 +303,7 @@ class HaNetworkMap extends HTMLElement {
     try {
       const data = { results: this._scanResults, time: this._lastScanTime };
       localStorage.setItem('ha-tools-net-scan', JSON.stringify(data));
-    } catch (e) {}
+    } catch (e) { console.debug('[ha-network-map] caught:', e); }
   }
 
   _cat(name, attr) {
@@ -669,9 +672,9 @@ class HaNetworkMap extends HTMLElement {
         const device = this.devices.find(d => d.ip === key || d.name === key);
         const devName = device ? device.name : key;
         h += '<div class="tree-item">' +
-          '<span class="tree-item-name">' + devName + '</span>' +
-          '<span style="color:var(--bento-text-secondary);flex:1">' + entityId + '</span>' +
-          '<button class="rb" style="font-size:11px" data-unbind="' + key + '">✕</button>' +
+          '<span class="tree-item-name">' + _esc(devName) + '</span>' +
+          '<span style="color:var(--bento-text-secondary);flex:1">' + _esc(entityId) + '</span>' +
+          '<button class="rb" style="font-size:11px" data-unbind="' + _esc(key) + '">✕</button>' +
           '</div>';
       });
 
@@ -1038,11 +1041,11 @@ class HaNetworkMapEditor extends HTMLElement {
       <h3>Network Map</h3>
       <div>
         <label>Title</label>
-        <input type="text" id="cf_title" value="${this._config?.title || 'Network Map'}">
+        <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Network Map')}">
       </div>
       <div>
         <label>Router IP</label>
-        <input type="text" id="cf_router_ip" value="${this._config?.router_ip || '192.168.1.1'}">
+        <input type="text" id="cf_router_ip" value="${_esc(this._config?.router_ip || '192.168.1.1')}">
       </div>
     `;
 

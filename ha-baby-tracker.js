@@ -5,7 +5,7 @@
 const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-baby-tracker] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 
 class HaBabyTracker extends HTMLElement {
@@ -154,7 +154,7 @@ class HaBabyTracker extends HTMLElement {
   }
 
   // --- localStorage persistence ---
-  _storageKey() { return 'ha-baby-tracker-' + this.selectedBaby; }
+  _storageKey() { return 'ha-tools-baby-tracker-' + this.selectedBaby; }
 
   _startAutoSave() {
     if (this._autoSaveTimer) return;
@@ -229,7 +229,7 @@ class HaBabyTracker extends HTMLElement {
     } catch (e) { console.warn('Baby and Lactation Tracker: load failed', e); }
   }
 
-  _childrenKey() { return 'ha-baby-tracker-children'; }
+  _childrenKey() { return 'ha-tools-baby-tracker-children'; }
 
   _loadChildren() {
     try {
@@ -251,7 +251,7 @@ class HaBabyTracker extends HTMLElement {
   _removeChild(idx) {
     if (this.babies.length <= 1) return;
     this.babies.splice(idx, 1);
-    localStorage.removeItem('ha-baby-tracker-' + idx);
+    localStorage.removeItem('ha-tools-baby-tracker-' + idx);
     if (this.selectedBaby >= this.babies.length) this.selectedBaby = this.babies.length - 1;
     this._saveChildren();
     this._loadData();
@@ -1656,7 +1656,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     // Tip banner dismiss
     const _tipB = this.shadowRoot.querySelector('#tip-banner');
     if (_tipB) {
-      const _tipV = 'baby-tracker-tips-v3.0.0';
+      const _tipV = 'ha-tools-baby-tracker-tips-v3.0.0';
       if (localStorage.getItem(_tipV) === 'dismissed') {
         _tipB.classList.add('hidden');
       }

@@ -46,9 +46,9 @@ class HAEntityRenamer extends HTMLElement {
     } catch (e) {
       // Fallback: localStorage as backup
       try {
-        const stored = localStorage.getItem('ha-entity-renamer-history');
+        const stored = localStorage.getItem('ha-tools-entity-renamer-history');
         if (stored) this._renameLog = JSON.parse(stored);
-      } catch (e2) {}
+      } catch (e2) { console.debug('[ha-entity-renamer] caught:', e); }
     }
   }
 
@@ -57,9 +57,9 @@ class HAEntityRenamer extends HTMLElement {
       if (window._haToolsPersistence?.save) {
         window._haToolsPersistence.save('entity-renamer-history', this._renameLog);
       } else {
-        localStorage.setItem('ha-entity-renamer-history', JSON.stringify(this._renameLog));
+        localStorage.setItem('ha-tools-entity-renamer-history', JSON.stringify(this._renameLog));
       }
-    } catch (e) {}
+    } catch (e) { console.debug('[ha-entity-renamer] caught:', e); }
   }
 
   get _t() {
@@ -318,7 +318,7 @@ class HAEntityRenamer extends HTMLElement {
           }
         }
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-entity-renamer] caught:', e); }
 
     this._impactResults = impact;
     this._loading = false;
@@ -335,13 +335,13 @@ class HAEntityRenamer extends HTMLElement {
       try {
         const defCfg = await this._hass.callWS({ type: 'lovelace/config', force: false });
         configs.push({ url_path: 'default', title: 'Default', config: defCfg });
-      } catch(e) {}
+      } catch(e) { console.debug('[ha-entity-renamer] caught:', e); }
       // Other dashboards
       for (const dash of dashboards) {
         try {
           const cfg = await this._hass.callWS({ type: 'lovelace/config', url_path: dash.url_path });
           configs.push({ url_path: dash.url_path, title: dash.title || dash.url_path, config: cfg });
-        } catch(e) {}
+        } catch(e) { console.debug('[ha-entity-renamer] caught:', e); }
       }
       return configs;
     } catch(e) { return []; }
@@ -395,7 +395,7 @@ class HAEntityRenamer extends HTMLElement {
           }
         }
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-entity-renamer] caught:', e); }
 
     const results = [];
     const ts = new Date().toLocaleTimeString();
@@ -648,7 +648,7 @@ class HAEntityRenamer extends HTMLElement {
       <h1>📱️ ${t.deviceEntityRenamer}</h1>
       <div class="subtitle">${this._devices.length} ${t.devices.toLowerCase()} • ${this._entities.length} ${t.entities.toLowerCase()}</div>
 
-      ${this._message ? `<div class="msg ${this._message.type}">${this._loading ? '<span class="spinner"></span> ' : ''}${this._message.text}</div>` : ''}
+      ${this._message ? `<div class="msg ${this._message.type}">${this._loading ? '<span class="spinner"></span> ' : ''}${_esc(this._message.text || '')}</div>` : ''}
 
       <div class="tabs">
         <button class="tab-button ${this._activeTab === 'devices' ? 'active' : ''}" data-tab="devices">📱 ${t.devices}</button>

@@ -5,7 +5,7 @@
 const _esc = window._haToolsEsc || (s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-device-health] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 class HADeviceHealth extends HTMLElement {
   constructor() {
@@ -137,12 +137,12 @@ class HADeviceHealth extends HTMLElement {
     };
     // Load persisted UI state
     try {
-      const _saved = localStorage.getItem('ha-device-health-settings');
+      const _saved = localStorage.getItem('ha-tools-device-health-settings');
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-device-health] caught:', e); }
   }
 
   _computeStateHash() {
@@ -1494,7 +1494,7 @@ ${style}
     tabs.forEach((tab) => {
       tab.addEventListener("click", (e) => {
         this._activeTab = e.target.dataset.tab;
-        try { localStorage.setItem('ha-device-health-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+        try { localStorage.setItem('ha-tools-device-health-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) { console.debug('[ha-device-health] caught:', e); }
         history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
         this._render();
       });

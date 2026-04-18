@@ -2,7 +2,7 @@
 'use strict';
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-energy-optimizer] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 class HaEnergyOptimizer extends HTMLElement {
   constructor() {
@@ -96,7 +96,7 @@ class HaEnergyOptimizer extends HTMLElement {
     this._config = { ...config };
     // Load saved rate settings from localStorage
     try {
-      const saved = JSON.parse(localStorage.getItem('ha-energy-optimizer-settings') || '{}');
+      const saved = JSON.parse(localStorage.getItem('ha-tools-energy-optimizer-settings') || '{}');
       if (saved.energy_tariff_mode) this._config.energy_tariff_mode = saved.energy_tariff_mode;
       if (saved.energy_price) this._config.energy_price = saved.energy_price;
       if (saved.energy_price_day) this._config.energy_price_day = saved.energy_price_day;
@@ -104,7 +104,7 @@ class HaEnergyOptimizer extends HTMLElement {
       if (saved.energy_day_hour_start) this._config.energy_day_hour_start = saved.energy_day_hour_start;
       if (saved.energy_night_hour_start) this._config.energy_night_hour_start = saved.energy_night_hour_start;
       if (saved.currency) this._config.currency = saved.currency;
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-energy-optimizer] caught:', e); }
     this._domBuilt = false;
     this._generateFallbackData();
     this._generateRecommendations();
@@ -1124,13 +1124,13 @@ class HaEnergyOptimizer extends HTMLElement {
           currency: currency
         };
         try {
-          localStorage.setItem('ha-energy-optimizer-settings', JSON.stringify({
+          localStorage.setItem('ha-tools-energy-optimizer-settings', JSON.stringify({
             energy_tariff_mode: mode, energy_price: price,
             energy_price_day: priceDay, energy_price_night: priceNight,
             energy_day_hour_start: dayStart, energy_night_hour_start: nightStart,
             currency: currency
           }));
-        } catch(e) {}
+        } catch(e) { console.debug('[ha-energy-optimizer] caught:', e); }
         const overlay = sr.querySelector('#settings-overlay');
         if (overlay) overlay.classList.remove('active');
         this._domBuilt = false;

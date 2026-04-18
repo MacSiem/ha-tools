@@ -5,7 +5,7 @@
 const _esc = window._haToolsEsc || (s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-backup-manager] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 class HaBackupManager extends HTMLElement {
   constructor() {
@@ -59,7 +59,7 @@ class HaBackupManager extends HTMLElement {
         if (slug.includes('remote_backup') || slug.includes('remote-backup') || name.includes('remote backup'))
           this._installedAddons['remote_backup'] = { name: a.name, state: a.state };
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-backup-manager] caught:', e); }
     // Check config entries for integrations
     try {
       const entries = await this._hass.callWS({ type: 'config_entries/get' });
@@ -67,7 +67,7 @@ class HaBackupManager extends HTMLElement {
         if (e.domain === 'synology_dsm') this._installedIntegrations['synology'] = { title: e.title, state: e.state };
         if (e.domain === 'cloud') this._installedIntegrations['nabu_casa'] = { title: e.title, state: e.state };
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-backup-manager] caught:', e); }
     this._updateUI();
   }
 
@@ -128,12 +128,12 @@ class HaBackupManager extends HTMLElement {
     this._config = config;
     // Load persisted UI state
     try {
-      const _saved = localStorage.getItem('ha-backup-manager-settings');
+      const _saved = localStorage.getItem('ha-tools-backup-manager-settings');
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-backup-manager] caught:', e); }
     this._updateUI();
   }
 
@@ -421,7 +421,7 @@ class HaBackupManager extends HTMLElement {
                   <tbody>
                     ${this._backups.map((backup) => `
                       <tr class="compact-backup-row ${this._selectedBackup?.slug === backup.slug ? 'selected' : ''}"
-                          data-slug="${backup.slug}">
+                          data-slug="${_esc(backup.slug)}">
                         <td class="compact-date">${this._formatDate(backup.date)}</td>
                         <td class="compact-name" title="${_esc(this._sanitizeName(backup.name))}${backup.is_protected ? ' 🔒' : ''}">
                           ${_esc(this._sanitizeName(backup.name))}
@@ -1558,7 +1558,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
 
   _switchTab(tab) {
     this._activeTab = tab;
-    try { localStorage.setItem('ha-backup-manager-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+    try { localStorage.setItem('ha-tools-backup-manager-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) { console.debug('[ha-backup-manager] caught:', e); }
     history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
     this._updateUI();
   }

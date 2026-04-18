@@ -2,7 +2,7 @@
 'use strict';
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-yaml-checker] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 /**
  * HA YAML Checker v3.0
@@ -384,12 +384,12 @@ class HAYamlChecker extends HTMLElement {
     this._config = config
     // Load persisted UI state
     try {
-      const _saved = localStorage.getItem('ha-yaml-checker-settings');
+      const _saved = localStorage.getItem('ha-tools-yaml-checker-settings');
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-yaml-checker] caught:', e); }
   }
 
   getCardSize() { return 8; }
@@ -1350,7 +1350,7 @@ ${this._css()}
     if (!content) { this._render(); return; }
     this._activeTab = tab;
     history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
-    try { localStorage.setItem('ha-yaml-checker-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) {}
+    try { localStorage.setItem('ha-tools-yaml-checker-settings', JSON.stringify({ _activeTab: this._activeTab })); } catch(e) { console.debug('[ha-yaml-checker] caught:', e); }
     // Update tab buttons
     this.shadowRoot.querySelectorAll('.tab-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === tab);

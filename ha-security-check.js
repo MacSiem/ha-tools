@@ -2,7 +2,7 @@
 'use strict';
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-security-check] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
 
@@ -564,7 +564,7 @@ class HASecurityCheck extends HTMLElement {
       try {
         const netResp = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/network/info', method: 'get' });
         networkInfo = netResp?.interfaces || netResp?.data?.interfaces || [];
-      } catch(ne) {}
+      } catch(ne) { console.debug('[ha-security-check] caught:', e); }
       if (networkInfo.length === 0) {
         try {
           const netWS = await this._hass.callWS({ type: 'network' });
@@ -575,12 +575,12 @@ class HASecurityCheck extends HTMLElement {
               ipv4: { address: a.ipv4 ? a.ipv4.map(ip => ip.address + '/' + ip.network_prefix) : [], method: a.auto ? 'auto' : 'manual', gateway: null, nameservers: [] }
             }));
           }
-        } catch(ne2) {}
+        } catch(ne2) { console.debug('[ha-security-check] caught:', e); }
       }
       try {
         const infoResp = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/info', method: 'get' });
         hostInfo = infoResp || null;
-      } catch(ne3) {}
+      } catch(ne3) { console.debug('[ha-security-check] caught:', e); }
 
       // Fetch config entries (integrations)
       let cfgEntries = [];
@@ -1206,7 +1206,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       
         <div class="card">
           <div class="card-header">
-            <h2>${this._config.title}</h2>
+            <h2>${_esc(this._config.title || '')}</h2>
             <!-- Refresh handled by panel toolbar -->
           </div>
           <div class="tabs">

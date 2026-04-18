@@ -5,7 +5,7 @@
 const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-data-exporter] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 
 /**
@@ -58,11 +58,11 @@ class HADataExporter extends HTMLElement {
     try {
       const raw = localStorage.getItem(this._settingsKey());
       if (raw) this._snapshotSettings = { ...this._snapshotSettings, ...JSON.parse(raw) };
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
   }
 
   _saveSnapshotSettings() {
-    try { localStorage.setItem(this._settingsKey(), JSON.stringify(this._snapshotSettings)); } catch(e) {}
+    try { localStorage.setItem(this._settingsKey(), JSON.stringify(this._snapshotSettings)); } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
   }
 
   _loadSnapshots() {
@@ -79,7 +79,7 @@ class HADataExporter extends HTMLElement {
       localStorage.setItem(this._snapshotKey(), JSON.stringify(this._snapshots));
     } catch(e) { /* storage full - trim more */
       this._snapshots = this._snapshots.slice(-10);
-      try { localStorage.setItem(this._snapshotKey(), JSON.stringify(this._snapshots)); } catch(e2) {}
+      try { localStorage.setItem(this._snapshotKey(), JSON.stringify(this._snapshots)); } catch(e2) { console.debug('[ha-data-exporter] caught:', e); }
     }
   }
 
@@ -1021,7 +1021,7 @@ canvas {
       try {
         const root = this.getRootNode();
         if (root && root.host && root.host.tagName === 'HA-TOOLS-PANEL') panel = root.host;
-      } catch (e) {}
+      } catch (e) { console.debug('[ha-data-exporter] caught:', e); }
       if (!panel) panel = document.querySelector('ha-tools-panel');
       if (panel && panel._navigateToSettings) {
         panel._navigateToSettings('data-exporter');
@@ -1172,12 +1172,12 @@ canvas {
         const attrKeys = Object.keys(attrs).filter(k => k !== 'friendly_name');
         const attrCount = attrKeys.length;
         tr.innerHTML = `
-          <td class="checkbox-cell"><input type="checkbox" data-entity="${ent.entity_id}" ${checked} /></td>
-          <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes" aria-label="Show attributes">▶</button></td>
+          <td class="checkbox-cell"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" ${checked} /></td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="Show attributes" aria-label="Show attributes">▶</button></td>
           <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
           <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
           <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
-          <td>${ent.domain}</td>
+          <td>${_esc(ent.domain)}</td>
           <td><span class="attr-count">${attrCount}</span></td>
         `;
         tr.querySelector('input[type=checkbox]').addEventListener('change', (e) => {
@@ -1208,7 +1208,7 @@ canvas {
             const isComplex = typeof v === 'object' && v !== null;
             const displayVal = isComplex ? JSON.stringify(v) : String(v);
             const valClass = isComplex ? 'attr-val complex' : 'attr-val';
-            attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${_esc(displayVal).replace(/"/g, '&quot;')}">${_esc(displayVal)}</span></div>`;
+            attrHtml += `<div class="attr-item"><span class="attr-key">${_esc(k)}</span><span class="${valClass}" title="${_esc(displayVal).replace(/"/g, '&quot;')}">${_esc(displayVal)}</span></div>`;
           });
         }
         attrHtml += '</div>';
@@ -1439,9 +1439,9 @@ canvas {
       const url = '/api/history/period/' + start + '?filter_entity_id=' + entityId + '&end_time=' + end + '&minimal_response&no_attributes';
       // Get auth token - try multiple paths
       let token = '';
-      try { token = this._hass.auth.data.access_token; } catch(e) {}
-      if (!token) try { token = this._hass.auth._data.access_token; } catch(e) {}
-      if (!token) try { token = this._hass.auth.accessToken; } catch(e) {}
+      try { token = this._hass.auth.data.access_token; } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
+      if (!token) try { token = this._hass.auth._data.access_token; } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
+      if (!token) try { token = this._hass.auth.accessToken; } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
       const headers = token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
       const resp = await fetch(url, { headers });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);

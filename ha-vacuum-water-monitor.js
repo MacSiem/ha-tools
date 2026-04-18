@@ -5,7 +5,7 @@
 const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
 
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
-window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) {} }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-vacuum-water-monitor] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
 
 /**
@@ -548,7 +548,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     };
 
     this._activeTab = this._config.default_tab || 'water';
-    try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
+    try { localStorage.setItem('ha-tools-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) { console.debug('[ha-vacuum-water-monitor] caught:', e); }
     this._loadMaintenanceItems();
     this._loadUserDevices();
     this._loadRefillConfig();
@@ -629,7 +629,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     this._saveUserDevices();
   }
   _refillConfigKey() {
-    return 'ha-vwm-refill-config-' + (this._config.title || 'default').replace(/\s+/g, '_');
+    return 'ha-tools-vwm-refill-config-' + (this._config.title || 'default').replace(/\s+/g, '_');
   }
 
   _loadRefillConfig() {
@@ -2094,7 +2094,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
       btn.addEventListener('click', () => {
         this._activeTab = btn.dataset.tab;
         history.replaceState(null, '', location.pathname + '#' + this._toolId + '/' + this._activeTab);
-        try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
+        try { localStorage.setItem('ha-tools-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) { console.debug('[ha-vacuum-water-monitor] caught:', e); }
         this._render();
       });
     });
@@ -2103,7 +2103,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
     sr.querySelectorAll('.dtab').forEach(btn => {
       btn.addEventListener('click', () => {
         this._activeDeviceIdx = parseInt(btn.dataset.didx) || 0;
-        try { localStorage.setItem('ha-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) {}
+        try { localStorage.setItem('ha-tools-vacuum-water-monitor-settings', JSON.stringify({ _activeTab: this._activeTab, _activeDeviceIdx: this._activeDeviceIdx })); } catch(e) { console.debug('[ha-vacuum-water-monitor] caught:', e); }
         this._render();
       });
     });
@@ -2162,13 +2162,13 @@ class HAVacuumWaterMonitor extends HTMLElement {
     if (refillToggle) {
       const body = sr.querySelector('#refill-methods-body');
       const arrow = sr.querySelector('#refill-methods-arrow');
-      const wasOpen = localStorage.getItem('ha-vwm-refill-expanded') === 'open';
+      const wasOpen = localStorage.getItem('ha-tools-vwm-refill-expanded') === 'open';
       if (wasOpen && body) { body.style.display = 'block'; if (arrow) arrow.style.transform = 'rotate(90deg)'; }
       refillToggle.addEventListener('click', () => {
         const isOpen = body.style.display !== 'none';
         body.style.display = isOpen ? 'none' : 'block';
         arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
-        localStorage.setItem('ha-vwm-refill-expanded', isOpen ? 'closed' : 'open');
+        localStorage.setItem('ha-tools-vwm-refill-expanded', isOpen ? 'closed' : 'open');
       });
     }
 
@@ -2354,13 +2354,13 @@ class HaVacuumWaterMonitorEditor extends HTMLElement {
     this._config = { ...config };
     // Load persisted UI state
     try {
-      const _saved = localStorage.getItem('ha-vacuum-water-monitor-settings');
+      const _saved = localStorage.getItem('ha-tools-vacuum-water-monitor-settings');
       if (_saved) {
         const _s = JSON.parse(_saved);
         if (_s._activeTab) this._activeTab = _s._activeTab;
         if (_s._activeDeviceIdx !== undefined) this._activeDeviceIdx = _s._activeDeviceIdx;
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-vacuum-water-monitor] caught:', e); }
     this._render();
   }
   _dispatch() {
