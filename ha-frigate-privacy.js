@@ -404,9 +404,12 @@ class HaFrigatePrivacy extends HTMLElement {
   }
 
   // --- Frigate version check ---
-  // Minimum supported Frigate version. Below 0.14 the master switch
-  // `switch.{camera}_enabled` does not exist and the privacy toggle cannot
-  // fully disable the camera (detection/stream may keep running).
+  // Minimum supported Frigate version. Below 0.14 the per-camera switches
+  // (_detect/_recordings/_snapshots/_motion/_enabled) don't exist as a stable
+  // surface, so the privacy toggle cannot reliably disable the camera.
+  // Frigate 0.17 dropped _enabled and renamed _audio → _audio_detection, and
+  // added _review_alerts/_review_detections; the tool toggles the union of
+  // both surfaces and skips entities that don't exist.
   static get MIN_FRIGATE_VERSION() { return { major: 0, minor: 14 }; }
   static get TESTED_FRIGATE_VERSION() { return '0.17.1'; }
 
@@ -843,11 +846,14 @@ class HaFrigatePrivacy extends HTMLElement {
     for (const camId of camIds) {
       const camName = camId.replace('camera.', '');
       let camToggled = 0;
-      // _enabled is the Frigate 0.14+ master switch — toggling this alone fully disables
-      // the camera in Frigate (no detection, no recording, no snapshots, no stream processing).
-      // Kept first so if it exists, it does the heavy lifting. The others remain for backwards
-      // compatibility with older Frigate versions and for partial-pause scenarios.
-      for (const suffix of ['_enabled', '_detect', '_recordings', '_snapshots', '_motion', '_audio']) {
+      // Switch surface across Frigate versions:
+      //   0.14-0.16: _enabled (master) + _detect/_recordings/_snapshots/_motion/_audio
+      //   0.17+   : _detect/_recordings/_snapshots/_motion/_audio_detection
+      //             + _review_alerts/_review_detections (no _enabled, no _audio)
+      // We try the union; missing entities are silently skipped by the `if (states[id])` check.
+      // _enabled stays first because on older Frigate it's the single master that disables
+      // everything in one call (cheaper + atomic). On 0.17+ it doesn't exist, so the rest fire.
+      for (const suffix of ['_enabled', '_detect', '_recordings', '_snapshots', '_motion', '_audio', '_audio_detection', '_review_alerts', '_review_detections']) {
         const switchId = 'switch.' + camName + suffix;
         if (this._hass.states[switchId]) {
           try {
@@ -863,7 +869,8 @@ class HaFrigatePrivacy extends HTMLElement {
     }
     if (toggledCount === 0) {
       console.error('[Frigate Privacy] No Frigate switches found for cameras: ' + camIds.join(', ') +
-        '. Expected entities like switch.{name}_enabled / _detect / _recordings. Check entity naming.');
+        '. Expected entities like switch.{name}_detect / _recordings / _snapshots / _motion ' +
+        '(+ _audio_detection / _review_alerts / _review_detections on 0.17+). Check entity naming.');
       try { this._showToast && this._showToast('Frigate Privacy: nie znaleziono switchy dla kamer (' + camIds.join(', ') + ')', 'error'); } catch(_) { console.debug('[ha-frigate-privacy] caught:', e); }
     } else if (missingPerCam.length) {
       console.warn('[Frigate Privacy] No switches found for: ' + missingPerCam.join(', '));
