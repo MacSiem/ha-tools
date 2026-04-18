@@ -6,8 +6,6 @@ A comprehensive Home Assistant custom panel featuring 22 tools for automation, d
 [![Tools](https://img.shields.io/badge/Tools-22-success.svg)](#features)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-![HA Tools Home](screenshots/home.jpg)
-
 ## Installation
 
 ### HACS (Recommended)
@@ -384,25 +382,6 @@ Automated Home Assistant status reports.
   - System health summary
 
 ---
-
-## Screenshots Gallery
-
-| | |
-|---|---|
-| ![Home](screenshots/home.jpg) | ![Trace Viewer](screenshots/trace-viewer.jpg) |
-| **Home** | **Trace Viewer** |
-| ![Automation Analyzer](screenshots/automation-analyzer.jpg) | ![Backup Manager](screenshots/backup-manager.jpg) |
-| **Automation Analyzer** | **Backup Manager** |
-| ![Energy Optimizer](screenshots/energy-optimizer.jpg) | ![Storage Monitor](screenshots/storage-monitor.jpg) |
-| **Energy Optimizer** | **Storage Monitor** |
-| ![Security Check](screenshots/security-check.jpg) | ![Network Map](screenshots/network-map.jpg) |
-| **Security Check** | **Network Map** |
-| ![Baby Tracker](screenshots/baby-tracker.jpg) | ![Vacuum Water Monitor](screenshots/vacuum-water-monitor.jpg) |
-| **Baby Tracker** | **Vacuum Water Monitor** |
-| ![Sentence Manager](screenshots/sentence-manager.jpg) | ![Encoding Fixer](screenshots/encoding-fixer.jpg) |
-| **Sentence Manager** | **Encoding Fixer** |
-| ![Frigate Privacy](screenshots/frigate-privacy.jpg) | |
-| **Frigate Privacy** | |
 
 ---
 

@@ -48,6 +48,15 @@ ha-entity-renamer-temp.js
 cowork-delegation-prompt.md
 cleanup.bat
 
+# Gemma audit — local-only infrastructure (results can be committed)
+audit-gemma/run-audit.sh
+audit-gemma/prompts/
+audit-gemma/context_pack.txt
+audit-gemma/extracts/
+audit-gemma/raw/
+audit-gemma/run.log
+audit-gemma/extractor.py
+
 # Claude/automation scripts
 run-*.cmd
 run-*.ps1
