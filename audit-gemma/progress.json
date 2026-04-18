@@ -1,0 +1,315 @@
+{
+  "model": "gemma3:12b",
+  "num_ctx": 49152,
+  "pass1": {
+    "ha-automation-analyzer.js": {
+      "done": true,
+      "time": "2026-04-17 18:19:15",
+      "tokens": 626
+    },
+    "ha-baby-tracker.js": {
+      "tokens": 700,
+      "rescued": true,
+      "done": true,
+      "time": "2026-04-17 20:18:29"
+    },
+    "ha-backup-manager.js": {
+      "done": true,
+      "time": "2026-04-17 20:34:47",
+      "tokens": 1016
+    },
+    "ha-chore-tracker.js": {
+      "done": true,
+      "time": "2026-04-17 20:41:26",
+      "tokens": 930
+    },
+    "ha-data-exporter.js": {
+      "done": true,
+      "time": "2026-04-17 20:46:57",
+      "tokens": 979
+    },
+    "ha-device-health.js": {
+      "done": true,
+      "time": "2026-04-17 21:09:37",
+      "tokens": 1207
+    },
+    "ha-encoding-fixer.js": {
+      "done": true,
+      "time": "2026-04-17 21:19:15",
+      "tokens": 1016
+    },
+    "ha-energy-email.js": {
+      "done": true,
+      "time": "2026-04-17 21:28:44",
+      "tokens": 980
+    },
+    "ha-energy-insights.js": {
+      "done": true,
+      "time": "2026-04-17 21:40:18",
+      "tokens": 3112
+    },
+    "ha-energy-optimizer.js": {
+      "done": true,
+      "time": "2026-04-17 21:47:33",
+      "tokens": 924
+    },
+    "ha-entity-renamer.js": {
+      "done": true,
+      "time": "2026-04-17 21:52:29",
+      "tokens": 924
+    },
+    "ha-frigate-privacy.js": {
+      "done": true,
+      "time": "2026-04-17 22:04:04",
+      "tokens": 2777
+    },
+    "ha-log-email.js": {
+      "done": true,
+      "time": "2026-04-17 22:09:52",
+      "tokens": 981
+    },
+    "ha-network-map.js": {
+      "done": true,
+      "time": "2026-04-17 22:14:54",
+      "tokens": 947
+    },
+    "ha-purge-cache.js": {
+      "done": true,
+      "time": "2026-04-17 22:20:56",
+      "tokens": 1303
+    },
+    "ha-security-check.js": {
+      "done": true,
+      "time": "2026-04-17 22:30:23",
+      "tokens": 835
+    },
+    "ha-sentence-manager.js": {
+      "done": true,
+      "time": "2026-04-17 22:40:31",
+      "tokens": 472
+    },
+    "ha-smart-reports.js": {
+      "done": true,
+      "time": "2026-04-17 22:45:28",
+      "tokens": 1053
+    },
+    "ha-storage-monitor.js": {
+      "done": true,
+      "time": "2026-04-17 22:55:21",
+      "tokens": 1928
+    },
+    "ha-trace-viewer.js": {
+      "done": true,
+      "time": "2026-04-17 23:05:16",
+      "tokens": 1777
+    },
+    "ha-vacuum-water-monitor.js": {
+      "done": true,
+      "time": "2026-04-17 23:17:20",
+      "tokens": 1455
+    },
+    "ha-yaml-checker.js": {
+      "done": true,
+      "time": "2026-04-17 23:24:57",
+      "tokens": 960
+    },
+    "ha-tools-loader.js": {
+      "done": true,
+      "time": "2026-04-17 23:26:53",
+      "tokens": 626
+    },
+    "ha-tools-loader-v3.js": {
+      "done": true,
+      "time": "2026-04-17 23:28:30",
+      "tokens": 508
+    },
+    "ha-tools-stack.js": {
+      "done": true,
+      "time": "2026-04-17 23:30:36",
+      "tokens": 719
+    },
+    "ha-tools-bento.js": {
+      "done": true,
+      "time": "2026-04-17 23:33:36",
+      "tokens": 676
+    },
+    "ha-tools-panel.js": {
+      "done": true,
+      "time": "2026-04-17 23:45:02",
+      "tokens": 1306
+    },
+    "ha-tools-discovery.js": {
+      "done": true,
+      "time": "2026-04-17 23:47:46",
+      "tokens": 660
+    },
+    "ha-entity-renamer-temp.js": {
+      "done": true,
+      "time": "2026-04-17 23:53:08",
+      "tokens": 1256
+    }
+  },
+  "pass2": {
+    "ha-automation-analyzer.js": {
+      "done": true,
+      "time": "2026-04-18 00:37:46",
+      "tokens": 625
+    },
+    "ha-baby-tracker.js": {
+      "done": true,
+      "time": "2026-04-18 00:47:49",
+      "tokens": 909
+    },
+    "ha-backup-manager.js": {
+      "done": true,
+      "time": "2026-04-18 00:57:11",
+      "tokens": 865
+    },
+    "ha-chore-tracker.js": {
+      "done": true,
+      "time": "2026-04-18 01:04:00",
+      "tokens": 885
+    },
+    "ha-data-exporter.js": {
+      "done": true,
+      "time": "2026-04-18 01:08:53",
+      "tokens": 979
+    },
+    "ha-device-health.js": {
+      "done": true,
+      "time": "2026-04-18 01:14:20",
+      "tokens": 1159
+    },
+    "ha-encoding-fixer.js": {
+      "done": true,
+      "time": "2026-04-18 01:22:02",
+      "tokens": 796
+    },
+    "ha-energy-email.js": {
+      "done": true,
+      "time": "2026-04-18 01:29:05",
+      "tokens": 723
+    },
+    "ha-energy-insights.js": {
+      "done": true,
+      "time": "2026-04-18 01:36:24",
+      "tokens": 3163
+    },
+    "ha-energy-optimizer.js": {
+      "done": true,
+      "time": "2026-04-18 01:42:27",
+      "tokens": 944
+    },
+    "ha-entity-renamer.js": {
+      "done": true,
+      "time": "2026-04-18 01:46:41",
+      "tokens": 927
+    },
+    "ha-frigate-privacy.js": {
+      "done": true,
+      "time": "2026-04-18 01:57:21",
+      "tokens": 2868
+    },
+    "ha-log-email.js": {
+      "done": true,
+      "time": "2026-04-18 02:02:03",
+      "tokens": 996
+    },
+    "ha-network-map.js": {
+      "done": true,
+      "time": "2026-04-18 02:06:09",
+      "tokens": 824
+    },
+    "ha-purge-cache.js": {
+      "done": true,
+      "time": "2026-04-18 02:11:22",
+      "tokens": 1252
+    },
+    "ha-security-check.js": {
+      "done": true,
+      "time": "2026-04-18 02:20:10",
+      "tokens": 637
+    },
+    "ha-sentence-manager.js": {
+      "done": true,
+      "time": "2026-04-18 02:30:03",
+      "tokens": 603
+    },
+    "ha-smart-reports.js": {
+      "done": true,
+      "time": "2026-04-18 02:34:43",
+      "tokens": 1075
+    },
+    "ha-storage-monitor.js": {
+      "done": true,
+      "time": "2026-04-18 02:47:37",
+      "tokens": 1933
+    },
+    "ha-trace-viewer.js": {
+      "done": true,
+      "time": "2026-04-18 02:57:43",
+      "tokens": 1787
+    },
+    "ha-vacuum-water-monitor.js": {
+      "done": true,
+      "time": "2026-04-18 03:24:48",
+      "tokens": 7622
+    },
+    "ha-yaml-checker.js": {
+      "done": true,
+      "time": "2026-04-18 03:32:02",
+      "tokens": 1073
+    },
+    "ha-tools-loader.js": {
+      "done": true,
+      "time": "2026-04-18 03:33:34",
+      "tokens": 683
+    },
+    "ha-tools-loader-v3.js": {
+      "done": true,
+      "time": "2026-04-18 03:34:41",
+      "tokens": 505
+    },
+    "ha-tools-stack.js": {
+      "done": true,
+      "time": "2026-04-18 03:36:27",
+      "tokens": 816
+    },
+    "ha-tools-bento.js": {
+      "done": true,
+      "time": "2026-04-18 03:39:00",
+      "tokens": 713
+    },
+    "ha-tools-panel.js": {
+      "done": true,
+      "time": "2026-04-18 03:51:48",
+      "tokens": 1718
+    },
+    "ha-tools-discovery.js": {
+      "done": true,
+      "time": "2026-04-18 03:54:05",
+      "tokens": 664
+    },
+    "ha-entity-renamer-temp.js": {
+      "done": true,
+      "time": "2026-04-18 03:59:17",
+      "tokens": 1289
+    }
+  },
+  "pass3": {
+    "CROSS_CHECK.md": {
+      "done": true,
+      "time": "2026-04-18 04:04:40",
+      "tokens": 2229
+    }
+  },
+  "pass4": {
+    "REAL_ISSUES.md": {
+      "done": true,
+      "time": "2026-04-18 04:24:19",
+      "tokens": 5586
+    }
+  },
+  "status": "completed",
+  "total_tokens": 78801
+}
