@@ -40,8 +40,8 @@ const BRAND_PROFILES = {
     mop_attached_sensor: 'binary_sensor.roborock_s8_maxv_ultra_mop_attached',
     mop_drying_sensor: 'binary_sensor.roborock_s8_maxv_ultra_mop_drying',
     area_sensor: 'sensor.roborock_s8_maxv_ultra_cleaning_area',
-    duration_sensor: 'sensor.roborock_s8_maxv_ultra_cleaning_duration',
-    last_clean_start: 'sensor.roborock_s8_maxv_ultra_last_clean_start',
+    duration_sensor: 'sensor.roborock_s8_maxv_ultra_cleaning_time',
+    last_clean_start: 'sensor.roborock_s8_maxv_ultra_last_clean_begin',
     last_clean_end: 'sensor.roborock_s8_maxv_ultra_last_clean_end',
     charge_sensor: 'sensor.roborock_s8_maxv_ultra_battery',
   },
@@ -81,6 +81,29 @@ const BRAND_PROFILES = {
     water_total_ml: 0,
   },
 };
+
+// Mop wash states — status values that indicate the robot is washing or about to wash its mop
+// Each transition INTO one of these states consumes `wash_volume_ml` of water (default 150 ml)
+const MOP_WASH_STATES = [
+  'washing_the_mop',
+  'washing_the_mop_2',
+  'going_to_wash_the_mop',
+  'back_to_dock_washing_duster',
+  'clean_mop_cleaning',
+  'segment_clean_mop_cleaning',
+  'zoned_clean_mop_cleaning',
+];
+
+// Default water dosing per m² by mop_mode (ml/m²)
+const DEFAULT_USAGE_PER_M2 = { fast: 4, standard: 6, deep: 9 };
+// Default multiplier by mop_intensity (or mop_water_level)
+const DEFAULT_INTENSITY_FACTOR = { low: 0.8, medium: 1.0, high: 1.2, max: 1.3, custom: 1.0, smart_mode: 1.0, custom_water_flow: 1.0 };
+// Default volume (ml) consumed per wash event
+const DEFAULT_WASH_VOLUME_ML = 150;
+// Minimum area delta (m²) that triggers area-based dosing
+const AREA_MIN_DELTA = 0.1;
+// Minimum seconds between automatic resets (debounce)
+const RESET_COOLDOWN_SEC = 60;
 
 // Q1/Q2: Research-based calibration profiles per robot model
 // Water usage (ml/m²) and cleaning efficiency data
@@ -457,6 +480,18 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
+
+    // Auto-add any newly discovered vacuums (first run + future discoveries).
+    // Users can still remove/customise them via Settings tab.
+    try { this._autoAddDiscoveredVacuums(); } catch(e) { console.debug('[VWM] auto-add failed:', e); }
+
+    // Tick standalone water state machine for every device on EVERY hass update
+    // (no 10s debounce here — state events are sparse and we must not miss transitions).
+    try {
+      const devs = this._getDevices();
+      for (const d of devs) this._tickWaterState(d);
+    } catch(e) { console.debug('[VWM] tickWaterState failed:', e); }
+
     const now = Date.now();
     if (!this._firstRender && now - this._lastRenderTime < 10000) {
       if (!this._renderScheduled) {
@@ -628,6 +663,158 @@ class HAVacuumWaterMonitor extends HTMLElement {
     this._userDevices = this._userDevices.filter(d => d.vacuum_entity !== entityId);
     this._saveUserDevices();
   }
+
+  // ── STANDALONE WATER STATE (replaces priv YAML helpers + automations) ───────
+  // When priv helpers (input_number.*_water_used_ml, input_datetime.*_last_water_reset)
+  // are NOT present in HA, we track water usage locally in localStorage and run
+  // the same accounting logic in JS (wash +X ml, area delta × mop_mode × intensity, reset on door/dock).
+
+  _waterStateKey(device) {
+    const vid = (device && device.vacuum_entity) || 'unknown';
+    return 'ha-vwm-water-state-' + vid.replace(/[^a-z0-9_.]/gi, '_');
+  }
+
+  _loadWaterState(device) {
+    try {
+      const raw = localStorage.getItem(this._waterStateKey(device));
+      if (!raw) return this._defaultWaterState();
+      const parsed = JSON.parse(raw);
+      return { ...this._defaultWaterState(), ...parsed };
+    } catch {
+      return this._defaultWaterState();
+    }
+  }
+
+  _saveWaterState(device, state) {
+    try { localStorage.setItem(this._waterStateKey(device), JSON.stringify(state)); } catch {}
+  }
+
+  _defaultWaterState() {
+    return { used_ml: 0, last_reset_iso: null, last_status: null, last_area: null, last_dock_err: null, last_door: null, last_reset_ts: 0 };
+  }
+
+  // Returns true if HA already has the priv helpers for this device (means priv automations run)
+  _hasPrivHelpers(device) {
+    if (!this._hass || !device) return false;
+    const inp = device.water_used_input && this._hass.states[device.water_used_input];
+    return !!inp;
+  }
+
+  // Core state machine — replicates the 3 priv automations in JS
+  _tickWaterState(device) {
+    if (!this._hass || !device || !device.vacuum_entity) return;
+    if (this._hasPrivHelpers(device)) return; // priv automations already handle accounting
+    const state = this._loadWaterState(device);
+    let dirty = false;
+
+    const vac = this._hass.states[device.vacuum_entity];
+    if (!vac) { return; }
+
+    // Status source: explicit sensor if user configured one, else vacuum entity's attribute
+    const statusSensor = device.status_sensor;
+    const currStatus = (statusSensor && this._hass.states[statusSensor])
+      ? this._hass.states[statusSensor].state
+      : (vac.attributes && vac.attributes.status) || vac.state;
+
+    const currArea = parseFloat(this._getStateValue(device.area_sensor));
+    const currDockErr = this._getStateValue(device.dock_error_sensor);
+    const currDoor = device.reset_door_sensor ? this._getStateValue(device.reset_door_sensor) : null;
+
+    const vacState = vac.state;
+    const mopModeRaw = device.mop_mode_entity ? this._getStateValue(device.mop_mode_entity) : null;
+    const mopIntensityRaw = device.mop_intensity_entity ? this._getStateValue(device.mop_intensity_entity) : null;
+    const mopMode = (mopModeRaw && mopModeRaw !== 'off' && mopModeRaw !== 'unavailable') ? mopModeRaw : 'standard';
+    const mopIntensity = (mopIntensityRaw && mopIntensityRaw !== 'unavailable') ? mopIntensityRaw : 'medium';
+    const mopOff = mopModeRaw === 'off';
+
+    const usagePerM2 = (device.usage_ml_per_m2 && device.usage_ml_per_m2[mopMode]) ?? DEFAULT_USAGE_PER_M2[mopMode] ?? 6;
+    const intensityFactor = (device.intensity_factor && device.intensity_factor[mopIntensity]) ?? DEFAULT_INTENSITY_FACTOR[mopIntensity] ?? 1.0;
+    const washVolume = device.wash_volume_ml ?? DEFAULT_WASH_VOLUME_ML;
+
+    // 1. WASH DETECTION — entering a wash state (priv: trigger on state → <wash_state>)
+    if (state.last_status !== null && currStatus !== state.last_status && MOP_WASH_STATES.includes(currStatus)) {
+      state.used_ml = Math.round((state.used_ml || 0) + washVolume);
+      dirty = true;
+    }
+
+    // 2. AREA DOSING — cleaning_area increased, vacuum cleaning, mop on
+    if (state.last_area !== null && !isNaN(currArea) && currArea > state.last_area) {
+      const delta = currArea - state.last_area;
+      const isCleaning = vacState === 'cleaning' || currStatus === 'cleaning';
+      const canDose = !mopOff && isCleaning && delta >= AREA_MIN_DELTA;
+      if (canDose) {
+        const added = delta * usagePerM2 * intensityFactor;
+        state.used_ml = Math.round((state.used_ml || 0) + added);
+        dirty = true;
+      }
+    }
+
+    // 3. RESET DETECTION — door opened-then-closed / dock_err water_empty→ok / Empty→OK
+    const nowTs = Date.now();
+    const cooldownOk = (nowTs - (state.last_reset_ts || 0)) / 1000 > RESET_COOLDOWN_SEC;
+    let doReset = false;
+    // Door: on → off (closed after opening tank)
+    if (currDoor && state.last_door === 'on' && currDoor === 'off') doReset = true;
+    // dock_err: water_empty → ok (tank was empty, now fine — refilled)
+    if (state.last_dock_err === 'water_empty' && currDockErr && currDockErr !== 'water_empty') doReset = true;
+
+    if (doReset && cooldownOk) {
+      state.used_ml = 0;
+      state.last_reset_iso = new Date().toISOString();
+      state.last_reset_ts = nowTs;
+      dirty = true;
+    }
+
+    // Update tracked previous values
+    if (state.last_status !== currStatus) { state.last_status = currStatus; dirty = true; }
+    if (!isNaN(currArea) && state.last_area !== currArea) { state.last_area = currArea; dirty = true; }
+    if (state.last_dock_err !== currDockErr) { state.last_dock_err = currDockErr; dirty = true; }
+    if (state.last_door !== currDoor) { state.last_door = currDoor; dirty = true; }
+
+    if (dirty) this._saveWaterState(device, state);
+  }
+
+  // Manual reset (called from refill button when priv helpers are absent)
+  _resetWaterState(device) {
+    const state = this._loadWaterState(device);
+    state.used_ml = 0;
+    state.last_reset_iso = new Date().toISOString();
+    state.last_reset_ts = Date.now();
+    this._saveWaterState(device, state);
+  }
+
+  // Returns effective used_ml (priority: HA input_number → JS localStorage state)
+  _getEffectiveUsedMl(device) {
+    if (this._hasPrivHelpers(device)) {
+      const raw = this._getStateValue(device.water_used_input);
+      const v = parseFloat(raw);
+      return isNaN(v) ? null : v;
+    }
+    const state = this._loadWaterState(device);
+    return state.used_ml || 0;
+  }
+
+  _getEffectiveLastReset(device) {
+    if (this._hasPrivHelpers(device)) {
+      return this._getStateValue(device.last_reset_entity);
+    }
+    const state = this._loadWaterState(device);
+    return state.last_reset_iso;
+  }
+
+  // Auto-add discovered vacuums that aren't yet in user devices (fresh HACS install UX)
+  _autoAddDiscoveredVacuums() {
+    if (!this._hass) return;
+    const discovered = this._autoDiscoverVacuums();
+    let added = false;
+    for (const v of discovered) {
+      if (!this._userDevices.find(d => d.vacuum_entity === v.entity_id)) {
+        if (this._addUserDevice(v.entity_id)) added = true;
+      }
+    }
+    return added;
+  }
+
   _refillConfigKey() {
     return 'ha-tools-vwm-refill-config-' + (this._config.title || 'default').replace(/\s+/g, '_');
   }
@@ -806,10 +993,12 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const totalMl = device.water_total_ml || (calib ? calib.tank_ml : 0);
     let remainingL = null, percentRemaining = null, usedMl = null;
 
-    // Validation: Check if critical water tracking entities exist
+    // Validation: Check if critical water tracking entities exist.
+    // NOTE: In standalone mode (no priv helpers) we run the JS state machine and
+    // populate usedMl from localStorage, so we do NOT show the "config missing" banner.
     const hasWaterSensor = device.water_sensor && this._hass.states[device.water_sensor];
     const hasWaterUsedInput = device.water_used_input && this._hass.states[device.water_used_input];
-    const configMissing = totalMl > 0 && !hasWaterSensor && !hasWaterUsedInput;
+    const configMissing = false; // standalone mode works out of the box — never flag as misconfigured
 
     if (totalMl > 0) {
       const waterSensorRaw = this._getStateValue(device.water_sensor);
@@ -821,6 +1010,15 @@ class HAVacuumWaterMonitor extends HTMLElement {
         const usedRaw = this._getStateValue(device.water_used_sensor || device.water_used_input);
         if (usedRaw !== null && usedRaw !== 'unavailable') {
           usedMl = parseFloat(usedRaw) || 0;
+          remainingL = (totalMl - usedMl) / 1000;
+          percentRemaining = Math.max(0, Math.min(100, (totalMl - usedMl) / totalMl * 100));
+        }
+      } else {
+        // Standalone mode — no HA sensor/helper configured.
+        // Fall back to JS-managed localStorage state (priv-free HACS UX).
+        const jsUsed = this._getEffectiveUsedMl(device);
+        if (jsUsed !== null && jsUsed !== undefined) {
+          usedMl = jsUsed;
           remainingL = (totalMl - usedMl) / 1000;
           percentRemaining = Math.max(0, Math.min(100, (totalMl - usedMl) / totalMl * 100));
         }
@@ -842,7 +1040,11 @@ class HAVacuumWaterMonitor extends HTMLElement {
     const sessionRaw = this._getStateValue(device.last_session_sensor);
     if (sessionRaw !== null && sessionRaw !== 'unavailable') sessionMl = parseFloat(sessionRaw);
 
-    const lastReset = this._getStateValue(device.last_reset_entity);
+    // Prefer HA input_datetime (priv), else fall back to JS localStorage reset timestamp
+    let lastReset = this._getStateValue(device.last_reset_entity);
+    if (!lastReset || lastReset === 'unavailable' || lastReset === 'unknown') {
+      lastReset = this._getEffectiveLastReset(device);
+    }
 
     // Cleaning stats
     const areaCleaned = this._getStateValue(device.area_sensor);
@@ -983,8 +1185,10 @@ class HAVacuumWaterMonitor extends HTMLElement {
       extraRows += this._buildBatteryBar(data.charge);
     }
 
-    const refillBtn = (cfg.show_refill_button !== false && device.water_used_input)
-      ? `<button class="refill-btn" data-input="${device.water_used_input}" data-reset="${device.last_reset_entity || ''}">\uD83D\uDCA7 Refilled</button>` : '';
+    // Refill button: priv mode (has HA input_number) → callService path;
+    // standalone mode → JS localStorage reset path (keyed by vacuum_entity).
+    const refillBtn = (cfg.show_refill_button !== false)
+      ? `<button class="refill-btn" data-input="${device.water_used_input || ''}" data-reset="${device.last_reset_entity || ''}" data-vacuum="${device.vacuum_entity || ''}">\uD83D\uDCA7 Refilled</button>` : '';
 
     const alertBanner = (data.waterEmpty || data.waterShortage)
       ? `<div class="alert-banner">\u26A0\uFE0F Water shortage! Please refill now.</div>`
@@ -2064,12 +2268,25 @@ class HAVacuumWaterMonitor extends HTMLElement {
       }
     }
 
-    // Refill button
+    // Refill button — hybrid:
+    //   • priv mode (HA input_number configured) → callService to zero helper + stamp datetime
+    //   • standalone mode (no helper) → zero localStorage state for this vacuum
     sr.querySelectorAll('.refill-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const inputId = btn.dataset.input;
         const resetId = btn.dataset.reset;
-        if (inputId && this._hass) {
+        const vacuumId = btn.dataset.vacuum;
+        const ok = () => {
+          btn.textContent = '\u2705 Done!'; btn.style.color = '#22c55e';
+          setTimeout(() => { btn.textContent = '\uD83D\uDCA7 Refilled'; btn.style.color = '#60a5fa'; }, 2000);
+        };
+        const fail = (err) => {
+          console.error('[ha-vacuum-water-monitor] refill failed:', err);
+          btn.textContent = '\u274C B\u0142\u0105d!'; btn.style.color = '#ef4444';
+          setTimeout(() => { btn.textContent = '\uD83D\uDCA7 Refilled'; btn.style.color = '#60a5fa'; }, 3000);
+        };
+        if (inputId && this._hass && this._hass.states[inputId]) {
+          // Priv mode: reset HA helpers
           try {
             await this._hass.callService('input_number', 'set_value', { entity_id: inputId, value: 0 });
             if (resetId) {
@@ -2078,13 +2295,17 @@ class HAVacuumWaterMonitor extends HTMLElement {
               const dt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
               await this._hass.callService('input_datetime', 'set_datetime', { entity_id: resetId, datetime: dt });
             }
-            btn.textContent = '\u2705 Done!'; btn.style.color = '#22c55e';
-            setTimeout(() => { btn.textContent = '\uD83D\uDCA7 Refilled'; btn.style.color = '#60a5fa'; }, 2000);
-          } catch (e) {
-            console.error('[ha-vacuum-water-monitor] Service call failed:', e);
-            btn.textContent = '\u274C B\u0142\u0105d!'; btn.style.color = '#ef4444';
-            setTimeout(() => { btn.textContent = '\uD83D\uDCA7 Refilled'; btn.style.color = '#60a5fa'; }, 3000);
-          }
+            ok();
+          } catch (e) { fail(e); }
+        } else if (vacuumId) {
+          // Standalone mode: reset JS localStorage state for this vacuum
+          try {
+            this._resetWaterState({ vacuum_entity: vacuumId });
+            ok();
+            this._render();
+          } catch (e) { fail(e); }
+        } else {
+          fail(new Error('No input and no vacuum id on button'));
         }
       });
     });
