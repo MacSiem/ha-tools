@@ -717,8 +717,8 @@ canvas {
         }
 
         .btn-danger {
-          background: #f44336;
-          color: white;
+          background: var(--bento-error, #ef4444);
+          color: #fff;
         }
 
         .btn-danger:hover {
@@ -1236,32 +1236,32 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           </ul>
         </div>
 
-        <div class="tabs">
+        <div class="tabs" role="tablist">
           ${this.babies.length > 1 ? `
           <div style="display:flex;gap:4px;margin-bottom:12px;padding:0 4px">
             ${this.babies.map((b, i) => `
-              <button class="baby-btn" data-baby="${i}" 
+              <button class="baby-btn" data-baby="${i}" role="button" aria-pressed="${this.selectedBaby === i}" 
                 style="padding:6px 14px;border:1.5px solid ${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-border,#e2e8f0)'};border-radius:20px;background:${this.selectedBaby === i ? 'rgba(59,130,246,0.1)' : 'transparent'};color:${this.selectedBaby === i ? 'var(--bento-primary,#3B82F6)' : 'var(--bento-text-secondary,#64748B)'};font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">
                 👶 ${b.name}
               </button>
             `).join('')}
           </div>` : ``}
-          <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding">
+          <button class="tab-button ${this.selectedTab === 'feeding' ? 'active' : ''}" data-tab="feeding" role="tab" aria-selected="${!!(this.selectedTab === 'feeding' )}">
             🍼 Feeding
           </button>
-          <button class="tab-button ${this.selectedTab === 'lactation' ? 'active' : ''}" data-tab="lactation">
+          <button class="tab-button ${this.selectedTab === 'lactation' ? 'active' : ''}" data-tab="lactation" role="tab" aria-selected="${!!(this.selectedTab === 'lactation' )}">
             🤱 Lactation
           </button>
-          <button class="tab-button ${this.selectedTab === 'diapers' ? 'active' : ''}" data-tab="diapers">
+          <button class="tab-button ${this.selectedTab === 'diapers' ? 'active' : ''}" data-tab="diapers" role="tab" aria-selected="${!!(this.selectedTab === 'diapers' )}">
             🩷 Diapers
           </button>
-          <button class="tab-button ${this.selectedTab === 'sleep' ? 'active' : ''}" data-tab="sleep">
+          <button class="tab-button ${this.selectedTab === 'sleep' ? 'active' : ''}" data-tab="sleep" role="tab" aria-selected="${!!(this.selectedTab === 'sleep' )}">
             😴 Sleep
           </button>
-          <button class="tab-button ${this.selectedTab === 'growth' ? 'active' : ''}" data-tab="growth">
+          <button class="tab-button ${this.selectedTab === 'growth' ? 'active' : ''}" data-tab="growth" role="tab" aria-selected="${!!(this.selectedTab === 'growth' )}">
             📏 Growth
           </button>
-          <button class="tab-button ${this.selectedTab === 'config' ? 'active' : ''}" data-tab="config">
+          <button class="tab-button ${this.selectedTab === 'config' ? 'active' : ''}" data-tab="config" role="tab" aria-selected="${!!(this.selectedTab === 'config' )}">
             ⚙️ Config
           </button>
         </div>
@@ -1798,7 +1798,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const notes = this.shadowRoot.getElementById('feedingNotes').value;
 
     if (!time || !amount) {
-      alert('Please fill in time and duration/amount');
+      alert(this._lang === 'pl' ? 'Wypełnij czas i ilość/czas trwania' : 'Please fill in time and duration/amount');
       return;
     }
 
@@ -1851,7 +1851,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const notes = this.shadowRoot.getElementById('diapersNotes').value;
 
     if (!time) {
-      alert('Please select a time');
+      alert(this._lang === 'pl' ? 'Wybierz czas' : 'Please select a time');
       return;
     }
 
@@ -1957,7 +1957,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     const date = this.shadowRoot.getElementById('growthDate').value;
 
     if (!value || !date) {
-      alert('Please fill in value and date');
+      alert(this._lang === 'pl' ? 'Wypełnij wartość i datę' : 'Please fill in value and date');
       return;
     }
 

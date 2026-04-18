@@ -4,6 +4,9 @@
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-yaml-checker] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
+// -- HA Tools Escape helper (fallback) --
+const _esc = window._haToolsEsc || ((s) => String(s == null ? '' : s).replace(/[&<>"\']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+
 /**
  * HA YAML Checker v3.0
  * Advanced YAML validator for Home Assistant configuration files.
@@ -1581,7 +1584,7 @@ class HaYamlCheckerEditor extends HTMLElement {
       <h3>YAML Checker</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'YAML Checker'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'YAML Checker')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

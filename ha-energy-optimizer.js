@@ -4,6 +4,9 @@
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-energy-optimizer] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
+// -- HA Tools Escape helper (fallback) --
+const _esc = window._haToolsEsc || ((s) => String(s == null ? '' : s).replace(/[&<>"\']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+
 class HaEnergyOptimizer extends HTMLElement {
   constructor() {
     super();
@@ -1020,28 +1023,28 @@ class HaEnergyOptimizer extends HTMLElement {
             </div>
             <div class="form-row">
               <label>Rate (per kWh)</label>
-              <input type="number" step="0.01" class="input-energy-price" value="${this._config.energy_price || 0.65}" />
+              <input type="number" step="0.01" class="input-energy-price" value="${_esc(this._config.energy_price || 0.65)}" />
               <div class="rate-annotation">For flat mode — single 24h rate</div>
             </div>
             <div class="form-row">
               <label>Day Rate</label>
-              <input type="number" step="0.01" class="input-price-day" value="${this._config.energy_price_day || 0.65}" />
+              <input type="number" step="0.01" class="input-price-day" value="${_esc(this._config.energy_price_day || 0.65)}" />
             </div>
             <div class="form-row">
               <label>Night Rate</label>
-              <input type="number" step="0.01" class="input-price-night" value="${this._config.energy_price_night || 0.45}" />
+              <input type="number" step="0.01" class="input-price-night" value="${_esc(this._config.energy_price_night || 0.45)}" />
             </div>
             <div class="form-row">
               <label>Day Start Hour</label>
-              <input type="number" min="0" max="23" class="input-day-start" value="${this._config.energy_day_hour_start || 6}" />
+              <input type="number" min="0" max="23" class="input-day-start" value="${_esc(this._config.energy_day_hour_start || 6)}" />
             </div>
             <div class="form-row">
               <label>Night Start Hour</label>
-              <input type="number" min="0" max="23" class="input-night-start" value="${this._config.energy_night_hour_start || 22}" />
+              <input type="number" min="0" max="23" class="input-night-start" value="${_esc(this._config.energy_night_hour_start || 22)}" />
             </div>
             <div class="form-row">
               <label>Currency</label>
-              <input type="text" class="input-currency" value="${this._config.currency || 'PLN'}" />
+              <input type="text" class="input-currency" value="${_esc(this._config.currency || 'PLN')}" />
             </div>
             <div class="btn-row">
               <button class="btn-cancel" data-action="close-settings">Cancel</button>
@@ -1791,12 +1794,12 @@ class HaEnergyOptimizerEditor extends HTMLElement {
       <h3>Energy Optimizer</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Energy Optimizer'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Energy Optimizer')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>
-              <input type="text" id="cf_currency" value="${this._config?.currency || 'PLN'}"
+              <input type="text" id="cf_currency" value="${_esc(this._config?.currency || 'PLN')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

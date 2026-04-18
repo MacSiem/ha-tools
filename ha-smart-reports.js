@@ -516,9 +516,9 @@ canvas {
               <option value="30d">Last 30 days</option>
             </select>
           </div>
-          <div class="tabs" id="tabsContainer">
+          <div class="tabs" role="tablist" id="tabsContainer">
             ${tabs.map(t => `
-              <button class="tab-btn ${t.id === this._activeTab ? 'active' : ''}" data-tab="${t.id}">
+              <button class="tab-btn ${t.id === this._activeTab ? 'active' : ''}" data-tab="${t.id}" role="tab" aria-selected="${!!(t.id === this._activeTab )}">
                 <span class="tab-icon">${t.icon}</span>${t.label}
               </button>
             `).join('')}
@@ -982,12 +982,12 @@ class HaSmartReportsEditor extends HTMLElement {
       <h3>Smart Reports</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Smart Reports'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Smart Reports')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Currency</label>
-              <input type="text" id="cf_currency" value="${this._config?.currency || 'PLN'}"
+              <input type="text" id="cf_currency" value="${_esc(this._config?.currency || 'PLN')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

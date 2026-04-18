@@ -1524,17 +1524,17 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; max-height: 200px
       <div class="card">
         <h1 class="card-title">${_esc(this._config.title || 'Backup Manager')}</h1>
 
-        <div class="tabs">
+        <div class="tabs" role="tablist">
           <button class="tab-btn ${this._activeTab === 'backups' ? 'active' : ''}"
-                  data-tab="backups">
+                  data-tab="backups" role="tab" aria-selected="${!!(this._activeTab === 'backups' )}">
             ${L ? 'Kopie zapasowe' : 'Backups'}
           </button>
           <button class="tab-btn ${this._activeTab === 'health' ? 'active' : ''}"
-                  data-tab="health">
+                  data-tab="health" role="tab" aria-selected="${!!(this._activeTab === 'health' )}">
             ${L ? 'Zdrowie' : 'Health'}
           </button>
           <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}"
-                  data-tab="settings">
+                  data-tab="settings" role="tab" aria-selected="${!!(this._activeTab === 'settings' )}">
             ${L ? 'Ustawienia' : 'Settings'}
           </button>
         </div>

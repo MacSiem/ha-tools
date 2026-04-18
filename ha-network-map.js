@@ -122,6 +122,7 @@ class HaNetworkMap extends HTMLElement {
       this._firstHassRender = true;
       this._loadSubnets();
       this._loadBindings();
+      this._loadCachedScanResults();
       this._loadDeviceRegistry().then(() => {
         this._startAutoScan();
         this._doRender();
@@ -303,6 +304,17 @@ class HaNetworkMap extends HTMLElement {
     try {
       const data = { results: this._scanResults, time: this._lastScanTime };
       localStorage.setItem('ha-tools-net-scan', JSON.stringify(data));
+    } catch (e) { console.debug('[ha-network-map] caught:', e); }
+  }
+  _loadCachedScanResults() {
+    try {
+      const stored = localStorage.getItem('ha-tools-net-scan');
+      if (!stored) return;
+      const data = JSON.parse(stored);
+      if (data && Array.isArray(data.results)) {
+        this._scanResults = data.results;
+        this._lastScanTime = data.time || 0;
+      }
     } catch (e) { console.debug('[ha-network-map] caught:', e); }
   }
 
@@ -780,7 +792,7 @@ class HaNetworkMap extends HTMLElement {
         const ip = bindBtn.dataset.ip;
         const trackerEntities = Object.keys(this._hass?.states || {}).filter(e => e.startsWith('device_tracker.'));
         if (trackerEntities.length > 0) {
-          const choice = prompt('Select entity ID:\n\n' + trackerEntities.join('\n'));
+          const choice = prompt((this._lang === 'pl' ? 'Wybierz ID encji:' : 'Select entity ID:') + '\n\n' + trackerEntities.join('\n'));
           if (choice && trackerEntities.includes(choice)) {
             this._bindings[ip] = choice;
             this._saveBindings();
@@ -860,7 +872,7 @@ class HaNetworkMap extends HTMLElement {
         const deviceSelect = this.shadowRoot.querySelector('#deviceSelect');
         if (deviceSelect && deviceSelect.value) {
           const entityId = deviceSelect.value;
-          const ip = prompt('Enter device IP or name:');
+          const ip = prompt(this._lang === 'pl' ? 'Wprowadź IP lub nazwę urządzenia:' : 'Enter device IP or name:');
           if (ip) {
             this._bindings[ip] = entityId;
             this._saveBindings();

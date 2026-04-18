@@ -4,6 +4,9 @@
 // -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
 window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-tools-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-trace-viewer] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-tools-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
 
+// -- HA Tools Escape helper (fallback) --
+const _esc = window._haToolsEsc || ((s) => String(s == null ? '' : s).replace(/[&<>"\']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+
 class HATraceViewer extends HTMLElement {
   constructor() {
     super();
@@ -723,16 +726,16 @@ class HATraceViewer extends HTMLElement {
         svg += `<line x1="${cx}" y1="${y + nodeH}" x2="${cx}" y2="${nextY}" stroke="var(--divider-color)" stroke-width="2" stroke-dasharray="${step.status === 'skipped' ? '4,4' : 'none'}"/>`;
       }
 
-      // Node colors
+      // Node colors (Bento tokens with hex fallbacks)
       let fill, stroke, textFill;
-      if (step.category === 'trigger') { fill = 'rgba(59,130,246,0.12)'; stroke = '#3B82F6'; textFill = '#3B82F6'; }
+      if (step.category === 'trigger') { fill = 'rgba(59,130,246,0.12)'; stroke = 'var(--bento-primary, #3B82F6)'; textFill = 'var(--bento-primary, #3B82F6)'; }
       else if (step.category === 'condition') {
-        if (step.status === 'skipped') { fill = 'rgba(100,116,139,0.08)'; stroke = '#94A3B8'; textFill = '#94A3B8'; }
-        else { fill = 'rgba(245,158,11,0.12)'; stroke = '#F59E0B'; textFill = 'var(--tc, #B45309)'; }
+        if (step.status === 'skipped') { fill = 'rgba(100,116,139,0.08)'; stroke = 'var(--bento-text-secondary, #94A3B8)'; textFill = 'var(--bento-text-secondary, #94A3B8)'; }
+        else { fill = 'rgba(245,158,11,0.12)'; stroke = 'var(--bento-warning, #F59E0B)'; textFill = 'var(--tc, #B45309)'; }
       }
-      else if (step.category === 'result') { fill = step.status === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)'; stroke = step.status === 'success' ? '#10B981' : '#EF4444'; textFill = stroke; }
-      else if (step.status === 'error') { fill = 'rgba(239,68,68,0.12)'; stroke = '#EF4444'; textFill = '#EF4444'; }
-      else { fill = 'rgba(16,185,129,0.1)'; stroke = '#10B981'; textFill = 'var(--tc, #1E293B)'; }
+      else if (step.category === 'result') { fill = step.status === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)'; stroke = step.status === 'success' ? 'var(--bento-success, #10B981)' : 'var(--bento-error, #EF4444)'; textFill = stroke; }
+      else if (step.status === 'error') { fill = 'rgba(239,68,68,0.12)'; stroke = 'var(--bento-error, #EF4444)'; textFill = 'var(--bento-error, #EF4444)'; }
+      else { fill = 'rgba(16,185,129,0.1)'; stroke = 'var(--bento-success, #10B981)'; textFill = 'var(--tc, #1E293B)'; }
 
       // Rounded rect node
       svg += `<rect x="${cx - nodeW / 2}" y="${y}" width="${nodeW}" height="${nodeH}" rx="18" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;
@@ -990,7 +993,7 @@ class HATraceViewer extends HTMLElement {
         activePane = steps.map((s, i) => `
           <div class="tl-step s-${s.status}">
             <div class="tl-head">
-              <div class="tl-num" style="background:${s.category === 'trigger' ? '#3B82F6' : s.category === 'condition' ? '#F59E0B' : s.category === 'result' ? (s.status === 'success' ? '#10B981' : '#EF4444') : s.status === 'error' ? '#EF4444' : '#10B981'}">${s.icon}</div>
+              <div class="tl-num" style="background:${s.category === 'trigger' ? 'var(--bento-primary, #3B82F6)' : s.category === 'condition' ? 'var(--bento-warning, #F59E0B)' : s.category === 'result' ? (s.status === 'success' ? 'var(--bento-success, #10B981)' : 'var(--bento-error, #EF4444)') : s.status === 'error' ? 'var(--bento-error, #EF4444)' : 'var(--bento-success, #10B981)'}">${s.icon}</div>
               <div class="tl-title">
                 <span class="tl-cat">${s.category.toUpperCase()}</span>
                 <span class="tl-desc">${s.description}</span>
@@ -1054,7 +1057,7 @@ class HATraceViewer extends HTMLElement {
 
       <!-- Tabs -->
       <div class="det-tabs">
-        ${tabs.map(t => `<button class="dtab ${this.detailTab === t ? 'act' : ''}" data-dtab="${t}">${tabLabels[t]}</button>`).join('')}
+        ${tabs.map(t => `<button class="dtab ${this.detailTab === t ? 'act' : ''}" data-dtab="${t}" role="tab" aria-selected="${!!(this.detailTab === t )}">${tabLabels[t]}</button>`).join('')}
       </div>
 
       <!-- Tab content -->
@@ -1842,7 +1845,7 @@ class HaTraceViewerEditor extends HTMLElement {
       <h3>Trace Viewer</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Trace Viewer'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Trace Viewer')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

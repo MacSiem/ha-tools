@@ -1627,7 +1627,7 @@ class HaChoreTrackerEditor extends HTMLElement {
       <h3>Chore Tracker</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Chore Tracker'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Chore Tracker')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

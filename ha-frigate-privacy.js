@@ -1101,11 +1101,11 @@ class HaFrigatePrivacy extends HTMLElement {
         </div>
       </div>
 
-      <div class="tabs">
-        <button class="tab-btn ${this._activeTab === 'control' ? 'active' : ''}" data-tab="control">${t.tabControl}</button>
-        <button class="tab-btn ${this._activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">${t.tabSchedule}</button>
-        <button class="tab-btn ${this._activeTab === 'history' ? 'active' : ''}" data-tab="history">${t.tabHistory}</button>
-        <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}" data-tab="settings">${t.tabSettings}</button>
+      <div class="tabs" role="tablist">
+        <button class="tab-btn ${this._activeTab === 'control' ? 'active' : ''}" data-tab="control" role="tab" aria-selected="${!!(this._activeTab === 'control' )}">${t.tabControl}</button>
+        <button class="tab-btn ${this._activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule" role="tab" aria-selected="${!!(this._activeTab === 'schedule' )}">${t.tabSchedule}</button>
+        <button class="tab-btn ${this._activeTab === 'history' ? 'active' : ''}" data-tab="history" role="tab" aria-selected="${!!(this._activeTab === 'history' )}">${t.tabHistory}</button>
+        <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}" data-tab="settings" role="tab" aria-selected="${!!(this._activeTab === 'settings' )}">${t.tabSettings}</button>
       </div>
 
       <div class="tab-content">
@@ -1154,10 +1154,10 @@ class HaFrigatePrivacy extends HTMLElement {
       const selected = this._selectedCameras.has(cam.entity_id);
       const state = this._hass?.states[cam.entity_id];
       const statusIcon = state?.state === 'idle' || state?.state === 'streaming' ? '\uD83D\uDFE2' : '\u26AA';
-      return `<div class="camera-card ${selected ? 'selected' : ''}" data-camera="${cam.entity_id}">
-        <span class="camera-status">${statusIcon}</span>
+      return `<div class="camera-card ${selected ? 'selected' : ''}" data-camera="${cam.entity_id}" role="button" tabindex="0" aria-pressed="${!!selected}" aria-label="Camera: ${this._sanitize(cam.name)}">
+        <span class="camera-status" aria-hidden="true">${statusIcon}</span>
         <span class="camera-name">${this._sanitize(cam.name)}</span>
-        <span class="camera-check">${selected ? '\u2713' : ''}</span>
+        <span class="camera-check" aria-hidden="true">${selected ? '\u2713' : ''}</span>
       </div>`;
     }).join('');
 
@@ -1166,7 +1166,7 @@ class HaFrigatePrivacy extends HTMLElement {
     // Quick pause buttons
     const quickButtons = [15, 30, 60, 120].map(m => {
       const label = m >= 60 ? (m / 60) + 'h' : m + 'min';
-      return `<button class="btn btn-quick" data-minutes="${m}">${label}</button>`;
+      return `<button class="btn btn-quick" data-minutes="${m}" aria-label="Pause for ${label}">${label}</button>`;
     }).join('');
 
     return `
@@ -1175,10 +1175,10 @@ class HaFrigatePrivacy extends HTMLElement {
       <div class="section">
         <h3>${t.selectCameras}</h3>
         <div class="camera-grid">
-          <div class="camera-card all-cameras ${allSelected ? 'selected' : ''}" data-camera="__all__">
-            <span class="camera-status">\uD83C\uDFA5</span>
+          <div class="camera-card all-cameras ${allSelected ? 'selected' : ''}" data-camera="__all__" role="button" tabindex="0" aria-pressed="${!!allSelected}" aria-label="${t.allCameras}">
+            <span class="camera-status" aria-hidden="true">\uD83C\uDFA5</span>
             <span class="camera-name">${t.allCameras}</span>
-            <span class="camera-check">${allSelected ? '\u2713' : ''}</span>
+            <span class="camera-check" aria-hidden="true">${allSelected ? '\u2713' : ''}</span>
           </div>
           ${cameraCards}
         </div>
@@ -1667,12 +1667,12 @@ tap_action:
   display: inline-block;
 }
 
-.status-running { background: rgba(16,185,129,0.12); color: #10B981; }
-.status-running .status-dot { background: #10B981; }
-.status-stopped { background: rgba(239,68,68,0.12); color: #EF4444; }
-.status-stopped .status-dot { background: #EF4444; }
-.status-unknown { background: rgba(148,163,184,0.12); color: #94a3b8; }
-.status-unknown .status-dot { background: #94a3b8; }
+.status-running { background: rgba(16,185,129,0.12); color: var(--bento-success, #10B981); }
+.status-running .status-dot { background: var(--bento-success, #10B981); }
+.status-stopped { background: rgba(239,68,68,0.12); color: var(--bento-error, #EF4444); }
+.status-stopped .status-dot { background: var(--bento-error, #EF4444); }
+.status-unknown { background: rgba(148,163,184,0.12); color: var(--bento-text-secondary, #94a3b8); }
+.status-unknown .status-dot { background: var(--bento-text-secondary, #94a3b8); }
 
 /* Tabs */
 .tabs {
@@ -2241,12 +2241,12 @@ class HaFrigatePrivacyEditor extends HTMLElement {
       <h3>Frigate Privacy</h3>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${this._config?.title || 'Frigate Privacy'}"
+              <input type="text" id="cf_title" value="${_esc(this._config?.title || 'Frigate Privacy')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
             <div style="margin-bottom:12px;">
               <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Frigate addon ID</label>
-              <input type="text" id="cf_frigate_addon_id" value="${this._config?.frigate_addon_id || 'ccab4aaf_frigate'}"
+              <input type="text" id="cf_frigate_addon_id" value="${_esc(this._config?.frigate_addon_id || 'ccab4aaf_frigate')}"
                 style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
             </div>
     `;

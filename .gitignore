@@ -68,3 +68,10 @@ b64_task.txt
 decode-task.js
 commit_msg.txt
 *.log
+
+# Gemma audit generated reports
+audit-gemma/ha-*.md
+audit-gemma/ha-tools-*.md
+audit-gemma/monitor*
+audit-gemma/audit-pass*
+audit-gemma/*.log
