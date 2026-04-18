@@ -1691,8 +1691,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           const el = shadowRoot.getElementById(t + '-tab');
           if (el) el.style.display = t === this.selectedTab ? 'block' : 'none';
         });
-        // Refresh data for visible tab
-        this._updateTabData(this.selectedTab);
+        // Refresh data for visible tab (fallback to full reload if per-tab loader not defined)
+        if (typeof this._updateTabData === 'function') {
+          this._updateTabData(this.selectedTab);
+        } else if (typeof this._loadData === 'function') {
+          this._loadData();
+        }
       });
     });
 

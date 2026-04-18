@@ -1088,6 +1088,7 @@ class HAEnergyEmail extends HTMLElement {
   _tabSchedule() {
     const L = this._lang === 'pl';
     const recipient = this._getRecipient();
+    const service = this._detectedService || this._config?.notify_service || '';
     const dailyId = 'automation.send_daily_energy_report';
     const weeklyId = 'automation.send_weekly_energy_report';
     const monthlyId = 'automation.send_monthly_energy_report';
@@ -1221,6 +1222,7 @@ class HAEnergyEmail extends HTMLElement {
   _tabSend() {
     const L = this._lang === 'pl';
     const smtpConfig = this._renderSmtpSection();
+    const service = this._detectedService || this._config?.notify_service || '';
     return `
       <div class="info-row">\u{1F4E4}\u00A0 ${L ? 'R\u0119cznie wy\u015Blij raport energii poprzez ha_tools_email.' : 'Manually trigger an energy report via ha_tools_email.'}</div>
       ${smtpConfig}

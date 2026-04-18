@@ -2570,6 +2570,7 @@ class HASentenceManagerEditor extends HTMLElement {
   }
 
   connectedCallback() {
+    const _esc = window._haToolsEsc || ((s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
     this.innerHTML = `
       <div style="padding: 20px;">
         <h2>Sentence Manager Configuration</h2>
@@ -2577,11 +2578,11 @@ class HASentenceManagerEditor extends HTMLElement {
         <div style="margin: 20px 0;">
           <label style="display: block; margin-bottom: 10px;">
             Title:
-            <input type="text" id="title" placeholder="Sentence Manager" value="${this.config?.title || 'Sentence Manager'}">
+            <input type="text" id="title" placeholder="Sentence Manager" value="${_esc(this.config?.title || 'Sentence Manager')}">
           </label>
           <label style="display: block; margin-bottom: 10px;">
             Language:
-            <input type="text" id="language" placeholder="en" value="${this.config?.language || 'en'}">
+            <input type="text" id="language" placeholder="en" value="${_esc(this.config?.language || 'en')}">
           </label>
         </div>
       </div>
