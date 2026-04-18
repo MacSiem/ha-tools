@@ -6,6 +6,8 @@ A comprehensive Home Assistant custom panel featuring 22 tools for automation, d
 [![Tools](https://img.shields.io/badge/Tools-22-success.svg)](#features)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+![HA Tools](assets/ha-tools-banner.svg)
+
 ## Installation
 
 ### HACS (Recommended)
