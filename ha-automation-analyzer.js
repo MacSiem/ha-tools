@@ -323,7 +323,7 @@ class HAAutomationAnalyzer extends HTMLElement {
     if (this._chartJsLoaded && window.Chart) return window.Chart;
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js";
+      script.src = "/local/community/ha-tools/vendor/chart.umd.min.js";
       script.onload = () => { this._chartJsLoaded = true; resolve(window.Chart); };
       script.onerror = () => reject(new Error("Failed to load Chart.js"));
       document.head.appendChild(script);

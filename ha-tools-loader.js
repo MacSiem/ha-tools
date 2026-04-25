@@ -5,13 +5,9 @@
  * Cache-bust timestamp ensures latest versions are always loaded.
  */
 (function() {
-  // Load Inter font globally
-  if (!document.querySelector('link[href*="fonts.googleapis.com/css2?family=Inter"]')) {
-    var font = document.createElement('link');
-    font.rel = 'stylesheet';
-    font.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
-    document.head.appendChild(font);
-  }
+  // Privacy: removed Google Fonts external load. Tools use 'Inter' if installed
+  // locally, otherwise fall back to system UI font stack defined per-component.
+
 
   var BASE = '/local/community/ha-tools/';
 
@@ -64,7 +60,7 @@
   Promise.all(allFiles.map(loadScript)).then(function(results) {
     var loaded = results.filter(Boolean).length;
     console.info(
-      '%c HA Tools %c v3.7.7 \u2014 ' + loaded + '/' + allFiles.length + ' loaded ',
+      '%c HA Tools %c v3.10.0 \u2014 ' + loaded + '/' + allFiles.length + ' loaded ',
       'background:#3b82f6;color:#fff;font-weight:bold;padding:2px 6px;border-radius:4px 0 0 4px;',
       'background:#e0f2fe;color:#1e40af;font-weight:bold;padding:2px 6px;border-radius:0 4px 4px 0;'
     );

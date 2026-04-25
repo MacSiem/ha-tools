@@ -222,7 +222,7 @@ class HAEnergyInsights extends HTMLElement {
       return;
     }
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+    script.src = '/local/community/ha-tools/vendor/chart.umd.min.js';
     script.onload = () => {
       this._chartJsReady = true;
       if (this._data) this._renderCharts();

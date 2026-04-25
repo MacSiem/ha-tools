@@ -2,6 +2,30 @@
 
 All notable changes to HA Tools Panel are documented here.
 
+## [3.10.0] - 2026-04-25
+
+### Security
+- **`customElements.define` guards** added to `ha-tools-stack.js` and `ha-tools-discovery.js` (re-define would throw `QuotaExceededError` on double-load)
+- **Discovery banner** now validates GitHub repo strings against `^[\w.-]+/[\w.-]+$` before rendering as `href`; falls back to plain `<span>` for malformed entries. All external links carry `rel="noopener noreferrer"`
+- **XSS hardening**: device/entity/child/chore/vacuum names are now consistently routed through `_haToolsEsc` before HTML insertion across `ha-baby-tracker`, `ha-chore-tracker`, `ha-vacuum-water-monitor` (5 locations), and `ha-network-map` (table, detail view, SVG topology)
+- **`ha-encoding-fixer`**: bearer token fetch to `/api/config` now skipped when no token is available (no more empty-bearer 401s)
+
+### Privacy
+- **Removed all external CDN dependencies**:
+  - Chart.js v4.5.1 bundled locally to `vendor/chart.umd.min.js` (208 KB) — `ha-energy-optimizer`, `ha-energy-insights`, `ha-automation-analyzer`, `ha-backup-manager` no longer leak user IP to jsdelivr.net
+  - Google Fonts (Inter) `<link>` removed from `ha-tools-loader.js`, `ha-tools-loader-v3.js` (since deleted), and `ha-sentence-manager.js`. Components keep `font-family: 'Inter', system-ui, ...` so users with Inter installed still see it; everyone else falls back to native system UI font
+- **`ha-network-map`**: automatic network port scan on first load is **disabled**. Subnet detection still happens, but the scan itself (≈1016 fetch requests) now requires explicit user action via the existing "Scan All" button
+- **Privacy export warnings**: `ha-baby-tracker` and `ha-data-exporter` show a confirmation dialog before producing a downloadable JSON/CSV with sensitive data (child names, feeding times, entity states/attributes)
+
+### Repo Hygiene
+- Deleted `bak_20260402_193824/` (26 stale legacy backups)
+- Deleted `ha-tools-loader-v3.js` (legacy, superseded by `ha-tools-loader.js` v8)
+- Deleted `ha-entity-renamer-temp.js` (orphan duplicate; its un-guarded `customElements.define` was a latent registration conflict)
+- Moved `check_unguarded.js` (Node dev script) from repo root to `scripts/`
+
+### Memory & Cleanup
+- `ha-tools-discovery-banner` now defines `disconnectedCallback()` that clears `innerHTML` to drop click listeners
+
 ## [3.9.0] - 2026-04-12
 
 ### Added

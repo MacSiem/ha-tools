@@ -2372,8 +2372,11 @@ class HaEncodingFixer extends HTMLElement {
     try {
       // Attempt to read via supervisor API
       const resp = await this._hass.callWS({ type: 'supervisor/api', endpoint: '/core/api/config/core/check_config', method: 'post' }).catch(() => null);
-      // Try to fetch raw content - not always available
-      const fetchResp = await fetch('/api/config', { headers: { Authorization: 'Bearer ' + (this._hass.auth?.data?.access_token || '') } }).catch(() => null);
+      // Try to fetch raw content - not always available. Skip fetch if no auth token to avoid 401 noise.
+      const token = this._hass?.auth?.data?.access_token || this._hass?.auth?.accessToken || null;
+      const fetchResp = token
+        ? await fetch('/api/config', { headers: { Authorization: 'Bearer ' + token } }).catch(() => null)
+        : null;
       if (fetchResp && fetchResp.ok) {
         const txt = await fetchResp.text().catch(() => '');
         if (this._hasBOM(txt)) issues.push({ path, issue: 'BOM', detail: 'Byte Order Mark detected at file start' });

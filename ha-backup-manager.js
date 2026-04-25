@@ -89,7 +89,7 @@ class HaBackupManager extends HTMLElement {
     
     return new Promise((resolve) => {
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+      script.src = '/local/community/ha-tools/vendor/chart.umd.min.js';
       script.onload = () => resolve(window.Chart);
       document.head.appendChild(script);
     });

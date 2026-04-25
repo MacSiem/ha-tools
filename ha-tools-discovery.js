@@ -50,12 +50,22 @@
   }
 
   // === Banner Custom Element ===
+  // XSS protection — defensive escape on registry data (static today, but third-party
+  // code could push entries to window.HA_TOOLS_REGISTRY).
+  const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+  // GitHub-style "owner/repo" pattern; reject anything else (defense against javascript: or open-redirect).
+  const _safeRepo = (r) => /^[\w.-]+\/[\w.-]+$/.test(r || '') ? r : null;
+
   if (!customElements.get('ha-tools-discovery-banner')) {
     class HaToolsDiscoveryBanner extends HTMLElement {
       connectedCallback() {
         const currentId = this.getAttribute('current') || '';
         const compact = this.hasAttribute('compact');
         this._render(currentId, compact);
+      }
+      disconnectedCallback() {
+        // Clear DOM to drop click listeners attached in _render.
+        this.innerHTML = '';
       }
 
       _render(currentId, compact) {
@@ -224,7 +234,7 @@
                 <div class="hatd-panel-name">HA Tools Panel</div>
                 <div class="hatd-panel-desc">Wszystkie ${total} narz\u0119dzia w jednym miejscu</div>
               </div>
-              <a class="hatd-install-btn" href="https://github.com/MacSiem/ha-tools-panel" target="_blank">\u{1F4E5} HACS</a>
+              <a class="hatd-install-btn" href="https://github.com/MacSiem/ha-tools-panel" target="_blank" rel="noopener noreferrer">\u{1F4E5} HACS</a>
             </div>
           `;
         }
@@ -233,11 +243,11 @@
         if (relatedNotInstalled.length > 0) {
           body += `<div class="hatd-section-label">\u{1F517} Powi\u0105zane narz\u0119dzia</div><div class="hatd-tools-grid">`;
           relatedNotInstalled.forEach(t => {
-            body += `
-              <a class="hatd-tool-chip related" href="https://github.com/${t.repo}" target="_blank" rel="noopener">
-                <span class="hatd-chip-icon">${t.icon}</span>
-                <span class="hatd-chip-name">${t.name}</span>
-              </a>`;
+            const repo = _safeRepo(t.repo);
+            const inner = `<span class="hatd-chip-icon">${_esc(t.icon)}</span><span class="hatd-chip-name">${_esc(t.name)}</span>`;
+            body += repo
+              ? `<a class="hatd-tool-chip related" href="https://github.com/${_esc(repo)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+              : `<span class="hatd-tool-chip related">${inner}</span>`;
           });
           body += `</div>`;
         }
@@ -246,11 +256,11 @@
         if (otherUninstalled.length > 0) {
           body += `<div class="hatd-section-label">\u{1F527} Inne dost\u0119pne narz\u0119dzia</div><div class="hatd-tools-grid">`;
           otherUninstalled.forEach(t => {
-            body += `
-              <a class="hatd-tool-chip" href="https://github.com/${t.repo}" target="_blank" rel="noopener">
-                <span class="hatd-chip-icon">${t.icon}</span>
-                <span class="hatd-chip-name">${t.name}</span>
-              </a>`;
+            const repo = _safeRepo(t.repo);
+            const inner = `<span class="hatd-chip-icon">${_esc(t.icon)}</span><span class="hatd-chip-name">${_esc(t.name)}</span>`;
+            body += repo
+              ? `<a class="hatd-tool-chip" href="https://github.com/${_esc(repo)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+              : `<span class="hatd-tool-chip">${inner}</span>`;
           });
           body += `</div>`;
         }
@@ -283,7 +293,9 @@
         }
       }
     }
-    customElements.define('ha-tools-discovery-banner', HaToolsDiscoveryBanner);
+    if (!customElements.get('ha-tools-discovery-banner')) {
+      customElements.define('ha-tools-discovery-banner', HaToolsDiscoveryBanner);
+    }
   }
 
   // === Helper function to inject discovery banner into shadow root ===

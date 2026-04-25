@@ -1236,8 +1236,8 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <div class="schedule" id="schedule"></div>
           <div id="empty-schedule" class="empty-state" style="display:none;">
             <div class="empty-icon">📅</div>
-            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">No Schedule Yet</h3>
-            <p style="margin:0 0 16px;max-width:280px;">Add chores with assigned days to see your weekly schedule here.</p>
+            <h3 style="margin:8px 0 4px;font-size:16px;color:var(--bento-text,#333);">${L ? 'Brak harmonogramu' : 'No Schedule Yet'}</h3>
+            <p style="margin:0 0 16px;max-width:280px;">${L ? 'Dodaj zadania z przypisanymi dniami, aby zobaczy\u0107 tygodniowy harmonogram.' : 'Add chores with assigned days to see your weekly schedule here.'}</p>
           </div>
         </div>
 
@@ -1439,7 +1439,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
       html += `<div class="week-cell"><strong>${_esc(chore.name)}</strong></div>`;
       days.forEach((_, index) => {
         const show = this.isChoreOnDay(chore, index);
-        html += `<div class="week-cell">${show ? `<div class="chore-item">${chore.room}</div>` : ''}</div>`;
+        html += `<div class="week-cell">${show ? `<div class="chore-item">${_esc(chore.room)}</div>` : ''}</div>`;
       });
     });
 

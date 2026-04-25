@@ -1409,7 +1409,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
         color = '#6b7280';
       }
       return `<div class="custom-maint-row" data-idx="${idx}">
-        <span class="con-label">${item.icon || '\uD83D\uDD27'} ${this._sanitize(item.name)}</span>
+        <span class="con-label">${item.icon || '\uD83D\uDD27'} ${_esc(this._sanitize(item.name))}</span>
         <span class="con-val" style="color:${color}">${statusText}</span>
         <button class="maint-done-btn" data-idx="${idx}" title="Mark as done today">\u2705</button>
         <button class="maint-del-btn" data-idx="${idx}" title="Delete">\uD83D\uDDD1\uFE0F</button>
@@ -1596,7 +1596,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
       const status = this._getStatus(data, this._config);
       const pct = data.percentRemaining !== null ? Math.round(data.percentRemaining) : null;
       return `<div class="stats-row">
-        <span class="stats-device">${device.icon || '\uD83E\uDDA4'} ${this._sanitize(device.name || 'Vacuum')}</span>
+        <span class="stats-device">${device.icon || '\uD83E\uDDA4'} ${_esc(this._sanitize(device.name || 'Vacuum'))}</span>
         <span class="stats-status" style="color:${status.color}">${status.icon} ${status.label}</span>
         <span class="stats-pct" style="color:${status.color}">${pct !== null ? pct + '%' : '--'}</span>
       </div>`;
@@ -1833,7 +1833,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
       <div class="section-block">
         <div class="section-title">\uD83D\uDD0E Discovered vacuums (not configured)</div>
         ${undiscovered.map(v => `<div class="disc-row" style="cursor:pointer" data-entity="${v.entity_id}">
-          <span class="disc-name">\uD83E\uDDA4 ${this._sanitize(v.name)}</span>
+          <span class="disc-name">\uD83E\uDDA4 ${_esc(this._sanitize(v.name))}</span>
           <span class="disc-id">${v.entity_id}</span>
           <span class="disc-state" style="color:${v.state === 'cleaning' ? '#22c55e' : '#6b7280'}">${v.state}</span>
           ${v.battery ? `<span class="disc-bat">\uD83D\uDD0B ${v.battery}%</span>` : ''}
@@ -1841,7 +1841,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
         </div>`).join('')}
       </div>` : '';
 
-    const userDevsHtml = (this._userDevices || []).length > 0 ? `<div class="section-block"><div class="section-title">\u2795 Manually added</div>${this._userDevices.map(ud => `<div class="disc-row"><span class="disc-name">${ud.icon || '\uD83E\uDDA4'} ${this._sanitize(ud.name)}</span><span class="disc-id">${ud.vacuum_entity}</span><button class="maint-del-btn user-dev-remove" data-entity="${ud.vacuum_entity}" title="Remove">\uD83D\uDDD1\uFE0F</button></div>`).join('')}</div>` : '';
+    const userDevsHtml = (this._userDevices || []).length > 0 ? `<div class="section-block"><div class="section-title">\u2795 Manually added</div>${this._userDevices.map(ud => `<div class="disc-row"><span class="disc-name">${ud.icon || '\uD83E\uDDA4'} ${_esc(this._sanitize(ud.name))}</span><span class="disc-id">${_esc(ud.vacuum_entity)}</span><button class="maint-del-btn user-dev-remove" data-entity="${_esc(ud.vacuum_entity)}" title="Remove">\uD83D\uDDD1\uFE0F</button></div>`).join('')}</div>` : '';
 
     return `
       <div class="tab-content">
@@ -1966,7 +1966,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
   _buildDeviceTabs(devices) {
     if (devices.length <= 1) return '';
     return `<div class="device-tabs">
-      ${devices.map((d, i) => `<button class="dtab ${i === this._activeDeviceIdx ? 'dtab-active' : ''}" data-didx="${i}">${d.icon || '\uD83E\uDDA4'} ${this._sanitize(d.name || 'Device ' + (i+1))}</button>`).join('')}
+      ${devices.map((d, i) => `<button class="dtab ${i === this._activeDeviceIdx ? 'dtab-active' : ''}" data-didx="${i}">${d.icon || '\uD83E\uDDA4'} ${_esc(this._sanitize(d.name || 'Device ' + (i+1)))}</button>`).join('')}
     </div>`;
   }
 
@@ -1998,7 +1998,7 @@ class HAVacuumWaterMonitor extends HTMLElement {
 
     const deviceHeader = devices.length > 0 ? `
       <div class="device-header">
-        <div class="device-name">${device.icon || '\uD83E\uDDA4'} ${this._sanitize(device.name || 'Vacuum')}</div>
+        <div class="device-name">${device.icon || '\uD83E\uDDA4'} ${_esc(this._sanitize(device.name || 'Vacuum'))}</div>
         ${data.vacState !== undefined ? `<div class="status-badge" style="background:${status.color}20;color:${status.color};border:1px solid ${status.color}40">${status.icon} ${status.label}</div>` : ''}
       </div>` : '';
 

@@ -75,3 +75,7 @@ audit-gemma/ha-tools-*.md
 audit-gemma/monitor*
 audit-gemma/audit-pass*
 audit-gemma/*.log
+
+# macOS
+.DS_Store
+**/.DS_Store

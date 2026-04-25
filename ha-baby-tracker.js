@@ -1273,7 +1273,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         <div id="children-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           ${this.babies.map((b, i) => `
             <div style="display:flex;align-items:center;gap:8px">
-              <input type="text" value="${b.name}" data-child-idx="${i}" class="child-name-input" 
+              <input type="text" value="${_esc(b.name)}" data-child-idx="${i}" class="child-name-input"
                 style="flex:1;padding:8px 12px;border:1.5px solid var(--bento-border,#e2e8f0);border-radius:6px;font-size:13px;font-family:Inter,sans-serif;background:var(--bento-card,#fff);color:var(--bento-text,#333)">
               ${this.babies.length > 1 ? `<button onclick="this.getRootNode().host._removeChild(${i})" style="padding:6px 10px;border:1px solid var(--bento-border);border-radius:6px;background:none;cursor:pointer;color:var(--bento-text-secondary);font-size:14px" title="${this._t.remove}">🗑</button>` : ''}
             </div>
@@ -2455,6 +2455,12 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
   }
 
   exportData() {
+    // Privacy: warn before exporting sensitive child tracking data.
+    const PL = this._lang === 'pl';
+    const warn = PL
+      ? 'Eksportowany plik zawiera wrażliwe dane: imiona dzieci, godziny i ilości karmień, sen, pieluszki, wzrost/waga.\n\nNie wysyłaj go publicznie ani do zewnętrznych usług bez świadomej zgody.\n\nKontynuować?'
+      : 'The exported file contains sensitive data: child names, feeding times and amounts, sleep, diapers, growth/weight.\n\nDo not share it publicly or with third-party services without informed consent.\n\nContinue?';
+    if (!confirm(warn)) return;
     const allData = {
       exportDate: new Date().toISOString(),
       babies: this.babies.map(b => b.name),

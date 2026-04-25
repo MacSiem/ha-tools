@@ -467,6 +467,16 @@ ha-tools-loader.js
 
 ## Changelog
 
+### v3.10.0
+- **SECURITY**: `customElements.define` guards on stack/discovery (no more `QuotaExceededError` on double-load); discovery banner validates GitHub `repo` strings; XSS hardening across baby/chore/vacuum/network-map (consistent `_haToolsEsc` usage)
+- **PRIVACY**: All external CDN removed — Chart.js v4 bundled locally to `vendor/`, Google Fonts `<link>` dropped (system font fallback when Inter is not installed). Network-map auto-scan disabled by default — user must explicitly click "Scan All". Export confirmations added to baby-tracker and data-exporter
+- **REPO**: Deleted legacy `bak_20260402_193824/`, `ha-tools-loader-v3.js`, `ha-entity-renamer-temp.js`. Moved `check_unguarded.js` to `scripts/`
+
+### v3.9.0
+- **FIX**: Frigate Privacy stability (Coral TPU race conditions resolved)
+- **FIX**: XSS protection across 8 tools via shared `window._haToolsEsc`
+- **FIX**: Memory leaks in trace-viewer and baby-tracker `disconnectedCallback()`
+
 ### v3.7.6
 - **NEW**: Deep linking with `#tool-id/tab-name` URL hash navigation
 - **NEW**: Network Map rewrite — browser-based network scan, SVG topology visualization, subnet management, entity binding

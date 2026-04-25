@@ -124,7 +124,9 @@ class HaNetworkMap extends HTMLElement {
       this._loadBindings();
       this._loadCachedScanResults();
       this._loadDeviceRegistry().then(() => {
-        this._startAutoScan();
+        // Privacy: auto-scan disabled — initialize subnets only.
+        // Network scan (1016+ port requests) requires explicit user action via "Scan All" button.
+        this._initSubnetsOnly();
         this._doRender();
       });
       return;
@@ -223,11 +225,16 @@ class HaNetworkMap extends HTMLElement {
     return '192.168.1';
   }
 
-  async _startAutoScan() {
+  _initSubnetsOnly() {
     if (this._subnets.length === 0) {
       this._subnets = [this._detectDefaultSubnet()];
       this._saveSubnets();
     }
+  }
+
+  async _startAutoScan() {
+    // Retained for backward compat; now only used when explicitly invoked.
+    this._initSubnetsOnly();
     await this._scanAllSubnets();
   }
 
@@ -528,13 +535,13 @@ class HaNetworkMap extends HTMLElement {
     let rows = '';
     items.forEach((d, i) => {
       const dot = d.reachable === true ? '<span style="color:#10B981">\u25CF</span>' : d.reachable === false ? '<span style="color:#EF4444">\u25CF</span>' : '<span style="color:#94A3B8">\u2014</span>';
-      rows += '<tr data-i="' + i + '"><td><span class="di">' + d.icon + '</span><span class="dn">' + d.name + '</span></td>' +
-        '<td>' + d.category + '</td>' +
-        '<td class="mn">' + (d.ip || '—') + '</td>' +
-        '<td class="mn">' + (d.mac || '—') + '</td>' +
-        '<td>' + (d.manufacturer || '—') + '</td>' +
+      rows += '<tr data-i="' + i + '"><td><span class="di">' + _esc(d.icon) + '</span><span class="dn">' + _esc(d.name) + '</span></td>' +
+        '<td>' + _esc(d.category) + '</td>' +
+        '<td class="mn">' + _esc(d.ip || '—') + '</td>' +
+        '<td class="mn">' + _esc(d.mac || '—') + '</td>' +
+        '<td>' + _esc(d.manufacturer || '—') + '</td>' +
         '<td style="text-align:center">' + dot + '</td>' +
-        '<td><small>' + (d.binding ? d.binding : '—') + '</small></td>' +
+        '<td><small>' + _esc(d.binding ? d.binding : '—') + '</small></td>' +
         '</tr>';
     });
 
@@ -559,17 +566,17 @@ class HaNetworkMap extends HTMLElement {
 
   _renderDeviceDetail(d) {
     let rows = [
-      [this._t('deviceName'), d.icon + ' ' + d.name],
-      [this._t('category'), d.category],
+      [this._t('deviceName'), _esc(d.icon) + ' ' + _esc(d.name)],
+      [this._t('category'), _esc(d.category)],
       [this._t('status'), d.reachable ? this._t('reachableStatus') : this._t('unreachableStatus')],
-      [this._t('ipAddress'), d.ip || '—'],
-      [this._t('macAddress'), d.mac || '—']
+      [this._t('ipAddress'), _esc(d.ip || '—')],
+      [this._t('macAddress'), _esc(d.mac || '—')]
     ];
-    if (d.manufacturer) rows.push([this._t('manufacturer'), d.manufacturer + (d.model ? ' ' + d.model : '')]);
-    if (d.entity_id) rows.push(['Entity', d.entity_id]);
+    if (d.manufacturer) rows.push([this._t('manufacturer'), _esc(d.manufacturer + (d.model ? ' ' + d.model : ''))]);
+    if (d.entity_id) rows.push(['Entity', _esc(d.entity_id)]);
 
     const rh = rows.map(r => '<div class="dr"><span class="dl">' + r[0] + '</span><span class="dv">' + r[1] + '</span></div>').join('');
-    const bindHtml = d.reachable ? '<button class="rb" id="bindBtn" data-ip="' + (d.ip || d.name) + '">🔗 ' + this._t('bind') + '</button>' : '';
+    const bindHtml = d.reachable ? '<button class="rb" id="bindBtn" data-ip="' + _esc(d.ip || d.name) + '">🔗 ' + this._t('bind') + '</button>' : '';
 
     return '<div class="dd" id="dD"><button class="dc" id="cD">✕ ' + this._t('close') + '</button><div style="clear:both"></div>' +
       rh + '<div style="margin-top:12px">' + bindHtml + '</div></div>';
@@ -613,7 +620,7 @@ class HaNetworkMap extends HTMLElement {
       const color = n.reachable ? '#10B981' : '#94A3B8';
       svg += '<circle cx="' + n.x + '" cy="' + n.y + '" r="24" fill="' + color + '" opacity="0.2" stroke="' + color + '" stroke-width="2"/>' +
         '<text x="' + n.x + '" y="' + (n.y + 28) + '" text-anchor="middle" font-size="11" fill="var(--bento-text)" font-family="Inter,sans-serif">' +
-        n.name.substring(0, 10) + '</text>';
+        _esc(String(n.name || '').substring(0, 10)) + '</text>';
     });
 
     svg += '</svg>';

@@ -1374,7 +1374,6 @@ class HASentenceManager extends HTMLElement {
 
   getStyles() {
     return `
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
       <style>${window.HAToolsBentoCSS || ""}
 
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */

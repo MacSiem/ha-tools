@@ -1306,6 +1306,15 @@ canvas {
       data = entities;
     }
 
+    // Privacy: warn before exporting full state/attributes (entity names, locations,
+    // sensor values, optional attributes can contain sensitive data).
+    const PL = (this._lang === 'pl') || (this._hass?.language || '').startsWith('pl');
+    const includeAttrs = !!this._includeAttrsInExport;
+    const warn = PL
+      ? `Eksportowany plik (${format.toUpperCase()}) będzie zawierał ${data.length} encji wraz ze stanami${includeAttrs ? ' i atrybutami (mogą zawierać wrażliwe dane)' : ''}.\n\nNie wysyłaj go publicznie ani do zewnętrznych usług bez świadomej zgody.\n\nKontynuować?`
+      : `The export (${format.toUpperCase()}) will contain ${data.length} entities with states${includeAttrs ? ' and attributes (may contain sensitive data)' : ''}.\n\nDo not share publicly or with third-party services without informed consent.\n\nContinue?`;
+    if (!confirm(warn)) return;
+
     const exportData = data.map(e => {
       const row = {
         entity_id: e.entity_id,

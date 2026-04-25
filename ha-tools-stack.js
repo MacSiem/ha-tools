@@ -76,5 +76,6 @@ class HAToolsStack extends HTMLElement {
   }
 }
 
-customElements.define('ha-tools-stack', HAToolsStack);
-console.log('ha-tools-stack custom element registered');
+if (!customElements.get('ha-tools-stack')) {
+  customElements.define('ha-tools-stack', HAToolsStack);
+}
